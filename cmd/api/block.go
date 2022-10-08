@@ -66,6 +66,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 	}
 
 	weight := b.Difficulty
+	b.Uncles = make([]any, 0)
 
 	if uncle, ok := block.(*database.UncleBlock); ok {
 		b.Parent = &database.JSONBlockParent{

@@ -60,7 +60,7 @@ type sharesInWindowResult struct {
 	Id        types.Hash                  `json:"id"`
 	Height    uint64                      `json:"height"`
 	Timestamp uint64                      `json:"timestamp"`
-	Weight    types.Difficulty            `json:"weight"`
+	Weight    uint64                      `json:"weight"`
 	Uncles    []sharesInWindowResultUncle `json:"uncles,omitempty"`
 }
 
@@ -70,7 +70,7 @@ type sharesInWindowResultParent struct {
 }
 
 type sharesInWindowResultUncle struct {
-	Id     types.Hash       `json:"id"`
-	Height uint64           `json:"height"`
-	Weight types.Difficulty `json:"weight"`
+	Id     types.Hash `json:"id"`
+	Height uint64     `json:"height"`
+	Weight uint64     `json:"weight"`
 }

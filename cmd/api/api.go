@@ -283,7 +283,7 @@ func main() {
 				Id:        block.Id,
 				Height:    block.Height,
 				Timestamp: block.Timestamp,
-				Weight:    block.Difficulty,
+				Weight:    block.Difficulty.Lo,
 			}
 
 			for u := range api.GetDatabase().GetUnclesByParentId(block.Id) {
@@ -291,9 +291,9 @@ func main() {
 				s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
 					Id:     u.Block.Id,
 					Height: u.Block.Height,
-					Weight: types.Difficulty{Uint128: uncleWeight},
+					Weight: uncleWeight.Lo,
 				})
-				s.Weight.Uint128 = s.Weight.Add(uncleWeight)
+				s.Weight += uncleWeight.Lo
 			}
 
 			result = append(result, s)
@@ -308,7 +308,7 @@ func main() {
 				Id:        uncle.Block.Id,
 				Height:    uncle.Block.Height,
 				Timestamp: uncle.Block.Timestamp,
-				Weight:    types.Difficulty{Uint128: uncle.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100)},
+				Weight:    uncle.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
 			}
 			result = append(result, s)
 		}

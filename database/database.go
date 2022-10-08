@@ -730,7 +730,7 @@ type Payout struct {
 		Height uint64     `json:"height"`
 	} `json:"main"`
 	Timestamp uint64 `json:"timestamp"`
-	Uncle     bool   `json:"uncle"`
+	Uncle     bool   `json:"uncle,omitempty"`
 	Coinbase  struct {
 		Id         types.Hash `json:"id"`
 		Reward     uint64     `json:"reward"`

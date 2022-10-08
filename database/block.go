@@ -96,12 +96,12 @@ type Block struct {
 	//Lock extra JSON field, do not use
 	Lock sync.Mutex `json:"-"`
 
-	//Weight extra JSON field, do not use
-	Weight uint64 `json:"weight"`
 	//Parent extra JSON field, do not use
 	Parent *JSONBlockParent `json:"parent,omitempty"`
 	//Uncles extra JSON field, do not use
-	Uncles []any `json:"uncles,omitempty"`
+	Uncles []any `json:"uncles"`
+	//Weight extra JSON field, do not use
+	Weight uint64 `json:"weight"`
 
 	//Orphan extra JSON field, do not use
 	Orphan bool `json:"orphan,omitempty"`
