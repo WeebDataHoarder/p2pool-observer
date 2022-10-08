@@ -1,0 +1,785 @@
+package main
+
+import (
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"github.com/ake-persson/mapslice-json"
+	"github.com/gorilla/mux"
+	"log"
+	"lukechampine.com/uint128"
+	"math"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func encodeJson(r *http.Request, d any) ([]byte, error) {
+	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
+		return json.MarshalIndent(d, "", "    ")
+	} else {
+		return json.Marshal(d)
+	}
+}
+
+func main() {
+	client.SetClientSettings(os.Getenv("MONEROD_RPC_URL"))
+	db, err := database.NewDatabase(os.Args[1])
+	if err != nil {
+		log.Panic(err)
+	}
+	defer db.Close()
+	api, err := api.New(db, os.Getenv("API_FOLDER"))
+	if err != nil {
+		log.Panic(err)
+	}
+
+	serveMux := mux.NewRouter()
+	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
+		tip := api.GetDatabase().GetChainTip()
+
+		blockCount := 0
+		uncleCount := 0
+
+		var windowDifficulty uint128.Uint128
+
+		miners := make(map[uint64]uint64)
+
+		for b := range api.GetDatabase().GetBlocksInWindow(&tip.Height, 0) {
+			blockCount++
+
+			if _, ok := miners[b.MinerId]; !ok {
+				miners[b.MinerId] = 0
+			}
+			miners[b.MinerId]++
+
+			windowDifficulty = windowDifficulty.Add(b.Difficulty.Uint128)
+
+			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
+				//TODO: check this check is correct :)
+				if (tip.Height - u.Block.Height) > p2pool.PPLNSWindow {
+					continue
+				}
+
+				uncleCount++
+				if _, ok := miners[u.Block.MinerId]; !ok {
+					miners[u.Block.MinerId] = 0
+				}
+				miners[u.Block.MinerId]++
+
+				windowDifficulty = windowDifficulty.Add(u.Block.Difficulty.Uint128)
+			}
+		}
+
+		type totalKnownResult struct {
+			blocksFound uint64
+			minersKnown uint64
+		}
+
+		totalKnown := cacheResult(CacheTotalKnownBlocksAndMiners, time.Second*15, func() any {
+			result := &totalKnownResult{}
+			if err := api.GetDatabase().Query("SELECT (SELECT COUNT(*) FROM blocks WHERE main_found = 'y') + (SELECT COUNT(*) FROM uncles WHERE main_found = 'y') as found, COUNT(*) as miners FROM (SELECT miner FROM blocks GROUP BY miner UNION DISTINCT SELECT miner FROM uncles GROUP BY miner) all_known_miners;", func(row database.RowScanInterface) error {
+				return row.Scan(&result.blocksFound, &result.minersKnown)
+			}); err != nil {
+				return nil
+			}
+
+			return result
+		}).(*totalKnownResult)
+
+		poolBlocks, _ := api.GetPoolBlocks()
+
+		poolStats, _ := api.GetPoolStats()
+
+		globalDiff := tip.Template.Difficulty
+
+		currentEffort := float64(uint128.From64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff.Uint128).Lo) / 1000
+
+		if currentEffort <= 0 {
+			currentEffort = 0
+		}
+
+		var blockEfforts mapslice.MapSlice
+		for i, b := range poolBlocks {
+			if i < (len(poolBlocks)-1) && b.TotalHashes > 0 {
+				blockEfforts = append(blockEfforts, mapslice.MapItem{
+					Key:   b.Hash.String(),
+					Value: float64((b.TotalHashes-poolBlocks[i+1].TotalHashes)*100) / float64(b.Difficulty),
+				})
+			}
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		if buf, err := encodeJson(request, poolInfoResult{
+			SideChain: poolInfoResultSideChain{
+				Id:         tip.Id,
+				Height:     tip.Height,
+				Difficulty: tip.Difficulty,
+				Timestamp:  tip.Timestamp,
+				Effort: poolInfoResultSideChainEffort{
+					Current: currentEffort,
+					Average: func() (result float64) {
+						for _, e := range blockEfforts {
+							result += e.Value.(float64)
+						}
+						return
+					}() / float64(len(blockEfforts)),
+					Last: blockEfforts,
+				},
+				Window: poolInfoResultSideChainWindow{
+					Miners: len(miners),
+					Blocks: blockCount,
+					Uncles: uncleCount,
+					Weight: types.Difficulty{Uint128: windowDifficulty},
+				},
+				WindowSize:   p2pool.PPLNSWindow,
+				BlockTime:    p2pool.BlockTime,
+				UnclePenalty: p2pool.UnclePenalty,
+				Found:        totalKnown.blocksFound,
+				Miners:       totalKnown.minersKnown,
+			},
+			MainChain: poolInfoResultMainChain{
+				Id:         tip.Template.Id,
+				Height:     tip.Main.Height,
+				Difficulty: tip.Template.Difficulty,
+				BlockTime:  monero.BlockTime,
+			},
+		}); err != nil {
+			log.Panic(err)
+		} else {
+			_, _ = writer.Write(buf)
+		}
+
+	})
+
+	serveMux.HandleFunc("/api/miner_info/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		var miner *database.Miner
+		if len(minerId) > 10 && minerId[0] == '4' {
+			miner = api.GetDatabase().GetMinerByAddress(minerId)
+		}
+
+		if miner == nil {
+			if i, err := strconv.Atoi(minerId); err == nil {
+				miner = api.GetDatabase().GetMiner(uint64(i))
+			}
+		}
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		var blockData struct {
+			Count      uint64
+			LastHeight uint64
+		}
+		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, MAX(height) as last_height FROM blocks WHERE blocks.miner = $1;", func(row database.RowScanInterface) error {
+			return row.Scan(&blockData.Count, &blockData.LastHeight)
+		}, miner.Id())
+		var uncleData struct {
+			Count      uint64
+			LastHeight uint64
+		}
+		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, MAX(parent_height) as last_height FROM uncles WHERE uncles.miner = $1;", func(row database.RowScanInterface) error {
+			return row.Scan(&uncleData.Count, &uncleData.LastHeight)
+		}, miner.Id())
+
+		var lastShareHeight uint64
+		var lastShareTimestamp uint64
+		if blockData.Count > 0 && blockData.LastHeight > lastShareHeight {
+			lastShareHeight = blockData.LastHeight
+		}
+		if uncleData.Count > 0 && uncleData.LastHeight > lastShareHeight {
+			lastShareHeight = uncleData.LastHeight
+		}
+
+		if lastShareHeight > 0 {
+			lastShareTimestamp = api.GetDatabase().GetBlockByHeight(lastShareHeight).Timestamp
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, minerInfoResult{
+			Id:      miner.Id(),
+			Address: miner.MoneroAddress(),
+			Shares: struct {
+				Blocks uint64 `json:"blocks"`
+				Uncles uint64 `json:"uncles"`
+			}{Blocks: blockData.Count, Uncles: uncleData.Count},
+			LastShareHeight:    lastShareHeight,
+			LastShareTimestamp: lastShareTimestamp,
+		})
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/shares_in_window/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		var miner *database.Miner
+		if len(minerId) > 10 && minerId[0] == '4' {
+			miner = api.GetDatabase().GetMinerByAddress(minerId)
+		}
+
+		if miner == nil {
+			if i, err := strconv.Atoi(minerId); err == nil {
+				miner = api.GetDatabase().GetMiner(uint64(i))
+			}
+		}
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		window := uint64(p2pool.PPLNSWindow)
+		if params.Has("window") {
+			if i, err := strconv.Atoi(params.Get("window")); err == nil {
+				if i <= p2pool.PPLNSWindow*4 {
+					window = uint64(i)
+				}
+			}
+		}
+
+		var from *uint64
+		if params.Has("from") {
+			if i, err := strconv.Atoi(params.Get("from")); err == nil {
+				if i >= 0 {
+					i := uint64(i)
+					from = &i
+				}
+			}
+		}
+
+		result := make([]*sharesInWindowResult, 0)
+
+		for block := range api.GetDatabase().GetBlocksByMinerIdInWindow(miner.Id(), from, window) {
+			s := &sharesInWindowResult{
+				Id:        block.Id,
+				Height:    block.Height,
+				Timestamp: block.Timestamp,
+				Weight:    block.Difficulty,
+			}
+
+			for u := range api.GetDatabase().GetUnclesByParentId(block.Id) {
+				uncleWeight := u.Block.Difficulty.Mul64(p2pool.UnclePenalty).Div64(100)
+				s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
+					Id:     u.Block.Id,
+					Height: u.Block.Height,
+					Weight: types.Difficulty{Uint128: uncleWeight},
+				})
+				s.Weight.Uint128 = s.Weight.Add(uncleWeight)
+			}
+
+			result = append(result, s)
+		}
+
+		for uncle := range api.GetDatabase().GetUnclesByMinerIdInWindow(miner.Id(), from, window) {
+			s := &sharesInWindowResult{
+				Parent: &sharesInWindowResultParent{
+					Id:     uncle.ParentId,
+					Height: uncle.ParentHeight,
+				},
+				Id:        uncle.Block.Id,
+				Height:    uncle.Block.Height,
+				Timestamp: uncle.Block.Timestamp,
+				Weight:    types.Difficulty{Uint128: uncle.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100)},
+			}
+			result = append(result, s)
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/payouts/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		var miner *database.Miner
+		if len(minerId) > 10 && minerId[0] == '4' {
+			miner = api.GetDatabase().GetMinerByAddress(minerId)
+		}
+
+		if miner == nil {
+			if i, err := strconv.Atoi(minerId); err == nil {
+				miner = api.GetDatabase().GetMiner(uint64(i))
+			}
+		}
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		var limit uint64 = 10
+
+		if params.Has("search_limit") {
+			if i, err := strconv.Atoi(params.Get("search_limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		payouts := make([]*database.Payout, 0)
+
+		for payout := range api.GetDatabase().GetPayoutsByMinerId(miner.Id(), limit) {
+			payouts = append(payouts, payout)
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, payouts)
+		_, _ = writer.Write(buf)
+
+	})
+
+	serveMux.HandleFunc("/api/redirect/block/{main_height:^[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+	})
+	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:^.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/tx/%s", utils.DecodeHexBinaryNumber(mux.Vars(request)["tx_id"])), http.StatusFound)
+	})
+	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		c := api.GetDatabase().GetBlocksByQuery("WHERE height = $1 AND main_found IS TRUE", utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
+		defer func() {
+			for range c {
+
+			}
+		}()
+		b := <-c
+		if b == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+	})
+	serveMux.HandleFunc("/api/redirect/share/{height:^[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		c := utils.DecodeBinaryNumber(mux.Vars(request)["height"])
+
+		blockHeight := c >> 16
+		blockIdStart := c & 0xFFFF
+
+		var b database.BlockInterface
+		var b1 = <-api.GetDatabase().GetBlocksByQuery("WHERE height = $1 AND id ILIKE $2 LIMIT 1;", blockHeight, hex.EncodeToString([]byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)})+"%")
+		if b1 == nil {
+			b2 := <-api.GetDatabase().GetUncleBlocksByQuery("WHERE height = $1 AND id ILIKE $2 LIMIT 1;", blockHeight, hex.EncodeToString([]byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)})+"%")
+			if b2 != nil {
+				b = b2
+			}
+		} else {
+			b = b1
+		}
+
+		if b == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		http.Redirect(writer, request, fmt.Sprintf("/share/%s", b.GetBlock().Id.String()), http.StatusFound)
+	})
+
+	serveMux.HandleFunc("/api/redirect/prove/{height_index:[0-9]+|.[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
+		i := utils.DecodeBinaryNumber(mux.Vars(request)["height_index"])
+		n := uint64(math.Ceil(math.Log2(p2pool.PPLNSWindow * 4)))
+
+		height := i >> n
+		index := i & ((1 << n) - 1)
+
+		b := api.GetDatabase().GetBlockByHeight(height)
+		var tx *database.CoinbaseTransactionOutput
+		if b != nil {
+			tx = api.GetDatabase().GetCoinbaseTransactionOutputByIndex(b.Coinbase.Id, index)
+		}
+
+		if b == nil || tx == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		miner := api.GetDatabase().GetMiner(tx.Miner())
+
+		http.Redirect(writer, request, fmt.Sprintf("https://www.exploremonero.com/receipt/%s/%s/%s", b.Coinbase.Id.String(), miner.Address(), b.Coinbase.PrivateKey), http.StatusFound)
+	})
+
+	serveMux.HandleFunc("/api/redirect/miner/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
+		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", miner.Address()), http.StatusFound)
+	})
+
+	serveMux.HandleFunc("/api/redirect/prove/{height:[0-9]+|.[0-9A-Za-z]+}/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
+		b := api.GetDatabase().GetBlockByHeight(utils.DecodeBinaryNumber(mux.Vars(request)["height"]))
+		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
+		if b == nil || miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		http.Redirect(writer, request, fmt.Sprintf("https://www.exploremonero.com/receipt/%s/%s/%s", b.Coinbase.Id.String(), miner.Address(), b.Coinbase.PrivateKey), http.StatusFound)
+	})
+
+	//other redirects
+	serveMux.HandleFunc("/api/redirect/last_found{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", api.GetDatabase().GetLastFound().GetBlock().Id.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+	})
+	serveMux.HandleFunc("/api/redirect/tip{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", api.GetDatabase().GetChainTip().Id.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+	})
+
+	serveMux.HandleFunc("/api/found_blocks", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var limit uint64 = 50
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		if limit > 100 {
+			limit = 100
+		}
+
+		if limit == 0 {
+			limit = 50
+		}
+
+		result := make([]*database.Block, 0, limit)
+
+		for block := range api.GetDatabase().GetAllFound(limit) {
+			MapJSONBlock(api, block, false, params.Has("coinbase"))
+			result = append(result, block.GetBlock())
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/shares", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var limit uint64 = 50
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		if limit > p2pool.PPLNSWindow {
+			limit = p2pool.PPLNSWindow
+		}
+		if limit == 0 {
+			limit = 50
+		}
+
+		onlyBlocks := params.Has("onlyBlocks")
+
+		var minerId uint64
+
+		if params.Has("miner") {
+			id := params.Get("miner")
+			var miner *database.Miner
+
+			if len(id) > 10 && id[0] == '4' {
+				miner = api.GetDatabase().GetMinerByAddress(id)
+			}
+
+			if miner == nil {
+				if i, err := strconv.Atoi(id); err == nil {
+					miner = api.GetDatabase().GetMiner(uint64(i))
+				}
+			}
+
+			if miner == nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			minerId = miner.Id()
+		}
+
+		result := make([]*database.Block, 0, limit)
+
+		for b := range api.GetDatabase().GetShares(limit, minerId, onlyBlocks) {
+			MapJSONBlock(api, b, true, params.Has("coinbase"))
+			result = append(result, b.GetBlock())
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var block database.BlockInterface
+		if mux.Vars(request)["by"] == "id" {
+			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
+				if b := api.GetDatabase().GetBlockById(id); b != nil {
+					block = b
+				}
+			}
+		} else if mux.Vars(request)["by"] == "height" {
+			if height, err := strconv.ParseUint(mux.Vars(request)["block"], 10, 0); err == nil {
+				if b := api.GetDatabase().GetBlockByHeight(height); b != nil {
+					block = b
+				}
+			}
+		}
+
+		isOrphan := false
+		isInvalid := false
+
+		if block == nil && mux.Vars(request)["by"] == "id" {
+			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
+				if b := api.GetDatabase().GetUncleById(id); b != nil {
+					block = b
+				} else {
+					isOrphan = true
+
+					if b, _, _ := api.GetShareFromRawEntry(id, false); b != nil {
+						block = b
+					} else {
+						isInvalid = true
+						if b, _ = api.GetShareFromFailedRawEntry(id); b != nil {
+							block = b
+						}
+					}
+				}
+			}
+		}
+
+		if block == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		switch mux.Vars(request)["kind"] {
+		case "/raw":
+			raw, _ := api.GetRawBlockBytes(block.GetBlock().Id)
+
+			if raw == nil {
+				raw, _ = api.GetFailedRawBlockBytes(block.GetBlock().Id)
+			}
+
+			if raw == nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			writer.Header().Set("Content-Type", "text/plain")
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(raw)
+		default:
+			MapJSONBlock(api, block, true, params.Has("coinbase"))
+
+			func() {
+				block.GetBlock().Lock.Lock()
+				defer block.GetBlock().Lock.Unlock()
+				block.GetBlock().Orphan = isOrphan
+				if isInvalid {
+					block.GetBlock().Invalid = &isInvalid
+				}
+			}()
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := encodeJson(request, block.GetBlock())
+			_, _ = writer.Write(buf)
+		}
+	})
+
+	type difficultyStatResult struct {
+		Height     uint64 `json:"height"`
+		Timestamp  uint64 `json:"timestamp"`
+		Difficulty uint64 `json:"difficulty"`
+	}
+
+	type minerSeenResult struct {
+		Height    uint64 `json:"height"`
+		Timestamp uint64 `json:"timestamp"`
+		Miners    uint64 `json:"miners"`
+	}
+
+	serveMux.HandleFunc("/api/stats/{kind:difficulty|miner_seen|miner_seen_window$}", func(writer http.ResponseWriter, request *http.Request) {
+		switch mux.Vars(request)["kind"] {
+		case "difficulty":
+			result := make([]*difficultyStatResult, 0)
+
+			_ = api.GetDatabase().Query("SELECT height,timestamp,difficulty FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+				r := &difficultyStatResult{}
+
+				var difficultyHex string
+				if err := row.Scan(&r.Height, &r.Timestamp, &difficultyHex); err != nil {
+					return err
+				}
+				d, _ := types.DifficultyFromString(difficultyHex)
+				r.Difficulty = d.Lo
+
+				result = append(result, r)
+				return nil
+			}, 3600/p2pool.BlockTime)
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := encodeJson(request, result)
+			_, _ = writer.Write(buf)
+
+		case "miner_seen":
+			result := make([]*minerSeenResult, 0)
+
+			_ = api.GetDatabase().Query("SELECT height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM blocks b WHERE b.height <= blocks.height AND b.height > (blocks.height - $2)) as count FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+				r := &minerSeenResult{}
+
+				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
+					return err
+				}
+
+				result = append(result, r)
+				return nil
+			}, (3600*24)/p2pool.BlockTime, (3600*24*7)/p2pool.BlockTime)
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := encodeJson(request, result)
+			_, _ = writer.Write(buf)
+
+		case "miner_seen_window":
+			result := make([]*minerSeenResult, 0)
+
+			_ = api.GetDatabase().Query("SELECT height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM blocks b WHERE b.height <= blocks.height AND b.height > (blocks.height - $2)) as count FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+				r := &minerSeenResult{}
+
+				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
+					return err
+				}
+
+				result = append(result, r)
+				return nil
+			}, p2pool.PPLNSWindow, p2pool.PPLNSWindow)
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := encodeJson(request, result)
+			_, _ = writer.Write(buf)
+		}
+	})
+
+	server := &http.Server{
+		Addr:        "0.0.0.0:8080",
+		ReadTimeout: time.Second * 2,
+		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.Method != "GET" && request.Method != "HEAD" {
+				writer.WriteHeader(http.StatusForbidden)
+				return
+			}
+
+			serveMux.ServeHTTP(writer, request)
+		}),
+	}
+
+	if err := server.ListenAndServe(); err != nil {
+		log.Panic(err)
+	}
+}

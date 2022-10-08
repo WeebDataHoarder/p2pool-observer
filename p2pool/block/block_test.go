@@ -1,0 +1,64 @@
+package block
+
+import (
+	"encoding/hex"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"io"
+	"log"
+	"os"
+	"testing"
+)
+
+func TestBlockDecode(t *testing.T) {
+	f, err := os.Open("testdata/1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d.hex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	buf, err := io.ReadAll(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contents, err := hex.DecodeString(string(buf))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block, err := NewBlockFromBytes(contents)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if hex.EncodeToString(block.Extra.MainId[:]) != "05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69" {
+		t.Fatalf("expected main id 05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69, got %s", hex.EncodeToString(block.Extra.MainId[:]))
+	}
+	if hex.EncodeToString(block.Main.CoinbaseExtra.SideId[:]) != "1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d" {
+		t.Fatalf("expected side id 1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d, got %s", hex.EncodeToString(block.Main.CoinbaseExtra.SideId[:]))
+	}
+
+	txId := block.Main.Coinbase.Id()
+
+	if hex.EncodeToString(txId[:]) != "41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60" {
+		t.Fatalf("expected coinbase id 41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60, got %s", hex.EncodeToString(txId[:]))
+	}
+
+	proofResult, _ := types.DifficultyFromString("00000000000000000000006ef6334490")
+
+	if block.GetProofDifficulty().Cmp(proofResult.Uint128) != 0 {
+		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), block.GetProofDifficulty().String())
+	}
+
+	if !block.IsProofHigherThanDifficulty() {
+		t.Fatal("expected proof higher than difficulty")
+	}
+
+	block.Extra.PowHash[31] = 1
+
+	if block.IsProofHigherThanDifficulty() {
+		t.Fatal("expected proof lower than difficulty")
+	}
+
+	log.Print(block.GetProofDifficulty().String())
+	log.Print(block.Extra.MainDifficulty.String())
+}
