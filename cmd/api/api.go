@@ -162,7 +162,7 @@ func main() {
 
 	})
 
-	serveMux.HandleFunc("/api/miner_info/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/miner_info/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *database.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
@@ -230,7 +230,7 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/shares_in_window/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/shares_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *database.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
@@ -319,7 +319,7 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/payouts/{miner:^[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *database.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
@@ -367,10 +367,10 @@ func main() {
 
 	})
 
-	serveMux.HandleFunc("/api/redirect/block/{main_height:^[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/redirect/block/{main_height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
 	})
-	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:^.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
 		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/tx/%s", utils.DecodeHexBinaryNumber(mux.Vars(request)["tx_id"])), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -394,7 +394,7 @@ func main() {
 		}
 		http.Redirect(writer, request, fmt.Sprintf("https://xmrchain.net/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
 	})
-	serveMux.HandleFunc("/api/redirect/share/{height:^[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/redirect/share/{height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		c := utils.DecodeBinaryNumber(mux.Vars(request)["height"])
 
 		blockHeight := c >> 16

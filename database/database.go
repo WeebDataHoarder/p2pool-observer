@@ -427,7 +427,7 @@ func (db *Database) GetUnclesByMinerIdInWindow(minerId uint64, startHeight *uint
 	if startHeight == nil {
 		return db.GetUncleBlocksByQuery("WHERE parent_height > ((SELECT MAX(height) FROM blocks) - $2) AND parent_height <= ((SELECT MAX(height) FROM blocks)) AND height > ((SELECT MAX(height) FROM blocks) - $2) AND height <= ((SELECT MAX(height) FROM blocks)) AND miner = $1 ORDER BY height DESC", minerId, windowSize)
 	} else {
-		return db.GetUncleBlocksByQuery("WHERE parent_height > ($3 - $2) AND parent_height <= ($3) AND height > ($2) AND height <= ($3) AND miner = $1 ORDER BY height DESC", minerId, *startHeight-windowSize, *startHeight)
+		return db.GetUncleBlocksByQuery("WHERE parent_height > ($2) AND parent_height <= ($3) AND height > ($2) AND height <= ($3) AND miner = $1 ORDER BY height DESC", minerId, *startHeight-windowSize, *startHeight)
 	}
 }
 

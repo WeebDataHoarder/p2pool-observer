@@ -37,7 +37,7 @@ func EncodeBinaryNumber(n uint64) string {
 }
 
 func DecodeHexBinaryNumber(i string) string {
-	if _, err := hex.DecodeString(i); strings.Index(i, ".") == -1 && err != nil {
+	if _, err := hex.DecodeString(i); strings.Index(i, ".") == -1 && err == nil {
 		return i
 	}
 
@@ -50,7 +50,7 @@ func DecodeHexBinaryNumber(i string) string {
 
 func EncodeHexBinaryNumber(v2 string) string {
 	b, _ := hex.DecodeString(v2)
-	v1 := string(encoding.Encode(b))
+	v1 := encoding.EncodeToString(b)
 
 	if !strings.ContainsAny(v1, "GHIJKLMNOPQRSTUVWXYZghijklmnopqrstuvwxyz") {
 		v1 = "." + v1
@@ -61,4 +61,12 @@ func EncodeHexBinaryNumber(v2 string) string {
 	}
 
 	return v1
+}
+
+func ReverseSlice[S ~[]E, E any](s S) S {
+	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+		s[i], s[j] = s[j], s[i]
+	}
+
+	return s
 }
