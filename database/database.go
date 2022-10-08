@@ -504,9 +504,9 @@ func (db *Database) GetShares(limit uint64, minerId uint64, onlyBlocks bool) cha
 
 	if limit == 0 {
 		if minerId != 0 {
-			blocks = db.GetBlocksByQuery("WHERE miner = $1 ORDER BY height DESC;", limit, minerId)
+			blocks = db.GetBlocksByQuery("WHERE miner = $1 ORDER BY height DESC;", minerId)
 			if !onlyBlocks {
-				uncles = db.GetUncleBlocksByQuery("WHERE miner = $1ORDER BY height DESC, timestamp DESC;", minerId)
+				uncles = db.GetUncleBlocksByQuery("WHERE miner = $1 ORDER BY height DESC, timestamp DESC;", minerId)
 			}
 		} else {
 			blocks = db.GetBlocksByQuery("ORDER BY height DESC;")
@@ -530,17 +530,23 @@ func (db *Database) GetShares(limit uint64, minerId uint64, onlyBlocks bool) cha
 
 	result := make(chan BlockInterface)
 	go func() {
-		defer close(result)
 		defer func() {
+			if blocks == nil {
+				return
+			}
 			for range blocks {
 
 			}
 		}()
 		defer func() {
+			if uncles == nil {
+				return
+			}
 			for range uncles {
 
 			}
 		}()
+		defer close(result)
 
 		var i uint64
 
