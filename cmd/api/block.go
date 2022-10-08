@@ -25,13 +25,13 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 		}
 
 		if b.Main.Found && tx != nil {
-			b.Coinbase.Payouts = make([]*database.JSONCoinbaseOutput, 0, len(tx.Outputs()))
+			b.Coinbase.Payouts = make([]*database.JSONCoinbaseOutput, len(tx.Outputs()))
 			for _, output := range tx.Outputs() {
-				b.Coinbase.Payouts = append(b.Coinbase.Payouts, &database.JSONCoinbaseOutput{
+				b.Coinbase.Payouts[output.Index()] = &database.JSONCoinbaseOutput{
 					Amount:  output.Amount(),
 					Index:   output.Index(),
 					Address: api.GetDatabase().GetMiner(output.Miner()).Address(),
-				})
+				}
 			}
 		} else {
 			payoutHint := api.GetBlockWindowPayouts(b)
