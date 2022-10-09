@@ -110,7 +110,7 @@ func main() {
 
 		var blockEfforts mapslice.MapSlice
 		for i, b := range poolBlocks {
-			if i < (len(poolBlocks)-1) && b.TotalHashes > 0 {
+			if i < (len(poolBlocks)-1) && b.TotalHashes > 0 && poolBlocks[i+1].TotalHashes > 0 {
 				blockEfforts = append(blockEfforts, mapslice.MapItem{
 					Key:   b.Hash.String(),
 					Value: float64((b.TotalHashes-poolBlocks[i+1].TotalHashes)*100) / float64(b.Difficulty),
