@@ -636,8 +636,7 @@ func main() {
 		}
 		address := mux.Vars(request)["miner"]
 		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
-		miner := m.(map[string]any)
-		if m == nil || miner["address"] == nil {
+		if m == nil || m.(map[string]any)["address"] == nil {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
@@ -647,6 +646,8 @@ func main() {
 			render(writer, "error.html", ctx)
 			return
 		}
+
+		miner := m.(map[string]any)
 
 		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
@@ -776,7 +777,6 @@ func main() {
 			address = params.Get("address")
 		}
 		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
-		miner := m.(map[string]any)
 
 		if m == nil {
 			ctx := make(map[string]stick.Value)
@@ -788,6 +788,8 @@ func main() {
 			render(writer, "error.html", ctx)
 			return
 		}
+
+		miner := m.(map[string]any)
 
 		payouts := getFromAPI(fmt.Sprintf("payouts/%d?search_limit=0", toUint64(miner["id"]))).([]any)
 		if len(payouts) == 0 {
