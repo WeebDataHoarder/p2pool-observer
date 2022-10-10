@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+
+<div style="text-align: center; font-weight: bold;">
+{% if refresh %}
+<a href="/">Autorefresh is ON ({{ refresh }} s)</a>
+{% else %}
+<a href="/?refresh">Autorefresh is OFF</a>
+{% endif %}
+</div>
+
+<div style="text-align: center">
+    <h2>P2Pool statistics</h2>
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
+        <tr>
+            <th style="width: 15em">P2Pool Height</th>
+            <th style="width: 15em">P2Pool Hashrate</th>
+            <th style="width: 15em">Monero Height</th>
+            <th style="width: 15em">Monero Hashrate</th>
+        </tr>
+        <tr>
+            <td title="{{ pool.sidechain.id }}"><a href="/share/{{ pool.sidechain.id }}">{{ pool.sidechain.height }}</a></td>
+            <td>{{ diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time)|si_units(2) }}H/s</td>
+            <td title="{{ pool.mainchain.id }}">{{ pool.mainchain.height }}</td>
+            <td>{{ diff_hashrate(pool.mainchain.difficulty, pool.mainchain.block_time)|si_units(2) }}H/s</td>
+        </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr>
+            <th title="Miners that have ever mined a share on P2Pool">Miners Known</th>
+            <th>Average Effort</th>
+            <th title="This includes blocks the site knows about since it started observing. There might be more orphaned or produced by other sidechain not included here.">Blocks Found</th>
+            <th>Last Block</th>
+        </tr>
+        <tr>
+            <td>{{ pool.sidechain.miners }}</td>
+            <td style="font-weight:bolder; color: {{ pool.sidechain.effort.average|effort_color }};">
+                {{ pool.sidechain.effort.average|round(2) }}%
+            </td>
+            <td>{{ pool.sidechain.found }}</td>
+            <td title="{{ utc_date(blocks_found[0].timestamp) }}">{{ time_elapsed_short(blocks_found[0].timestamp) }}</td>
+        </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr>
+            <th title="Current miners on P2Pool PPLNS window"><a href="/miners">Window Miners</a></th>
+            <th>Current Effort</th>
+            <th>Window Blocks</th>
+            <th>Last Share</th>
+        </tr>
+        <tr>
+            <td><a href="/miners">{{ pool.sidechain.window.miners }}</a></td>
+            <td style="font-weight:bolder; color: {{ pool.sidechain.effort.current|effort_color }};">
+                {{ pool.sidechain.effort.current|round(2) }}%
+            </td>
+            <td>{{ pool.sidechain.window.blocks }} blocks (+{{ pool.sidechain.window.uncles }} uncles)</td>
+            <td title="{{ utc_date(pool.sidechain.timestamp) }}">{{ time_elapsed_short(pool.sidechain.timestamp) }}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="text-align: center">
+    <form action="/miner" method="get">
+        <h2>Lookup miner statistics</h2>
+        <div>
+            <label for="miner-address">Payout Monero address</label><br/>
+            <input type="text" name="address" id="miner-address" placeholder="4AeEwC2Uik2Zv4uooAUWjQb2ZvcLDBmLXN4rzSn3wjBoY8EKfNkSUqeg5PxcnWTwB1b2V39PDwU9gaNE5SnxSQPYQyoQtr7" size="96" class="mono"/>
+        </div>
+        <div style="margin-top: 10px">
+            <input type="submit" value="Lookup" style="width: 20em;"/>
+        </div>
+    </form>
+    <p>
+        <a href="/calculate-share-time">[Average share time calculator]</a>
+    </p>
+    <p>
+        <a href="/miners">[Current Window Miners]</a>
+    </p>
+</div>
+
+<hr/>
+
+<div style="text-align: center">
+    <h2>Recent Monero blocks found by P2Pool miners</h2>
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
+        <tr>
+            <th style="width: 8em;">Monero Height</th>
+            <th style="width: 8em;">P2Pool Height</th>
+            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 8em;">Effort</th>
+            <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
+            <th style="width: 10em;">Total Reward</th>
+            <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
+            <th style="width: 12em;">Coinbase Transaction</th>
+            <th style="width: 28em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
+        </tr>
+        {% for b in blocks_found %}
+        <tr>
+            <th title="{{ b.main.id }}"><a href="/b/{{ b.main.height|benc }}">{{ b.main.height }}</a></th>
+            {% if b.parent.height is defined %}
+                <th title="{{ b.id }} is an uncle of height {{ b.parent.height }}, {{ b.parent.id }}">
+                    <a href="/share/{{ b.id }}">{{ b.height }}*</a>
+                </th>
+            {% else %}
+                <th title="{{ b.id }}">
+                    <a href="/share/{{ b.id }}">{{ b.height }}</a>
+                </th>
+            {% endif %}
+            <td title="{{ utc_date(b.timestamp) }}">{{ date_diff_short(b.timestamp) }}</td>
+            {% if attribute(pool.sidechain.effort.last, b.main.id) is defined %}
+                <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.main.id)|effort_color }};">
+                    {{ attribute(pool.sidechain.effort.last, b.main.id)|round(2) }}%
+                </td>
+            {% else %}
+                <td>unknown</td>
+            {% endif %}
+            <td title="{{ b.miner }}" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner|shorten(10) }}</a></td>
+            <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
+            <td>{{ b.coinbase.payouts|length }}</td>
+            <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
+            <td class="mono smaller">{{ b.coinbase.private_key }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <th colspan="9"><a href="/blocks">[show more found blocks]</a></th>
+        </tr>
+    </table>
+</div>
+
+<hr/>
+
+<div style="text-align: center">
+    <h2>Recent P2Pool shares found</h2>
+    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 12em + 12em)">
+        <tr>
+            <th style="width: 8em;">P2Pool Height</th>
+            <th style="width: 12em;">P2Pool Id</th>
+            <th style="width: 8em;">Monero Height</th>
+            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 12em;" title="The P2Pool miner who found this share">Found by</th>
+            <th style="width: 12em;">Valuation</th>
+        </tr>
+        {% for s in shares %}
+        <tr{% if (s.main.found is defined) and s.main.found %} class="hl-found"{% endif %}>
+            <th><a href="/share/{{ s.id }}">{{ s.height }}</a></th>
+            <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
+            <td title="{{ s.main.id }}">{{ s.main.height }}</td>
+            <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+            <td title="{{ s.miner }}" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner|shorten(10) }}</a></td>
+            <td>
+                {% if s.parent is defined %}
+                {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)
+                {% else %}
+                100%
+                {% if (s.uncles is defined) and s.uncles|length > 0 %}
+                + {{ pool.sidechain.uncle_penalty }}% of {{ s.uncles|length }} uncle(s)
+                {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+
+{% endblock %}

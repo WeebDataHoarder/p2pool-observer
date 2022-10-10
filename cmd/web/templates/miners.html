@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %} - Current Window Miners{% endblock %}
+
+{% block content %}
+
+<div style="text-align: center; font-weight: bold;">
+    {% if refresh %}
+    <a href="/miners">Autorefresh is ON ({{ refresh }} s)</a>
+    {% else %}
+    <a href="/miners?refresh">Autorefresh is OFF</a>
+    {% endif %}
+</div>
+
+
+<div style="text-align: center">
+    <h2>Current Window Miners</h2>
+    <p>This is a list of the miners that have shares in the current window, and would be rewarded when a Monero block is found.</p>
+    <p class="small">Entries are sorted by current window "weight". There are more total miners currently active, but without a share to show at the moment.</p>
+    <p class="small">Pool share % is relative to whole pool hashrate. Miners can join or leave anytime and there is no ceiling limit. </p>
+    <table class="center datatable" style="border-collapse: collapse; max-width: calc(12em + 8em + 8em + 12em + 24em)">
+        <tr>
+            <th style="width: 12em;">Miner</th>
+            <th style="width: 8em;">Pool share %</th>
+            <th style="width: 8em;">Estimated Hashrate</th>
+            <th style="width: 12em;">Shares found</th>
+            <th style="width: 24em;">Shares position</th>
+        </tr>
+        {% for m in miners %}
+        <tr style="padding-bottom: 10px; border-bottom: solid #aaa 1px">
+            <th title="{{ m.Key }}" class="mono small" style="vertical-align: middle"><a href="/miner/{{ m.Key }}">{{ m.Key|shorten(10) }}</a></th>
+            <td style="vertical-align: middle">{{ ((m.Value.weight|diff_int / pool.sidechain.window.weight|diff_int)*100)|round(3) }}%</td>
+            <td style="vertical-align: middle">{{ ((m.Value.weight|diff_int / pool.sidechain.window.weight|diff_int) * (pool.sidechain.difficulty|diff_int / pool.sidechain.block_time))|si_units(3) }}H/s</td>
+            <td style="vertical-align: middle">{{ m.Value.shares|slice_sum }} block(s) +{{ m.Value.uncles|slice_sum }} uncle(s)</td>
+            <td>
+                <code class="mono small">{{ m.Value.shares_position }}</code>
+                <br/>
+                <code class="mono small">{{ m.Value.uncles_position }}</code>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endblock %}

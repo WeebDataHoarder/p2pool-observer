@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %} - Miner {{ miner.address }} {% endblock %}
+
+{% block content %}
+
+<div style="text-align: center; font-weight: bold;">
+    {% if refresh %}
+    <a href="/miner/{{ miner.address }}">Autorefresh is ON ({{ refresh }} s)</a>
+    {% else %}
+    <a href="/miner/{{ miner.address }}?refresh">Autorefresh is OFF</a>
+    {% endif %}
+</div>
+
+
+
+<div style="text-align: center">
+    <h2>Miner statistics</h2>
+    <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
+
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
+        <tr>
+            <th>Last Share</th>
+            <th>Current Shares</th>
+            <th>Estimated Hashrate</th>
+            <th>Pool Share %</th>
+        </tr>
+        <tr>
+            <td title="{{ utc_date(miner.last_share_timestamp) }}">{{ time_elapsed_short(miner.last_share_timestamp) }}</td>
+            <td>{{ window_count_blocks }} blocks (+{{ window_count_uncles }} uncles)</td>
+            <td>{{ ((window_weight / pool.sidechain.window.weight|diff_int) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
+            <td>{{ (((window_weight / pool.sidechain.window.weight|diff_int))*100)|round(3) }}%</td>
+        </tr>
+        <tr><td colspan="4">&nbsp;</td></tr>
+        <tr>
+            <th>Total Shares</th>
+            <th>Day Shares</th>
+            <th>Day Hashrate</th>
+            <th>Day Share %</th>
+        </tr>
+        <tr>
+            <td>{{ miner.shares.blocks }} blocks (+{{ miner.shares.uncles }} uncles)</td>
+            <td>{{ count_blocks }} blocks (+{{ count_uncles }} uncles)</td>
+            <td>{{ ((weight / (pool.sidechain.window.weight|diff_int * 4)) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
+            <td>{{ (((weight / (pool.sidechain.window.weight|diff_int * 4)))*100)|round(3) }}%</td>
+        </tr>
+    </table>
+</div>
+
+
+<hr/>
+
+<div style="text-align: center;">
+    <h2>Share positions</h2>
+    <p class="small">
+        Shares appear on the right, and get older towards the left. The pipe (<code>|</code>) character denotes the current PPLNS window end.
+        <br/>
+        Number denotes the amount of shares per slice, with the plus (<code>+</code>) character being more than 9, and dot (<code>.</code>) being none.
+        <br/>
+        Each slice accounts for {{ pool.sidechain.window_size / 30 }} P2Pool blocks, or around {{ ((pool.sidechain.window_size / 30) * pool.sidechain.block_time) / 60 }} minutes.
+    </p>
+    <h3>Shares in last day</h3>
+    <code class="mono">{{ position_blocks }}</code>
+
+    <h3>Uncles in last day</h3>
+    <code class="mono">{{ position_uncles }}</code>
+
+</div>
+
+<br/>
+<br/>
+
+<hr/>
+
+<div style="text-align: center">
+    <h2>Most recent payouts</h2>
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 7em + 12em + 12em)">
+        <tr>
+            <th style="width: 8em;">Monero Height</th>
+            <th style="width: 8em;">P2Pool Height</th>
+            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 10em;">Reward</th>
+            <th style="width: 12em;">Coinbase Transaction</th>
+            <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
+        </tr>
+        {% for p in last_payouts %}
+        <tr>
+            <th title="{{ p.main.id }}"><a href="/b/{{ p.main.height|benc }}">{{ p.main.height }}</a></th>
+            <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
+            <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
+            <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
+            <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
+            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/p/{{ p.height|benc }}/{{ miner.id|benc }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+        </tr>
+        {% endfor %}
+
+        <tr>
+            <th colspan="9"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></th>
+        </tr>
+    </table>
+</div>
+
+<hr/>
+
+<div style="text-align: center">
+    <h2>Most recent shares</h2>
+    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 8em + 12em)">
+        <tr>
+            <th style="width: 8em;">P2Pool Height</th>
+            <th style="width: 12em;">P2Pool Id</th>
+            <th style="width: 8em;">Monero Height</th>
+            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 8em;" title="Weight is the difficulty of mined share, with any uncle adjustments. It is variable, and is used in reward calculations">Weight</th>
+            <th style="width: 12em;">Valuation</th>
+        </tr>
+        {% for s in last_shares %}
+        <tr{% if s.main.found %} class="hl-found"{% endif %}>
+            <th><a href="/share/{{ s.id }}">{{ s.height }}</a></th>
+            <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
+            <td title="{{ s.main.id }}">{{ s.main.height }}</td>
+            <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+            <td>{{ s.weight|si_units(1) }}</td>
+            <td>
+                {% if (s.parent is defined) and s.parent %}
+                  {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)
+                {% else %}
+                    100%
+                    {% if (s.uncles is defined) and s.uncles|length > 0 %}
+                        + {{ pool.sidechain.uncle_penalty }}% of {{ s.uncles|length }} uncle(s)
+                    {% endif %}
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endblock %}

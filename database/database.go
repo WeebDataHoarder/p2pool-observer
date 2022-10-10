@@ -741,7 +741,6 @@ type Payout struct {
 		Id         types.Hash `json:"id"`
 		Reward     uint64     `json:"reward"`
 		PrivateKey types.Hash `json:"private_key"`
-		Miner      uint64     `json:"miner"`
 		Index      uint64     `json:"index"`
 	} `json:"coinbase"`
 }
@@ -751,6 +750,13 @@ func (db *Database) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payo
 
 	go func() {
 		defer close(out)
+
+		miner := db.getMiner(minerId)
+
+		if miner == nil {
+			return
+		}
+
 		resultFunc := func(row RowScanInterface) error {
 			var blockId, mainId, privKey, coinbaseId []byte
 			var height, mainHeight, timestamp, amount, index uint64
@@ -773,9 +779,8 @@ func (db *Database) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payo
 					Id         types.Hash `json:"id"`
 					Reward     uint64     `json:"reward"`
 					PrivateKey types.Hash `json:"private_key"`
-					Miner      uint64     `json:"miner"`
 					Index      uint64     `json:"index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: types.HashFromBytes(privKey), Index: index, Miner: minerId},
+				}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: types.HashFromBytes(privKey), Index: index},
 			}
 			return nil
 		}

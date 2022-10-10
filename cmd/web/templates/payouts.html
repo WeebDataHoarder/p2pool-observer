@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %} - Historical miner payouts {{ miner.address }} {% endblock %}
+
+{% block content %}
+
+<div style="text-align: center; font-weight: bold;">
+    {% if refresh %}
+    <a href="/payouts/{{ miner.address }}">Autorefresh is ON ({{ refresh }} s)</a>
+    {% else %}
+    <a href="/payouts/{{ miner.address }}?refresh">Autorefresh is OFF</a>
+    {% endif %}
+</div>
+
+
+<div style="text-align: center">
+    <h2>Historical miner payouts</h2>
+    <p><strong>Payout Address:</strong> <a href="/miner/{{ miner.address }}"><span class="mono small">{{ miner.address }}</span></a></p>
+    <p><strong>Estimated total:</strong> {{ monero_to_xmr(total) }} XMR</p>
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 7em + 12em + 12em)">
+        <tr>
+            <th style="width: 8em;">Monero Height</th>
+            <th style="width: 8em;">P2Pool Height</th>
+            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 10em;">Reward</th>
+            <th style="width: 12em;">Coinbase Transaction</th>
+            <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
+        </tr>
+        {% for p in payouts %}
+        <tr>
+            <th title="{{ p.main.id }}"><a href="/b/{{ p.main.height|benc }}">{{ p.main.height }}</a></th>
+            <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
+            <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
+            <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
+            <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
+            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/p/{{ p.height|benc }}/{{ miner.id|benc }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+
+{% endblock %}

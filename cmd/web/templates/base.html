@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="referrer" content="no-referrer">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+        {% if getenv('SITE_TITLE') == "" %}
+        <title>P2Pool.Observer
+        {% else %}
+        <title>{{ getenv('SITE_TITLE') }}
+        {% endif %}{% block title %}{% endblock %}</title>
+        <style>
+            {% block style %}
+                {% include('style.css') %}
+            {% endblock %}
+        </style>
+    </head>
+    <body>
+        {% include('header.html') %}
+
+        <div class="content center">
+            {% block content %}
+
+            {% endblock %}
+        </div>
+
+        {% include('footer.html') %}
+    </body>
+</html>

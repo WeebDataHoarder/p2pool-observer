@@ -3,6 +3,7 @@ package utils
 import (
 	"encoding/hex"
 	"github.com/jxskiss/base62"
+	"golang.org/x/exp/constraints"
 	"strconv"
 	"strings"
 )
@@ -63,10 +64,22 @@ func EncodeHexBinaryNumber(v2 string) string {
 	return v1
 }
 
-func ReverseSlice[S ~[]E, E any](s S) S {
-	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
-		s[i], s[j] = s[j], s[i]
+func Min[T constraints.Ordered](v0 T, values ...T) (result T) {
+	result = v0
+	for _, v := range values {
+		if v < result {
+			result = v
+		}
 	}
+	return
+}
 
-	return s
+func Max[T constraints.Ordered](v0 T, values ...T) (result T) {
+	result = v0
+	for _, v := range values {
+		if v > result {
+			result = v
+		}
+	}
+	return
 }
