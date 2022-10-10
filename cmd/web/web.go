@@ -634,11 +634,7 @@ func main() {
 		if params.Has("refresh") {
 			writer.Header().Set("refresh", "300")
 		}
-
 		address := mux.Vars(request)["miner"]
-		if params.Has("address") {
-			address = params.Get("address")
-		}
 		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
 		miner := m.(map[string]any)
 		if m == nil || miner["address"] == nil {
@@ -758,6 +754,15 @@ func main() {
 		ctx["position_blocks"] = string(sharesPosition)
 		ctx["position_uncles"] = string(unclesPosition)
 		render(writer, "miner.html", ctx)
+	})
+
+	serveMux.HandleFunc("/miner", func(writer http.ResponseWriter, request *http.Request) {
+		params := request.URL.Query()
+		if params.Get("address") == "" {
+			http.Redirect(writer, request, "/", http.StatusMovedPermanently)
+			return
+		}
+		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", params.Get("address")), http.StatusMovedPermanently)
 	})
 
 	serveMux.HandleFunc("/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
