@@ -87,7 +87,7 @@ func main() {
 
 		totalKnown := cacheResult(CacheTotalKnownBlocksAndMiners, time.Second*15, func() any {
 			result := &totalKnownResult{}
-			if err := api.GetDatabase().Query("SELECT (SELECT COUNT(*) FROM blocks WHERE main_found = 'y') + (SELECT COUNT(*) FROM uncles WHERE main_found = 'y') as found, COUNT(*) as miners FROM (SELECT miner FROM blocks GROUP BY miner UNION DISTINCT SELECT miner FROM uncles GROUP BY miner) all_known_miners;", func(row database.RowScanInterface) error {
+			if err := api.GetDatabase().Query("SELECT (SELECT COUNT(*) FROM blocks WHERE main_found IS TRUE ) + (SELECT COUNT(*) FROM uncles WHERE main_found IS TRUE) as found, COUNT(*) as miners FROM (SELECT miner FROM blocks GROUP BY miner UNION DISTINCT SELECT miner FROM uncles GROUP BY miner) all_known_miners;", func(row database.RowScanInterface) error {
 				return row.Scan(&result.blocksFound, &result.minersKnown)
 			}); err != nil {
 				return nil
@@ -104,7 +104,7 @@ func main() {
 
 		currentEffort := float64(uint128.From64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff.Uint128).Lo) / 1000
 
-		if currentEffort <= 0 {
+		if currentEffort <= 0 || poolBlocks[0].TotalHashes == 0 {
 			currentEffort = 0
 		}
 
@@ -150,7 +150,7 @@ func main() {
 			},
 			MainChain: poolInfoResultMainChain{
 				Id:         tip.Template.Id,
-				Height:     tip.Main.Height,
+				Height:     tip.Main.Height - 1,
 				Difficulty: tip.Template.Difficulty,
 				BlockTime:  monero.BlockTime,
 			},
@@ -510,6 +510,37 @@ func main() {
 			}
 		}
 
+		var minerId uint64
+
+		if params.Has("miner") {
+			id := params.Get("miner")
+			var miner *database.Miner
+
+			if len(id) > 10 && id[0] == '4' {
+				miner = api.GetDatabase().GetMinerByAddress(id)
+			}
+
+			if miner == nil {
+				if i, err := strconv.Atoi(id); err == nil {
+					miner = api.GetDatabase().GetMiner(uint64(i))
+				}
+			}
+
+			if miner == nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			minerId = miner.Id()
+		}
+
 		if limit > 100 {
 			limit = 100
 		}
@@ -520,7 +551,7 @@ func main() {
 
 		result := make([]*database.Block, 0, limit)
 
-		for block := range api.GetDatabase().GetAllFound(limit) {
+		for block := range api.GetDatabase().GetAllFound(limit, minerId) {
 			MapJSONBlock(api, block, false, params.Has("coinbase"))
 			result = append(result, block.GetBlock())
 		}

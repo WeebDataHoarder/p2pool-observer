@@ -12,13 +12,13 @@ require (
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.7
 	github.com/tyler-sommer/stick v1.0.4
-	golang.org/x/crypto v0.0.0-20221005025214-4161e89ecf1b
-	golang.org/x/exp v0.0.0-20221006183845-316c7553db56
+	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2
+	golang.org/x/exp v0.0.0-20221011100225-3a7871e7c0b2
 	golang.org/x/net v0.0.0-20221004154528-8021a29435af
 	lukechampine.com/uint128 v1.2.0
 )
 
 require (
-	github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24 // indirect
-	golang.org/x/sys v0.0.0-20221006211917-84dc82d7e875 // indirect
+	github.com/shopspring/decimal v1.3.1 // indirect
+	golang.org/x/sys v0.0.0-20221010170243-090e33056c14 // indirect
 )

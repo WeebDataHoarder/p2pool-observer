@@ -23,22 +23,35 @@
         <tr>
             <td title="{{ pool.sidechain.id }}"><a href="/share/{{ pool.sidechain.id }}">{{ pool.sidechain.height }}</a></td>
             <td>{{ diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time)|si_units(2) }}H/s</td>
-            <td title="{{ pool.mainchain.id }}">{{ pool.mainchain.height }}</td>
+            <td title="{{ pool.mainchain.id }}"><a href="/b/{{ pool.mainchain.height|benc }}">{{ pool.mainchain.height }}</a></td>
             <td>{{ diff_hashrate(pool.mainchain.difficulty, pool.mainchain.block_time)|si_units(2) }}H/s</td>
+        </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr>
+            <th>P2Pool Difficulty</th>
+            <th title="Percentage of Monero hashrate P2Pool has">P2Pool Monero %</th>
+            <th>Monero Difficulty</th>
+            <th title="This includes blocks the site knows about since it started observing. There might be more orphaned or produced by other sidechain not included here.">Blocks Found</th>
+        </tr>
+        <tr>
+            <td>{{ diff_uint(pool.sidechain.difficulty)|si_units(2) }}</td>
+            <td>{{ ((diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time) / diff_hashrate(pool.mainchain.difficulty, pool.mainchain.block_time))*100)|round(2) }}%</td>
+            <td>{{ diff_uint(pool.mainchain.difficulty)|si_units(2) }}</td>
+            <td>{{ pool.sidechain.found }}</td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
         <tr>
             <th title="Miners that have ever mined a share on P2Pool">Miners Known</th>
             <th>Average Effort</th>
-            <th title="This includes blocks the site knows about since it started observing. There might be more orphaned or produced by other sidechain not included here.">Blocks Found</th>
-            <th>Last Block</th>
+            <th title="Mean frequency between P2Pool finds Monero Blocks">Block Found Frequency</th>
+            <th>Last Found Block</th>
         </tr>
         <tr>
             <td>{{ pool.sidechain.miners }}</td>
             <td style="font-weight:bolder; color: {{ pool.sidechain.effort.average|effort_color }};">
                 {{ pool.sidechain.effort.average|round(2) }}%
             </td>
-            <td>{{ pool.sidechain.found }}</td>
+            <td>{{ time_duration_long(diff_uint(pool.mainchain.difficulty) / diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time)) }}</td>
             <td title="{{ utc_date(blocks_found[0].timestamp) }}">{{ time_elapsed_short(blocks_found[0].timestamp) }}</td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
@@ -82,7 +95,7 @@
 
 <div style="text-align: center">
     <h2>Recent Monero blocks found by P2Pool miners</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>

@@ -216,7 +216,7 @@ func main() {
 		}
 
 		if runs%10 == 0 { //Every 10 seconds or so
-			for foundBlock := range db.GetAllFound(10) {
+			for foundBlock := range db.GetAllFound(10, 0) {
 				//Scan last 10 found blocks and set status accordingly if found/not found
 
 				// Look between +1 block and +4 blocks

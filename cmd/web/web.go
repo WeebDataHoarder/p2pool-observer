@@ -70,6 +70,10 @@ func toFloat64(t any) float64 {
 		return float64(x)
 	} else if x, ok := t.(int); ok {
 		return float64(x)
+	} else if x, ok := t.(string); ok {
+		if n, err := strconv.ParseFloat(x, 0); err == nil {
+			return n
+		}
 	}
 
 	return 0
@@ -146,7 +150,7 @@ func main() {
 		diff := time.Since(time.Unix(int64(toUint64(args[0])), 0).UTC())
 
 		days := int64(diff.Hours() / 24)
-		hours := int64(diff.Hours())
+		hours := int64(diff.Hours()) % 24
 		minutes := int64(diff.Minutes()) % 60
 		seconds := int64(diff.Seconds()) % 60
 
@@ -174,7 +178,7 @@ func main() {
 		diff := time.Since(time.Unix(int64(toUint64(args[0])), 0).UTC())
 
 		days := int64(diff.Hours() / 24)
-		hours := int64(diff.Hours())
+		hours := int64(diff.Hours()) % 24
 		minutes := int64(diff.Minutes()) % 60
 		seconds := int64(diff.Seconds()) % 60
 
@@ -203,7 +207,7 @@ func main() {
 		diff := time.Second * time.Duration(toUint64(args[0]))
 		diff += time.Microsecond * time.Duration((toFloat64(toUint64(args[0]))-toFloat64(args[0]))*1000000)
 		days := int64(diff.Hours() / 24)
-		hours := int64(diff.Hours())
+		hours := int64(diff.Hours()) % 24
 		minutes := int64(diff.Minutes()) % 60
 		seconds := int64(diff.Seconds()) % 60
 		ms := int64(diff.Milliseconds()) % 1000
@@ -439,15 +443,15 @@ func main() {
 
 	serveMux.HandleFunc("/calculate-share-time", func(writer http.ResponseWriter, request *http.Request) {
 		poolInfo := getFromAPI("pool_info", 5)
-		hashRate := uint64(0)
-		magnitude := uint64(1000)
+		hashRate := float64(0)
+		magnitude := float64(1000)
 
 		params := request.URL.Query()
 		if params.Has("hashrate") {
-			hashRate = toUint64(params.Get("hashrate"))
+			hashRate = toFloat64(params.Get("hashrate"))
 		}
 		if params.Has("magnitude") {
-			magnitude = toUint64(params.Get("magnitude"))
+			magnitude = toFloat64(params.Get("magnitude"))
 		}
 
 		ctx := make(map[string]stick.Value)
@@ -464,15 +468,40 @@ func main() {
 			writer.Header().Set("refresh", "600")
 		}
 
+		var miner map[string]any
+		if params.Has("miner") {
+			m := getFromAPI(fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			if m == nil || m.(map[string]any)["address"] == nil {
+				ctx := make(map[string]stick.Value)
+				error := make(map[string]stick.Value)
+				ctx["error"] = error
+				ctx["code"] = http.StatusNotFound
+				error["message"] = "Address Not Found"
+				error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past. Come back later :)</div>"
+				render(writer, "error.html", ctx)
+				return
+			}
+			miner = m.(map[string]any)
+		}
+
 		poolInfo := getFromAPI("pool_info", 5)
-		blocks := getFromAPI("found_blocks?coinbase&limit=100", 30)
 
 		ctx := make(map[string]stick.Value)
 		ctx["refresh"] = writer.Header().Get("refresh")
-		ctx["blocks_found"] = blocks
 		ctx["pool"] = poolInfo
 
-		render(writer, "blocks.html", ctx)
+		if miner != nil {
+			blocks := getFromAPI(fmt.Sprintf("found_blocks?&limit=100&miner=%d&coinbase", toUint64(miner["id"])))
+			ctx["blocks_found"] = blocks
+			ctx["miner"] = miner
+
+			render(writer, "blocks_miner.html", ctx)
+		} else {
+			blocks := getFromAPI("found_blocks?limit=100&coinbase", 30)
+			ctx["blocks_found"] = blocks
+
+			render(writer, "blocks.html", ctx)
+		}
 	})
 
 	serveMux.HandleFunc("/miners", func(writer http.ResponseWriter, request *http.Request) {
@@ -659,6 +688,7 @@ func main() {
 		shares := getFromAPI(fmt.Sprintf("shares_in_window/%d?from=%d&window=%d", toUint64(miner["id"]), tipHeight, wsize)).([]any)
 		payouts := getFromAPI(fmt.Sprintf("payouts/%d?search_limit=10", toUint64(miner["id"]))).([]any)
 		lastShares := getFromAPI(fmt.Sprintf("shares?limit=50&miner=%d", toUint64(miner["id"]))).([]any)
+		lastFound := getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
 
 		count := uint64(30 * totalWindows)
 
@@ -735,6 +765,7 @@ func main() {
 		ctx["pool"] = poolInfo
 		ctx["miner"] = miner
 		ctx["last_shares"] = lastShares
+		ctx["last_found"] = lastFound
 		ctx["last_payouts"] = payouts
 		ctx["window_weight"] = windowDiff.Lo
 		ctx["weight"] = longDiff.Lo

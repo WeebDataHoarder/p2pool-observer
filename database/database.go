@@ -378,7 +378,7 @@ func (db *Database) GetChainTip() *Block {
 }
 
 func (db *Database) GetLastFound() BlockInterface {
-	r := db.GetAllFound(1)
+	r := db.GetAllFound(1, 0)
 	defer func() {
 		for range r {
 
@@ -431,9 +431,9 @@ func (db *Database) GetUnclesByMinerIdInWindow(minerId uint64, startHeight *uint
 	}
 }
 
-func (db *Database) GetAllFound(limit uint64) chan BlockInterface {
-	blocks := db.GetFound(limit)
-	uncles := db.GetFoundUncles(limit)
+func (db *Database) GetAllFound(limit, minerId uint64) chan BlockInterface {
+	blocks := db.GetFound(limit, minerId)
+	uncles := db.GetFoundUncles(limit, minerId)
 
 	result := make(chan BlockInterface)
 	go func() {
@@ -597,19 +597,35 @@ func (db *Database) GetShares(limit uint64, minerId uint64, onlyBlocks bool) cha
 	return result
 }
 
-func (db *Database) GetFound(limit uint64) chan *Block {
-	if limit == 0 {
-		return db.GetBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC;")
+func (db *Database) GetFound(limit, minerId uint64) chan *Block {
+	if minerId == 0 {
+		if limit == 0 {
+			return db.GetBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC;")
+		} else {
+			return db.GetBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC LIMIT $1;", limit)
+		}
 	} else {
-		return db.GetBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC LIMIT $1;", limit)
+		if limit == 0 {
+			return db.GetBlocksByQuery("WHERE main_found IS TRUE AND miner = $1 ORDER BY main_height DESC;", minerId)
+		} else {
+			return db.GetBlocksByQuery("WHERE main_found IS TRUE AND miner = $2 ORDER BY main_height DESC LIMIT $1;", limit, minerId)
+		}
 	}
 }
 
-func (db *Database) GetFoundUncles(limit uint64) chan *UncleBlock {
-	if limit == 0 {
-		return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC;")
+func (db *Database) GetFoundUncles(limit, minerId uint64) chan *UncleBlock {
+	if minerId == 0 {
+		if limit == 0 {
+			return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC;")
+		} else {
+			return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC LIMIT $1;", limit)
+		}
 	} else {
-		return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE ORDER BY main_height DESC LIMIT $1;", limit)
+		if limit == 0 {
+			return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE AND miner = $1 ORDER BY main_height DESC;", minerId)
+		} else {
+			return db.GetUncleBlocksByQuery("WHERE main_found IS TRUE AND miner = $2 ORDER BY main_height DESC LIMIT $1;", limit, minerId)
+		}
 	}
 }
 

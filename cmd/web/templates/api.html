@@ -228,8 +228,8 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/1
     <hr/>
 
     <div>
-        <h3 class="mono">/api/found_blocks?limit=[limit][&coinbase]</h3>
-        <p>Response contains last found block records on the Monero network by P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max 100. Additionally, you can pass the <em>coinbase</em> parameter to receive decoded coinbase outputs.</p>
+        <h3 class="mono">/api/found_blocks?limit=[limit]&miner=[id|address][&coinbase]</h3>
+        <p>Response contains last found block records on the Monero network by P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max 100. Additionally, you can pass the <em>miner</em> parameter to select blocks from that miner only. <em>coinbase</em> parameter can also be used here to decode coinbase outputs.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/found_blocks?limit=2
 [
