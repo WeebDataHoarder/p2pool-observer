@@ -27,7 +27,7 @@
             <th style="width: 12em;">Shares found</th>
             <th style="width: 24em;">Shares position</th>
         </tr>
-        {% for m in miners %}
+        {% for i, m in miners %}
         <tr style="padding-bottom: 10px; border-bottom: solid #aaa 1px">
             <td style="vertical-align: middle">{{ i+1 }}</td>
             <th title="{{ m.Key }}" class="mono small" style="vertical-align: middle"><a href="/miner/{{ m.Key }}">{{ m.Key|shorten(10) }}</a></th>
