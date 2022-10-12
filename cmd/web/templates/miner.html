@@ -15,7 +15,33 @@
 
 
 <div style="text-align: center">
+    {% if miner.last_share_timestamp == 0 %}
+    <div style="border: #d1d1d1 1px dashed;">
+        <h3 style="color:#FF0000">No shares have been reported to the P2Pool network in the past for this miner.</h3>
+
+        <p>Finding shares is a random process based on your hashrate vs P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
+        <p>Please use the calculator below to find your average share time (with average luck).</p>
+        <br/>
+
+        <form action="/calculate-share-time" method="get">
+            <label for="hashrate">Your Hashrate</label><br/>
+            <input type="numeric" name="hashrate" id="hashrate" placeholder="100" size="8" class="mono" value=""/>
+            <select name="magnitude">
+                <option value="1" selected>H/s</option>
+                <option value="1000">KH/s</option>
+                <option value="1000000">MH/s</option>
+                <option value="1000000000">GH/s</option>
+            </select>
+            <br/>
+            <input type="submit" value="Calculate" style="width: 20em; margin: 20px;"/>
+        </form>
+    </div>
+
+    <hr/>
+    {% endif %}
+
     <h2>Miner statistics</h2>
+
     <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
 
     <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">

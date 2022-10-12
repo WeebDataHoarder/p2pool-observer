@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	block2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -168,7 +169,9 @@ func main() {
 			result = append(result, strconv.FormatInt(seconds, 10)+"s")
 		}
 
-		if len(result) == 0 {
+		if toUint64(args[0]) == 0 {
+			return "never"
+		} else if len(result) == 0 {
 			return "just now"
 		} else {
 			return strings.Join(result, " ") + " ago"
@@ -196,7 +199,9 @@ func main() {
 			result = append(result, strconv.FormatInt(seconds, 10)+"s")
 		}
 
-		if len(result) == 0 {
+		if toUint64(args[0]) == 0 {
+			return "never"
+		} else if len(result) == 0 {
 			return "just now"
 		} else {
 			return strings.Join(result[0:1], " ") + " ago"
@@ -265,19 +270,6 @@ func main() {
 			return m[args[1].(string)]
 		}
 		return nil
-	}
-
-	env.Filters["gmp_init"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO gmp_init"
-	}
-	env.Filters["gmp_intval"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO gmp_intval"
-	}
-	env.Filters["gmp_div"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO gmp_div"
-	}
-	env.Filters["bcdiv"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO bcdiv"
 	}
 	env.Filters["slice_sum"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
 		var result uint64
@@ -362,19 +354,9 @@ func main() {
 			}
 		}
 
-		//TODO: remove this
-		log.Panic()
-		return ""
+		return "#000000"
 	}
-	env.Filters["time_elapsed_string"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO time_elapsed_string"
-	}
-	env.Filters["time_diff_string"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO time_diff_string"
-	}
-	env.Filters["time_elapsed_string_short"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
-		return "TODO time_elapsed_string_short"
-	}
+
 	env.Filters["si_units"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
 		v := toFloat64(val)
 		if len(args) > 0 {
@@ -666,14 +648,26 @@ func main() {
 		address := mux.Vars(request)["miner"]
 		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
 		if m == nil || m.(map[string]any)["address"] == nil {
-			ctx := make(map[string]stick.Value)
-			error := make(map[string]stick.Value)
-			ctx["error"] = error
-			ctx["code"] = http.StatusNotFound
-			error["message"] = "Address Not Found"
-			error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past. Come back later :)</div>"
-			render(writer, "error.html", ctx)
-			return
+			if addr := address2.FromBase58(address); addr != nil {
+				miner := make(map[string]any)
+				m = miner
+				miner["id"] = uint64(0)
+				miner["address"] = addr.ToBase58()
+				shares := make(map[string]any)
+				miner["shares"] = shares
+				shares["blocks"] = uint64(0)
+				shares["uncles"] = uint64(0)
+				miner["last_share_height"] = uint64(0)
+				miner["last_share_timestamp"] = uint64(0)
+			} else {
+				ctx := make(map[string]stick.Value)
+				error := make(map[string]stick.Value)
+				ctx["error"] = error
+				ctx["code"] = http.StatusNotFound
+				error["message"] = "Invalid Address"
+				render(writer, "error.html", ctx)
+				return
+			}
 		}
 
 		miner := m.(map[string]any)
@@ -685,10 +679,13 @@ func main() {
 
 		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
 
-		shares := getFromAPI(fmt.Sprintf("shares_in_window/%d?from=%d&window=%d", toUint64(miner["id"]), tipHeight, wsize)).([]any)
-		payouts := getFromAPI(fmt.Sprintf("payouts/%d?search_limit=10", toUint64(miner["id"]))).([]any)
-		lastShares := getFromAPI(fmt.Sprintf("shares?limit=50&miner=%d", toUint64(miner["id"]))).([]any)
-		lastFound := getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
+		var shares, payouts, lastShares, lastFound []any
+		if toUint64(miner["id"]) != 0 {
+			shares = getFromAPI(fmt.Sprintf("shares_in_window/%d?from=%d&window=%d", toUint64(miner["id"]), tipHeight, wsize)).([]any)
+			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=10", toUint64(miner["id"]))).([]any)
+			lastShares = getFromAPI(fmt.Sprintf("shares?limit=50&miner=%d", toUint64(miner["id"]))).([]any)
+			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
+		}
 
 		count := uint64(30 * totalWindows)
 
