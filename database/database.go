@@ -20,6 +20,7 @@ type Database struct {
 		GetMinerByAddress       *sql.Stmt
 		GetMinerByAddressBounds *sql.Stmt
 		InsertMiner             *sql.Stmt
+		GetUnclesByParentId     *sql.Stmt
 	}
 
 	cacheLock           sync.RWMutex
@@ -46,6 +47,9 @@ func NewDatabase(connStr string) (db *Database, err error) {
 		return nil, err
 	}
 	if db.statements.InsertMiner, err = db.handle.Prepare("INSERT INTO miners (address) VALUES ($1) RETURNING id, address;"); err != nil {
+		return nil, err
+	}
+	if db.statements.GetUnclesByParentId, err = db.PrepareUncleBlocksByQueryStatement("WHERE parent_id = encode($1, 'hex');"); err != nil {
 		return nil, err
 	}
 	if err != nil {
@@ -218,24 +222,34 @@ func (db *Database) QueryStatement(stmt *sql.Stmt, callback func(row RowScanInte
 	}
 }
 
+func (db *Database) PrepareBlocksByQueryStatement(where string) (stmt *sql.Stmt, err error) {
+	return db.handle.Prepare(fmt.Sprintf("SELECT decode(id, 'hex'), height, decode(previous_id, 'hex'), decode(coinbase_id, 'hex'), coinbase_reward, decode(coinbase_privkey, 'hex'), difficulty, timestamp, miner, decode(pow_hash, 'hex'), main_height, decode(main_id, 'hex'), main_found, decode(miner_main_id, 'hex'), miner_main_difficulty FROM blocks %s;", where))
+}
+
+func (db *Database) PrepareUncleBlocksByQueryStatement(where string) (stmt *sql.Stmt, err error) {
+	return db.handle.Prepare(fmt.Sprintf("SELECT decode(parent_id, 'hex'), parent_height, decode(id, 'hex'), height, decode(previous_id, 'hex'), decode(coinbase_id, 'hex'), coinbase_reward, decode(coinbase_privkey, 'hex'), difficulty, timestamp, miner, decode(pow_hash, 'hex'), main_height, decode(main_id, 'hex'), main_found, decode(miner_main_id, 'hex'), miner_main_difficulty FROM uncles %s;", where))
+}
+
 func (db *Database) GetBlocksByQuery(where string, params ...any) chan *Block {
+	if stmt, err := db.PrepareBlocksByQueryStatement(where); err != nil {
+		returnChannel := make(chan *Block)
+		close(returnChannel)
+		return returnChannel
+	} else {
+		return db.GetBlocksByQueryStatement(stmt, params...)
+	}
+}
+
+func (db *Database) GetBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *Block {
 	returnChannel := make(chan *Block)
 	go func() {
 		defer close(returnChannel)
-		err := db.Query(fmt.Sprintf("SELECT decode(id, 'hex'), height, decode(previous_id, 'hex'), decode(coinbase_id, 'hex'), coinbase_reward, decode(coinbase_privkey, 'hex'), difficulty, timestamp, miner, decode(pow_hash, 'hex'), main_height, decode(main_id, 'hex'), main_found, decode(miner_main_id, 'hex'), miner_main_difficulty FROM blocks %s;", where), func(row RowScanInterface) (err error) {
+		err := db.QueryStatement(stmt, func(row RowScanInterface) (err error) {
 			block := &Block{}
 
 			var difficultyHex, minerMainDifficultyHex string
 
-			var (
-				IdPtr                 = block.Id[:]
-				PreviousIdPtr         = block.PreviousId[:]
-				CoinbaseIdPtr         = block.Coinbase.Id[:]
-				CoinbasePrivateKeyPtr = block.Coinbase.PrivateKey[:]
-				PowHashPtr            = block.PowHash[:]
-				MainIdPtr             = block.Main.Id[:]
-				MinerMainId           = block.Template.Id[:]
-			)
+			var IdPtr, PreviousIdPtr, CoinbaseIdPtr, CoinbasePrivateKeyPtr, PowHashPtr, MainIdPtr, MinerMainId sql.RawBytes
 
 			if err = row.Scan(&IdPtr, &block.Height, &PreviousIdPtr, &CoinbaseIdPtr, &block.Coinbase.Reward, &CoinbasePrivateKeyPtr, &difficultyHex, &block.Timestamp, &block.MinerId, &PowHashPtr, &block.Main.Height, &MainIdPtr, &block.Main.Found, &MinerMainId, &minerMainDifficultyHex); err != nil {
 				return err
@@ -265,25 +279,26 @@ func (db *Database) GetBlocksByQuery(where string, params ...any) chan *Block {
 }
 
 func (db *Database) GetUncleBlocksByQuery(where string, params ...any) chan *UncleBlock {
+	if stmt, err := db.PrepareBlocksByQueryStatement(where); err != nil {
+		returnChannel := make(chan *UncleBlock)
+		close(returnChannel)
+		return returnChannel
+	} else {
+		return db.GetUncleBlocksByQueryStatement(stmt, params...)
+	}
+}
+
+func (db *Database) GetUncleBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *UncleBlock {
 	returnChannel := make(chan *UncleBlock)
 	go func() {
 		defer close(returnChannel)
-		err := db.Query(fmt.Sprintf("SELECT decode(parent_id, 'hex'), parent_height, decode(id, 'hex'), height, decode(previous_id, 'hex'), decode(coinbase_id, 'hex'), coinbase_reward, decode(coinbase_privkey, 'hex'), difficulty, timestamp, miner, decode(pow_hash, 'hex'), main_height, decode(main_id, 'hex'), main_found, decode(miner_main_id, 'hex'), miner_main_difficulty FROM uncles %s;", where), func(row RowScanInterface) (err error) {
+		err := db.QueryStatement(stmt, func(row RowScanInterface) (err error) {
 			uncle := &UncleBlock{}
 			block := &uncle.Block
 
 			var difficultyHex, minerMainDifficultyHex string
 
-			var (
-				ParentId              = uncle.ParentId[:]
-				IdPtr                 = block.Id[:]
-				PreviousIdPtr         = block.PreviousId[:]
-				CoinbaseIdPtr         = block.Coinbase.Id[:]
-				CoinbasePrivateKeyPtr = block.Coinbase.PrivateKey[:]
-				PowHashPtr            = block.PowHash[:]
-				MainIdPtr             = block.Main.Id[:]
-				MinerMainId           = block.Template.Id[:]
-			)
+			var ParentId, IdPtr, PreviousIdPtr, CoinbaseIdPtr, CoinbasePrivateKeyPtr, PowHashPtr, MainIdPtr, MinerMainId sql.RawBytes
 
 			if err = row.Scan(&ParentId, &uncle.ParentHeight, &IdPtr, &block.Height, &PreviousIdPtr, &CoinbaseIdPtr, &block.Coinbase.Reward, &CoinbasePrivateKeyPtr, &difficultyHex, &block.Timestamp, &block.MinerId, &PowHashPtr, &block.Main.Height, &MainIdPtr, &block.Main.Found, &MinerMainId, &minerMainDifficultyHex); err != nil {
 				return err
@@ -314,7 +329,7 @@ func (db *Database) GetUncleBlocksByQuery(where string, params ...any) chan *Unc
 }
 
 func (db *Database) GetBlockById(id types.Hash) *Block {
-	r := db.GetBlocksByQuery("WHERE id = $1;", id.String())
+	r := db.GetBlocksByQuery("WHERE id = encode($1, 'hex');", id[:])
 	defer func() {
 		for range r {
 
@@ -324,7 +339,7 @@ func (db *Database) GetBlockById(id types.Hash) *Block {
 }
 
 func (db *Database) GetBlockByPreviousId(id types.Hash) *Block {
-	r := db.GetBlocksByQuery("WHERE previous_id = $1;", id.String())
+	r := db.GetBlocksByQuery("WHERE previous_id = encode($1, 'hex');", id[:])
 	defer func() {
 		for range r {
 
@@ -388,7 +403,7 @@ func (db *Database) GetLastFound() BlockInterface {
 }
 
 func (db *Database) GetUncleById(id types.Hash) *UncleBlock {
-	r := db.GetUncleBlocksByQuery("WHERE id = $1;", id.String())
+	r := db.GetUncleBlocksByQuery("WHERE id = encode($1, 'hex');", id[:])
 	defer func() {
 		for range r {
 
@@ -398,7 +413,7 @@ func (db *Database) GetUncleById(id types.Hash) *UncleBlock {
 }
 
 func (db *Database) getUnclesByParentId(id types.Hash) chan *UncleBlock {
-	return db.GetUncleBlocksByQuery("WHERE parent_id = $1;", id.String())
+	return db.GetUncleBlocksByQueryStatement(db.statements.GetUnclesByParentId, id[:])
 }
 
 func (db *Database) GetUnclesByParentHeight(height uint64) chan *UncleBlock {
@@ -502,6 +517,8 @@ func (db *Database) GetShares(limit uint64, minerId uint64, onlyBlocks bool) cha
 	var blocks chan *Block
 	var uncles chan *UncleBlock
 
+	result := make(chan BlockInterface)
+
 	if limit == 0 {
 		if minerId != 0 {
 			blocks = db.GetBlocksByQuery("WHERE miner = $1 ORDER BY height DESC;", minerId)
@@ -528,7 +545,16 @@ func (db *Database) GetShares(limit uint64, minerId uint64, onlyBlocks bool) cha
 		}
 	}
 
-	result := make(chan BlockInterface)
+	if onlyBlocks {
+		go func() {
+			defer close(result)
+			for b := range blocks {
+				result <- b
+			}
+		}()
+		return result
+	}
+
 	go func() {
 		defer func() {
 			if blocks == nil {
@@ -678,9 +704,9 @@ func (db *Database) SetBlockFound(id types.Hash, found bool) error {
 
 func (db *Database) CoinbaseTransactionExists(block *Block) bool {
 	var count uint64
-	if err := db.Query("SELECT COUNT(*) as count FROM coinbase_outputs WHERE id = $1;", func(row RowScanInterface) error {
+	if err := db.Query("SELECT COUNT(*) as count FROM coinbase_outputs WHERE id = encode($1, 'hex');", func(row RowScanInterface) error {
 		return row.Scan(&count)
-	}, block.Coinbase.Id.String()); err != nil {
+	}, block.Coinbase.Id[:]); err != nil {
 		return false
 	}
 
@@ -689,7 +715,7 @@ func (db *Database) CoinbaseTransactionExists(block *Block) bool {
 
 func (db *Database) GetCoinbaseTransaction(block *Block) *CoinbaseTransaction {
 	var outputs []*CoinbaseTransactionOutput
-	if err := db.Query("SELECT index, amount, miner FROM coinbase_outputs WHERE id = $1 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := db.Query("SELECT index, amount, miner FROM coinbase_outputs WHERE id = encode($1, 'hex') ORDER BY index DESC;", func(row RowScanInterface) error {
 		output := &CoinbaseTransactionOutput{
 			id: block.Coinbase.Id,
 		}
@@ -699,7 +725,7 @@ func (db *Database) GetCoinbaseTransaction(block *Block) *CoinbaseTransaction {
 		}
 		outputs = append(outputs, output)
 		return nil
-	}, block.Coinbase.Id.String()); err != nil {
+	}, block.Coinbase.Id[:]); err != nil {
 		return nil
 	}
 
@@ -715,12 +741,12 @@ func (db *Database) GetCoinbaseTransactionOutputByIndex(coinbaseId types.Hash, i
 		id:    coinbaseId,
 		index: index,
 	}
-	if err := db.Query("SELECT amount, miner FROM coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := db.Query("SELECT amount, miner FROM coinbase_outputs WHERE id = encode($1, 'hex') AND index = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
 		if err := row.Scan(&output.amount, &output.miner); err != nil {
 			return err
 		}
 		return nil
-	}, coinbaseId.String(), index); err != nil {
+	}, coinbaseId[:], index); err != nil {
 		return nil
 	}
 
@@ -732,12 +758,12 @@ func (db *Database) GetCoinbaseTransactionOutputByMinerId(coinbaseId types.Hash,
 		id:    coinbaseId,
 		miner: minerId,
 	}
-	if err := db.Query("SELECT amount, index FROM coinbase_outputs WHERE id = $1 AND miner = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := db.Query("SELECT amount, index FROM coinbase_outputs WHERE id = encode($1, 'hex') AND miner = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
 		if err := row.Scan(&output.amount, &output.index); err != nil {
 			return err
 		}
 		return nil
-	}, coinbaseId.String(), minerId); err != nil {
+	}, coinbaseId[:], minerId); err != nil {
 		return nil
 	}
 
