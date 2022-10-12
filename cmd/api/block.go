@@ -84,7 +84,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 				b.Uncles = append(b.Uncles, &database.JSONUncleBlockSimple{
 					Id:     u.Block.Id,
 					Height: u.Block.Height,
-					Weight: uncleWeight.Lo,
+					Weight: u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
 				})
 			} else {
 				b.Uncles = append(b.Uncles, &database.JSONUncleBlockExtra{
@@ -94,7 +94,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 					Timestamp:  u.Block.Timestamp,
 					Miner:      api.GetDatabase().GetMiner(u.Block.MinerId).Address(),
 					PowHash:    u.Block.PowHash,
-					Weight:     uncleWeight.Lo,
+					Weight:     u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
 				})
 			}
 		}
