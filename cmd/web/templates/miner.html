@@ -83,13 +83,18 @@
         <br/>
         Number denotes the amount of shares per slice, with the plus (<code>+</code>) character being more than 9, and dot (<code>.</code>) being none.
         <br/>
-        Each slice accounts for {{ pool.sidechain.window_size / 30 }} P2Pool blocks, or around {{ ((pool.sidechain.window_size / 30) * pool.sidechain.block_time) / 60 }} minutes.
+        Each slice accounts for {{ position_resolution }} P2Pool blocks, or around {{ (position_resolution * pool.sidechain.block_time) / 60 }} minutes.
     </p>
-    <h3>Shares in last day</h3>
+    <h3>Shares during last day</h3>
     <code class="mono">{{ position_blocks }}</code>
 
-    <h3>Uncles in last day</h3>
+    <h3>Uncles during last day</h3>
     <code class="mono">{{ position_uncles }}</code>
+
+    {% if count_payouts > 0 %}
+    <h3>Payouts during last day</h3>
+    <code class="mono">{{ position_payouts }}</code>
+    {% endif %}
 
 </div>
 

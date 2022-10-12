@@ -541,8 +541,8 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		if limit > 100 {
-			limit = 100
+		if limit > 200 {
+			limit = 200
 		}
 
 		if limit == 0 {
@@ -573,8 +573,8 @@ func main() {
 			}
 		}
 
-		if limit > p2pool.PPLNSWindow {
-			limit = p2pool.PPLNSWindow
+		if limit > p2pool.PPLNSWindow*4*7 {
+			limit = p2pool.PPLNSWindow * 4 * 7
 		}
 		if limit == 0 {
 			limit = 50

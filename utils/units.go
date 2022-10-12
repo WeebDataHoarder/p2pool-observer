@@ -11,5 +11,5 @@ func SiUnits(number float64, decimals int) string {
 		return fmt.Sprintf("%.*f K", decimals, number/1000)
 	}
 
-	return fmt.Sprintf("%.*f", decimals, number)
+	return fmt.Sprintf("%.*f ", decimals, number)
 }

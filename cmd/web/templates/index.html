@@ -89,12 +89,16 @@
     <p>
         <a href="/miners">[Current Window Miners]</a>
     </p>
+    <p>
+        <a href="/miners?weekly">[Weekly Miners]</a>
+    </p>
 </div>
 
 <hr/>
 
 <div style="text-align: center">
     <h2>Recent Monero blocks found by P2Pool miners</h2>
+
     <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
@@ -138,6 +142,10 @@
             <th colspan="9"><a href="/blocks">[show more found blocks]</a></th>
         </tr>
     </table>
+
+
+    <h3>Blocks found during last day</h3>
+    <code class="mono">{{ blocks_found_position }}</code>
 </div>
 
 <hr/>
