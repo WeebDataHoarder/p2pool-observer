@@ -56,14 +56,12 @@ func main() {
 
 		for b := range api.GetDatabase().GetBlocksInWindow(&tip.Height, 0) {
 			blockCount++
-
 			if _, ok := miners[b.MinerId]; !ok {
 				miners[b.MinerId] = 0
 			}
 			miners[b.MinerId]++
 
 			windowDifficulty = windowDifficulty.Add(b.Difficulty.Uint128)
-
 			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
 				//TODO: check this check is correct :)
 				if (tip.Height - u.Block.Height) > p2pool.PPLNSWindow {

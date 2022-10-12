@@ -545,7 +545,7 @@ func main() {
 		windowCount := uint64(1)
 		size := uint64(30)
 		cacheTime := 30
-		if params.Has("week") {
+		if params.Has("weekly") {
 			windowCount = 4 * 7
 			size *= 2
 			if params.Has("refresh") {
@@ -578,7 +578,6 @@ func main() {
 			miners[miner]["weight"] = types.Difficulty{Uint128: miners[miner]["weight"].(types.Difficulty).Add64(diff)}
 
 			if _, ok := share["uncles"]; ok {
-
 				for _, u := range share["uncles"].([]any) {
 					uncle := u.(map[string]any)
 					if toUint64(uncle["height"]) <= wend {
@@ -617,7 +616,7 @@ func main() {
 		ctx["tip"] = tip
 		ctx["pool"] = poolInfo
 
-		if params.Has("week") {
+		if params.Has("weekly") {
 			render(writer, "miners_week.html", ctx)
 		} else {
 			render(writer, "miners.html", ctx)

@@ -29,7 +29,7 @@ type Database struct {
 
 func NewDatabase(connStr string) (db *Database, err error) {
 	db = &Database{
-		minerCache:          make(map[uint64]*Miner, 1024),
+		minerCache:          make(map[uint64]*Miner, 4096),
 		unclesByParentCache: make(map[types.Hash][]*UncleBlock, p2pool.PPLNSWindow*16),
 	}
 	if db.handle, err = sql.Open("postgres", connStr); err != nil {
@@ -96,7 +96,7 @@ func (db *Database) GetUnclesByParentId(id types.Hash) chan *UncleBlock {
 			defer func() {
 				db.cacheLock.Lock()
 				defer db.cacheLock.Unlock()
-				if len(db.unclesByParentCache) >= p2pool.PPLNSWindow*16 {
+				if len(db.unclesByParentCache) >= p2pool.PPLNSWindow*4*30 {
 					for k := range db.unclesByParentCache {
 						delete(db.unclesByParentCache, k)
 						break
