@@ -279,7 +279,7 @@ func (db *Database) GetBlocksByQueryStatement(stmt *sql.Stmt, params ...any) cha
 }
 
 func (db *Database) GetUncleBlocksByQuery(where string, params ...any) chan *UncleBlock {
-	if stmt, err := db.PrepareBlocksByQueryStatement(where); err != nil {
+	if stmt, err := db.PrepareUncleBlocksByQueryStatement(where); err != nil {
 		returnChannel := make(chan *UncleBlock)
 		close(returnChannel)
 		return returnChannel
