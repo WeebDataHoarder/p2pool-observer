@@ -624,7 +624,7 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/raw|/info|/payouts}", func(writer http.ResponseWriter, request *http.Request) {
 
 		params := request.URL.Query()
 
@@ -700,6 +700,48 @@ func main() {
 			writer.Header().Set("Content-Type", "text/plain")
 			writer.WriteHeader(http.StatusOK)
 			_, _ = writer.Write(raw)
+		case "/payouts":
+			result := make([]*database.Payout, 0)
+			if !isOrphan && !isInvalid {
+				blockHeight := block.GetBlock().Height
+				if uncle, ok := block.(*database.UncleBlock); ok {
+					blockHeight = uncle.ParentHeight
+				}
+
+				if err := db.Query("SELECT decode(b.id, 'hex') AS id, decode(b.main_id, 'hex') AS main_id, b.height AS height, b.main_height AS main_height, b.timestamp AS timestamp, decode(b.coinbase_privkey, 'hex') AS coinbase_privkey, b.uncle AS uncle, decode(o.id, 'hex') AS coinbase_id, o.amount AS amount, o.index AS index FROM (SELECT id, amount, index FROM coinbase_outputs WHERE miner = $1 ) o LEFT JOIN LATERAL (SELECT id, coinbase_id, coinbase_privkey, height, main_height, main_id, timestamp, FALSE AS uncle FROM blocks WHERE coinbase_id = o.id UNION SELECT id, coinbase_id, coinbase_privkey, height, main_height, main_id, timestamp, TRUE AS uncle FROM uncles WHERE coinbase_id = o.id) b ON b.coinbase_id = o.id WHERE height >= $2 AND height < $3 ORDER BY main_height ASC;", func(row database.RowScanInterface) error {
+					var blockId, mainId, privKey, coinbaseId []byte
+					var height, mainHeight, timestamp, amount, index uint64
+					var uncle bool
+
+					if err := row.Scan(&blockId, &mainId, &height, &mainHeight, &timestamp, &privKey, &uncle, &coinbaseId, &amount, &index); err != nil {
+						return err
+					}
+
+					result = append(result, &database.Payout{
+						Id:        types.HashFromBytes(blockId),
+						Height:    height,
+						Timestamp: timestamp,
+						Main: struct {
+							Id     types.Hash `json:"id"`
+							Height uint64     `json:"height"`
+						}{Id: types.HashFromBytes(mainId), Height: mainHeight},
+						Uncle: uncle,
+						Coinbase: struct {
+							Id         types.Hash `json:"id"`
+							Reward     uint64     `json:"reward"`
+							PrivateKey types.Hash `json:"private_key"`
+							Index      uint64     `json:"index"`
+						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: types.HashFromBytes(privKey), Index: index},
+					})
+					return nil
+				}, block.GetBlock().MinerId, blockHeight, blockHeight+p2pool.PPLNSWindow); err != nil {
+					return
+				}
+			}
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := encodeJson(request, result)
+			_, _ = writer.Write(buf)
 		default:
 			MapJSONBlock(api, block, true, params.Has("coinbase"))
 
