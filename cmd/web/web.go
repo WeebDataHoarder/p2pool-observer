@@ -655,12 +655,15 @@ func main() {
 			}
 		}
 
+		payouts := getFromAPI(fmt.Sprintf("block_by_id/%s/payouts", block.(map[string]any)["id"].(string)))
+
 		poolInfo := getFromAPI("pool_info", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
 		ctx["raw"] = raw
 		ctx["pool"] = poolInfo
+		ctx["payouts"] = payouts
 
 		render(writer, "share.html", ctx)
 	})

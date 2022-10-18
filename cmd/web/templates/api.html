@@ -354,8 +354,9 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
     <hr/>
 
     <div>
-        <h3 class="mono">/api/block_by_id/&lt;blockId&gt;[/raw]</h3>
+        <h3 class="mono">/api/block_by_id/&lt;blockId&gt;[/raw|/payouts]</h3>
         <p>Response contains a block/share record on P2Pool by Id. You can select the JSON version or the binary hex format (various format versions exist, decoding is documented by source code). <em>coinbase</em> parameter can also be used here to decode coinbase outputs</p>
+        <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/bc827aeecb5a5254cec6c2fc9a07f49c1d3c03b92dea39c5d9b3fbb19affe0ef
 {
@@ -391,8 +392,9 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/bc827a
     <hr/>
 
     <div>
-        <h3 class="mono">/api/block_by_height/&lt;blockHeight&gt;[/raw]</h3>
+        <h3 class="mono">/api/block_by_height/&lt;blockHeight&gt;[/raw|/payouts]</h3>
         <p>Response contains a block/share record on P2Pool by height. You can select the JSON version or the binary hex format (various format versions exist, decoding is documented by source code). <em>coinbase</em> parameter can also be used here to decode coinbase outputs</p>
+        <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_height/158450
 {
