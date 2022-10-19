@@ -674,7 +674,7 @@ func main() {
 		render(writer, "share.html", ctx)
 	})
 
-	serveMux.HandleFunc("/miner/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/miner/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
 		params := request.URL.Query()
 		if params.Has("refresh") {
 			writer.Header().Set("refresh", "300")

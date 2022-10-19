@@ -18,6 +18,7 @@ type Database struct {
 	statements struct {
 		GetMinerById            *sql.Stmt
 		GetMinerByAddress       *sql.Stmt
+		GetMinerByAlias         *sql.Stmt
 		GetMinerByAddressBounds *sql.Stmt
 		InsertMiner             *sql.Stmt
 		GetUnclesByParentId     *sql.Stmt
@@ -41,6 +42,9 @@ func NewDatabase(connStr string) (db *Database, err error) {
 		return nil, err
 	}
 	if db.statements.GetMinerByAddress, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE address = $1;"); err != nil {
+		return nil, err
+	}
+	if db.statements.GetMinerByAlias, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE alias = $1;"); err != nil {
 		return nil, err
 	}
 	if db.statements.GetMinerByAddressBounds, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE address LIKE $1 AND address LIKE $2;"); err != nil {
@@ -122,6 +126,23 @@ func (db *Database) GetUnclesByParentId(id types.Hash) chan *UncleBlock {
 
 func (db *Database) getMiner(miner uint64) *Miner {
 	if rows, err := db.statements.GetMinerById.Query(miner); err != nil {
+		return nil
+	} else {
+		defer rows.Close()
+		if rows.Next() {
+			m := &Miner{}
+			if err = rows.Scan(&m.id, &m.alias, &m.addr); err != nil {
+				return nil
+			}
+			return m
+		}
+
+		return nil
+	}
+}
+
+func (db *Database) GetMinerByAlias(alias string) *Miner {
+	if rows, err := db.statements.GetMinerByAlias.Query(alias); err != nil {
 		return nil
 	} else {
 		defer rows.Close()

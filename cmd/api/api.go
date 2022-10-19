@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 )
 
 func encodeJson(r *http.Request, d any) ([]byte, error) {
@@ -161,11 +162,15 @@ func main() {
 
 	})
 
-	serveMux.HandleFunc("/api/miner_info/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/miner_info/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *database.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
 			miner = api.GetDatabase().GetMinerByAddress(minerId)
+		}
+
+		if miner == nil {
+			miner = api.GetDatabase().GetMinerByAlias(minerId)
 		}
 
 		if miner == nil {
@@ -190,14 +195,14 @@ func main() {
 			Count      uint64
 			LastHeight uint64
 		}
-		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, MAX(height) as last_height FROM blocks WHERE blocks.miner = $1;", func(row database.RowScanInterface) error {
+		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, coalesce(MAX(height), 0) as last_height FROM blocks WHERE blocks.miner = $1;", func(row database.RowScanInterface) error {
 			return row.Scan(&blockData.Count, &blockData.LastHeight)
 		}, miner.Id())
 		var uncleData struct {
 			Count      uint64
 			LastHeight uint64
 		}
-		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, MAX(parent_height) as last_height FROM uncles WHERE uncles.miner = $1;", func(row database.RowScanInterface) error {
+		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, coalesce(MAX(parent_height), 0) as last_height FROM uncles WHERE uncles.miner = $1;", func(row database.RowScanInterface) error {
 			return row.Scan(&uncleData.Count, &uncleData.LastHeight)
 		}, miner.Id())
 
@@ -260,7 +265,7 @@ func main() {
 			}
 
 			return true
-		}() || message[0] == '4' {
+		}() || !unicode.IsLetter(rune(message[0])) {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
 			buf, _ := json.Marshal(struct {
@@ -274,6 +279,9 @@ func main() {
 
 		result := miner.MoneroAddress().Verify([]byte(message), sig)
 		if result == address.ResultSuccessSpend {
+			if message == "REMOVE_MINER_ALIAS" {
+				message = ""
+			}
 			if api.GetDatabase().SetMinerAlias(miner.Id(), message) != nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusBadRequest)

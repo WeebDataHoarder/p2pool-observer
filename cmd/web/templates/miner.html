@@ -45,7 +45,8 @@
     <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
 
     {% if miner.alias != "" %}
-    <p><strong>Miner Alias:</strong> <span class="mono small">{{ miner.alias }}</span></p>
+    <p><strong>Miner Alias:</strong> <span class="mono">{{ miner.alias }}</span></p>
+    <p><small>Miner Alias is user content and not verified. This value should only be used for vanity purposes.</small></p>
     {% endif %}
 
     <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
@@ -211,4 +212,30 @@
     </table>
 </div>
 
+
+
+{% if miner.last_share_timestamp != 0 %}
+<hr/>
+
+<div style="text-align: center">
+    <form action="/api/miner_alias/{{ miner.address }}" method="get" target="_blank">
+        <h3>Set Miner Alias</h3>
+        <p>To set a miner alias you will need to sign a message using your wallet. On the Monero GUI, go to Advanced -> Sign/verify -> Select Mode "Message"</p>
+        <p>Enter the desired Miner Alias in Message, then press Sign Message. Copy the Signature and paste it on the field below, along with your chosen Miner Alias.</p>
+        <p><small>Miner Alias must be 4 to 20 characters long, and only 0-9, a-z, A-Z, and _-. are allowed, and cannot start with a number or symbol. No spaces are allowed either. Alias are unique for the observer instance.</small></p>
+        <p><small>You can remove your miner alias by using "REMOVE_MINER_ALIAS" as an alias.</small></p>
+        <div>
+            <label for="miner-alias">Miner Alias</label><br/>
+            <input type="text" name="message" id="miner-alias" size="20" class="mono"/>
+        </div>
+        <div>
+            <label for="signature">Signature</label><br/>
+            <input type="text" name="signature" id="signature" size="96" class="mono"/>
+        </div>
+        <div style="margin-top: 10px">
+            <input type="submit" value="Set Alias" style="width: 20em;"/>
+        </div>
+    </form>
+</div>
+{% endif %}
 {% endblock %}
