@@ -62,6 +62,7 @@ type JSONCoinbaseOutput struct {
 	Amount  uint64 `json:"amount"`
 	Index   uint64 `json:"index"`
 	Address string `json:"address"`
+	Alias   string `json:"alias,omitempty"`
 }
 
 type JSONUncleBlockExtra struct {
@@ -70,6 +71,7 @@ type JSONUncleBlockExtra struct {
 	Difficulty types.Difficulty `json:"difficulty"`
 	Timestamp  uint64           `json:"timestamp"`
 	Miner      string           `json:"miner"`
+	MinerAlias string           `json:"miner_alias,omitempty"`
 	PowHash    types.Hash       `json:"pow"`
 	Weight     uint64           `json:"weight"`
 }
@@ -83,8 +85,9 @@ type Block struct {
 	Timestamp  uint64           `json:"timestamp"`
 	MinerId    uint64           `json:"-"`
 	//Address extra JSON field, do not use
-	Address string     `json:"miner,omitempty"`
-	PowHash types.Hash `json:"pow"`
+	Address    string     `json:"miner,omitempty"`
+	MinerAlias string     `json:"miner_alias,omitempty"`
+	PowHash    types.Hash `json:"pow"`
 
 	Main BlockMainData `json:"main"`
 

@@ -27,10 +27,12 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 		if b.Main.Found && tx != nil {
 			b.Coinbase.Payouts = make([]*database.JSONCoinbaseOutput, len(tx.Outputs()))
 			for _, output := range tx.Outputs() {
+				miner := api.GetDatabase().GetMiner(output.Miner())
 				b.Coinbase.Payouts[output.Index()] = &database.JSONCoinbaseOutput{
 					Amount:  output.Amount(),
 					Index:   output.Index(),
-					Address: api.GetDatabase().GetMiner(output.Miner()).Address(),
+					Address: miner.Address(),
+					Alias:   miner.Alias(),
 				}
 			}
 		} else {
@@ -46,6 +48,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 				copy(k[types.HashSize:], miner.MoneroAddress().ViewPub.Bytes())
 				addresses[k] = &database.JSONCoinbaseOutput{
 					Address: miner.Address(),
+					Alias:   miner.Alias(),
 					Amount:  amount.Lo,
 				}
 			}
@@ -87,12 +90,14 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 					Weight: u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
 				})
 			} else {
+				uncleMiner := api.GetDatabase().GetMiner(u.Block.MinerId)
 				b.Uncles = append(b.Uncles, &database.JSONUncleBlockExtra{
 					Id:         u.Block.Id,
 					Height:     u.Block.Height,
 					Difficulty: u.Block.Difficulty,
 					Timestamp:  u.Block.Timestamp,
-					Miner:      api.GetDatabase().GetMiner(u.Block.MinerId).Address(),
+					Miner:      uncleMiner.Address(),
+					MinerAlias: uncleMiner.Alias(),
 					PowHash:    u.Block.PowHash,
 					Weight:     u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
 				})
@@ -106,5 +111,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 		b.Main.Orphan = true
 	}
 
-	b.Address = api.GetDatabase().GetMiner(b.MinerId).Address()
+	miner := api.GetDatabase().GetMiner(b.MinerId)
+	b.Address = miner.Address()
+	b.MinerAlias = miner.Alias()
 }

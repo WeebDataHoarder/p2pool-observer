@@ -131,7 +131,11 @@
             {% else %}
                 <td>unknown</td>
             {% endif %}
+            {% if b.miner_alias != "" %}
+            <td title="{{ b.miner }} ({{ b.miner_alias }})" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner_alias|shorten(10) }}</a></td>
+            {% else %}
             <td title="{{ b.miner }}" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner|shorten(10) }}</a></td>
+            {% endif %}
             <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
             <td>{{ b.coinbase.payouts|length }}</td>
             <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
@@ -167,7 +171,11 @@
             <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
             <td title="{{ s.main.id }}">{{ s.main.height }}</td>
             <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+            {% if s.miner_alias != "" %}
+            <td title="{{ s.miner }} ({{ s.miner_alias }})" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner_alias|shorten(10) }}</a></td>
+            {% else %}
             <td title="{{ s.miner }}" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner|shorten(10) }}</a></td>
+            {% endif %}
             <td>
                 {% if s.parent is defined %}
                 {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)

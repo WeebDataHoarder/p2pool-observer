@@ -2,6 +2,7 @@ package database
 
 import (
 	"bytes"
+	"database/sql"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
@@ -14,11 +15,19 @@ import (
 type Miner struct {
 	id            uint64
 	addr          string
+	alias         sql.NullString
 	moneroAddress atomic.Pointer[address.Address]
 }
 
 func (m *Miner) Id() uint64 {
 	return m.id
+}
+
+func (m *Miner) Alias() string {
+	if m.alias.Valid {
+		return m.alias.String
+	}
+	return ""
 }
 
 func (m *Miner) Address() string {

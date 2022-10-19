@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
@@ -218,6 +219,7 @@ func main() {
 		buf, _ := encodeJson(request, minerInfoResult{
 			Id:      miner.Id(),
 			Address: miner.MoneroAddress(),
+			Alias:   miner.Alias(),
 			Shares: struct {
 				Blocks uint64 `json:"blocks"`
 				Uncles uint64 `json:"uncles"`
@@ -226,6 +228,88 @@ func main() {
 			LastShareTimestamp: lastShareTimestamp,
 		})
 		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/miner_alias/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		miner := api.GetDatabase().GetMinerByAddress(minerId)
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		sig := strings.TrimSpace(params.Get("signature"))
+
+		message := strings.TrimSpace(params.Get("message"))
+
+		if len(message) > 20 || len(message) < 3 || !func() bool {
+			for _, c := range message {
+				if c < '0' && c > '9' && c < 'a' && c > 'z' && c < 'A' && c > 'Z' && c != '_' && c != '-' && c != '.' {
+					return false
+				}
+			}
+
+			return true
+		}() || message[0] == '4' {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "invalid_message",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		result := miner.MoneroAddress().Verify([]byte(message), sig)
+		if result == address.ResultSuccessSpend {
+			if api.GetDatabase().SetMinerAlias(miner.Id(), message) != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "duplicate_message",
+				})
+				_, _ = writer.Write(buf)
+				return
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusOK)
+				return
+			}
+		} else if result == address.ResultSuccessView {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "view_signature",
+			})
+			_, _ = writer.Write(buf)
+			return
+		} else {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "invalid_signature",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
 	})
 
 	serveMux.HandleFunc("/api/shares_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {

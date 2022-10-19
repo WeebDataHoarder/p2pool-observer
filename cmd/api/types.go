@@ -47,6 +47,7 @@ type poolInfoResultMainChain struct {
 type minerInfoResult struct {
 	Id      uint64           `json:"id"`
 	Address *address.Address `json:"address"`
+	Alias   string           `json:"alias,omitempty"`
 	Shares  struct {
 		Blocks uint64 `json:"blocks"`
 		Uncles uint64 `json:"uncles"`

@@ -7,8 +7,10 @@ import (
 	"errors"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
+	"strings"
 )
 
 type Address struct {
@@ -124,4 +126,57 @@ func (a *Address) UnmarshalJSON(b []byte) error {
 	} else {
 		return errors.New("invalid address")
 	}
+}
+
+type SignatureVerifyResult int
+
+const (
+	ResultFail SignatureVerifyResult = iota
+	ResultSuccessSpend
+	ResultSuccessView
+)
+
+func (a *Address) getMessageHash(message []byte, mode uint8) types.Hash {
+	buf := make([]byte, 0)
+	buf = append(buf, []byte("MoneroMessageSignature")...)
+	buf = append(buf, []byte{0}...) //null byte for previous string
+	buf = append(buf, a.SpendPub.Bytes()...)
+	buf = append(buf, a.ViewPub.Bytes()...)
+	buf = append(buf, []byte{mode}...) //mode, 0 = sign with spend key, 1 = sign with view key
+	buf = binary.AppendUvarint(buf, uint64(len(message)))
+	buf = append(buf, message...)
+	return types.Hash(moneroutil.Keccak256(buf))
+}
+
+func (a *Address) Verify(message []byte, signature string) SignatureVerifyResult {
+	var hash types.Hash
+
+	if strings.HasPrefix(signature, "SigV1") {
+		hash = types.Hash(moneroutil.Keccak256(message))
+	} else if strings.HasPrefix(signature, "SigV2") {
+		hash = a.getMessageHash(message, 0)
+	} else {
+		return ResultFail
+	}
+	raw := moneroutil.DecodeMoneroBase58(signature[5:])
+
+	sig := crypto.NewSignatureFromBytes(raw)
+
+	if sig == nil {
+		return ResultFail
+	}
+
+	if crypto.CheckSignature(hash, &a.SpendPub, sig) {
+		return ResultSuccessSpend
+	}
+
+	if strings.HasPrefix(signature, "SigV2") {
+		hash = a.getMessageHash(message, 1)
+	}
+
+	if crypto.CheckSignature(hash, &a.ViewPub, sig) {
+		return ResultSuccessView
+	}
+
+	return ResultFail
 }

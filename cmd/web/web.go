@@ -571,6 +571,9 @@ func main() {
 				miners[miner]["weight"] = types.Difficulty{}
 				miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 				miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
+				if a, ok := share["miner_alias"]; ok {
+					miners[miner]["alias"] = a
+				}
 			}
 
 			miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(share["height"])), 1)
@@ -589,6 +592,9 @@ func main() {
 						miners[miner]["weight"] = types.Difficulty{}
 						miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 						miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
+						if a, ok := uncle["miner_alias"]; ok {
+							miners[miner]["alias"] = a
+						}
 					}
 
 					miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(uncle["height"])), 1)

@@ -44,6 +44,10 @@
 
     <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
 
+    {% if miner.alias != "" %}
+    <p><strong>Miner Alias:</strong> <span class="mono small">{{ miner.alias }}</span></p>
+    {% endif %}
+
     <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
         <tr>
             <th>Last Share</th>

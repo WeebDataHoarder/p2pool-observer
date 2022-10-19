@@ -37,13 +37,13 @@ func NewDatabase(connStr string) (db *Database, err error) {
 		return nil, err
 	}
 
-	if db.statements.GetMinerById, err = db.handle.Prepare("SELECT id, address FROM miners WHERE id = $1;"); err != nil {
+	if db.statements.GetMinerById, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE id = $1;"); err != nil {
 		return nil, err
 	}
-	if db.statements.GetMinerByAddress, err = db.handle.Prepare("SELECT id, address FROM miners WHERE address = $1;"); err != nil {
+	if db.statements.GetMinerByAddress, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE address = $1;"); err != nil {
 		return nil, err
 	}
-	if db.statements.GetMinerByAddressBounds, err = db.handle.Prepare("SELECT id, address FROM miners WHERE address LIKE $1 AND address LIKE $2;"); err != nil {
+	if db.statements.GetMinerByAddressBounds, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE address LIKE $1 AND address LIKE $2;"); err != nil {
 		return nil, err
 	}
 	if db.statements.InsertMiner, err = db.handle.Prepare("INSERT INTO miners (address) VALUES ($1) RETURNING id, address;"); err != nil {
@@ -127,7 +127,7 @@ func (db *Database) getMiner(miner uint64) *Miner {
 		defer rows.Close()
 		if rows.Next() {
 			m := &Miner{}
-			if err = rows.Scan(&m.id, &m.addr); err != nil {
+			if err = rows.Scan(&m.id, &m.alias, &m.addr); err != nil {
 				return nil
 			}
 			return m
@@ -144,7 +144,7 @@ func (db *Database) GetMinerByAddress(addr string) *Miner {
 		defer rows.Close()
 		if rows.Next() {
 			m := &Miner{}
-			if err = rows.Scan(&m.id, &m.addr); err != nil {
+			if err = rows.Scan(&m.id, &m.alias, &m.addr); err != nil {
 				return nil
 			}
 			return m
@@ -164,7 +164,7 @@ func (db *Database) GetOrCreateMinerByAddress(addr string) *Miner {
 			defer rows.Close()
 			if rows.Next() {
 				m = &Miner{}
-				if err = rows.Scan(&m.id, &m.addr); err != nil {
+				if err = rows.Scan(&m.id, &m.alias, &m.addr); err != nil {
 					return nil
 				}
 				return m
@@ -176,13 +176,13 @@ func (db *Database) GetOrCreateMinerByAddress(addr string) *Miner {
 }
 
 func (db *Database) GetMinerByAddressBounds(addrStart, addrEnd string) *Miner {
-	if rows, err := db.statements.GetMinerByAddress.Query(addrStart+"%", "%"+addrEnd); err != nil {
+	if rows, err := db.statements.GetMinerByAddressBounds.Query(addrStart+"%", "%"+addrEnd); err != nil {
 		return nil
 	} else {
 		defer rows.Close()
 		if rows.Next() {
 			m := &Miner{}
-			if err = rows.Scan(&m.id, &m.addr); err != nil {
+			if err = rows.Scan(&m.id, &m.alias, &m.addr); err != nil {
 				return nil
 			}
 			return m
@@ -190,6 +190,28 @@ func (db *Database) GetMinerByAddressBounds(addrStart, addrEnd string) *Miner {
 
 		return nil
 	}
+}
+
+func (db *Database) SetMinerAlias(minerId uint64, alias string) error {
+	miner := db.GetMiner(minerId)
+	if miner == nil {
+		return nil
+	}
+	if alias == "" {
+		if err := db.Query("UPDATE miners SET alias = NULL WHERE id = $1;", nil, miner.Id()); err != nil {
+			return err
+		}
+		miner.alias.String = ""
+		miner.alias.Valid = false
+	} else {
+		if err := db.Query("UPDATE miners SET alias = $2 WHERE id = $1;", nil, miner.Id(), alias); err != nil {
+			return err
+		}
+		miner.alias.String = alias
+		miner.alias.Valid = true
+	}
+
+	return nil
 }
 
 type RowScanInterface interface {
