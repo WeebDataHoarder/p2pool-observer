@@ -65,7 +65,11 @@
         <tr>
             <td title="{{ utc_date(block.timestamp) }}">{{ date_diff_short(block.timestamp) }}</td>
             <td class="mono smaller">{{ block.pow }}</td>
+            {% if block.miner_alias != "" %}
+            <td title="{{ block.miner }} ({{ block.miner_alias }})" class="mono small"><a href="/miner/{{ block.miner }}">{{ block.miner_alias|shorten(10) }}</a></td>
+            {% else %}
             <td title="{{ block.miner }}" class="mono small"><a href="/miner/{{ block.miner }}">{{ block.miner|shorten(10) }}</a></td>
+            {% endif %}
             <td class="mono">{{ block.difficulty }}</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
