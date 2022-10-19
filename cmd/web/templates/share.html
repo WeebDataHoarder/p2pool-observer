@@ -184,8 +184,12 @@
             <td>{{ t.Index }}</td>
             <td class="mono smaller">{{ t.EphemeralPublicKey }}</td>
             {% if block.main.found and attribute(block.coinbase.payouts, t.Index) is defined %}
-            {% set miner = attribute(block.coinbase.payouts, t.Index).address %}
-            <td title="{{ miner }}" class="mono small"><a href="/miner/{{ miner }}">{{ miner|shorten(10) }}</a></td>
+            {% set payout = attribute(block.coinbase.payouts, t.Index) %}
+            {% if payout.alias != "" %}
+            <td title="{{ payout.address }} ({{ payout.alias }})" class="mono small"><a href="/miner/{{ payout.address }}">{{ payout.alias|shorten(10) }}</a></td>
+            {% else %}
+            <td title="{{ payout.address }}" class="mono small"><a href="/miner/{{ payout.address }}">{{ payout.address|shorten(10) }}</a></td>
+            {% endif %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
         </tr>
