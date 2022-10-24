@@ -33,7 +33,7 @@
             <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
             <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
             <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/p/{{ p.height|benc }}/{{ miner.id|benc }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
         </tr>
         {% endfor %}
     </table>

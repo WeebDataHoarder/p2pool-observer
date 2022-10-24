@@ -541,26 +541,7 @@ func main() {
 			return
 		}
 
-		miner := api.GetDatabase().GetMiner(tx.Miner())
-
-		http.Redirect(writer, request, fmt.Sprintf("https://www.exploremonero.com/receipt/%s/%s/%s", b.Coinbase.Id.String(), miner.Address(), b.Coinbase.PrivateKey), http.StatusFound)
-	})
-
-	serveMux.HandleFunc("/api/redirect/miner/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
-		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
-		if miner == nil {
-			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
-				Error string `json:"error"`
-			}{
-				Error: "not_found",
-			})
-			_, _ = writer.Write(buf)
-			return
-		}
-
-		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", miner.Address()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b.Id.String(), tx.Index()), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/redirect/prove/{height:[0-9]+|.[0-9A-Za-z]+}/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -578,7 +559,38 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("https://www.exploremonero.com/receipt/%s/%s/%s", b.Coinbase.Id.String(), miner.Address(), b.Coinbase.PrivateKey), http.StatusFound)
+		tx := api.GetDatabase().GetCoinbaseTransactionOutputByMinerId(b.Coinbase.Id, miner.Id())
+
+		if tx == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b.Id.String(), tx.Index()), http.StatusFound)
+	})
+
+	serveMux.HandleFunc("/api/redirect/miner/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
+		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", miner.Address()), http.StatusFound)
 	})
 
 	//other redirects

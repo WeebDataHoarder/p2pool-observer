@@ -145,7 +145,7 @@
             <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
             <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
             <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/p/{{ p.height|benc }}/{{ miner.id|benc }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
         </tr>
         {% endfor %}
 
@@ -163,7 +163,7 @@
     <h2>Coinbase Transaction</h2>
 
     {% if block.main.found %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
+    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 8em)">
         <tr><td colspan="4" class="mono smaller">{{ raw.Main.Coinbase.Extra|hex }}</td></tr>
         <tr><td colspan="4">&nbsp;</td></tr>
     {% else %}
@@ -178,6 +178,9 @@
             <th style="width: 12em">Payout Address</th>
             {% endif %}
             <th style="width: 10em">Reward</th>
+            {% if block.main.found %}
+            <th style="width: 8em">Proof</th>
+            {% endif %}
         </tr>
         {% for t in raw.Main.Coinbase.Outputs %}
         <tr>
@@ -192,6 +195,7 @@
             {% endif %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
+            {% if block.main.found %}<td class="small"><a href="/proof/{{ block.id }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>{% endif %}
         </tr>
         {% endfor %}
     </table>

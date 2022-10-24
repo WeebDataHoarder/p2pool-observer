@@ -134,6 +134,7 @@ func main() {
 		dbTip := db.GetBlockByHeight(knownTip)
 
 		if dbTip.Id != diskTip.Id { //Reorg has happened, delete old values
+			log.Printf("[REORG] Reorg happened, deleting blocks to match from height %d.\n", dbTip.Height)
 			for h := knownTip; h > 0; h-- {
 				dbBlock := db.GetBlockByHeight(h)
 				diskBlock, _, _ := api.GetShareEntry(h)

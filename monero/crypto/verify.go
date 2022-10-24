@@ -38,10 +38,6 @@ func CheckSignature(hash types.Hash, publicKey *edwards25519.Point, signature *S
 	buf = append(buf, hash[:]...)           //h
 	buf = append(buf, publicKey.Bytes()...) //key
 	buf = append(buf, tmp2.Bytes()...)      //comm
-	h := moneroutil.Keccak256(buf)
-
-	var wideBytes [64]byte
-	copy(wideBytes[:], h[:])
-	c, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
+	c := HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
 	return c.Equal(signature.C) == 1
 }

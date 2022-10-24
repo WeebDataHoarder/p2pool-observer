@@ -86,11 +86,7 @@ func GetDerivationSharedDataForOutputIndex(derivation *edwards25519.Point, outpu
 		return nil
 	}
 
-	var wideBytes [64]byte
-	copy(wideBytes[:], hasher.Sum([]byte{}))
-	scalar, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
-
-	return scalar
+	return crypto.BytesToScalar(hasher.Sum(nil))
 }
 
 func (a *Address) GetPublicKeyForSharedData(sharedData *edwards25519.Scalar) *edwards25519.Point {
@@ -100,11 +96,87 @@ func (a *Address) GetPublicKeyForSharedData(sharedData *edwards25519.Scalar) *ed
 
 }
 
-func (a *Address) GetEphemeralPublicKey(privateKey types.Hash, outputIndex uint64) (result types.Hash) {
-	pK, _ := edwards25519.NewScalar().SetCanonicalBytes(privateKey[:])
+func (a *Address) GetEphemeralPublicKey(txKey types.Hash, outputIndex uint64) (result types.Hash) {
+	pK, _ := edwards25519.NewScalar().SetCanonicalBytes(txKey[:])
 	copy(result[:], a.GetPublicKeyForSharedData(GetDerivationSharedDataForOutputIndex(a.GetDerivationForPrivateKey(pK), outputIndex)).Bytes())
 
 	return
+}
+
+func (a *Address) GetTxProof(txId types.Hash, txKey types.Hash, message string) string {
+
+	var prefixData []byte
+	prefixData = append(prefixData, txId[:]...)
+	prefixData = append(prefixData, []byte(message)...)
+	prefixHash := types.Hash(moneroutil.Keccak256(prefixData))
+
+	txKeyS, _ := edwards25519.NewScalar().SetCanonicalBytes(txKey[:])
+
+	sharedSecret := (&edwards25519.Point{}).ScalarMult(txKeyS, &a.ViewPub)
+	txPublicKey := (&edwards25519.Point{}).ScalarBaseMult(txKeyS)
+
+	// pick random k
+	k := crypto.RandomScalar()
+	//k := crypto.HashToScalar(txId)
+
+	buf := make([]byte, 0)
+	buf = append(buf, prefixHash[:]...)        //msg
+	buf = append(buf, sharedSecret.Bytes()...) //D
+
+	X := (&edwards25519.Point{}).ScalarBaseMult(k)
+	buf = append(buf, X.Bytes()...) //X
+
+	Y := (&edwards25519.Point{}).ScalarMult(k, &a.ViewPub)
+	buf = append(buf, Y.Bytes()...) //Y
+
+	sep := types.Hash(moneroutil.Keccak256([]byte("TXPROOF_V2"))) // HASH_KEY_TXPROOF_V2
+	buf = append(buf, sep[:]...)                                  //sep
+
+	buf = append(buf, txPublicKey.Bytes()...)         //R
+	buf = append(buf, a.ViewPub.Bytes()...)           //A
+	buf = append(buf, bytes.Repeat([]byte{0}, 32)...) //B
+
+	sig := &crypto.Signature{}
+
+	sig.C = crypto.HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
+
+	sig.R = edwards25519.NewScalar().Subtract(k, edwards25519.NewScalar().Multiply(sig.C, txKeyS))
+
+	return "OutProofV2" + moneroutil.EncodeMoneroBase58(sharedSecret.Bytes()) + moneroutil.EncodeMoneroBase58(append(sig.C.Bytes(), sig.R.Bytes()...))
+}
+
+func (a *Address) GetTxProofV1(txId types.Hash, txKey types.Hash, message string) string {
+
+	var prefixData []byte
+	prefixData = append(prefixData, txId[:]...)
+	prefixData = append(prefixData, []byte(message)...)
+	prefixHash := types.Hash(moneroutil.Keccak256(prefixData))
+
+	txKeyS, _ := edwards25519.NewScalar().SetCanonicalBytes(txKey[:])
+
+	sharedSecret := (&edwards25519.Point{}).ScalarMult(txKeyS, &a.ViewPub)
+
+	// pick random k
+	k := crypto.RandomScalar()
+	//k := crypto.HashToScalar(txId)
+
+	buf := make([]byte, 0)
+	buf = append(buf, prefixHash[:]...)        //msg
+	buf = append(buf, sharedSecret.Bytes()...) //D
+
+	X := (&edwards25519.Point{}).ScalarBaseMult(k)
+	buf = append(buf, X.Bytes()...) //X
+
+	Y := (&edwards25519.Point{}).ScalarMult(k, &a.ViewPub)
+	buf = append(buf, Y.Bytes()...) //Y
+
+	sig := &crypto.Signature{}
+
+	sig.C = crypto.HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
+
+	sig.R = edwards25519.NewScalar().Subtract(k, edwards25519.NewScalar().Multiply(sig.C, txKeyS))
+
+	return "OutProofV1" + moneroutil.EncodeMoneroBase58(sharedSecret.Bytes()) + moneroutil.EncodeMoneroBase58(append(sig.C.Bytes(), sig.R.Bytes()...))
 }
 
 func (a *Address) MarshalJSON() ([]byte, error) {

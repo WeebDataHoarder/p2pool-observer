@@ -126,7 +126,7 @@
             <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
             <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
             <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/p/{{ p.height|benc }}/{{ miner.id|benc }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
         </tr>
         {% endfor %}
 
@@ -175,12 +175,11 @@
 
 <div style="text-align: center">
     <h2>Most recent Monero blocks found</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 7em + 12em + 28em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
             <th style="width: 10em;">Total Reward</th>
             <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
             <th style="width: 12em;">Coinbase Transaction</th>
@@ -199,7 +198,6 @@
             </th>
             {% endif %}
             <td title="{{ utc_date(b.timestamp) }}">{{ date_diff_short(b.timestamp) }}</td>
-            <td title="{{ b.miner }}" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner|shorten(10) }}</a></td>
             <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
             <td>{{ b.coinbase.payouts|length }}</td>
             <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>

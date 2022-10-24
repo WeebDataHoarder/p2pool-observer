@@ -710,11 +710,11 @@ func (db *Database) DeleteBlockById(id types.Hash) (n int, err error) {
 			} else if err = db.Query("DELETE FROM blocks WHERE id = $1;", nil, id.String()); err != nil {
 				return n, err
 			}
+			n++
 			block = db.GetBlockByPreviousId(block.Id)
 			if block == nil {
 				return n, nil
 			}
-			n++
 		}
 	}
 }
@@ -917,6 +917,9 @@ func (db *Database) InsertBlock(b *Block, fallbackDifficulty *types.Difficulty) 
 	}
 
 	if block != nil { //Update found status if existent
+		if b.Id == block.Id {
+			return errors.New("block exists but has different id")
+		}
 		if block.Template.Difficulty != mainDiff && mainDiff != UndefinedDifficulty {
 			if err := db.SetBlockMainDifficulty(block.Id, mainDiff); err != nil {
 				return err
@@ -967,6 +970,9 @@ func (db *Database) InsertUncleBlock(u *UncleBlock, fallbackDifficulty *types.Di
 	}
 
 	if uncle != nil { //Update found status if existent
+		if u.Block.Id == uncle.Block.Id {
+			return errors.New("block exists but has different id")
+		}
 		if uncle.Block.Template.Difficulty != mainDiff && mainDiff != UndefinedDifficulty {
 			if err := db.SetBlockMainDifficulty(u.Block.Id, mainDiff); err != nil {
 				return err

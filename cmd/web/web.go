@@ -277,6 +277,15 @@ func main() {
 		return result
 	}
 
+	env.Functions["sub_int"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		result := toInt64(args[0])
+		for _, v := range args[1:] {
+			result -= toInt64(v)
+		}
+
+		return result
+	}
+
 	env.Functions["date_diff_short"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		diff := time.Since(time.Unix(int64(toUint64(args[0])), 0).UTC())
 		s := fmt.Sprintf("%02d:%02d:%02d", int64(diff.Hours())%24, int64(diff.Minutes())%60, int64(diff.Seconds())%60)
@@ -287,6 +296,44 @@ func main() {
 		}
 
 		return s
+	}
+
+	env.Functions["prove_output_number"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 2 {
+			return nil
+		}
+
+		n := uint64(math.Ceil(math.Log2(p2pool.PPLNSWindow * 4)))
+
+		//height | index
+
+		return (toUint64(args[0]) << n) | toUint64(args[1])
+	}
+
+	env.Functions["get_tx_proof"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 3 {
+			return nil
+		}
+		h, _ := types.HashFromString(args[1].(string))
+		k, _ := types.HashFromString(args[2].(string))
+		return address2.FromBase58(args[0].(string)).GetTxProof(h, k, "")
+	}
+
+	env.Functions["get_tx_proof_v1"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 3 {
+			return nil
+		}
+		h, _ := types.HashFromString(args[1].(string))
+		k, _ := types.HashFromString(args[2].(string))
+		return address2.FromBase58(args[0].(string)).GetTxProofV1(h, k, "")
+	}
+
+	env.Functions["get_ephemeral_pubkey"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 3 {
+			return nil
+		}
+		k, _ := types.HashFromString(args[1].(string))
+		return address2.FromBase58(args[0].(string)).GetEphemeralPublicKey(k, toUint64(args[2])).String()
 	}
 
 	env.Functions["attribute"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -362,11 +409,9 @@ func main() {
 	env.Filters["henc"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
 
 		if h, ok := val.(types.Hash); ok {
-			return h.String()
-			//return utils.EncodeHexBinaryNumber(h.String())
+			return utils.EncodeHexBinaryNumber(h.String())
 		} else if s, ok := val.(string); ok {
-			return s
-			//return utils.EncodeHexBinaryNumber(s)
+			return utils.EncodeHexBinaryNumber(s)
 		}
 
 		//TODO: remove this
@@ -785,6 +830,43 @@ func main() {
 			return
 		}
 		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", params.Get("address")), http.StatusMovedPermanently)
+	})
+
+	serveMux.HandleFunc("/proof/{block:[0-9a-f]+|[0-9]+}/{index:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
+		identifier := utils.DecodeHexBinaryNumber(mux.Vars(request)["block"])
+		index := toUint64(mux.Vars(request)["index"])
+
+		block := getFromAPI(fmt.Sprintf("block_by_id/%s?coinbase", identifier)).(map[string]any)
+
+		if block == nil || block["main"].(map[string]any)["found"] == false {
+			ctx := make(map[string]stick.Value)
+			error := make(map[string]stick.Value)
+			ctx["error"] = error
+			ctx["code"] = http.StatusNotFound
+			error["message"] = "Block Was Not Found"
+			render(writer, "error.html", ctx)
+			return
+		}
+
+		payouts := block["coinbase"].(map[string]any)["payouts"].([]any)
+		if uint64(len(payouts)) <= index {
+			ctx := make(map[string]stick.Value)
+			error := make(map[string]stick.Value)
+			ctx["error"] = error
+			ctx["code"] = http.StatusNotFound
+			error["message"] = "Output Not Found"
+			render(writer, "error.html", ctx)
+			return
+		}
+
+		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+
+		ctx := make(map[string]stick.Value)
+		ctx["block"] = block
+		ctx["payout"] = payouts[index]
+		ctx["pool"] = poolInfo
+
+		render(writer, "proof.html", ctx)
 	})
 
 	serveMux.HandleFunc("/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
