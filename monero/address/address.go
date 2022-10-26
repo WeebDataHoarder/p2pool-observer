@@ -89,6 +89,25 @@ func GetDerivationSharedDataForOutputIndex(derivation *edwards25519.Point, outpu
 	return crypto.BytesToScalar(hasher.Sum(nil))
 }
 
+func GetDerivationViewTagForOutputIndex(derivation *edwards25519.Point, outputIndex uint64) uint8 {
+	buf := make([]byte, 8+types.HashSize+binary.MaxVarintLen64)
+	copy(buf, "view_tag")
+	copy(buf[8:], derivation.Bytes())
+	binary.PutUvarint(buf[8+types.HashSize:], outputIndex)
+
+	h := moneroutil.Keccak256(buf)
+	return h[0]
+}
+
+func (a *Address) GetDeterministicTransactionPrivateKey(prevId types.Hash) *edwards25519.Scalar {
+	//TODO: cache
+	entropy := make([]byte, 0, 13+types.HashSize*2)
+	entropy = append(entropy, "tx_secret_key"...)
+	entropy = append(entropy, a.SpendPub.Bytes()...)
+	entropy = append(entropy, prevId[:]...)
+	return crypto.DeterministicScalar(entropy)
+}
+
 func (a *Address) GetPublicKeyForSharedData(sharedData *edwards25519.Scalar) *edwards25519.Point {
 	sG := (&edwards25519.Point{}).ScalarBaseMult(sharedData)
 

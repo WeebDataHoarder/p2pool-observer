@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
-	p2poolBlock "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/holiman/uint256"
 	"golang.org/x/exp/slices"
@@ -113,14 +113,14 @@ type Block struct {
 	Invalid *bool `json:"invalid,omitempty"`
 }
 
-func NewBlockFromBinaryBlock(db *Database, b *p2poolBlock.Block, knownUncles []*p2poolBlock.Block, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
+func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*sidechain.Share, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
 	miner := db.GetOrCreateMinerByAddress(b.GetAddress().ToBase58())
 	if miner == nil {
 		return nil, nil, errors.New("could not get or create miner")
 	}
 
 	block = &Block{
-		Id:         b.Main.CoinbaseExtra.SideId,
+		Id:         b.CoinbaseExtra.SideId,
 		Height:     b.Side.Height,
 		PreviousId: b.Side.Parent,
 		Coinbase: BlockCoinbase{
@@ -146,14 +146,14 @@ func NewBlockFromBinaryBlock(db *Database, b *p2poolBlock.Block, knownUncles []*
 			Id         types.Hash       `json:"id"`
 			Difficulty types.Difficulty `json:"difficulty"`
 		}{
-			Id:         b.Main.Parent,
+			Id:         b.Main.PreviousId,
 			Difficulty: b.Extra.MainDifficulty,
 		},
 	}
 
 	for _, u := range b.Side.Uncles {
-		if i := slices.IndexFunc(knownUncles, func(uncle *p2poolBlock.Block) bool {
-			return uncle.Main.CoinbaseExtra.SideId == u
+		if i := slices.IndexFunc(knownUncles, func(uncle *sidechain.Share) bool {
+			return uncle.CoinbaseExtra.SideId == u
 		}); i != -1 {
 			uncle := knownUncles[i]
 			uncleMiner := db.GetOrCreateMinerByAddress(uncle.GetAddress().ToBase58())
@@ -162,7 +162,7 @@ func NewBlockFromBinaryBlock(db *Database, b *p2poolBlock.Block, knownUncles []*
 			}
 			uncles = append(uncles, &UncleBlock{
 				Block: Block{
-					Id:         uncle.Main.CoinbaseExtra.SideId,
+					Id:         uncle.CoinbaseExtra.SideId,
 					Height:     uncle.Side.Height,
 					PreviousId: uncle.Side.Parent,
 					Coinbase: BlockCoinbase{
@@ -188,7 +188,7 @@ func NewBlockFromBinaryBlock(db *Database, b *p2poolBlock.Block, knownUncles []*
 						Id         types.Hash       `json:"id"`
 						Difficulty types.Difficulty `json:"difficulty"`
 					}{
-						Id:         uncle.Main.Parent,
+						Id:         uncle.Main.PreviousId,
 						Difficulty: uncle.Extra.MainDifficulty,
 					},
 				},

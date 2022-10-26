@@ -1,4 +1,4 @@
-package block
+package transaction
 
 import (
 	"bytes"
@@ -17,12 +17,6 @@ const TxInGen = 0xff
 const TxOutToKey = 2
 const TxOutToTaggedKey = 3
 
-const TxExtraTagPadding = 0x00
-const TxExtraTagPubKey = 0x01
-const TxExtraNonce = 0x02
-const TxExtraMergeMiningTag = 0x03
-const TxExtraTagAdditionalPubKeys = 0x04
-
 type CoinbaseTransaction struct {
 	id         types.Hash
 	idLock     sync.Mutex
@@ -33,18 +27,32 @@ type CoinbaseTransaction struct {
 	GenHeight  uint64
 	Outputs    []*CoinbaseTransactionOutput
 
-	Extra []byte
+	Extra ExtraTags
 
 	ExtraBaseRCT uint8
 }
 
-func (c *CoinbaseTransaction) FromReader(reader *bytes.Reader) (err error) {
+type readerAndByteReader interface {
+	io.Reader
+	io.ByteReader
+}
+
+func (c *CoinbaseTransaction) UnmarshalBinary(data []byte) error {
+	reader := bytes.NewReader(data)
+	return c.FromReader(reader)
+}
+
+func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error) {
 	var (
 		txExtraSize uint64
 	)
 
 	if err = binary.Read(reader, binary.BigEndian, &c.Version); err != nil {
 		return err
+	}
+
+	if c.Version != 2 {
+		return errors.New("version not supported")
 	}
 
 	if c.UnlockTime, err = binary.ReadUvarint(reader); err != nil {
@@ -111,19 +119,29 @@ func (c *CoinbaseTransaction) FromReader(reader *bytes.Reader) (err error) {
 	if txExtraSize, err = binary.ReadUvarint(reader); err != nil {
 		return err
 	}
+	if txExtraSize > 65536 {
+		return errors.New("tx extra too large")
+	}
 
-	c.Extra = make([]byte, txExtraSize)
-	if _, err = io.ReadFull(reader, c.Extra); err != nil {
+	txExtra := make([]byte, txExtraSize)
+	if _, err = io.ReadFull(reader, txExtra); err != nil {
+		return err
+	}
+	if err = c.Extra.UnmarshalBinary(txExtra); err != nil {
 		return err
 	}
 	if err = binary.Read(reader, binary.BigEndian, &c.ExtraBaseRCT); err != nil {
 		return err
 	}
 
+	if c.ExtraBaseRCT != 0 {
+		return errors.New("invalid extra base RCT")
+	}
+
 	return nil
 }
 
-func (c *CoinbaseTransaction) Bytes() []byte {
+func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
@@ -148,14 +166,53 @@ func (c *CoinbaseTransaction) Bytes() []byte {
 				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
 			}
 		default:
-			return nil
+			return nil, errors.New("unknown output type")
 		}
 	}
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(c.Extra)))])
-	_, _ = buf.Write(c.Extra)
+
+	txExtra, _ := c.Extra.MarshalBinary()
+	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
+	_, _ = buf.Write(txExtra)
 	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)
 
-	return buf.Bytes()
+	return buf.Bytes(), nil
+}
+
+func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	varIntBuf := make([]byte, binary.MaxVarintLen64)
+
+	_ = binary.Write(buf, binary.BigEndian, c.Version)
+	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.UnlockTime)])
+	_ = binary.Write(buf, binary.BigEndian, c.InputCount)
+	_ = binary.Write(buf, binary.BigEndian, c.InputType)
+	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
+
+	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(c.Outputs)))])
+
+	for _, o := range c.Outputs {
+		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
+		_ = binary.Write(buf, binary.BigEndian, o.Type)
+
+		switch o.Type {
+		case TxOutToTaggedKey, TxOutToKey:
+			_, _ = buf.Write(o.EphemeralPublicKey[:])
+
+			if o.Type == TxOutToTaggedKey {
+				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
+			}
+		default:
+			return nil, errors.New("unknown output type")
+		}
+	}
+
+	txExtra, _ := c.Extra.SideChainHashingBlob()
+	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
+	_, _ = buf.Write(txExtra)
+	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)
+
+	return buf.Bytes(), nil
 }
 
 func (c *CoinbaseTransaction) Id() types.Hash {
@@ -171,7 +228,7 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 
 	idHasher := sha3.NewLegacyKeccak256()
 
-	txBytes := c.Bytes()
+	txBytes, _ := c.MarshalBinary()
 	// remove base RCT
 	idHasher.Write(hashKeccak(txBytes[:len(txBytes)-1]))
 	// Base RCT, single 0 byte in miner tx
@@ -179,7 +236,7 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 	// Prunable RCT, empty in miner tx
 	idHasher.Write(make([]byte, types.HashSize))
 
-	copy(c.id[:], idHasher.Sum([]byte{}))
+	copy(c.id[:], idHasher.Sum(nil))
 
 	return c.id
 }

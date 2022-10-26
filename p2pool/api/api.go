@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
-	p2poolblock "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"lukechampine.com/uint128"
@@ -87,13 +87,13 @@ func (a *Api) GetFailedRawBlockBytes(id types.Hash) (buf []byte, err error) {
 	}
 }
 
-func (a *Api) GetFailedRawBlock(id types.Hash) (b *p2poolblock.Block, err error) {
+func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.Share, err error) {
 	if buf, err := a.GetFailedRawBlockBytes(id); err != nil {
 		return nil, err
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return p2poolblock.NewBlockFromBytes(data)
+		return sidechain.NewShareFromBytes(data)
 	}
 }
 
@@ -106,13 +106,13 @@ func (a *Api) GetRawBlockBytes(id types.Hash) (buf []byte, err error) {
 	}
 }
 
-func (a *Api) GetRawBlock(id types.Hash) (b *p2poolblock.Block, err error) {
+func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.Share, err error) {
 	if buf, err := a.GetRawBlockBytes(id); err != nil {
 		return nil, err
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return p2poolblock.NewBlockFromBytes(data)
+		return sidechain.NewShareFromBytes(data)
 	}
 }
 
@@ -121,11 +121,11 @@ func (a *Api) GetDatabase() *database.Database {
 }
 
 func (a *Api) GetShareFromRawEntry(id types.Hash, errOnUncles bool) (b *database.Block, uncles []*database.UncleBlock, err error) {
-	var raw *p2poolblock.Block
+	var raw *sidechain.Share
 	if raw, err = a.GetRawBlock(id); err != nil {
 		return
 	} else {
-		u := make([]*p2poolblock.Block, 0, len(raw.Side.Uncles))
+		u := make([]*sidechain.Share, 0, len(raw.Side.Uncles))
 		for _, uncleId := range raw.Side.Uncles {
 			if uncle, err := a.GetRawBlock(uncleId); err != nil {
 				return nil, nil, err

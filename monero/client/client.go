@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
 	"sync"
@@ -23,6 +23,9 @@ var lock sync.Mutex
 var address = "http://localhost:18081"
 
 func SetClientSettings(addr string) {
+	if addr == "" {
+		return
+	}
 	lock.Lock()
 	defer lock.Unlock()
 	address = addr
@@ -67,7 +70,7 @@ func newClient() (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*block.CoinbaseTransaction, error) {
+func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseTransaction, error) {
 	<-c.throttler
 	if result, err := c.d.GetTransactions(context.Background(), []string{txId.String()}); err != nil {
 		return nil, err
@@ -79,7 +82,7 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*block.CoinbaseTransac
 		if buf, err := hex.DecodeString(result.Txs[0].PrunedAsHex); err != nil {
 			return nil, err
 		} else {
-			tx := &block.CoinbaseTransaction{}
+			tx := &transaction.CoinbaseTransaction{}
 			if err = tx.FromReader(bytes.NewReader(buf)); err != nil {
 				return nil, err
 			}
@@ -89,6 +92,18 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*block.CoinbaseTransac
 			}
 
 			return tx, nil
+		}
+	}
+}
+
+func (c *Client) GetBlockIdByHeight(height uint64) (types.Hash, error) {
+	if r, err := c.GetBlockHeaderByHeight(height); err != nil {
+		return types.Hash{}, err
+	} else {
+		if h, err := types.HashFromString(r.BlockHeader.Hash); err != nil {
+			return types.Hash{}, err
+		} else {
+			return h, nil
 		}
 	}
 }

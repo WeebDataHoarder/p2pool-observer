@@ -1,7 +1,9 @@
-package block
+package sidechain
 
 import (
 	"encoding/hex"
+	block2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"log"
@@ -10,6 +12,8 @@ import (
 )
 
 func TestBlockDecode(t *testing.T) {
+	client.SetClientSettings(os.Getenv("MONEROD_RPC_URL"))
+
 	f, err := os.Open("testdata/1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d.hex")
 	if err != nil {
 		t.Fatal(err)
@@ -25,7 +29,7 @@ func TestBlockDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	block, err := NewBlockFromBytes(contents)
+	block, err := NewShareFromBytes(contents)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,9 +37,29 @@ func TestBlockDecode(t *testing.T) {
 	if hex.EncodeToString(block.Extra.MainId[:]) != "05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69" {
 		t.Fatalf("expected main id 05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69, got %s", hex.EncodeToString(block.Extra.MainId[:]))
 	}
-	if hex.EncodeToString(block.Main.CoinbaseExtra.SideId[:]) != "1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d" {
-		t.Fatalf("expected side id 1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d, got %s", hex.EncodeToString(block.Main.CoinbaseExtra.SideId[:]))
+	if hex.EncodeToString(block.CoinbaseExtra.SideId[:]) != "1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d" {
+		t.Fatalf("expected side id 1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d, got %s", hex.EncodeToString(block.CoinbaseExtra.SideId[:]))
 	}
+
+	b1, _ := block.Main.MarshalBinary()
+	main2 := &block2.Block{}
+	if err = main2.UnmarshalBinary(b1); err != nil {
+		t.Fatal(err)
+	}
+	if main2.Id() != block.Main.Id() {
+		t.Fatalf("expected main id %s, got %s", block.Main.Id().String(), main2.Id())
+	}
+
+	b2, _ := block.Main.MarshalBinary()
+	side2 := &SideData{}
+	if err = side2.UnmarshalBinary(b2); err != nil {
+		t.Fatal(err)
+	}
+
+	log.Print(block.TemplateId(ConsensusDefault).String())
+
+	log.Print(block.Side.CoinbasePrivateKey.String())
+	log.Print(types.HashFromBytes(block.GetAddress().GetDeterministicTransactionPrivateKey(block.Main.PreviousId).Bytes()).String())
 
 	txId := block.Main.Coinbase.Id()
 
@@ -48,6 +72,10 @@ func TestBlockDecode(t *testing.T) {
 	if block.GetProofDifficulty().Cmp(proofResult.Uint128) != 0 {
 		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), block.GetProofDifficulty().String())
 	}
+
+	t.Log(block.Main.Id().String())
+	//t.Log(block.Main.PowHash().String())
+	//t.Log(block.Main.PowHash().String())
 
 	if !block.IsProofHigherThanDifficulty() {
 		t.Fatal("expected proof higher than difficulty")

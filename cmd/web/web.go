@@ -7,7 +7,7 @@ import (
 	"fmt"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
-	block2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
@@ -692,17 +692,17 @@ func main() {
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
-			error["message"] = "Block Not Found"
+			error["message"] = "Share Not Found"
 			render(writer, "error.html", ctx)
 			return
 		}
 
-		var raw *block2.Block
+		var raw *sidechain.Share
 		if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
 
 			if buf, err := hex.DecodeString(string(s)); err == nil {
 
-				raw, _ = block2.NewBlockFromBytes(buf)
+				raw, _ = sidechain.NewShareFromBytes(buf)
 			}
 		}
 
@@ -843,7 +843,7 @@ func main() {
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
-			error["message"] = "Block Was Not Found"
+			error["message"] = "Share Was Not Found"
 			render(writer, "error.html", ctx)
 			return
 		}

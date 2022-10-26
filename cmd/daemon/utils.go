@@ -2,12 +2,12 @@ package main
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
 	"log"
 )
 
-func processFoundBlockWithTransaction(api *api.Api, b database.BlockInterface, tx *block.CoinbaseTransaction) bool {
+func processFoundBlockWithTransaction(api *api.Api, b database.BlockInterface, tx *transaction.CoinbaseTransaction) bool {
 	if api.GetDatabase().CoinbaseTransactionExists(b.GetBlock()) {
 		return true
 	}

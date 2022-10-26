@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -48,10 +48,10 @@ type addressSortType [types.HashSize * 2]byte
 
 type outputResult struct {
 	Miner  *Miner
-	Output *block.CoinbaseTransactionOutput
+	Output *transaction.CoinbaseTransactionOutput
 }
 
-func MatchOutputs(c *block.CoinbaseTransaction, miners []*Miner, privateKey types.Hash) (result []outputResult) {
+func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKey types.Hash) (result []outputResult) {
 	addresses := make(map[addressSortType]*Miner, len(miners))
 
 	outputs := c.Outputs

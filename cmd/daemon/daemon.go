@@ -59,7 +59,7 @@ func main() {
 		}
 		id := block.Id
 		if block, uncles, err := api.GetShareFromRawEntry(id, true); err != nil {
-			log.Panicf("[CHAIN] Could not find block %s to insert at height %d. Check disk or uncles\n", id.String(), startFrom)
+			log.Panicf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles\n", id.String(), startFrom)
 		} else {
 			if err = db.InsertBlock(block, nil); err != nil {
 				log.Panic(err)
@@ -144,7 +144,7 @@ func main() {
 					if err != nil {
 						log.Panic(err)
 					}
-					log.Printf("[REORG] Deleted %d block(s).\n", deleted)
+					log.Printf("[REORG] Deleted %d shares(s).\n", deleted)
 					log.Printf("[REORG] Next tip %s : %d.\n", diskBlock.PreviousId, diskBlock.Height)
 					knownTip = dbBlock.Height - 1
 					break
@@ -163,7 +163,7 @@ func main() {
 			var uncles []*database.UncleBlock
 			diskBlock, uncles, err = api.GetShareFromRawEntry(id, true)
 			if err != nil {
-				log.Printf("[CHAIN] Could not find block %s to insert at height %d. Check disk or uncles\n", id.String(), h)
+				log.Printf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles\n", id.String(), h)
 				break
 			}
 
@@ -173,7 +173,7 @@ func main() {
 				break
 			}
 
-			log.Printf("[CHAIN] Inserting block %s at height %d\n", diskBlock.Id.String(), diskBlock.Height)
+			log.Printf("[CHAIN] Inserting share %s at height %d\n", diskBlock.Id.String(), diskBlock.Height)
 
 			cacheHeightDifficulty(diskBlock.Main.Height)
 
