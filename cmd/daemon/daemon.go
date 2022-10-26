@@ -140,7 +140,10 @@ func main() {
 				diskBlock, _, _ := api.GetShareEntry(h)
 				if dbBlock.PreviousId == diskBlock.PreviousId {
 					log.Printf("[REORG] Found matching head %s at height %d\n", dbBlock.PreviousId.String(), dbBlock.Height-1)
-					deleted, _ := db.DeleteBlockById(dbBlock.Id)
+					deleted, err := db.DeleteBlockById(dbBlock.Id)
+					if err != nil {
+						log.Panic(err)
+					}
 					log.Printf("[REORG] Deleted %d block(s).\n", deleted)
 					log.Printf("[REORG] Next tip %s : %d.\n", diskBlock.PreviousId, diskBlock.Height)
 					knownTip = dbBlock.Height - 1

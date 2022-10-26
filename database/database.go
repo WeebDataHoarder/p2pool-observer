@@ -703,11 +703,11 @@ func (db *Database) DeleteBlockById(id types.Hash) (n int, err error) {
 		return 0, nil
 	} else {
 		for {
-			if err = db.Query("DELETE FROM coinbase_outputs WHERE id = (SELECT coinbase_id FROM blocks WHERE id = $1) OR id = (SELECT coinbase_id FROM uncles WHERE id = $1);", nil, id.String()); err != nil {
+			if err = db.Query("DELETE FROM coinbase_outputs WHERE id = (SELECT coinbase_id FROM blocks WHERE id = $1) OR id = (SELECT coinbase_id FROM uncles WHERE id = $1);", nil, block.Id.String()); err != nil {
 				return n, err
-			} else if err = db.Query("DELETE FROM uncles WHERE parent_id = $1;", nil, id.String()); err != nil {
+			} else if err = db.Query("DELETE FROM uncles WHERE parent_id = $1;", nil, block.Id.String()); err != nil {
 				return n, err
-			} else if err = db.Query("DELETE FROM blocks WHERE id = $1;", nil, id.String()); err != nil {
+			} else if err = db.Query("DELETE FROM blocks WHERE id = $1;", nil, block.Id.String()); err != nil {
 				return n, err
 			}
 			n++
