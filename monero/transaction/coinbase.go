@@ -47,7 +47,7 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		txExtraSize uint64
 	)
 
-	if err = binary.Read(reader, binary.BigEndian, &c.Version); err != nil {
+	if c.Version, err = reader.ReadByte(); err != nil {
 		return err
 	}
 
@@ -59,11 +59,11 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		return err
 	}
 
-	if err = binary.Read(reader, binary.BigEndian, &c.InputCount); err != nil {
+	if c.InputCount, err = reader.ReadByte(); err != nil {
 		return err
 	}
 
-	if err = binary.Read(reader, binary.BigEndian, &c.InputType); err != nil {
+	if c.InputType, err = reader.ReadByte(); err != nil {
 		return err
 	}
 

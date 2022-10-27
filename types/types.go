@@ -10,7 +10,6 @@ import (
 
 const HashSize = 32
 const DifficultySize = 16
-const NonceSize = 4
 
 type Hash [HashSize]byte
 
@@ -105,5 +104,3 @@ func (d Difficulty) String() string {
 	d.ReverseBytes().PutBytes(buf[:])
 	return hex.EncodeToString(buf[:])
 }
-
-type Nonce [NonceSize]byte

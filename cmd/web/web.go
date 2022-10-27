@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -397,10 +398,16 @@ func main() {
 			return s.String()
 		} else if s, ok := val.(types.Hash); ok {
 			return s.String()
-		} else if s, ok := val.(types.Nonce); ok {
-			return hex.EncodeToString(s[:])
 		} else if s, ok := val.([]byte); ok {
 			return hex.EncodeToString(s)
+		} else if s, ok := val.(uint32); ok {
+			var buf [4]byte
+			binary.BigEndian.PutUint32(buf[:], s)
+			return hex.EncodeToString(buf[:])
+		} else if s, ok := val.(uint64); ok {
+			var buf [8]byte
+			binary.BigEndian.PutUint64(buf[:], s)
+			return hex.EncodeToString(buf[:])
 		}
 
 		return val

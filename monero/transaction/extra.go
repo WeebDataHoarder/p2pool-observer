@@ -20,6 +20,8 @@ const TxExtraPaddingMaxCount = 255
 const TxExtraNonceMaxCount = 255
 const TxExtraAdditionalPubKeysMaxCount = 4096
 
+const TxExtraTemplateNonceSize = 4
+
 type ExtraTags []ExtraTag
 
 type ExtraTag struct {
@@ -103,8 +105,9 @@ func (t *ExtraTag) SideChainHashingBlob() ([]byte, error) {
 		buf = append(buf, make([]byte, len(t.Data))...)
 	} else if t.Tag == TxExtraTagNonce {
 		b := make([]byte, len(t.Data))
-		if len(t.Data) > 4 {
-			copy(b[4:], t.Data[4:])
+		//Replace only the first four bytes
+		if len(t.Data) > TxExtraTemplateNonceSize {
+			copy(b[TxExtraTemplateNonceSize:], t.Data[TxExtraTemplateNonceSize:])
 		}
 		buf = append(buf, b...)
 	} else {

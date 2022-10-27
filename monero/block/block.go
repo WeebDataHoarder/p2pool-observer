@@ -17,7 +17,7 @@ type Block struct {
 	MinorVersion uint8
 	Timestamp    uint64
 	PreviousId   types.Hash
-	Nonce        types.Nonce
+	Nonce        uint32
 
 	Coinbase *transaction.CoinbaseTransaction
 
@@ -34,12 +34,12 @@ func (b *Block) MarshalBinary() (buf []byte, err error) {
 	if txBuf, err = b.Coinbase.MarshalBinary(); err != nil {
 		return nil, err
 	}
-	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+types.NonceSize+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
+	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)
 	buf = append(buf, b.PreviousId[:]...)
-	buf = append(buf, b.Nonce[:]...)
+	buf = binary.LittleEndian.AppendUint32(buf, b.Nonce)
 
 	buf = append(buf, txBuf[:]...)
 
@@ -57,10 +57,10 @@ func (b *Block) FromReader(reader readerAndByteReader) (err error) {
 		transactionHash types.Hash
 	)
 
-	if err = binary.Read(reader, binary.BigEndian, &b.MajorVersion); err != nil {
+	if b.MajorVersion, err = reader.ReadByte(); err != nil {
 		return err
 	}
-	if err = binary.Read(reader, binary.BigEndian, &b.MinorVersion); err != nil {
+	if b.MinorVersion, err = reader.ReadByte(); err != nil {
 		return err
 	}
 
@@ -72,7 +72,7 @@ func (b *Block) FromReader(reader readerAndByteReader) (err error) {
 		return err
 	}
 
-	if _, err = io.ReadFull(reader, b.Nonce[:]); err != nil {
+	if err = binary.Read(reader, binary.LittleEndian, &b.Nonce); err != nil {
 		return err
 	}
 
@@ -110,12 +110,12 @@ func (b *Block) UnmarshalBinary(data []byte) error {
 
 func (b *Block) Header() []byte {
 	//TODO: cache
-	buf := make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+types.NonceSize+types.HashSize+binary.MaxVarintLen64) //predict its use on HashingBlob
+	buf := make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+types.HashSize+binary.MaxVarintLen64) //predict its use on HashingBlob
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)
 	buf = append(buf, b.PreviousId[:]...)
-	buf = append(buf, b.Nonce[:]...)
+	buf = binary.LittleEndian.AppendUint32(buf, b.Nonce)
 
 	return buf
 }
@@ -125,12 +125,12 @@ func (b *Block) SideChainHashingBlob() (buf []byte, err error) {
 	if txBuf, err = b.Coinbase.SideChainHashingBlob(); err != nil {
 		return nil, err
 	}
-	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+types.NonceSize+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
+	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)
 	buf = append(buf, b.PreviousId[:]...)
-	buf = append(buf, make([]byte, len(b.Nonce[:]))...) //replaced
+	buf = binary.LittleEndian.AppendUint32(buf, 0) //replaced
 
 	buf = append(buf, txBuf[:]...)
 
