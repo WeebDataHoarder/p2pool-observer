@@ -5,7 +5,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/rand"
-	"lukechampine.com/uint128"
 	"sync"
 )
 
@@ -37,10 +36,10 @@ func cacheHeightDifficulty(height uint64) {
 	if _, ok := getHeightDifficulty(height); !ok {
 		if header, err := client.GetClient().GetBlockHeaderByHeight(height); err != nil {
 			if template, err := client.GetClient().GetBlockTemplate(types.DonationAddress); err != nil {
-				setHeightDifficulty(uint64(template.Height), types.Difficulty{Uint128: uint128.From64(uint64(template.Difficulty))})
+				setHeightDifficulty(uint64(template.Height), types.DifficultyFrom64(uint64(template.Difficulty)))
 			}
 		} else {
-			setHeightDifficulty(header.BlockHeader.Height, types.Difficulty{Uint128: uint128.From64(header.BlockHeader.Difficulty)})
+			setHeightDifficulty(header.BlockHeader.Height, types.DifficultyFrom64(header.BlockHeader.Difficulty))
 		}
 	}
 }

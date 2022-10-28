@@ -6,8 +6,10 @@ git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823 h1:Hx
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823/go.mod h1:3kT0v4AMwT/OdorfH2gRWPwoOrUX/LV03HEeBsaXG1c=
 git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20221007140323-a2daa2d5fc48 h1:ExrYG0RSrx/I4McPWgUF4B8R2OkblMrMki2ia8vG6Bw=
 git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20221007140323-a2daa2d5fc48/go.mod h1:XeSC8jK8RXnnzVAmp9e9AQZCDIbML3UoCRkxxGA+lpU=
-git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221026101906-a564ce478425 h1:yfctSdB0kRzKo4Wr1jtJEpCFY4OXD/xcIFDTkUuBncg=
-git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221026101906-a564ce478425/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
+git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221027134633-11f5607e6752 h1:4r4KXpFLbixah+OGrBT9ZEflSZoFHD7aVJpXL3ukVIo=
+git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221027134633-11f5607e6752/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
+github.com/Code-Hex/go-generics-cache v1.2.1 h1:jKof8Hk8mr28lcEAo9g90oj7H3vb8y2DdccoGpL4lyE=
+github.com/Code-Hex/go-generics-cache v1.2.1/go.mod h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807 h1:w3nrGk00TWs/4iZ3Q0k9c0vL0e/wRziArKU4e++d/nA=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807/go.mod h1:fGnnfniJiO/ajHAVHqMSUSL8sE9LmU9rzclCtoeB+y8=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=

@@ -77,11 +77,11 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 			Height: uncle.ParentHeight,
 		}
 
-		weight.Uint128 = weight.Mul64(100 - p2pool.UnclePenalty).Div64(100)
+		weight = weight.Mul64(100 - p2pool.UnclePenalty).Div64(100)
 	} else {
 		for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
 			uncleWeight := u.Block.Difficulty.Mul64(p2pool.UnclePenalty).Div64(100)
-			weight.Uint128 = weight.Add(uncleWeight)
+			weight = weight.Add(uncleWeight)
 
 			if !extraUncleData {
 				b.Uncles = append(b.Uncles, &database.JSONUncleBlockSimple{

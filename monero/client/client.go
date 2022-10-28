@@ -1,15 +1,16 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"github.com/Code-Hex/go-generics-cache/policy/lru"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -53,8 +54,15 @@ func GetClient() *Client {
 
 // Client TODO: ratelimit
 type Client struct {
-	c         *rpc.Client
-	d         *daemon.Client
+	c *rpc.Client
+	d *daemon.Client
+
+	difficultyCache *lru.Cache[uint64, types.Difficulty]
+
+	seedCache *lru.Cache[uint64, types.Hash]
+
+	coinbaseTransactionCache *lru.Cache[types.Hash, *transaction.CoinbaseTransaction]
+
 	throttler <-chan time.Time
 }
 
@@ -64,35 +72,44 @@ func newClient() (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		c:         c,
-		d:         daemon.NewClient(c),
-		throttler: time.Tick(time.Second / 2),
+		c:                        c,
+		d:                        daemon.NewClient(c),
+		difficultyCache:          lru.NewCache[uint64, types.Difficulty](lru.WithCapacity(1024)),
+		seedCache:                lru.NewCache[uint64, types.Hash](lru.WithCapacity(1024)),
+		coinbaseTransactionCache: lru.NewCache[types.Hash, *transaction.CoinbaseTransaction](lru.WithCapacity(1024)),
+		throttler:                time.Tick(time.Second / 2),
 	}, nil
 }
 
 func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseTransaction, error) {
-	<-c.throttler
-	if result, err := c.d.GetTransactions(context.Background(), []string{txId.String()}); err != nil {
-		return nil, err
-	} else {
-		if len(result.Txs) != 1 {
-			return nil, errors.New("invalid transaction count")
-		}
-
-		if buf, err := hex.DecodeString(result.Txs[0].PrunedAsHex); err != nil {
+	if tx, ok := c.coinbaseTransactionCache.Get(txId); !ok {
+		<-c.throttler
+		if result, err := c.d.GetTransactions(context.Background(), []string{txId.String()}); err != nil {
 			return nil, err
 		} else {
-			tx := &transaction.CoinbaseTransaction{}
-			if err = tx.FromReader(bytes.NewReader(buf)); err != nil {
+			if len(result.Txs) != 1 {
+				return nil, errors.New("invalid transaction count")
+			}
+
+			if buf, err := hex.DecodeString(result.Txs[0].PrunedAsHex); err != nil {
 				return nil, err
-			}
+			} else {
+				tx = &transaction.CoinbaseTransaction{}
+				if err = tx.UnmarshalBinary(buf); err != nil {
+					return nil, err
+				}
 
-			if tx.Id() != txId {
-				return nil, fmt.Errorf("expected %s, got %s", txId.String(), tx.Id().String())
-			}
+				if tx.Id() != txId {
+					return nil, fmt.Errorf("expected %s, got %s", txId.String(), tx.Id().String())
+				}
 
-			return tx, nil
+				c.coinbaseTransactionCache.Set(txId, tx)
+
+				return tx, nil
+			}
 		}
+	} else {
+		return tx, nil
 	}
 }
 
@@ -105,6 +122,48 @@ func (c *Client) GetBlockIdByHeight(height uint64) (types.Hash, error) {
 		} else {
 			return h, nil
 		}
+	}
+}
+
+func (c *Client) AddSeedByHeightToCache(seedHeight uint64, seed types.Hash) {
+	c.seedCache.Set(seedHeight, seed)
+}
+
+func (c *Client) GetSeedByHeight(height uint64) (types.Hash, error) {
+
+	seedHeight := randomx.SeedHeight(height)
+
+	if seed, ok := c.seedCache.Get(seedHeight); !ok {
+		if seed, err := c.GetBlockIdByHeight(seedHeight); err != nil {
+			return types.ZeroHash, err
+		} else {
+			c.AddSeedByHeightToCache(seedHeight, seed)
+			return seed, nil
+		}
+	} else {
+		return seed, nil
+	}
+}
+
+func (c *Client) GetDifficultyByHeight(height uint64) (types.Difficulty, error) {
+	if difficulty, ok := c.difficultyCache.Get(height); !ok {
+		if header, err := c.GetBlockHeaderByHeight(height); err != nil {
+			if template, err := c.GetBlockTemplate(types.DonationAddress); err != nil {
+				return types.Difficulty{}, err
+			} else if uint64(template.Height) == height {
+				difficulty = types.DifficultyFrom64(uint64(template.Difficulty))
+				c.difficultyCache.Set(height, difficulty)
+				return difficulty, nil
+			} else {
+				return types.Difficulty{}, errors.New("height not found and is not next template")
+			}
+		} else {
+			difficulty = types.DifficultyFrom64(uint64(header.BlockHeader.Difficulty))
+			c.difficultyCache.Set(height, difficulty)
+			return difficulty, nil
+		}
+	} else {
+		return difficulty, nil
 	}
 }
 

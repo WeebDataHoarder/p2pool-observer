@@ -11,7 +11,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/holiman/uint256"
 	"golang.org/x/exp/slices"
-	"lukechampine.com/uint128"
 	"math/bits"
 	"sync"
 )
@@ -23,7 +22,7 @@ var UndefinedDifficulty types.Difficulty
 func init() {
 	copy(NilHash[:], bytes.Repeat([]byte{0}, types.HashSize))
 	copy(UndefinedHash[:], bytes.Repeat([]byte{0xff}, types.HashSize))
-	UndefinedDifficulty.Uint128 = uint128.FromBytes(bytes.Repeat([]byte{0xff}, types.DifficultySize))
+	UndefinedDifficulty = types.DifficultyFromBytes(bytes.Repeat([]byte{0xff}, types.DifficultySize))
 }
 
 type BlockInterface interface {
@@ -120,7 +119,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 	}
 
 	block = &Block{
-		Id:         b.CoinbaseExtra.SideId,
+		Id:         types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)),
 		Height:     b.Side.Height,
 		PreviousId: b.Side.Parent,
 		Coinbase: BlockCoinbase{
@@ -136,9 +135,9 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 		Difficulty: b.Side.Difficulty,
 		Timestamp:  b.Main.Timestamp,
 		MinerId:    miner.Id(),
-		PowHash:    b.Extra.PowHash,
+		PowHash:    b.PowHash(),
 		Main: BlockMainData{
-			Id:     b.Extra.MainId,
+			Id:     b.MainId(),
 			Height: b.Main.Coinbase.GenHeight,
 			Found:  b.IsProofHigherThanDifficulty(),
 		},
@@ -147,13 +146,13 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 			Difficulty types.Difficulty `json:"difficulty"`
 		}{
 			Id:         b.Main.PreviousId,
-			Difficulty: b.Extra.MainDifficulty,
+			Difficulty: b.MainDifficulty(),
 		},
 	}
 
 	for _, u := range b.Side.Uncles {
 		if i := slices.IndexFunc(knownUncles, func(uncle *sidechain.Share) bool {
-			return uncle.CoinbaseExtra.SideId == u
+			return types.HashFromBytes(uncle.CoinbaseExtra(sidechain.SideTemplateId)) == u
 		}); i != -1 {
 			uncle := knownUncles[i]
 			uncleMiner := db.GetOrCreateMinerByAddress(uncle.GetAddress().ToBase58())
@@ -162,7 +161,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 			}
 			uncles = append(uncles, &UncleBlock{
 				Block: Block{
-					Id:         uncle.CoinbaseExtra.SideId,
+					Id:         types.HashFromBytes(uncle.CoinbaseExtra(sidechain.SideTemplateId)),
 					Height:     uncle.Side.Height,
 					PreviousId: uncle.Side.Parent,
 					Coinbase: BlockCoinbase{
@@ -178,9 +177,9 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 					Difficulty: uncle.Side.Difficulty,
 					Timestamp:  uncle.Main.Timestamp,
 					MinerId:    uncleMiner.Id(),
-					PowHash:    uncle.Extra.PowHash,
+					PowHash:    uncle.PowHash(),
 					Main: BlockMainData{
-						Id:     uncle.Extra.MainId,
+						Id:     uncle.MainId(),
 						Height: uncle.Main.Coinbase.GenHeight,
 						Found:  uncle.IsProofHigherThanDifficulty(),
 					},
@@ -189,7 +188,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 						Difficulty types.Difficulty `json:"difficulty"`
 					}{
 						Id:         uncle.Main.PreviousId,
-						Difficulty: uncle.Extra.MainDifficulty,
+						Difficulty: uncle.MainDifficulty(),
 					},
 				},
 				ParentId:     block.Id,
@@ -390,7 +389,7 @@ func NewBlockFromJSONBlock(db *Database, data []byte) (block *Block, uncles []*U
 					Reward:     0,
 					PrivateKey: b.TxPriv,
 				},
-				Difficulty: types.Difficulty{Uint128: uint128.From64(b.Diff)},
+				Difficulty: types.DifficultyFrom64(b.Diff),
 				Timestamp:  b.Ts,
 				MinerId:    miner.Id(),
 				PowHash:    b.PowHash,
@@ -424,7 +423,7 @@ func NewBlockFromJSONBlock(db *Database, data []byte) (block *Block, uncles []*U
 							Reward:     0,
 							PrivateKey: NilHash,
 						},
-						Difficulty: types.Difficulty{Uint128: uint128.From64(b.Diff)},
+						Difficulty: types.DifficultyFrom64(b.Diff),
 						Timestamp:  u.Ts,
 						MinerId:    uncleMiner.Id(),
 						PowHash:    NilHash,
@@ -459,7 +458,7 @@ func (b *Block) GetBlock() *Block {
 }
 
 func (b *Block) IsProofHigherThanDifficulty() bool {
-	return b.GetProofDifficulty().Cmp(b.Template.Difficulty.Uint128) >= 0
+	return b.GetProofDifficulty().Cmp(b.Template.Difficulty) >= 0
 }
 
 func (b *Block) GetProofDifficulty() types.Difficulty {
@@ -472,5 +471,5 @@ func (b *Block) GetProofDifficulty() types.Difficulty {
 	}
 
 	powResult := uint256.NewInt(0).Div(base, pow).Bytes32()
-	return types.Difficulty{Uint128: uint128.FromBytes(powResult[16:]).ReverseBytes()}
+	return types.DifficultyFromBytes(powResult[16:])
 }

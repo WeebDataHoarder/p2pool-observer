@@ -119,7 +119,7 @@ func NewConsensus(networkType NetworkType, poolName, poolPassword string, target
 	return c
 }
 
-func (i *Consensus) CalculateSideChainId(main *mainblock.Block, side *SideData) types.Hash {
+func (i *Consensus) CalculateSideTemplateId(main *mainblock.Block, side *SideData) types.Hash {
 
 	mainData, _ := main.SideChainHashingBlob()
 	sideData, _ := side.MarshalBinary()

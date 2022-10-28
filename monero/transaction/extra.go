@@ -76,8 +76,21 @@ func (t *ExtraTags) FromReader(reader readerAndByteReader) (err error) {
 			}
 			return err
 		}
+		if t.GetTag(tag.Tag) != nil {
+			return errors.New("tag already exists")
+		}
 		*t = append(*t, tag)
 	}
+}
+
+func (t *ExtraTags) GetTag(tag uint8) *ExtraTag {
+	for i := range *t {
+		if (*t)[i].Tag == tag {
+			return &(*t)[i]
+		}
+	}
+
+	return nil
 }
 
 func (t *ExtraTag) UnmarshalBinary(data []byte) error {

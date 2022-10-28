@@ -80,7 +80,12 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 			if o == nil {
 				continue
 			}
-			sharedData := address.GetDerivationSharedDataForOutputIndex(derivation, uint64(o.Index))
+
+			if o.Type == transaction.TxOutToTaggedKey && o.ViewTag != address.GetDerivationViewTagForOutputIndex(derivation, o.Index) { //fast check
+				continue
+			}
+
+			sharedData := address.GetDerivationSharedDataForOutputIndex(derivation, o.Index)
 			if bytes.Compare(o.EphemeralPublicKey[:], miner.MoneroAddress().GetPublicKeyForSharedData(sharedData).Bytes()) == 0 {
 				//TODO: maybe clone?
 				result = append(result, outputResult{

@@ -12,8 +12,19 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/holiman/uint256"
 	"io"
-	"lukechampine.com/uint128"
 	"math/bits"
+	"sync"
+)
+
+type CoinbaseExtraTag int
+
+const SideExtraNonceSize = 4
+const SideExtraNonceMaxSize = SideExtraNonceSize + 10
+
+const (
+	SideCoinbasePublicKey = transaction.TxExtraTagPubKey
+	SideExtraNonce        = transaction.TxExtraTagNonce
+	SideTemplateId        = transaction.TxExtraTagMergeMining
 )
 
 type Share struct {
@@ -21,36 +32,23 @@ type Share struct {
 
 	Side SideData
 
-	CoinbaseExtra struct {
-		PublicKey  types.Hash
-		ExtraNonce []byte
-		SideId     types.Hash
-	}
-
-	Extra struct {
-		MainId         types.Hash
-		PowHash        types.Hash
-		MainDifficulty types.Difficulty
-		Peer           []byte
+	c struct {
+		lock           sync.RWMutex
+		mainId         types.Hash
+		mainDifficulty types.Difficulty
+		templateId     types.Hash
+		powHash        types.Hash
 	}
 }
 
-func NewShareFromBytes(buf []byte) (*Share, error) {
+func NewShareFromExportedBytes(buf []byte) (*Share, error) {
 	b := &Share{}
-	return b, b.UnmarshalBinary(buf)
-}
 
-func (b *Share) TemplateId(consensus *Consensus) types.Hash {
-	return consensus.CalculateSideChainId(&b.Main, &b.Side)
-}
-
-func (b *Share) UnmarshalBinary(data []byte) error {
-
-	if len(data) < 32 {
-		return errors.New("invalid block data")
+	if len(buf) < 32 {
+		return nil, errors.New("invalid block data")
 	}
 
-	reader := bytes.NewReader(data)
+	reader := bytes.NewReader(buf)
 
 	var (
 		err     error
@@ -64,112 +62,246 @@ func (b *Share) UnmarshalBinary(data []byte) error {
 	)
 
 	if err = binary.Read(reader, binary.BigEndian, &version); err != nil {
-		return err
+		return nil, err
 	}
 
 	switch version {
 	case 1:
 
-		if _, err = io.ReadFull(reader, b.Extra.MainId[:]); err != nil {
-			return err
+		if _, err = io.ReadFull(reader, b.c.mainId[:]); err != nil {
+			return nil, err
 		}
 
-		if _, err = io.ReadFull(reader, b.Extra.PowHash[:]); err != nil {
-			return err
-		}
-		if err = binary.Read(reader, binary.BigEndian, &b.Extra.MainDifficulty.Hi); err != nil {
-			return err
-		}
-		if err = binary.Read(reader, binary.BigEndian, &b.Extra.MainDifficulty.Lo); err != nil {
-			return err
+		if _, err = io.ReadFull(reader, b.c.powHash[:]); err != nil {
+			return nil, err
 		}
 
-		b.Extra.MainDifficulty.ReverseBytes()
+		if err = binary.Read(reader, binary.BigEndian, &b.c.mainDifficulty.Hi); err != nil {
+			return nil, err
+		}
+		if err = binary.Read(reader, binary.BigEndian, &b.c.mainDifficulty.Lo); err != nil {
+			return nil, err
+		}
+
+		b.c.mainDifficulty.ReverseBytes()
 
 		if err = binary.Read(reader, binary.BigEndian, &mainDataSize); err != nil {
-			return err
+			return nil, err
 		}
 		mainData = make([]byte, mainDataSize)
 		if _, err = io.ReadFull(reader, mainData); err != nil {
-			return err
+			return nil, err
 		}
 
 		if err = binary.Read(reader, binary.BigEndian, &sideDataSize); err != nil {
-			return err
+			return nil, err
 		}
 		sideData = make([]byte, sideDataSize)
 		if _, err = io.ReadFull(reader, sideData); err != nil {
-			return err
+			return nil, err
 		}
 
-		//Ignore error when unable to read peer
-		_ = func() error {
-			var peerSize uint64
+		/*
+			//Ignore error when unable to read peer
+			_ = func() error {
+				var peerSize uint64
 
-			if err = binary.Read(reader, binary.BigEndian, &peerSize); err != nil {
-				return err
-			}
-			b.Extra.Peer = make([]byte, peerSize)
-			if _, err = io.ReadFull(reader, b.Extra.Peer); err != nil {
-				return err
-			}
+				if err = binary.Read(reader, binary.BigEndian, &peerSize); err != nil {
+					return err
+				}
+				b.Extra.Peer = make([]byte, peerSize)
+				if _, err = io.ReadFull(reader, b.Extra.Peer); err != nil {
+					return err
+				}
 
-			return nil
-		}()
+				return nil
+			}()
+		*/
 
 	case 0:
 		if err = binary.Read(reader, binary.BigEndian, &mainDataSize); err != nil {
-			return err
+			return nil, err
 		}
 		mainData = make([]byte, mainDataSize)
 		if _, err = io.ReadFull(reader, mainData); err != nil {
-			return err
+			return nil, err
 		}
 		if sideData, err = io.ReadAll(reader); err != nil {
-			return err
+			return nil, err
 		}
 	default:
-		return fmt.Errorf("unknown block version %d", version)
+		return nil, fmt.Errorf("unknown block version %d", version)
 	}
 
 	if err = b.Main.UnmarshalBinary(mainData); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err = b.Side.UnmarshalBinary(sideData); err != nil {
-		return err
+		return nil, err
 	}
 
-	if err = b.fillFromTxExtra(); err != nil {
-		return err
+	b.c.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
+
+	return b, nil
+}
+
+func (b *Share) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
+	switch tag {
+	case SideExtraNonce:
+		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
+			if len(t.Data) < SideExtraNonceSize || len(t.Data) > SideExtraNonceMaxSize {
+				return nil
+			}
+			return t.Data
+		}
+	case SideTemplateId:
+		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
+			if len(t.Data) != types.HashSize {
+				return nil
+			}
+			return t.Data
+		}
+	case SideCoinbasePublicKey:
+		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
+			if len(t.Data) != types.HashSize {
+				return nil
+			}
+			return t.Data
+		}
 	}
 
 	return nil
 }
 
-func (b *Share) fillFromTxExtra() error {
+func (b *Share) MainId() types.Hash {
+	if hash, ok := func() (types.Hash, bool) {
+		b.c.lock.RLock()
+		defer b.c.lock.RUnlock()
 
-	for _, tag := range b.Main.Coinbase.Extra {
-		switch tag.Tag {
-		case transaction.TxExtraTagNonce:
-			b.CoinbaseExtra.ExtraNonce = tag.Data
-		case transaction.TxExtraTagMergeMining:
-			if len(tag.Data) != types.HashSize {
-				return fmt.Errorf("hash size %d is not %d", len(tag.Data), types.HashSize)
-			}
-			b.CoinbaseExtra.SideId = types.HashFromBytes(tag.Data)
+		if b.c.mainId != types.ZeroHash {
+			return b.c.mainId, true
 		}
+		return types.ZeroHash, false
+	}(); ok {
+		return hash
+	} else {
+		b.c.lock.Lock()
+		defer b.c.lock.Unlock()
+		if b.c.mainId == types.ZeroHash { //check again for race
+			b.c.mainId = b.Main.Id()
+		}
+		return b.c.mainId
 	}
+}
+
+func (b *Share) MainDifficulty() types.Difficulty {
+	if difficulty, ok := func() (types.Difficulty, bool) {
+		b.c.lock.RLock()
+		defer b.c.lock.RUnlock()
+
+		if b.c.mainDifficulty != types.ZeroDifficulty {
+			return b.c.mainDifficulty, true
+		}
+		return types.ZeroDifficulty, false
+	}(); ok {
+		return difficulty
+	} else {
+		b.c.lock.Lock()
+		defer b.c.lock.Unlock()
+		if b.c.mainDifficulty == types.ZeroDifficulty { //check again for race
+			b.c.mainDifficulty = b.Main.Difficulty()
+		}
+		return b.c.mainDifficulty
+	}
+}
+
+func (b *Share) SideTemplateId(consensus *Consensus) types.Hash {
+	if hash, ok := func() (types.Hash, bool) {
+		b.c.lock.RLock()
+		defer b.c.lock.RUnlock()
+
+		if b.c.templateId != types.ZeroHash {
+			return b.c.templateId, true
+		}
+		return types.ZeroHash, false
+	}(); ok {
+		return hash
+	} else {
+		b.c.lock.Lock()
+		defer b.c.lock.Unlock()
+		if b.c.templateId == types.ZeroHash { //check again for race
+			b.c.templateId = consensus.CalculateSideTemplateId(&b.Main, &b.Side)
+		}
+		return b.c.templateId
+	}
+}
+
+func (b *Share) PowHash() types.Hash {
+	if hash, ok := func() (types.Hash, bool) {
+		b.c.lock.RLock()
+		defer b.c.lock.RUnlock()
+
+		if b.c.powHash != types.ZeroHash {
+			return b.c.powHash, true
+		}
+		return types.ZeroHash, false
+	}(); ok {
+		return hash
+	} else {
+		b.c.lock.Lock()
+		defer b.c.lock.Unlock()
+		if b.c.powHash == types.ZeroHash { //check again for race
+			b.c.powHash = b.Main.PowHash()
+		}
+		return b.c.powHash
+	}
+}
+
+func (b *Share) UnmarshalBinary(data []byte) error {
+	reader := bytes.NewReader(data)
+	return b.FromReader(reader)
+}
+
+func (b *Share) MarshalBinary() ([]byte, error) {
+	if mainData, err := b.Main.MarshalBinary(); err != nil {
+		return nil, err
+	} else if sideData, err := b.Side.MarshalBinary(); err != nil {
+		return nil, err
+	} else {
+		data := make([]byte, 0, len(mainData)+len(sideData))
+		data = append(data, mainData...)
+		data = append(data, sideData...)
+		return data, nil
+	}
+}
+
+func (b *Share) FromReader(reader readerAndByteReader) (err error) {
+	if err = b.Main.FromReader(reader); err != nil {
+		return err
+	}
+
+	if err = b.Side.FromReader(reader); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (b *Share) IsProofHigherThanDifficulty() bool {
-	return b.GetProofDifficulty().Cmp(b.Extra.MainDifficulty.Uint128) >= 0
+	if mainDifficulty := b.MainDifficulty(); mainDifficulty == types.ZeroDifficulty {
+		//TODO: err
+		return false
+	} else {
+		return b.GetProofDifficulty().Cmp(mainDifficulty) >= 0
+	}
 }
 
 func (b *Share) GetProofDifficulty() types.Difficulty {
 	base := uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
-	pow := uint256.NewInt(0).SetBytes32(b.Extra.PowHash[:])
+
+	powHash := b.PowHash()
+	pow := uint256.NewInt(0).SetBytes32(powHash[:])
 	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
 
 	if pow.Eq(uint256.NewInt(0)) {
@@ -177,7 +309,7 @@ func (b *Share) GetProofDifficulty() types.Difficulty {
 	}
 
 	powResult := uint256.NewInt(0).Div(base, pow).Bytes32()
-	return types.Difficulty{Uint128: uint128.FromBytes(powResult[16:]).ReverseBytes()}
+	return types.DifficultyFromBytes(powResult[16:])
 }
 
 func (b *Share) GetAddress() *address.Address {

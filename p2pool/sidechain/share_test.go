@@ -29,16 +29,18 @@ func TestBlockDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	block, err := NewShareFromBytes(contents)
+	block, err := NewShareFromExportedBytes(contents)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hex.EncodeToString(block.Extra.MainId[:]) != "05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69" {
-		t.Fatalf("expected main id 05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69, got %s", hex.EncodeToString(block.Extra.MainId[:]))
+	mainId := block.MainId()
+
+	if hex.EncodeToString(mainId[:]) != "05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69" {
+		t.Fatalf("expected main id 05892769e709b6cfebd5d71e5cadf38ba0abde8048a0eea3792d981861ad9a69, got %s", mainId.String())
 	}
-	if hex.EncodeToString(block.CoinbaseExtra.SideId[:]) != "1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d" {
-		t.Fatalf("expected side id 1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d, got %s", hex.EncodeToString(block.CoinbaseExtra.SideId[:]))
+	if hex.EncodeToString(block.CoinbaseExtra(SideTemplateId)) != "1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d" {
+		t.Fatalf("expected side id 1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d, got %s", hex.EncodeToString(block.CoinbaseExtra(SideTemplateId)))
 	}
 
 	b1, _ := block.Main.MarshalBinary()
@@ -56,10 +58,10 @@ func TestBlockDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	log.Print(block.TemplateId(ConsensusDefault).String())
+	t.Log(block.SideTemplateId(ConsensusDefault).String())
 
-	log.Print(block.Side.CoinbasePrivateKey.String())
-	log.Print(types.HashFromBytes(block.GetAddress().GetDeterministicTransactionPrivateKey(block.Main.PreviousId).Bytes()).String())
+	t.Log(block.Side.CoinbasePrivateKey.String())
+	t.Log(types.HashFromBytes(block.GetAddress().GetDeterministicTransactionPrivateKey(block.Main.PreviousId).Bytes()).String())
 
 	txId := block.Main.Coinbase.Id()
 
@@ -69,7 +71,7 @@ func TestBlockDecode(t *testing.T) {
 
 	proofResult, _ := types.DifficultyFromString("00000000000000000000006ef6334490")
 
-	if block.GetProofDifficulty().Cmp(proofResult.Uint128) != 0 {
+	if block.GetProofDifficulty().Cmp(proofResult) != 0 {
 		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), block.GetProofDifficulty().String())
 	}
 
@@ -81,12 +83,12 @@ func TestBlockDecode(t *testing.T) {
 		t.Fatal("expected proof higher than difficulty")
 	}
 
-	block.Extra.PowHash[31] = 1
+	block.c.powHash[31] = 1
 
 	if block.IsProofHigherThanDifficulty() {
 		t.Fatal("expected proof lower than difficulty")
 	}
 
 	log.Print(block.GetProofDifficulty().String())
-	log.Print(block.Extra.MainDifficulty.String())
+	log.Print(block.MainDifficulty().String())
 }

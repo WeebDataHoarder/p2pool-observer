@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"io"
-	"sync"
 )
 
 type Block struct {
@@ -215,14 +214,20 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 	return
 }
 
+func (b *Block) Difficulty() types.Difficulty {
+	//cached by sidechain.Share
+	d, _ := client.GetClient().GetDifficultyByHeight(b.Coinbase.GenHeight)
+	return d
+}
+
 func (b *Block) PowHash() types.Hash {
-	//TODO: cache
+	//cached by sidechain.Share
 	h, _ := HashBlob(b.Coinbase.GenHeight, b.HashingBlob())
 	return h
 }
 
 func (b *Block) Id() types.Hash {
-	//TODO: cache
+	//cached by sidechain.Share
 	buf := b.HashingBlob()
 
 	actualDataToHash := make([]byte, 0, len(buf)+binary.MaxVarintLen64)
@@ -232,36 +237,15 @@ func (b *Block) Id() types.Hash {
 	return types.HashFromBytes(keccak(actualDataToHash))
 }
 
-var cachedSeedLock sync.Mutex
-var cachedSeeds = make(map[uint64]types.Hash)
 var hasher = randomx.NewRandomX()
-
-func AddSeedToCache(seedHeight uint64, seedHash types.Hash) {
-	cachedSeedLock.Lock()
-	defer cachedSeedLock.Unlock()
-	addSeedToCache(seedHeight, seedHash)
-}
-func addSeedToCache(seedHeight uint64, seedHash types.Hash) {
-	cachedSeeds[seedHeight] = seedHash
-}
 
 func HashBlob(height uint64, blob []byte) (hash types.Hash, err error) {
 
-	cachedSeedLock.Lock()
-	defer cachedSeedLock.Unlock()
-
-	var seedHash types.Hash
-	seedHeight := randomx.SeedHeight(height)
-	if h, ok := cachedSeeds[seedHeight]; ok {
-		seedHash = h
+	if seed, err := client.GetClient().GetSeedByHeight(height); err != nil {
+		return types.ZeroHash, err
 	} else {
-		if seedHash, err = client.GetClient().GetBlockIdByHeight(seedHeight); err != nil {
-			return types.Hash{}, err
-		}
-		addSeedToCache(seedHeight, seedHash)
+		return hasher.Hash(seed[:], blob)
 	}
-
-	return hasher.Hash(seedHash[:], blob)
 }
 
 func keccakl(data []byte, len int) []byte {

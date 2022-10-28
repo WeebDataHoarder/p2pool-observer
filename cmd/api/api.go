@@ -15,7 +15,6 @@ import (
 	"github.com/ake-persson/mapslice-json"
 	"github.com/gorilla/mux"
 	"log"
-	"lukechampine.com/uint128"
 	"math"
 	"net/http"
 	"os"
@@ -52,7 +51,7 @@ func main() {
 		blockCount := 0
 		uncleCount := 0
 
-		var windowDifficulty uint128.Uint128
+		var windowDifficulty types.Difficulty
 
 		miners := make(map[uint64]uint64)
 
@@ -63,7 +62,7 @@ func main() {
 			}
 			miners[b.MinerId]++
 
-			windowDifficulty = windowDifficulty.Add(b.Difficulty.Uint128)
+			windowDifficulty = windowDifficulty.Add(b.Difficulty)
 			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
 				//TODO: check this check is correct :)
 				if (tip.Height - u.Block.Height) > p2pool.PPLNSWindow {
@@ -76,7 +75,7 @@ func main() {
 				}
 				miners[u.Block.MinerId]++
 
-				windowDifficulty = windowDifficulty.Add(u.Block.Difficulty.Uint128)
+				windowDifficulty = windowDifficulty.Add(u.Block.Difficulty)
 			}
 		}
 
@@ -102,7 +101,7 @@ func main() {
 
 		globalDiff := tip.Template.Difficulty
 
-		currentEffort := float64(uint128.From64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff.Uint128).Lo) / 1000
+		currentEffort := float64(types.DifficultyFrom64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff).Lo) / 1000
 
 		if currentEffort <= 0 || poolBlocks[0].TotalHashes == 0 {
 			currentEffort = 0
@@ -140,7 +139,7 @@ func main() {
 					Miners: len(miners),
 					Blocks: blockCount,
 					Uncles: uncleCount,
-					Weight: types.Difficulty{Uint128: windowDifficulty},
+					Weight: windowDifficulty,
 				},
 				WindowSize:   p2pool.PPLNSWindow,
 				BlockTime:    p2pool.BlockTime,

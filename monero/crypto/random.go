@@ -41,6 +41,7 @@ func DeterministicScalar(entropy []byte) *edwards25519.Scalar {
 	hash := make([]byte, h.Size())
 
 	for {
+		h.Reset()
 		counter++
 		binary.LittleEndian.PutUint32(buf[len(entropy):], counter)
 		h.Write(buf)

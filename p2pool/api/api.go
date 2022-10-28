@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
-	"lukechampine.com/uint128"
 	"os"
 	"path"
 	"strconv"
@@ -93,7 +92,7 @@ func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.Share, err error) {
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromBytes(data)
+		return sidechain.NewShareFromExportedBytes(data)
 	}
 }
 
@@ -112,7 +111,7 @@ func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.Share, err error) {
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromBytes(data)
+		return sidechain.NewShareFromExportedBytes(data)
 	}
 }
 
@@ -138,8 +137,8 @@ func (a *Api) GetShareFromRawEntry(id types.Hash, errOnUncles bool) (b *database
 	}
 }
 
-func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]uint128.Uint128) {
-	shares = make(map[uint64]uint128.Uint128)
+func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]types.Difficulty) {
+	shares = make(map[uint64]types.Difficulty)
 
 	blockCount := 0
 
@@ -152,10 +151,10 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]uint
 
 	for {
 		if _, ok := shares[block.MinerId]; !ok {
-			shares[block.MinerId] = uint128.From64(0)
+			shares[block.MinerId] = types.DifficultyFrom64(0)
 		}
 
-		shares[block.MinerId] = shares[block.MinerId].Add(block.Difficulty.Uint128)
+		shares[block.MinerId] = shares[block.MinerId].Add(block.Difficulty)
 
 		for uncle := range a.db.GetUnclesByParentId(block.Id) {
 			if (tip.Height - uncle.Block.Height) >= p2pool.PPLNSWindow {
@@ -163,14 +162,14 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]uint
 			}
 
 			if _, ok := shares[uncle.Block.MinerId]; !ok {
-				shares[uncle.Block.MinerId] = uint128.From64(0)
+				shares[uncle.Block.MinerId] = types.DifficultyFrom64(0)
 			}
 
-			product := uncle.Block.Difficulty.Uint128.Mul64(p2pool.UnclePenalty)
+			product := uncle.Block.Difficulty.Mul64(p2pool.UnclePenalty)
 			unclePenalty := product.Div64(100)
 
 			shares[block.MinerId] = shares[block.MinerId].Add(unclePenalty)
-			shares[uncle.Block.MinerId] = shares[uncle.Block.MinerId].Add(uncle.Block.Difficulty.Uint128.Sub(unclePenalty))
+			shares[uncle.Block.MinerId] = shares[uncle.Block.MinerId].Add(uncle.Block.Difficulty.Sub(unclePenalty))
 		}
 
 		blockCount++
@@ -187,13 +186,13 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]uint
 	totalReward := tip.Coinbase.Reward
 
 	if totalReward > 0 {
-		totalWeight := uint128.From64(0)
+		totalWeight := types.DifficultyFrom64(0)
 		for _, w := range shares {
 			totalWeight = totalWeight.Add(w)
 		}
 
-		w := uint128.From64(0)
-		rewardGiven := uint128.From64(0)
+		w := types.DifficultyFrom64(0)
+		rewardGiven := types.DifficultyFrom64(0)
 
 		for miner, weight := range shares {
 			w = w.Add(weight)
@@ -210,8 +209,8 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]uint
 	return shares
 }
 
-func (a *Api) GetWindowPayouts(height, totalReward *uint64) (shares map[uint64]uint128.Uint128) {
-	shares = make(map[uint64]uint128.Uint128)
+func (a *Api) GetWindowPayouts(height, totalReward *uint64) (shares map[uint64]types.Difficulty) {
+	shares = make(map[uint64]types.Difficulty)
 
 	var tip uint64
 	if height != nil {
@@ -224,10 +223,10 @@ func (a *Api) GetWindowPayouts(height, totalReward *uint64) (shares map[uint64]u
 
 	for block := range a.db.GetBlocksInWindow(&tip, p2pool.PPLNSWindow) {
 		if _, ok := shares[block.MinerId]; !ok {
-			shares[block.MinerId] = uint128.From64(0)
+			shares[block.MinerId] = types.DifficultyFrom64(0)
 		}
 
-		shares[block.MinerId] = shares[block.MinerId].Add(block.Difficulty.Uint128)
+		shares[block.MinerId] = shares[block.MinerId].Add(block.Difficulty)
 
 		for uncle := range a.db.GetUnclesByParentId(block.Id) {
 			if (tip - uncle.Block.Height) >= p2pool.PPLNSWindow {
@@ -235,27 +234,27 @@ func (a *Api) GetWindowPayouts(height, totalReward *uint64) (shares map[uint64]u
 			}
 
 			if _, ok := shares[uncle.Block.MinerId]; !ok {
-				shares[uncle.Block.MinerId] = uint128.From64(0)
+				shares[uncle.Block.MinerId] = types.DifficultyFrom64(0)
 			}
 
-			product := uncle.Block.Difficulty.Uint128.Mul64(p2pool.UnclePenalty)
+			product := uncle.Block.Difficulty.Mul64(p2pool.UnclePenalty)
 			unclePenalty := product.Div64(100)
 
 			shares[block.MinerId] = shares[block.MinerId].Add(unclePenalty)
-			shares[uncle.Block.MinerId] = shares[uncle.Block.MinerId].Add(uncle.Block.Difficulty.Uint128.Sub(unclePenalty))
+			shares[uncle.Block.MinerId] = shares[uncle.Block.MinerId].Add(uncle.Block.Difficulty.Sub(unclePenalty))
 		}
 
 		blockCount++
 	}
 
 	if totalReward != nil && *totalReward > 0 {
-		totalWeight := uint128.From64(0)
+		totalWeight := types.DifficultyFrom64(0)
 		for _, w := range shares {
 			totalWeight = totalWeight.Add(w)
 		}
 
-		w := uint128.From64(0)
-		rewardGiven := uint128.From64(0)
+		w := types.DifficultyFrom64(0)
+		rewardGiven := types.DifficultyFrom64(0)
 
 		for miner, weight := range shares {
 			w = w.Add(weight)

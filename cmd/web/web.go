@@ -630,7 +630,7 @@ func main() {
 
 			miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(share["height"])), 1)
 			diff := toUint64(share["weight"])
-			miners[miner]["weight"] = types.Difficulty{Uint128: miners[miner]["weight"].(types.Difficulty).Add64(diff)}
+			miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
 
 			if _, ok := share["uncles"]; ok {
 				for _, u := range share["uncles"].([]any) {
@@ -651,14 +651,14 @@ func main() {
 
 					miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(uncle["height"])), 1)
 					diff := toUint64(uncle["weight"])
-					miners[miner]["weight"] = types.Difficulty{Uint128: miners[miner]["weight"].(types.Difficulty).Add64(diff)}
+					miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
 				}
 			}
 		}
 
 		minerKeys := maps.Keys(miners)
 		slices.SortFunc(minerKeys, func(a string, b string) bool {
-			return miners[a]["weight"].(types.Difficulty).Cmp(miners[b]["weight"].(types.Difficulty).Uint128) > 0
+			return miners[a]["weight"].(types.Difficulty).Cmp(miners[b]["weight"].(types.Difficulty)) > 0
 		})
 
 		sortedMiners := make(mapslice.MapSlice, len(minerKeys))
@@ -709,7 +709,7 @@ func main() {
 
 			if buf, err := hex.DecodeString(string(s)); err == nil {
 
-				raw, _ = sidechain.NewShareFromBytes(buf)
+				raw, _ = sidechain.NewShareFromExportedBytes(buf)
 			}
 		}
 
@@ -793,16 +793,16 @@ func main() {
 				unclesFound.Add(int(int64(tipHeight)-toInt64(parent["height"])), 1)
 				if toUint64(s["height"]) > wend {
 					unclesInWindow++
-					windowDiff.Uint128 = windowDiff.Add64(toUint64(s["weight"]))
+					windowDiff = windowDiff.Add64(toUint64(s["weight"]))
 				}
 			} else {
 				sharesFound.Add(int(int64(tipHeight)-toInt64(s["height"])), 1)
 				if toUint64(s["height"]) > wend {
 					sharesInWindow++
-					windowDiff.Uint128 = windowDiff.Add64(toUint64(s["weight"]))
+					windowDiff = windowDiff.Add64(toUint64(s["weight"]))
 				}
 			}
-			longDiff.Uint128 = longDiff.Add64(toUint64(s["weight"]))
+			longDiff = longDiff.Add64(toUint64(s["weight"]))
 		}
 
 		if len(payouts) > 10 {
