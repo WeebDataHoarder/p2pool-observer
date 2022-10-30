@@ -2,19 +2,20 @@ package crypto
 
 import (
 	"filippo.io/edwards25519"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/moneroutil"
 )
 
-func BytesToScalar(hash []byte) *edwards25519.Scalar {
+func BytesToScalar(buf []byte) *edwards25519.Scalar {
 	var wideBytes [64]byte
-	copy(wideBytes[:], hash[:])
+	copy(wideBytes[:], buf[:])
 	c, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
 	return c
 }
 
-func HashToScalar(hash types.Hash) *edwards25519.Scalar {
+func HashToScalar(data ...[]byte) *edwards25519.Scalar {
+	h := moneroutil.Keccak256(data...)
 	var wideBytes [64]byte
-	copy(wideBytes[:], hash[:])
+	copy(wideBytes[:], h[:])
 	c, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
 	return c
 }

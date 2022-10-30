@@ -2,7 +2,6 @@ package crypto
 
 import (
 	"filippo.io/edwards25519"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
@@ -38,6 +37,6 @@ func CheckSignature(hash types.Hash, publicKey *edwards25519.Point, signature *S
 	buf = append(buf, hash[:]...)           //h
 	buf = append(buf, publicKey.Bytes()...) //key
 	buf = append(buf, tmp2.Bytes()...)      //comm
-	c := HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
+	c := HashToScalar(buf)
 	return c.Equal(signature.C) == 1
 }

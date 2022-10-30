@@ -2,10 +2,10 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"filippo.io/edwards25519"
 	"golang.org/x/crypto/sha3"
-	"golang.org/x/exp/rand"
 	"unsafe"
 )
 

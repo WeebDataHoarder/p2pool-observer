@@ -7,7 +7,6 @@ import (
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
 	"strings"
 )
 
@@ -19,12 +18,7 @@ func (a *Address) GetDerivationForPrivateKey(privateKey *edwards25519.Scalar) *e
 func GetDerivationSharedDataForOutputIndex(derivation *edwards25519.Point, outputIndex uint64) *edwards25519.Scalar {
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 	data := append(derivation.Bytes(), varIntBuf[:binary.PutUvarint(varIntBuf, outputIndex)]...)
-	hasher := sha3.NewLegacyKeccak256()
-	if _, err := hasher.Write(data); err != nil {
-		return nil
-	}
-
-	return crypto.BytesToScalar(hasher.Sum(nil))
+	return crypto.HashToScalar(data)
 }
 
 func GetDerivationViewTagForOutputIndex(derivation *edwards25519.Point, outputIndex uint64) uint8 {
@@ -95,7 +89,7 @@ func (a *Address) GetTxProof(txId types.Hash, txKey types.Hash, message string) 
 
 	sig := &crypto.Signature{}
 
-	sig.C = crypto.HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
+	sig.C = crypto.HashToScalar(buf)
 
 	sig.R = edwards25519.NewScalar().Subtract(k, edwards25519.NewScalar().Multiply(sig.C, txKeyS))
 
@@ -129,7 +123,7 @@ func (a *Address) GetTxProofV1(txId types.Hash, txKey types.Hash, message string
 
 	sig := &crypto.Signature{}
 
-	sig.C = crypto.HashToScalar(types.Hash(moneroutil.Keccak256(buf)))
+	sig.C = crypto.HashToScalar(buf)
 
 	sig.R = edwards25519.NewScalar().Subtract(k, edwards25519.NewScalar().Multiply(sig.C, txKeyS))
 
