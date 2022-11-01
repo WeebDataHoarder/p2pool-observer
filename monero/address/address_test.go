@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"log"
 	"testing"
 )
@@ -24,7 +25,7 @@ func init() {
 func TestAddress(t *testing.T) {
 	derivation := testAddress.GetDerivationForPrivateKey(privateKey)
 
-	sharedData := GetDerivationSharedDataForOutputIndex(derivation, 37)
+	sharedData := crypto.GetDerivationSharedDataForOutputIndex(derivation, 37)
 	ephemeralPublicKey := testAddress.GetPublicKeyForSharedData(sharedData)
 
 	if bytes.Compare(ephemeralPublicKey.Bytes(), ephemeralPubKey) != 0 {

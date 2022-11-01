@@ -27,7 +27,7 @@ const (
 	SideTemplateId        = transaction.TxExtraTagMergeMining
 )
 
-type Share struct {
+type PoolBlock struct {
 	Main mainblock.Block
 
 	Side SideData
@@ -41,8 +41,8 @@ type Share struct {
 	}
 }
 
-func NewShareFromExportedBytes(buf []byte) (*Share, error) {
-	b := &Share{}
+func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
+	b := &PoolBlock{}
 
 	if len(buf) < 32 {
 		return nil, errors.New("invalid block data")
@@ -146,7 +146,7 @@ func NewShareFromExportedBytes(buf []byte) (*Share, error) {
 	return b, nil
 }
 
-func (b *Share) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
+func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
 	switch tag {
 	case SideExtraNonce:
 		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
@@ -174,7 +174,7 @@ func (b *Share) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
 	return nil
 }
 
-func (b *Share) MainId() types.Hash {
+func (b *PoolBlock) MainId() types.Hash {
 	if hash, ok := func() (types.Hash, bool) {
 		b.c.lock.RLock()
 		defer b.c.lock.RUnlock()
@@ -195,7 +195,7 @@ func (b *Share) MainId() types.Hash {
 	}
 }
 
-func (b *Share) MainDifficulty() types.Difficulty {
+func (b *PoolBlock) MainDifficulty() types.Difficulty {
 	if difficulty, ok := func() (types.Difficulty, bool) {
 		b.c.lock.RLock()
 		defer b.c.lock.RUnlock()
@@ -216,7 +216,7 @@ func (b *Share) MainDifficulty() types.Difficulty {
 	}
 }
 
-func (b *Share) SideTemplateId(consensus *Consensus) types.Hash {
+func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 	if hash, ok := func() (types.Hash, bool) {
 		b.c.lock.RLock()
 		defer b.c.lock.RUnlock()
@@ -237,7 +237,7 @@ func (b *Share) SideTemplateId(consensus *Consensus) types.Hash {
 	}
 }
 
-func (b *Share) PowHash() types.Hash {
+func (b *PoolBlock) PowHash() types.Hash {
 	if hash, ok := func() (types.Hash, bool) {
 		b.c.lock.RLock()
 		defer b.c.lock.RUnlock()
@@ -258,12 +258,12 @@ func (b *Share) PowHash() types.Hash {
 	}
 }
 
-func (b *Share) UnmarshalBinary(data []byte) error {
+func (b *PoolBlock) UnmarshalBinary(data []byte) error {
 	reader := bytes.NewReader(data)
 	return b.FromReader(reader)
 }
 
-func (b *Share) MarshalBinary() ([]byte, error) {
+func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 	if mainData, err := b.Main.MarshalBinary(); err != nil {
 		return nil, err
 	} else if sideData, err := b.Side.MarshalBinary(); err != nil {
@@ -276,7 +276,7 @@ func (b *Share) MarshalBinary() ([]byte, error) {
 	}
 }
 
-func (b *Share) FromReader(reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 	if err = b.Main.FromReader(reader); err != nil {
 		return err
 	}
@@ -288,7 +288,7 @@ func (b *Share) FromReader(reader readerAndByteReader) (err error) {
 	return nil
 }
 
-func (b *Share) IsProofHigherThanDifficulty() bool {
+func (b *PoolBlock) IsProofHigherThanDifficulty() bool {
 	if mainDifficulty := b.MainDifficulty(); mainDifficulty == types.ZeroDifficulty {
 		//TODO: err
 		return false
@@ -297,7 +297,7 @@ func (b *Share) IsProofHigherThanDifficulty() bool {
 	}
 }
 
-func (b *Share) GetProofDifficulty() types.Difficulty {
+func (b *PoolBlock) GetProofDifficulty() types.Difficulty {
 	base := uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
 
 	powHash := b.PowHash()
@@ -312,6 +312,6 @@ func (b *Share) GetProofDifficulty() types.Difficulty {
 	return types.DifficultyFromBytes(powResult[16:])
 }
 
-func (b *Share) GetAddress() *address.Address {
+func (b *PoolBlock) GetAddress() *address.Address {
 	return address.FromRawAddress(moneroutil.MainNetwork, b.Side.PublicSpendKey, b.Side.PublicViewKey)
 }

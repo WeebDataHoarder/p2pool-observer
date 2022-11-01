@@ -86,7 +86,7 @@ func (a *Api) GetFailedRawBlockBytes(id types.Hash) (buf []byte, err error) {
 	}
 }
 
-func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.Share, err error) {
+func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.PoolBlock, err error) {
 	if buf, err := a.GetFailedRawBlockBytes(id); err != nil {
 		return nil, err
 	} else {
@@ -105,7 +105,7 @@ func (a *Api) GetRawBlockBytes(id types.Hash) (buf []byte, err error) {
 	}
 }
 
-func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.Share, err error) {
+func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.PoolBlock, err error) {
 	if buf, err := a.GetRawBlockBytes(id); err != nil {
 		return nil, err
 	} else {
@@ -120,11 +120,11 @@ func (a *Api) GetDatabase() *database.Database {
 }
 
 func (a *Api) GetShareFromRawEntry(id types.Hash, errOnUncles bool) (b *database.Block, uncles []*database.UncleBlock, err error) {
-	var raw *sidechain.Share
+	var raw *sidechain.PoolBlock
 	if raw, err = a.GetRawBlock(id); err != nil {
 		return
 	} else {
-		u := make([]*sidechain.Share, 0, len(raw.Side.Uncles))
+		u := make([]*sidechain.PoolBlock, 0, len(raw.Side.Uncles))
 		for _, uncleId := range raw.Side.Uncles {
 			if uncle, err := a.GetRawBlock(uncleId); err != nil {
 				return nil, nil, err

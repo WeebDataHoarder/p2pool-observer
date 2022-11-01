@@ -12,14 +12,14 @@ import (
 
 type Address struct {
 	Network  uint8
-	SpendPub edwards25519.Point
-	ViewPub  edwards25519.Point
+	SpendPub *edwards25519.Point
+	ViewPub  *edwards25519.Point
 	Checksum []byte
+	// IsSubAddress Always false
+	IsSubAddress bool
 
 	moneroAddress atomic.Pointer[edwards25519.Scalar]
 }
-
-var scalar8, _ = edwards25519.NewScalar().SetCanonicalBytes([]byte{8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
 
 func FromBase58(address string) *Address {
 	raw := moneroutil.DecodeMoneroBase58(address)
@@ -36,10 +36,11 @@ func FromBase58(address string) *Address {
 		Checksum: checksum[:],
 	}
 
-	if _, err := a.SpendPub.SetBytes(raw[1:33]); err != nil {
+	var err error
+	if a.SpendPub, err = (&edwards25519.Point{}).SetBytes(raw[1:33]); err != nil {
 		return nil
 	}
-	if _, err := a.ViewPub.SetBytes(raw[33:65]); err != nil {
+	if a.ViewPub, err = (&edwards25519.Point{}).SetBytes(raw[33:65]); err != nil {
 		return nil
 	}
 
@@ -58,10 +59,11 @@ func FromRawAddress(network uint8, spend, view types.Hash) *Address {
 		Checksum: checksum[:],
 	}
 
-	if _, err := a.SpendPub.SetBytes(nice[1:33]); err != nil {
+	var err error
+	if a.SpendPub, err = (&edwards25519.Point{}).SetBytes(spend[:]); err != nil {
 		return nil
 	}
-	if _, err := a.ViewPub.SetBytes(nice[33:65]); err != nil {
+	if a.ViewPub, err = (&edwards25519.Point{}).SetBytes(view[:]); err != nil {
 		return nil
 	}
 

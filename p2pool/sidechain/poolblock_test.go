@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestBlockDecode(t *testing.T) {
+func TestPoolBlockDecode(t *testing.T) {
 	client.SetClientSettings(os.Getenv("MONEROD_RPC_URL"))
 
 	f, err := os.Open("testdata/1783223a701d16192ce9ff83c603b48b3e1785e3779b42079ede6e52ea7f0d2d.hex")

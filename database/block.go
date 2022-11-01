@@ -112,7 +112,7 @@ type Block struct {
 	Invalid *bool `json:"invalid,omitempty"`
 }
 
-func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*sidechain.Share, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
+func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles []*sidechain.PoolBlock, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
 	miner := db.GetOrCreateMinerByAddress(b.GetAddress().ToBase58())
 	if miner == nil {
 		return nil, nil, errors.New("could not get or create miner")
@@ -151,7 +151,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.Share, knownUncles []*si
 	}
 
 	for _, u := range b.Side.Uncles {
-		if i := slices.IndexFunc(knownUncles, func(uncle *sidechain.Share) bool {
+		if i := slices.IndexFunc(knownUncles, func(uncle *sidechain.PoolBlock) bool {
 			return types.HashFromBytes(uncle.CoinbaseExtra(sidechain.SideTemplateId)) == u
 		}); i != -1 {
 			uncle := knownUncles[i]

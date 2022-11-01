@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
@@ -81,11 +82,11 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 				continue
 			}
 
-			if o.Type == transaction.TxOutToTaggedKey && o.ViewTag != address.GetDerivationViewTagForOutputIndex(derivation, o.Index) { //fast check
+			if o.Type == transaction.TxOutToTaggedKey && o.ViewTag != crypto.GetDerivationViewTagForOutputIndex(derivation, o.Index) { //fast check
 				continue
 			}
 
-			sharedData := address.GetDerivationSharedDataForOutputIndex(derivation, o.Index)
+			sharedData := crypto.GetDerivationSharedDataForOutputIndex(derivation, o.Index)
 			if bytes.Compare(o.EphemeralPublicKey[:], miner.MoneroAddress().GetPublicKeyForSharedData(sharedData).Bytes()) == 0 {
 				//TODO: maybe clone?
 				result = append(result, outputResult{

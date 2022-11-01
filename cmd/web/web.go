@@ -317,7 +317,7 @@ func main() {
 		}
 		h, _ := types.HashFromString(args[1].(string))
 		k, _ := types.HashFromString(args[2].(string))
-		return address2.FromBase58(args[0].(string)).GetTxProof(h, k, "")
+		return address2.FromBase58(args[0].(string)).GetTxProofV2(h, k, "")
 	}
 
 	env.Functions["get_tx_proof_v1"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -704,7 +704,7 @@ func main() {
 			return
 		}
 
-		var raw *sidechain.Share
+		var raw *sidechain.PoolBlock
 		if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
 
 			if buf, err := hex.DecodeString(string(s)); err == nil {

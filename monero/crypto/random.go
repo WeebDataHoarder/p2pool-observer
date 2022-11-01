@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"unsafe"
 )
@@ -38,19 +39,21 @@ func DeterministicScalar(entropy []byte) *edwards25519.Scalar {
 	buf := make([]byte, len(entropy)+int(unsafe.Sizeof(counter)))
 	copy(buf, entropy)
 	h := sha3.NewLegacyKeccak256()
-	hash := make([]byte, h.Size())
+	hash := make([]byte, types.HashSize*2)
+
+	scalar := edwards25519.NewScalar()
 
 	for {
 		h.Reset()
 		counter++
 		binary.LittleEndian.PutUint32(buf[len(entropy):], counter)
-		h.Write(buf)
-		sum := h.Sum(hash[:0])
-		if bytes.Compare(sum, limit) > 0 {
+		_, _ = h.Write(buf)
+		_ = h.Sum(hash[:0])
+		if bytes.Compare(hash[:types.HashSize], limit) > 0 {
 			continue
 		}
+		scalar, _ = scalar.SetUniformBytes(hash)
 
-		scalar := BytesToScalar(sum)
 		if scalar.Equal(edwards25519.NewScalar()) == 0 {
 			return scalar
 		}
