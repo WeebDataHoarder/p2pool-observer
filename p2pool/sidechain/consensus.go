@@ -20,6 +20,17 @@ const (
 	NetworkStagenet
 )
 
+const (
+	PPLNSWindow     = 2160
+	BlockTime       = 10
+	UnclePenalty    = 20
+	UncleBlockDepth = 3
+)
+
+type ConsensusProvider interface {
+	Consensus() *Consensus
+}
+
 func (n NetworkType) String() string {
 	switch n {
 	case NetworkInvalid:
@@ -147,6 +158,13 @@ func (i *Consensus) IsDefault() bool {
 
 func (i *Consensus) IsMini() bool {
 	return i.id == ConsensusMini.id
+}
+
+func (i *Consensus) DefaultPort() uint16 {
+	if i.IsMini() {
+		return 37888
+	}
+	return 37889
 }
 
 func (i *Consensus) CalculateId() types.Hash {

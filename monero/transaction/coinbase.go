@@ -27,6 +27,11 @@ type CoinbaseTransaction struct {
 	GenHeight  uint64
 	Outputs    []*CoinbaseTransactionOutput
 
+	// OutputsBlobSize length of serialized Outputs. Used by p2pool serialized pruned blocks, filled regardless
+	OutputsBlobSize uint64
+	// TotalReward amount of reward existing Outputs. Used by p2pool serialized pruned blocks, filled regardless
+	TotalReward uint64
+
 	Extra ExtraTags
 
 	ExtraBaseRCT uint8
@@ -46,6 +51,9 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 	var (
 		txExtraSize uint64
 	)
+
+	c.TotalReward = 0
+	c.OutputsBlobSize = 0
 
 	if c.Version, err = reader.ReadByte(); err != nil {
 		return err
@@ -81,39 +89,57 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		return err
 	}
 
-	if outputCount < 8192 {
-		c.Outputs = make([]*CoinbaseTransactionOutput, 0, outputCount)
-	}
-
-	for index := 0; index < int(outputCount); index++ {
-		o := &CoinbaseTransactionOutput{
-			Index: uint64(index),
+	if outputCount > 0 {
+		if outputCount < 8192 {
+			c.Outputs = make([]*CoinbaseTransactionOutput, 0, outputCount)
 		}
 
-		if o.Reward, err = binary.ReadUvarint(reader); err != nil {
-			return err
-		}
+		for index := 0; index < int(outputCount); index++ {
+			o := &CoinbaseTransactionOutput{
+				Index: uint64(index),
+			}
 
-		if err = binary.Read(reader, binary.BigEndian, &o.Type); err != nil {
-			return err
-		}
-
-		switch o.Type {
-		case TxOutToTaggedKey, TxOutToKey:
-			if _, err = io.ReadFull(reader, o.EphemeralPublicKey[:]); err != nil {
+			if o.Reward, err = binary.ReadUvarint(reader); err != nil {
 				return err
 			}
 
-			if o.Type == TxOutToTaggedKey {
-				if err = binary.Read(reader, binary.BigEndian, &o.ViewTag); err != nil {
+			if err = binary.Read(reader, binary.BigEndian, &o.Type); err != nil {
+				return err
+			}
+
+			switch o.Type {
+			case TxOutToTaggedKey, TxOutToKey:
+				if _, err = io.ReadFull(reader, o.EphemeralPublicKey[:]); err != nil {
 					return err
 				}
+
+				if o.Type == TxOutToTaggedKey {
+					if err = binary.Read(reader, binary.BigEndian, &o.ViewTag); err != nil {
+						return err
+					}
+					c.OutputsBlobSize += 1 + types.HashSize + 1
+				} else {
+					c.OutputsBlobSize += 1 + types.HashSize
+				}
+			default:
+				return fmt.Errorf("unknown %d TXOUT key", o.Type)
 			}
-		default:
-			return fmt.Errorf("unknown %d TXOUT key", o.Type)
+
+			c.TotalReward += o.Reward
+			c.Outputs = append(c.Outputs, o)
+		}
+	} else {
+		// Outputs are not in the buffer and must be calculated from sidechain data
+		// We only have total reward and outputs blob size here
+		//special case, pruned block. outputs have to be generated from chain
+
+		if c.TotalReward, err = binary.ReadUvarint(reader); err != nil {
+			return err
 		}
 
-		c.Outputs = append(c.Outputs, o)
+		if c.OutputsBlobSize, err = binary.ReadUvarint(reader); err != nil {
+			return err
+		}
 	}
 
 	if txExtraSize, err = binary.ReadUvarint(reader); err != nil {
@@ -174,6 +200,30 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
 	_, _ = buf.Write(txExtra)
 	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)
+
+	return buf.Bytes(), nil
+}
+
+func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	varIntBuf := make([]byte, binary.MaxVarintLen64)
+
+	for _, o := range c.Outputs {
+		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
+		_ = binary.Write(buf, binary.BigEndian, o.Type)
+
+		switch o.Type {
+		case TxOutToTaggedKey, TxOutToKey:
+			_, _ = buf.Write(o.EphemeralPublicKey[:])
+
+			if o.Type == TxOutToTaggedKey {
+				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
+			}
+		default:
+			return nil, errors.New("unknown output type")
+		}
+	}
 
 	return buf.Bytes(), nil
 }

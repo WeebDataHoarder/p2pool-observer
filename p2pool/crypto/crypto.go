@@ -1,4 +1,4 @@
-package p2pool
+package crypto
 
 import (
 	"filippo.io/edwards25519"

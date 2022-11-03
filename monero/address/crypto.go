@@ -5,7 +5,7 @@ import (
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"strings"
 )
@@ -15,7 +15,7 @@ func (a *Address) GetDerivationForPrivateKey(privateKey *edwards25519.Scalar) *e
 }
 
 func (a *Address) GetDeterministicTransactionPrivateKey(prevId types.Hash) *edwards25519.Scalar {
-	return p2pool.GetDeterministicTransactionPrivateKey(a.SpendPub, prevId)
+	return p2poolcrypto.GetDeterministicTransactionPrivateKey(a.SpendPub, prevId)
 }
 
 func (a *Address) GetPublicKeyForSharedData(sharedData *edwards25519.Scalar) *edwards25519.Point {

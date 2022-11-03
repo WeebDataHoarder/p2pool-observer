@@ -23,6 +23,18 @@ type Block struct {
 	Transactions []types.Hash
 }
 
+type BlockHeader struct {
+	MajorVersion uint8
+	MinorVersion uint8
+	Timestamp    uint64
+	PreviousId   types.Hash
+	Height       uint64
+	Nonce        uint32
+	Reward       uint64
+	Difficulty   types.Difficulty
+	Id           types.Hash
+}
+
 type readerAndByteReader interface {
 	io.Reader
 	io.ByteReader
@@ -107,7 +119,21 @@ func (b *Block) UnmarshalBinary(data []byte) error {
 	return b.FromReader(reader)
 }
 
-func (b *Block) Header() []byte {
+func (b *Block) Header() *BlockHeader {
+	return &BlockHeader{
+		MajorVersion: b.MajorVersion,
+		MinorVersion: b.MinorVersion,
+		Timestamp:    b.Timestamp,
+		PreviousId:   b.PreviousId,
+		Height:       b.Coinbase.GenHeight,
+		Nonce:        b.Nonce,
+		Reward:       b.Coinbase.TotalReward,
+		Id:           b.Id(),
+		Difficulty:   types.ZeroDifficulty,
+	}
+}
+
+func (b *Block) HeaderBlob() []byte {
 	//TODO: cache
 	buf := make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+types.HashSize+binary.MaxVarintLen64) //predict its use on HashingBlob
 	buf = append(buf, b.MajorVersion)
@@ -143,7 +169,7 @@ func (b *Block) SideChainHashingBlob() (buf []byte, err error) {
 
 func (b *Block) HashingBlob() []byte {
 	//TODO: cache
-	buf := b.Header()
+	buf := b.HeaderBlob()
 
 	txTreeHash := b.TxTreeHash()
 	buf = append(buf, txTreeHash[:]...)
@@ -226,6 +252,11 @@ func (b *Block) PowHash() types.Hash {
 	return h
 }
 
+func (b *Block) PowHashWithError() (types.Hash, error) {
+	//not cached
+	return HashBlob(b.Coinbase.GenHeight, b.HashingBlob())
+}
+
 func (b *Block) Id() types.Hash {
 	//cached by sidechain.Share
 	buf := b.HashingBlob()
@@ -238,15 +269,6 @@ func (b *Block) Id() types.Hash {
 }
 
 var hasher = randomx.NewRandomX()
-
-func HashBlob(height uint64, blob []byte) (hash types.Hash, err error) {
-
-	if seed, err := client.GetClient().GetSeedByHeight(height); err != nil {
-		return types.ZeroHash, err
-	} else {
-		return hasher.Hash(seed[:], blob)
-	}
-}
 
 func keccakl(data []byte, len int) []byte {
 	h := sha3.NewLegacyKeccak256()

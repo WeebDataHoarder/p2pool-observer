@@ -3,6 +3,7 @@ package p2p
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"sync/atomic"
@@ -47,4 +48,16 @@ func FindChallengeSolution(challenge HandshakeChallenge, consensusId types.Hash,
 
 		salt++
 	}
+}
+
+func CalculateChallengeHash(challenge HandshakeChallenge, consensusId types.Hash, solution uint64) (hash types.Hash, ok bool) {
+
+	var buf [HandshakeChallengeSize*2 + types.HashSize]byte
+	copy(buf[:], challenge[:])
+	copy(buf[HandshakeChallengeSize:], consensusId[:])
+	binary.LittleEndian.PutUint64(buf[types.HashSize+HandshakeChallengeSize:], solution)
+
+	hash = types.Hash(moneroutil.Keccak256(buf[:]))
+
+	return hash, types.DifficultyFrom64(binary.LittleEndian.Uint64(hash[types.HashSize-int(unsafe.Sizeof(uint64(0))):])).Mul64(HandshakeChallengeDifficulty).Hi == 0
 }

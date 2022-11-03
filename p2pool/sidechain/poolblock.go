@@ -10,10 +10,10 @@ import (
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"github.com/holiman/uint256"
 	"io"
-	"math/bits"
 	"sync"
+	"sync/atomic"
+	"unsafe"
 )
 
 type CoinbaseExtraTag int
@@ -32,15 +32,17 @@ type PoolBlock struct {
 
 	Side SideData
 
-	c struct {
-		lock           sync.RWMutex
-		mainId         types.Hash
-		mainDifficulty types.Difficulty
-		templateId     types.Hash
-		powHash        types.Hash
-	}
+	//Temporary data structures
+	cache    poolBlockCache
+	Depth    atomic.Uint64
+	Verified atomic.Bool
+	Invalid  atomic.Bool
+
+	WantBroadcast atomic.Bool
+	Broadcasted   atomic.Bool
 }
 
+// NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares
 func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
 	b := &PoolBlock{}
 
@@ -68,22 +70,22 @@ func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
 	switch version {
 	case 1:
 
-		if _, err = io.ReadFull(reader, b.c.mainId[:]); err != nil {
+		if _, err = io.ReadFull(reader, b.cache.mainId[:]); err != nil {
 			return nil, err
 		}
 
-		if _, err = io.ReadFull(reader, b.c.powHash[:]); err != nil {
+		if _, err = io.ReadFull(reader, b.cache.powHash[:]); err != nil {
 			return nil, err
 		}
 
-		if err = binary.Read(reader, binary.BigEndian, &b.c.mainDifficulty.Hi); err != nil {
+		if err = binary.Read(reader, binary.BigEndian, &b.cache.mainDifficulty.Hi); err != nil {
 			return nil, err
 		}
-		if err = binary.Read(reader, binary.BigEndian, &b.c.mainDifficulty.Lo); err != nil {
+		if err = binary.Read(reader, binary.BigEndian, &b.cache.mainDifficulty.Lo); err != nil {
 			return nil, err
 		}
 
-		b.c.mainDifficulty.ReverseBytes()
+		b.cache.mainDifficulty.ReverseBytes()
 
 		if err = binary.Read(reader, binary.BigEndian, &mainDataSize); err != nil {
 			return nil, err
@@ -141,7 +143,7 @@ func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
 		return nil, err
 	}
 
-	b.c.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
+	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
 
 	return b, nil
 }
@@ -176,85 +178,126 @@ func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
 
 func (b *PoolBlock) MainId() types.Hash {
 	if hash, ok := func() (types.Hash, bool) {
-		b.c.lock.RLock()
-		defer b.c.lock.RUnlock()
+		b.cache.lock.RLock()
+		defer b.cache.lock.RUnlock()
 
-		if b.c.mainId != types.ZeroHash {
-			return b.c.mainId, true
+		if b.cache.mainId != types.ZeroHash {
+			return b.cache.mainId, true
 		}
 		return types.ZeroHash, false
 	}(); ok {
 		return hash
 	} else {
-		b.c.lock.Lock()
-		defer b.c.lock.Unlock()
-		if b.c.mainId == types.ZeroHash { //check again for race
-			b.c.mainId = b.Main.Id()
+		b.cache.lock.Lock()
+		defer b.cache.lock.Unlock()
+		if b.cache.mainId == types.ZeroHash { //check again for race
+			b.cache.mainId = b.Main.Id()
 		}
-		return b.c.mainId
+		return b.cache.mainId
 	}
+}
+
+func (b *PoolBlock) FullId(consensus *Consensus) FullId {
+	if fullId, ok := func() (FullId, bool) {
+		b.cache.lock.RLock()
+		defer b.cache.lock.RUnlock()
+
+		if b.cache.fullId != zeroFullId {
+			return b.cache.fullId, true
+		}
+		return zeroFullId, false
+	}(); ok {
+		return fullId
+	} else {
+		b.cache.lock.Lock()
+		defer b.cache.lock.Unlock()
+		if b.cache.fullId == zeroFullId { //check again for race
+			b.cache.fullId = b.CalculateFullId(consensus)
+		}
+		return b.cache.fullId
+	}
+}
+
+const FullIdSize = int(types.HashSize + unsafe.Sizeof(uint32(0)) + SideExtraNonceSize)
+
+var zeroFullId FullId
+
+type FullId [FullIdSize]byte
+
+func (b *PoolBlock) CalculateFullId(consensus *Consensus) FullId {
+	var buf FullId
+	sidechainId := b.SideTemplateId(consensus)
+	copy(buf[:], sidechainId[:])
+	binary.LittleEndian.PutUint32(buf[types.HashSize:], b.Main.Nonce)
+	copy(buf[types.HashSize+unsafe.Sizeof(b.Main.Nonce):], b.CoinbaseExtra(SideExtraNonce)[:SideExtraNonceSize])
+	return buf
 }
 
 func (b *PoolBlock) MainDifficulty() types.Difficulty {
 	if difficulty, ok := func() (types.Difficulty, bool) {
-		b.c.lock.RLock()
-		defer b.c.lock.RUnlock()
+		b.cache.lock.RLock()
+		defer b.cache.lock.RUnlock()
 
-		if b.c.mainDifficulty != types.ZeroDifficulty {
-			return b.c.mainDifficulty, true
+		if b.cache.mainDifficulty != types.ZeroDifficulty {
+			return b.cache.mainDifficulty, true
 		}
 		return types.ZeroDifficulty, false
 	}(); ok {
 		return difficulty
 	} else {
-		b.c.lock.Lock()
-		defer b.c.lock.Unlock()
-		if b.c.mainDifficulty == types.ZeroDifficulty { //check again for race
-			b.c.mainDifficulty = b.Main.Difficulty()
+		b.cache.lock.Lock()
+		defer b.cache.lock.Unlock()
+		if b.cache.mainDifficulty == types.ZeroDifficulty { //check again for race
+			b.cache.mainDifficulty = b.Main.Difficulty()
 		}
-		return b.c.mainDifficulty
+		return b.cache.mainDifficulty
 	}
 }
 
 func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 	if hash, ok := func() (types.Hash, bool) {
-		b.c.lock.RLock()
-		defer b.c.lock.RUnlock()
+		b.cache.lock.RLock()
+		defer b.cache.lock.RUnlock()
 
-		if b.c.templateId != types.ZeroHash {
-			return b.c.templateId, true
+		if b.cache.templateId != types.ZeroHash {
+			return b.cache.templateId, true
 		}
 		return types.ZeroHash, false
 	}(); ok {
 		return hash
 	} else {
-		b.c.lock.Lock()
-		defer b.c.lock.Unlock()
-		if b.c.templateId == types.ZeroHash { //check again for race
-			b.c.templateId = consensus.CalculateSideTemplateId(&b.Main, &b.Side)
+		b.cache.lock.Lock()
+		defer b.cache.lock.Unlock()
+		if b.cache.templateId == types.ZeroHash { //check again for race
+			b.cache.templateId = consensus.CalculateSideTemplateId(&b.Main, &b.Side)
 		}
-		return b.c.templateId
+		return b.cache.templateId
 	}
 }
 
 func (b *PoolBlock) PowHash() types.Hash {
-	if hash, ok := func() (types.Hash, bool) {
-		b.c.lock.RLock()
-		defer b.c.lock.RUnlock()
+	h, _ := b.PowHashWithError()
+	return h
+}
 
-		if b.c.powHash != types.ZeroHash {
-			return b.c.powHash, true
+func (b *PoolBlock) PowHashWithError() (powHash types.Hash, err error) {
+	if hash, ok := func() (types.Hash, bool) {
+		b.cache.lock.RLock()
+		defer b.cache.lock.RUnlock()
+
+		if b.cache.powHash != types.ZeroHash {
+			return b.cache.powHash, true
 		}
 		return types.ZeroHash, false
 	}(); ok {
-		return hash
+		return hash, nil
 	} else {
-		b.c.lock.Lock()
-		defer b.c.lock.Unlock()
-		if b.c.powHash == types.ZeroHash { //check again for race
-			b.c.powHash = b.Main.PowHash()
+		b.cache.lock.Lock()
+		defer b.cache.lock.Unlock()
+		if b.cache.powHash == types.ZeroHash { //check again for race
+			b.cache.powHash, err = b.Main.PowHashWithError()
 		}
-		return b.c.powHash
+		return b.cache.powHash, err
 	}
 }
 
@@ -288,30 +331,79 @@ func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 	return nil
 }
 
-func (b *PoolBlock) IsProofHigherThanDifficulty() bool {
+func (b *PoolBlock) IsProofHigherThanMainDifficulty() bool {
+	r, _ := b.IsProofHigherThanMainDifficultyWithError()
+	return r
+}
+
+func (b *PoolBlock) IsProofHigherThanMainDifficultyWithError() (bool, error) {
 	if mainDifficulty := b.MainDifficulty(); mainDifficulty == types.ZeroDifficulty {
-		//TODO: err
-		return false
+		return false, errors.New("could not get main difficulty")
+	} else if powHash, err := b.PowHashWithError(); err != nil {
+		return false, err
 	} else {
-		return b.GetProofDifficulty().Cmp(mainDifficulty) >= 0
+		return mainDifficulty.CheckPoW(powHash), nil
 	}
 }
 
-func (b *PoolBlock) GetProofDifficulty() types.Difficulty {
-	base := uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
+func (b *PoolBlock) IsProofHigherThanDifficulty() bool {
+	r, _ := b.IsProofHigherThanDifficultyWithError()
+	return r
+}
 
-	powHash := b.PowHash()
-	pow := uint256.NewInt(0).SetBytes32(powHash[:])
-	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
-
-	if pow.Eq(uint256.NewInt(0)) {
-		return types.Difficulty{}
+func (b *PoolBlock) IsProofHigherThanDifficultyWithError() (bool, error) {
+	if powHash, err := b.PowHashWithError(); err != nil {
+		return false, err
+	} else {
+		return b.Side.Difficulty.CheckPoW(powHash), nil
 	}
-
-	powResult := uint256.NewInt(0).Div(base, pow).Bytes32()
-	return types.DifficultyFromBytes(powResult[16:])
 }
 
 func (b *PoolBlock) GetAddress() *address.Address {
+	//TODO: support other than Main network
 	return address.FromRawAddress(moneroutil.MainNetwork, b.Side.PublicSpendKey, b.Side.PublicViewKey)
+}
+
+func (b *PoolBlock) GetPackedAddress() address.PackedAddress {
+	return address.PackedAddress{SpendPub: b.Side.PublicSpendKey, ViewPub: b.Side.PublicViewKey}
+}
+
+type poolBlockCache struct {
+	lock           sync.RWMutex
+	mainId         types.Hash
+	mainDifficulty types.Difficulty
+	templateId     types.Hash
+	powHash        types.Hash
+	fullId         FullId
+}
+
+func (c *poolBlockCache) FromReader(reader readerAndByteReader) (err error) {
+	buf := make([]byte, types.HashSize*3+types.DifficultySize+FullIdSize)
+	if _, err = reader.Read(buf); err != nil {
+		return err
+	}
+	return c.UnmarshalBinary(buf)
+}
+
+func (c *poolBlockCache) UnmarshalBinary(buf []byte) error {
+	if len(buf) < types.HashSize*3+types.DifficultySize+FullIdSize {
+		return io.ErrUnexpectedEOF
+	}
+	copy(c.mainId[:], buf)
+	c.mainDifficulty = types.DifficultyFromBytes(buf[types.HashSize:])
+	copy(c.templateId[:], buf[types.HashSize+types.DifficultySize:])
+	copy(c.powHash[:], buf[types.HashSize+types.DifficultySize+types.HashSize:])
+	copy(c.fullId[:], buf[types.HashSize+types.DifficultySize+types.HashSize+types.HashSize:])
+	return nil
+}
+
+func (c *poolBlockCache) MarshalBinary() ([]byte, error) {
+	buf := make([]byte, 0, types.HashSize*3+types.DifficultySize+FullIdSize)
+	buf = append(buf, c.mainId[:]...)
+	buf = append(buf, c.mainDifficulty.Bytes()...)
+	buf = append(buf, c.templateId[:]...)
+	buf = append(buf, c.powHash[:]...)
+	buf = append(buf, c.fullId[:]...)
+
+	return buf, nil
 }

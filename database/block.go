@@ -9,9 +9,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"github.com/holiman/uint256"
 	"golang.org/x/exp/slices"
-	"math/bits"
 	"sync"
 )
 
@@ -139,7 +137,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 		Main: BlockMainData{
 			Id:     b.MainId(),
 			Height: b.Main.Coinbase.GenHeight,
-			Found:  b.IsProofHigherThanDifficulty(),
+			Found:  b.IsProofHigherThanMainDifficulty(),
 		},
 		Template: struct {
 			Id         types.Hash       `json:"id"`
@@ -181,7 +179,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 					Main: BlockMainData{
 						Id:     uncle.MainId(),
 						Height: uncle.Main.Coinbase.GenHeight,
-						Found:  uncle.IsProofHigherThanDifficulty(),
+						Found:  uncle.IsProofHigherThanMainDifficulty(),
 					},
 					Template: struct {
 						Id         types.Hash       `json:"id"`
@@ -458,18 +456,5 @@ func (b *Block) GetBlock() *Block {
 }
 
 func (b *Block) IsProofHigherThanDifficulty() bool {
-	return b.GetProofDifficulty().Cmp(b.Template.Difficulty) >= 0
-}
-
-func (b *Block) GetProofDifficulty() types.Difficulty {
-	base := uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
-	pow := uint256.NewInt(0).SetBytes32(b.PowHash[:])
-	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
-
-	if pow.Eq(uint256.NewInt(0)) {
-		return types.Difficulty{}
-	}
-
-	powResult := uint256.NewInt(0).Div(base, pow).Bytes32()
-	return types.DifficultyFromBytes(powResult[16:])
+	return b.Template.Difficulty.CheckPoW(b.PowHash)
 }

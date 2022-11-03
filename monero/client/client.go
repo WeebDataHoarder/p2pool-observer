@@ -10,7 +10,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"github.com/Code-Hex/go-generics-cache/policy/lru"
+	"github.com/floatdrop/lru"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -57,11 +57,11 @@ type Client struct {
 	c *rpc.Client
 	d *daemon.Client
 
-	difficultyCache *lru.Cache[uint64, types.Difficulty]
+	difficultyCache *lru.LRU[uint64, types.Difficulty]
 
-	seedCache *lru.Cache[uint64, types.Hash]
+	seedCache *lru.LRU[uint64, types.Hash]
 
-	coinbaseTransactionCache *lru.Cache[types.Hash, *transaction.CoinbaseTransaction]
+	coinbaseTransactionCache *lru.LRU[types.Hash, *transaction.CoinbaseTransaction]
 
 	throttler <-chan time.Time
 }
@@ -74,15 +74,15 @@ func newClient() (*Client, error) {
 	return &Client{
 		c:                        c,
 		d:                        daemon.NewClient(c),
-		difficultyCache:          lru.NewCache[uint64, types.Difficulty](lru.WithCapacity(1024)),
-		seedCache:                lru.NewCache[uint64, types.Hash](lru.WithCapacity(1024)),
-		coinbaseTransactionCache: lru.NewCache[types.Hash, *transaction.CoinbaseTransaction](lru.WithCapacity(1024)),
+		difficultyCache:          lru.New[uint64, types.Difficulty](1024),
+		seedCache:                lru.New[uint64, types.Hash](1024),
+		coinbaseTransactionCache: lru.New[types.Hash, *transaction.CoinbaseTransaction](1024),
 		throttler:                time.Tick(time.Second / 2),
 	}, nil
 }
 
 func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseTransaction, error) {
-	if tx, ok := c.coinbaseTransactionCache.Get(txId); !ok {
+	if tx := c.coinbaseTransactionCache.Get(txId); tx == nil {
 		<-c.throttler
 		if result, err := c.d.GetTransactions(context.Background(), []string{txId.String()}); err != nil {
 			return nil, err
@@ -94,7 +94,7 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 			if buf, err := hex.DecodeString(result.Txs[0].PrunedAsHex); err != nil {
 				return nil, err
 			} else {
-				tx = &transaction.CoinbaseTransaction{}
+				tx := &transaction.CoinbaseTransaction{}
 				if err = tx.UnmarshalBinary(buf); err != nil {
 					return nil, err
 				}
@@ -109,7 +109,7 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 			}
 		}
 	} else {
-		return tx, nil
+		return *tx, nil
 	}
 }
 
@@ -133,7 +133,7 @@ func (c *Client) GetSeedByHeight(height uint64) (types.Hash, error) {
 
 	seedHeight := randomx.SeedHeight(height)
 
-	if seed, ok := c.seedCache.Get(seedHeight); !ok {
+	if seed := c.seedCache.Get(seedHeight); seed == nil {
 		if seed, err := c.GetBlockIdByHeight(seedHeight); err != nil {
 			return types.ZeroHash, err
 		} else {
@@ -141,29 +141,47 @@ func (c *Client) GetSeedByHeight(height uint64) (types.Hash, error) {
 			return seed, nil
 		}
 	} else {
-		return seed, nil
+		return *seed, nil
 	}
 }
 
 func (c *Client) GetDifficultyByHeight(height uint64) (types.Difficulty, error) {
-	if difficulty, ok := c.difficultyCache.Get(height); !ok {
+	if difficulty := c.difficultyCache.Get(height); difficulty == nil {
 		if header, err := c.GetBlockHeaderByHeight(height); err != nil {
 			if template, err := c.GetBlockTemplate(types.DonationAddress); err != nil {
-				return types.Difficulty{}, err
+				return types.ZeroDifficulty, err
 			} else if uint64(template.Height) == height {
-				difficulty = types.DifficultyFrom64(uint64(template.Difficulty))
+				difficulty := types.DifficultyFrom64(uint64(template.Difficulty))
 				c.difficultyCache.Set(height, difficulty)
 				return difficulty, nil
 			} else {
-				return types.Difficulty{}, errors.New("height not found and is not next template")
+				return types.ZeroDifficulty, errors.New("height not found and is not next template")
 			}
 		} else {
-			difficulty = types.DifficultyFrom64(uint64(header.BlockHeader.Difficulty))
+			difficulty := types.DifficultyFrom64(uint64(header.BlockHeader.Difficulty))
 			c.difficultyCache.Set(height, difficulty)
 			return difficulty, nil
 		}
 	} else {
-		return difficulty, nil
+		return *difficulty, nil
+	}
+}
+
+func (c *Client) GetBlockHeaderByHash(hash types.Hash) (*daemon.GetBlockHeaderByHashResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetBlockHeaderByHash(context.Background(), []string{hash.String()}); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetLastBlockHeader() (*daemon.GetLastBlockHeaderResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetLastBlockHeader(context.Background()); err != nil {
+		return nil, err
+	} else {
+		return result, nil
 	}
 }
 

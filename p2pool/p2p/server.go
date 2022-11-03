@@ -4,13 +4,15 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"golang.org/x/exp/slices"
 	"log"
 	"net"
 	"net/netip"
 	"sync"
 	"sync/atomic"
+	"time"
 	"unsafe"
 )
 
@@ -29,7 +31,7 @@ const (
 )
 
 type Server struct {
-	pool *p2pool.P2Pool
+	sidechain *sidechain.SideChain
 
 	peerId uint64
 
@@ -47,7 +49,7 @@ type Server struct {
 	clients     []*Client
 }
 
-func NewServer(p2pool *p2pool.P2Pool, listenAddress string, maxOutgoingPeers, maxIncomingPeers uint32) (*Server, error) {
+func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoingPeers, maxIncomingPeers uint32) (*Server, error) {
 	peerId := make([]byte, int(unsafe.Sizeof(uint64(0))))
 	_, err := rand.Read(peerId)
 	if err != nil {
@@ -60,7 +62,7 @@ func NewServer(p2pool *p2pool.P2Pool, listenAddress string, maxOutgoingPeers, ma
 	}
 
 	s := &Server{
-		pool:             p2pool,
+		sidechain:        sidechain,
 		listenAddress:    addrPort,
 		peerId:           binary.LittleEndian.Uint64(peerId),
 		MaxOutgoingPeers: utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
@@ -120,6 +122,29 @@ func (s *Server) Listen() error {
 	return nil
 }
 
+func (s *Server) Connect(addr netip.AddrPort) error {
+	if conn, err := net.Dial("tcp", addr.String()); err != nil {
+		return err
+	} else {
+		s.clientsLock.Lock()
+		defer s.clientsLock.Unlock()
+		client := NewClient(s, conn)
+		s.clients = append(s.clients, client)
+		go client.OnConnection()
+		return nil
+	}
+}
+
+func (s *Server) Clients() []*Client {
+	s.clientsLock.RLock()
+	defer s.clientsLock.RUnlock()
+	return slices.Clone(s.clients)
+}
+
+func (s *Server) Ban(ip netip.Addr, duration time.Duration) {
+	//TODO
+}
+
 func (s *Server) Close() {
 	s.close.Store(true)
 }
@@ -128,6 +153,14 @@ func (s *Server) PeerId() uint64 {
 	return s.peerId
 }
 
-func (s *Server) Pool() *p2pool.P2Pool {
-	return s.pool
+func (s *Server) SideChain() *sidechain.SideChain {
+	return s.sidechain
+}
+
+func (s *Server) Broadcast(block *sidechain.PoolBlock) {
+	//TODO
+}
+
+func (s *Server) Consensus() *sidechain.Consensus {
+	return s.sidechain.Consensus()
 }

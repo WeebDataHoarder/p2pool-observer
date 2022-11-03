@@ -71,24 +71,24 @@ func TestPoolBlockDecode(t *testing.T) {
 
 	proofResult, _ := types.DifficultyFromString("00000000000000000000006ef6334490")
 
-	if block.GetProofDifficulty().Cmp(proofResult) != 0 {
-		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), block.GetProofDifficulty().String())
+	if types.DifficultyFromPoW(block.PowHash()).Cmp(proofResult) != 0 {
+		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), types.DifficultyFromPoW(block.PowHash()).String())
 	}
 
 	t.Log(block.Main.Id().String())
 	//t.Log(block.Main.PowHash().String())
 	//t.Log(block.Main.PowHash().String())
 
-	if !block.IsProofHigherThanDifficulty() {
+	if !block.IsProofHigherThanMainDifficulty() {
 		t.Fatal("expected proof higher than difficulty")
 	}
 
-	block.c.powHash[31] = 1
+	block.cache.powHash[31] = 1
 
-	if block.IsProofHigherThanDifficulty() {
+	if block.IsProofHigherThanMainDifficulty() {
 		t.Fatal("expected proof lower than difficulty")
 	}
 
-	log.Print(block.GetProofDifficulty().String())
+	log.Print(types.DifficultyFromPoW(block.PowHash()).String())
 	log.Print(block.MainDifficulty().String())
 }

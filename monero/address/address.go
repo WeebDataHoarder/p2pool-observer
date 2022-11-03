@@ -8,13 +8,34 @@ import (
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"sync/atomic"
+	"unsafe"
 )
+
+type PackedAddress struct {
+	SpendPub types.Hash
+	ViewPub  types.Hash
+}
+
+func (p PackedAddress) Compare(b PackedAddress) int {
+	return bytes.Compare(unsafe.Slice((*byte)(unsafe.Pointer(&p)), unsafe.Sizeof(p)), unsafe.Slice((*byte)(unsafe.Pointer(&b)), unsafe.Sizeof(b)))
+	/*
+		if r := bytes.Compare(p.SpendPub[:], b.SpendPub[:]); r != 0 {
+			return r
+		} else {
+			return bytes.Compare(p.ViewPub[:], b.ViewPub[:])
+		}
+	*/
+}
+
+func (p PackedAddress) ToAddress() *Address {
+	return FromRawAddress(moneroutil.MainNetwork, p.SpendPub, p.ViewPub)
+}
 
 type Address struct {
 	Network  uint8
 	SpendPub *edwards25519.Point
 	ViewPub  *edwards25519.Point
-	Checksum []byte
+	checksum []byte
 	// IsSubAddress Always false
 	IsSubAddress bool
 
@@ -33,7 +54,7 @@ func FromBase58(address string) *Address {
 	}
 	a := &Address{
 		Network:  raw[0],
-		Checksum: checksum[:],
+		checksum: checksum[:],
 	}
 
 	var err error
@@ -53,10 +74,11 @@ func FromRawAddress(network uint8, spend, view types.Hash) *Address {
 	copy(nice[1:], spend[:])
 	copy(nice[33:], view[:])
 
+	//TODO: cache checksum?
 	checksum := moneroutil.GetChecksum(nice[:65])
 	a := &Address{
 		Network:  nice[0],
-		Checksum: checksum[:],
+		checksum: checksum[:],
 	}
 
 	var err error
@@ -71,7 +93,11 @@ func FromRawAddress(network uint8, spend, view types.Hash) *Address {
 }
 
 func (a *Address) ToBase58() string {
-	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.Bytes(), a.ViewPub.Bytes(), a.Checksum[:])
+	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.Bytes(), a.ViewPub.Bytes(), a.checksum[:])
+}
+
+func (a *Address) ToPacked() PackedAddress {
+	return PackedAddress{SpendPub: types.HashFromBytes(a.SpendPub.Bytes()), ViewPub: types.HashFromBytes(a.ViewPub.Bytes())}
 }
 
 func (a *Address) MarshalJSON() ([]byte, error) {
@@ -88,7 +114,7 @@ func (a *Address) UnmarshalJSON(b []byte) error {
 		a.Network = addr.Network
 		a.SpendPub = addr.SpendPub
 		a.ViewPub = addr.ViewPub
-		a.Checksum = addr.Checksum
+		a.checksum = addr.checksum
 		return nil
 	} else {
 		return errors.New("invalid address")

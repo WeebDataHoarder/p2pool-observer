@@ -1,11 +1,14 @@
 package types
 
 import (
+	"bytes"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/holiman/uint256"
 	"lukechampine.com/uint128"
 	"math/big"
+	"math/bits"
 )
 
 const DifficultySize = 16
@@ -224,8 +227,30 @@ func (d *Difficulty) UnmarshalJSON(b []byte) error {
 	}
 }
 
+func (d Difficulty) Bytes() []byte {
+	buf := make([]byte, DifficultySize)
+	d.ReverseBytes().PutBytes(buf)
+	return buf
+}
+
 func (d Difficulty) String() string {
-	var buf [DifficultySize]byte
-	d.ReverseBytes().PutBytes(buf[:])
-	return hex.EncodeToString(buf[:])
+	return hex.EncodeToString(d.Bytes())
+}
+
+var powBase = uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
+
+func DifficultyFromPoW(powHash Hash) Difficulty {
+	pow := uint256.NewInt(0).SetBytes32(powHash[:])
+	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
+
+	if pow.Eq(uint256.NewInt(0)) {
+		return ZeroDifficulty
+	}
+
+	powResult := uint256.NewInt(0).Div(powBase, pow).Bytes32()
+	return DifficultyFromBytes(powResult[16:])
+}
+
+func (d Difficulty) CheckPoW(pow Hash) bool {
+	return DifficultyFromPoW(pow).Cmp(d) >= 0
 }
