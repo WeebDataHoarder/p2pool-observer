@@ -4,42 +4,46 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"sync/atomic"
-	"unsafe"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 )
-
-type PackedAddress struct {
-	SpendPub types.Hash
-	ViewPub  types.Hash
-}
-
-func (p PackedAddress) Compare(b PackedAddress) int {
-	return bytes.Compare(unsafe.Slice((*byte)(unsafe.Pointer(&p)), unsafe.Sizeof(p)), unsafe.Slice((*byte)(unsafe.Pointer(&b)), unsafe.Sizeof(b)))
-	/*
-		if r := bytes.Compare(p.SpendPub[:], b.SpendPub[:]); r != 0 {
-			return r
-		} else {
-			return bytes.Compare(p.ViewPub[:], b.ViewPub[:])
-		}
-	*/
-}
-
-func (p PackedAddress) ToAddress() *Address {
-	return FromRawAddress(moneroutil.MainNetwork, p.SpendPub, p.ViewPub)
-}
 
 type Address struct {
 	Network  uint8
-	SpendPub *edwards25519.Point
-	ViewPub  *edwards25519.Point
+	SpendPub crypto.PublicKey
+	ViewPub  crypto.PublicKey
 	checksum []byte
 	// IsSubAddress Always false
 	IsSubAddress bool
 
-	moneroAddress atomic.Pointer[edwards25519.Scalar]
+}
+
+func (a *Address) Compare(b Interface) int {
+	if c := bytes.Compare(a.SpendPub.AsSlice(), b.SpendPublicKey().AsSlice()); c != 0 {
+		return c
+	}
+	return bytes.Compare(a.ViewPub.AsSlice(), b.ViewPublicKey().AsSlice())
+}
+
+func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {
+	return a.SpendPub, a.ViewPub
+}
+
+func (a *Address) SpendPublicKey() crypto.PublicKey {
+	return a.SpendPub
+}
+
+func (a *Address) ViewPublicKey() crypto.PublicKey {
+	return a.ViewPub
+}
+
+func (a *Address) ToAddress() *Address {
+	return a
+}
+
+func (a *Address) ToPackedAddress() *PackedAddress {
+	p := NewPackedAddress(a.SpendPub, a.ViewPub)
+	return &p
 }
 
 func FromBase58(address string) *Address {
@@ -57,22 +61,20 @@ func FromBase58(address string) *Address {
 		checksum: checksum[:],
 	}
 
-	var err error
-	if a.SpendPub, err = (&edwards25519.Point{}).SetBytes(raw[1:33]); err != nil {
-		return nil
-	}
-	if a.ViewPub, err = (&edwards25519.Point{}).SetBytes(raw[33:65]); err != nil {
-		return nil
-	}
+	var spend, view crypto.PublicKeyBytes
+	copy(spend[:], raw[1:33])
+	copy(view[:], raw[33:65])
+
+	a.SpendPub, a.ViewPub = &spend, &view
 
 	return a
 }
 
-func FromRawAddress(network uint8, spend, view types.Hash) *Address {
+func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	nice := make([]byte, 69)
 	nice[0] = network
-	copy(nice[1:], spend[:])
-	copy(nice[33:], view[:])
+	copy(nice[1:], spend.AsSlice())
+	copy(nice[33:], view.AsSlice())
 
 	//TODO: cache checksum?
 	checksum := moneroutil.GetChecksum(nice[:65])
@@ -81,23 +83,14 @@ func FromRawAddress(network uint8, spend, view types.Hash) *Address {
 		checksum: checksum[:],
 	}
 
-	var err error
-	if a.SpendPub, err = (&edwards25519.Point{}).SetBytes(spend[:]); err != nil {
-		return nil
-	}
-	if a.ViewPub, err = (&edwards25519.Point{}).SetBytes(view[:]); err != nil {
-		return nil
-	}
+	a.SpendPub = spend
+	a.ViewPub = view
 
 	return a
 }
 
 func (a *Address) ToBase58() string {
-	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.Bytes(), a.ViewPub.Bytes(), a.checksum[:])
-}
-
-func (a *Address) ToPacked() PackedAddress {
-	return PackedAddress{SpendPub: types.HashFromBytes(a.SpendPub.Bytes()), ViewPub: types.HashFromBytes(a.ViewPub.Bytes())}
+	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 }
 
 func (a *Address) MarshalJSON() ([]byte, error) {

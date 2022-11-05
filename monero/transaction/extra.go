@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 )
@@ -161,7 +162,7 @@ func (t *ExtraTag) FromReader(reader readerAndByteReader) (err error) {
 
 		t.Data = make([]byte, size-2)
 	case TxExtraTagPubKey:
-		t.Data = make([]byte, types.HashSize)
+		t.Data = make([]byte, crypto.PublicKeySize)
 		if _, err = io.ReadFull(reader, t.Data); err != nil {
 			return err
 		}

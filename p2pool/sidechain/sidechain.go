@@ -76,7 +76,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (err error) {
 	// Enforce deterministic tx keys starting from v15
 	if block.Main.MajorVersion >= monero.HardForkViewTagsVersion {
 		kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
-		if bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.Bytes()) != 0 || bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.Bytes()) != 0 {
+		if bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) != 0 || bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) != 0 {
 			return errors.New("invalid deterministic transaction keys")
 		}
 	}
@@ -451,7 +451,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 					return
 				}
 
-				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(shares[i].Address.ToAddress(), block.Side.CoinbasePrivateKey, uint64(i)); ephPublicKey != out.EphemeralPublicKey {
+				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&shares[i].Address, &block.Side.CoinbasePrivateKey, uint64(i)); ephPublicKey != out.EphemeralPublicKey {
 					//TODO warn
 					block.Invalid.Store(true)
 					return
@@ -623,7 +623,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) []*transaction.CoinbaseTransact
 					Type:  txType,
 				}
 				output.Reward = tmpRewards[output.Index]
-				output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(tmpShares[output.Index].Address.ToAddress(), block.Side.CoinbasePrivateKey, output.Index)
+				output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, &block.Side.CoinbasePrivateKey, output.Index)
 
 				outputs[output.Index] = output
 			}
@@ -678,7 +678,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 	var curShare Share
 	for {
 		curShare.Weight = cur.Side.Difficulty.Lo
-		curShare.Address = cur.GetPackedAddress()
+		curShare.Address = *cur.GetAddress()
 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := c.GetPoolBlockByTemplateId(uncleId); uncle == nil {
@@ -695,7 +695,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 				unclePenalty := product.Div64(100)
 				curShare.Weight += unclePenalty.Lo
 
-				shares = append(shares, Share{Weight: uncle.Side.Difficulty.Sub(unclePenalty).Lo, Address: uncle.GetPackedAddress()})
+				shares = append(shares, Share{Weight: uncle.Side.Difficulty.Sub(unclePenalty).Lo, Address: *uncle.GetAddress()})
 			}
 		}
 
@@ -721,12 +721,12 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 
 	// Combine shares with the same wallet addresses
 	slices.SortFunc(shares, func(a Share, b Share) bool {
-		return a.Address.Compare(b.Address) < 0
+		return a.Address.Compare(&b.Address) < 0
 	})
 
 	k := 0
 	for i := 0; i < len(shares); i++ {
-		if shares[i].Address.Compare(shares[k].Address) == 0 {
+		if shares[i].Address.Compare(&shares[k].Address) == 0 {
 			shares[k].Weight += shares[i].Weight
 		} else {
 			k++

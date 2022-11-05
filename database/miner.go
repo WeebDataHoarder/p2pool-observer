@@ -3,11 +3,9 @@ package database
 import (
 	"bytes"
 	"database/sql"
-	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"sync/atomic"
@@ -45,38 +43,32 @@ func (m *Miner) MoneroAddress() *address.Address {
 	}
 }
 
-type addressSortType [types.HashSize * 2]byte
+
 
 type outputResult struct {
 	Miner  *Miner
 	Output *transaction.CoinbaseTransactionOutput
 }
 
-func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKey types.Hash) (result []outputResult) {
-	addresses := make(map[addressSortType]*Miner, len(miners))
+func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKey crypto.PrivateKey) (result []outputResult) {
+	addresses := make(map[address.PackedAddress]*Miner, len(miners))
 
 	outputs := c.Outputs
 
-	var k addressSortType
 	for _, m := range miners {
-		copy(k[:], m.MoneroAddress().SpendPub.Bytes())
-		copy(k[types.HashSize:], m.MoneroAddress().ViewPub.Bytes())
-		addresses[k] = m
+		addresses[*m.MoneroAddress().ToPackedAddress()] = m
 	}
 
 	sortedAddresses := maps.Keys(addresses)
 
-	slices.SortFunc(sortedAddresses, func(a addressSortType, b addressSortType) bool {
-		return bytes.Compare(a[:], b[:]) < 0
+	slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) bool {
+		return a.Compare(&b) < 0
 	})
 
 	result = make([]outputResult, 0, len(miners))
 
-	for _, k = range sortedAddresses {
-		miner := addresses[k]
-
-		pK, _ := edwards25519.NewScalar().SetCanonicalBytes(privateKey[:])
-		derivation := miner.MoneroAddress().GetDerivationForPrivateKey(pK)
+	for _, k := range sortedAddresses {
+		derivation := privateKey.GetDerivation8(k.ViewPublicKey())
 		for i, o := range outputs {
 			if o == nil {
 				continue
@@ -87,10 +79,10 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 			}
 
 			sharedData := crypto.GetDerivationSharedDataForOutputIndex(derivation, o.Index)
-			if bytes.Compare(o.EphemeralPublicKey[:], miner.MoneroAddress().GetPublicKeyForSharedData(sharedData).Bytes()) == 0 {
+			if bytes.Compare(o.EphemeralPublicKey[:], address.GetPublicKeyForSharedData(&k, sharedData).AsSlice()) == 0 {
 				//TODO: maybe clone?
 				result = append(result, outputResult{
-					Miner:  miner,
+					Miner:  addresses[k],
 					Output: o,
 				})
 				outputs[i] = nil

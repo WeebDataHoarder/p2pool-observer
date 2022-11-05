@@ -25,13 +25,13 @@ func init() {
 }
 
 func TestAddress(t *testing.T) {
-	derivation := testAddress.GetDerivationForPrivateKey(privateKey)
+	derivation := crypto.PrivateKeyFromScalar(privateKey).GetDerivation8(testAddress.ViewPublicKey())
 
 	sharedData := crypto.GetDerivationSharedDataForOutputIndex(derivation, 37)
-	ephemeralPublicKey := testAddress.GetPublicKeyForSharedData(sharedData)
+	ephemeralPublicKey := GetPublicKeyForSharedData(testAddress, sharedData)
 
-	if bytes.Compare(ephemeralPublicKey.Bytes(), ephemeralPubKey) != 0 {
-		t.Fatalf("ephemeral key mismatch, expected %s, got %s", hex.EncodeToString(ephemeralPubKey), hex.EncodeToString(ephemeralPublicKey.Bytes()))
+	if bytes.Compare(ephemeralPublicKey.AsSlice(), ephemeralPubKey) != 0 {
+		t.Fatalf("ephemeral key mismatch, expected %s, got %s", hex.EncodeToString(ephemeralPubKey), ephemeralPublicKey.String())
 	}
 }
 
@@ -39,7 +39,7 @@ var previousId, _ = types.HashFromString("d59abce89ce8131eba025988d1ea372937f2ac
 var detTxPriv, _ = types.HashFromString("10f3941fd50ca266d3350984004a804c887c36ec11620080fe0b7c4a2a208605")
 
 func TestDeterministic(t *testing.T) {
-	detTx := types.HashFromBytes(testAddress2.GetDeterministicTransactionPrivateKey(previousId).Bytes())
+	detTx := types.HashFromBytes(GetDeterministicTransactionPrivateKey(testAddress2, previousId).AsSlice())
 	if detTx != detTxPriv {
 		t.Fatal()
 	}

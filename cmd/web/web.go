@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -317,7 +318,8 @@ func main() {
 		}
 		h, _ := types.HashFromString(args[1].(string))
 		k, _ := types.HashFromString(args[2].(string))
-		return address2.FromBase58(args[0].(string)).GetTxProofV2(h, k, "")
+		keyBytes := crypto.PrivateKeyBytes(k)
+		return address2.GetTxProofV2(address2.FromBase58(args[0].(string)), h, &keyBytes, "")
 	}
 
 	env.Functions["get_tx_proof_v1"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -326,7 +328,8 @@ func main() {
 		}
 		h, _ := types.HashFromString(args[1].(string))
 		k, _ := types.HashFromString(args[2].(string))
-		return address2.FromBase58(args[0].(string)).GetTxProofV1(h, k, "")
+		keyBytes := crypto.PrivateKeyBytes(k)
+		return address2.GetTxProofV1(address2.FromBase58(args[0].(string)), h, &keyBytes, "")
 	}
 
 	env.Functions["get_ephemeral_pubkey"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -334,7 +337,23 @@ func main() {
 			return nil
 		}
 		k, _ := types.HashFromString(args[1].(string))
-		return address2.FromBase58(args[0].(string)).GetEphemeralPublicKey(k, toUint64(args[2])).String()
+		keyBytes := crypto.PrivateKeyBytes(k)
+		return address2.GetEphemeralPublicKey(address2.FromBase58(args[0].(string)), &keyBytes, toUint64(args[2]))
+	}
+
+	env.Functions["coinbase_extra"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+		b, _ := args[0].(*sidechain.PoolBlock).Main.Coinbase.Extra.MarshalBinary()
+		return b
+	}
+
+	env.Functions["extra_nonce"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+		return args[0].(*sidechain.PoolBlock).CoinbaseExtra(sidechain.SideExtraNonce)
 	}
 
 	env.Functions["attribute"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -395,6 +414,14 @@ func main() {
 		if s, ok := val.(string); ok {
 			return s
 		} else if s, ok := val.(types.Difficulty); ok {
+			return s.String()
+		} else if s, ok := val.(crypto.PrivateKey); ok {
+			return s.String()
+		} else if s, ok := val.(crypto.PublicKey); ok {
+			return s.String()
+		} else if s, ok := val.(crypto.PrivateKeyBytes); ok {
+			return s.String()
+		} else if s, ok := val.(crypto.PublicKeyBytes); ok {
 			return s.String()
 		} else if s, ok := val.(types.Hash); ok {
 			return s.String()

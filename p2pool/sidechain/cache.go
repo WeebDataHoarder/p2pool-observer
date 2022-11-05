@@ -2,7 +2,6 @@ package sidechain
 
 import (
 	"encoding/binary"
-	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -13,15 +12,15 @@ type derivationCacheKey [types.HashSize * 2]byte
 type sharedDataCacheKey [types.HashSize + 8]byte
 
 type sharedDataWithTag struct {
-	SharedData *edwards25519.Scalar
+	SharedData *crypto.PrivateKeyScalar
 	ViewTag    uint8
 }
 
 type DerivationCache struct {
 	deterministicKeyCache   *lru.LRU[derivationCacheKey, *crypto.KeyPair]
-	derivationCache         *lru.LRU[derivationCacheKey, *edwards25519.Point]
+	derivationCache         *lru.LRU[derivationCacheKey, *crypto.PublicKeyPoint]
 	sharedDataCache         *lru.LRU[sharedDataCacheKey, sharedDataWithTag]
-	ephemeralPublicKeyCache *lru.LRU[derivationCacheKey, types.Hash]
+	ephemeralPublicKeyCache *lru.LRU[derivationCacheKey, crypto.PublicKeyBytes]
 }
 
 func NewDerivationCache() *DerivationCache {
@@ -35,19 +34,19 @@ func (d *DerivationCache) Clear() {
 	//~10s per share, keys change every Monero block (2m). around 2160 max shares per 6h (window), plus uncles. 6 shares per minute.
 	//each share can have up to 2160 outputs, plus uncles. each miner has its own private key per Monero block
 	d.deterministicKeyCache = lru.New[derivationCacheKey, *crypto.KeyPair](4096)
-	d.derivationCache = lru.New[derivationCacheKey, *edwards25519.Point](4096)
+	d.derivationCache = lru.New[derivationCacheKey, *crypto.PublicKeyPoint](4096)
 	d.sharedDataCache = lru.New[sharedDataCacheKey, sharedDataWithTag](4096 * 2160)
-	d.ephemeralPublicKeyCache = lru.New[derivationCacheKey, types.Hash](4096 * 2160)
+	d.ephemeralPublicKeyCache = lru.New[derivationCacheKey, crypto.PublicKeyBytes](4096 * 2160)
 }
 
-func (d *DerivationCache) GetEphemeralPublicKey(address *address.Address, txKey types.Hash, outputIndex uint64) (types.Hash, uint8) {
-	sharedData, viewTag := d.GetSharedData(address, txKey, outputIndex)
+func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
+	sharedData, viewTag := d.GetSharedData(a, txKey, outputIndex)
 
 	var key derivationCacheKey
-	copy(key[:], address.SpendPub.Bytes())
-	copy(key[types.HashSize:], sharedData.Bytes())
+	copy(key[:], a.SpendPublicKey().AsSlice())
+	copy(key[types.HashSize:], sharedData.AsSlice())
 	if ephemeralPubKey := d.ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
-		copy((*ephemeralPubKey)[:], address.GetPublicKeyForSharedData(sharedData).Bytes())
+		copy((*ephemeralPubKey)[:], address.GetPublicKeyForSharedData(a, sharedData).AsSlice())
 		d.ephemeralPublicKeyCache.Set(key, *ephemeralPubKey)
 		return *ephemeralPubKey, viewTag
 	} else {
@@ -55,16 +54,16 @@ func (d *DerivationCache) GetEphemeralPublicKey(address *address.Address, txKey 
 	}
 }
 
-func (d *DerivationCache) GetSharedData(address *address.Address, txKey types.Hash, outputIndex uint64) (*edwards25519.Scalar, uint8) {
-	derivation := d.GetDerivation(address, txKey)
+func (d *DerivationCache) GetSharedData(a address.Interface, txKey crypto.PrivateKey, outputIndex uint64) (*crypto.PrivateKeyScalar, uint8) {
+	derivation := d.GetDerivation(a, txKey)
 
 	var key sharedDataCacheKey
-	copy(key[:], derivation.Bytes())
+	copy(key[:], derivation.AsSlice())
 	binary.LittleEndian.PutUint64(key[types.HashSize:], outputIndex)
 
 	if sharedData := d.sharedDataCache.Get(key); sharedData == nil {
 		var data sharedDataWithTag
-		data.SharedData = crypto.GetDerivationSharedDataForOutputIndex(derivation, outputIndex)
+		data.SharedData = crypto.GetDerivationSharedDataForOutputIndex(derivation, outputIndex).AsScalar()
 		data.ViewTag = crypto.GetDerivationViewTagForOutputIndex(derivation, outputIndex)
 		d.sharedDataCache.Set(key, data)
 		return data.SharedData, data.ViewTag
@@ -73,13 +72,13 @@ func (d *DerivationCache) GetSharedData(address *address.Address, txKey types.Ha
 	}
 }
 
-func (d *DerivationCache) GetDeterministicTransactionKey(address *address.Address, prevId types.Hash) *crypto.KeyPair {
+func (d *DerivationCache) GetDeterministicTransactionKey(a address.Interface, prevId types.Hash) *crypto.KeyPair {
 	var key derivationCacheKey
-	copy(key[:], address.SpendPub.Bytes())
+	copy(key[:], a.SpendPublicKey().AsSlice())
 	copy(key[types.HashSize:], prevId[:])
 
 	if kp := d.deterministicKeyCache.Get(key); kp == nil {
-		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(prevId))
+		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(a, prevId))
 		d.deterministicKeyCache.Set(key, data)
 		return data
 	} else {
@@ -87,16 +86,15 @@ func (d *DerivationCache) GetDeterministicTransactionKey(address *address.Addres
 	}
 }
 
-func (d *DerivationCache) GetDerivation(address *address.Address, txKey types.Hash) *edwards25519.Point {
+func (d *DerivationCache) GetDerivation(a address.Interface, txKey crypto.PrivateKey) *crypto.PublicKeyPoint {
 	var key derivationCacheKey
-	copy(key[:], address.ViewPub.Bytes())
-	copy(key[types.HashSize:], txKey[:])
+	copy(key[:], a.ViewPublicKey().AsSlice())
+	copy(key[types.HashSize:], txKey.AsSlice())
 
-	if derivation := d.derivationCache.Get(key); derivation != nil {
-		pK, _ := edwards25519.NewScalar().SetCanonicalBytes(txKey[:])
-		data := address.GetDerivationForPrivateKey(pK)
-		d.derivationCache.Set(key, data)
-		return data
+	if derivation := d.derivationCache.Get(key); derivation == nil {
+		data := txKey.GetDerivation8(a.ViewPublicKey())
+		d.derivationCache.Set(key, data.AsPoint())
+		return data.AsPoint()
 	} else {
 		return *derivation
 	}

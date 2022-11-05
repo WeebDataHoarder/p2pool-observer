@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
@@ -38,15 +37,12 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 		} else {
 			payoutHint := api.GetBlockWindowPayouts(b)
 
-			addresses := make(map[[32]byte]*database.JSONCoinbaseOutput, len(payoutHint))
+			addresses := make(map[address.PackedAddress]*database.JSONCoinbaseOutput, len(payoutHint))
 
-			var k [32]byte
 
 			for minerId, amount := range payoutHint {
 				miner := api.GetDatabase().GetMiner(minerId)
-				copy(k[:], miner.MoneroAddress().SpendPub.Bytes())
-				copy(k[types.HashSize:], miner.MoneroAddress().ViewPub.Bytes())
-				addresses[k] = &database.JSONCoinbaseOutput{
+				addresses[*miner.MoneroAddress().ToPackedAddress()] = &database.JSONCoinbaseOutput{
 					Address: miner.Address(),
 					Alias:   miner.Alias(),
 					Amount:  amount.Lo,
@@ -55,8 +51,8 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 
 			sortedAddresses := maps.Keys(addresses)
 
-			slices.SortFunc(sortedAddresses, func(a [32]byte, b [32]byte) bool {
-				return bytes.Compare(a[:], b[:]) < 0
+			slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) bool {
+				return a.Compare(&b) < 0
 			})
 
 			b.Coinbase.Payouts = make([]*database.JSONCoinbaseOutput, len(sortedAddresses))

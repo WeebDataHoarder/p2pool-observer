@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -276,7 +277,7 @@ func main() {
 			return
 		}
 
-		result := miner.MoneroAddress().Verify([]byte(message), sig)
+		result := address.Verify(miner.MoneroAddress(), []byte(message), sig)
 		if result == address.ResultSuccessSpend {
 			if message == "REMOVE_MINER_ALIAS" {
 				message = ""
@@ -832,9 +833,9 @@ func main() {
 						Coinbase: struct {
 							Id         types.Hash `json:"id"`
 							Reward     uint64     `json:"reward"`
-							PrivateKey types.Hash `json:"private_key"`
+							PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
 							Index      uint64     `json:"index"`
-						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: types.HashFromBytes(privKey), Index: index},
+						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
 					})
 					return nil
 				}, block.GetBlock().MinerId, blockHeight, blockHeight+p2pool.PPLNSWindow); err != nil {

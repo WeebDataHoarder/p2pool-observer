@@ -23,7 +23,7 @@ type Block struct {
 	Transactions []types.Hash
 }
 
-type BlockHeader struct {
+type Header struct {
 	MajorVersion uint8
 	MinorVersion uint8
 	Timestamp    uint64
@@ -119,8 +119,8 @@ func (b *Block) UnmarshalBinary(data []byte) error {
 	return b.FromReader(reader)
 }
 
-func (b *Block) Header() *BlockHeader {
-	return &BlockHeader{
+func (b *Block) Header() *Header {
+	return &Header{
 		MajorVersion: b.MajorVersion,
 		MinorVersion: b.MinorVersion,
 		Timestamp:    b.Timestamp,

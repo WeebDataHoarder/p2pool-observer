@@ -1,5 +1,5 @@
-filippo.io/edwards25519 v1.0.0 h1:0wAIcmJUqRdI8IJ/3eGi5/HwXZWPujYXXlkrQogz0Ek=
-filippo.io/edwards25519 v1.0.0/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
+filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550 h1:Mqu6Q2e//30TWeP5bM9Th5KEzWdFAFd80Y2ZXN9fmeE=
+filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
 git.gammaspectra.live/P2Pool/go-monero v0.0.0-20221005074023-b6ca970f3050 h1:OoSrxnnLqy/HIsZy/KcR52WHaJiB4RiTMaHlMfY/740=
 git.gammaspectra.live/P2Pool/go-monero v0.0.0-20221005074023-b6ca970f3050/go.mod h1:FsZfI1sMcXZr55H0aKJ1LhMdPpW5YuyCubu5ilvQ0fM=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823 h1:HxIuImZsB15Ix59K5VznoHzZ1ut5hW0AAqiDJpOd2+g=

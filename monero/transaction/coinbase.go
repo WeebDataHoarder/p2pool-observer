@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/moneroutil"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"io"
@@ -186,7 +187,7 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 
 		switch o.Type {
 		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey[:])
+			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
 
 			if o.Type == TxOutToTaggedKey {
 				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
@@ -215,7 +216,7 @@ func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
 
 		switch o.Type {
 		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey[:])
+			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
 
 			if o.Type == TxOutToTaggedKey {
 				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
@@ -247,7 +248,7 @@ func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
 
 		switch o.Type {
 		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey[:])
+			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
 
 			if o.Type == TxOutToTaggedKey {
 				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
@@ -300,6 +301,6 @@ type CoinbaseTransactionOutput struct {
 	Index              uint64
 	Reward             uint64
 	Type               uint8
-	EphemeralPublicKey types.Hash
+	EphemeralPublicKey crypto.PublicKeyBytes
 	ViewTag            uint8
 }

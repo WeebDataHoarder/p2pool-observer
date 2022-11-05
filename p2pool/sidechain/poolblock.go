@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
@@ -166,7 +166,7 @@ func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
 		}
 	case SideCoinbasePublicKey:
 		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
-			if len(t.Data) != types.HashSize {
+			if len(t.Data) != crypto.PublicKeySize {
 				return nil
 			}
 			return t.Data
@@ -359,13 +359,9 @@ func (b *PoolBlock) IsProofHigherThanDifficultyWithError() (bool, error) {
 	}
 }
 
-func (b *PoolBlock) GetAddress() *address.Address {
-	//TODO: support other than Main network
-	return address.FromRawAddress(moneroutil.MainNetwork, b.Side.PublicSpendKey, b.Side.PublicViewKey)
-}
-
-func (b *PoolBlock) GetPackedAddress() address.PackedAddress {
-	return address.PackedAddress{SpendPub: b.Side.PublicSpendKey, ViewPub: b.Side.PublicViewKey}
+func (b *PoolBlock) GetAddress() *address.PackedAddress {
+	a := address.NewPackedAddressFromBytes(b.Side.PublicSpendKey, b.Side.PublicViewKey)
+	return &a
 }
 
 type poolBlockCache struct {

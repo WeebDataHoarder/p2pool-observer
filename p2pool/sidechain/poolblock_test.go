@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"encoding/hex"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	block2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -61,12 +62,12 @@ func TestPoolBlockDecode(t *testing.T) {
 	t.Log(block.SideTemplateId(ConsensusDefault).String())
 
 	t.Log(block.Side.CoinbasePrivateKey.String())
-	t.Log(types.HashFromBytes(block.GetAddress().GetDeterministicTransactionPrivateKey(block.Main.PreviousId).Bytes()).String())
+	t.Log(address.GetDeterministicTransactionPrivateKey(block.GetAddress(), block.Main.PreviousId).String())
 
 	txId := block.Main.Coinbase.Id()
 
-	if hex.EncodeToString(txId[:]) != "41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60" {
-		t.Fatalf("expected coinbase id 41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60, got %s", hex.EncodeToString(txId[:]))
+	if txId.String() != "41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60" {
+		t.Fatalf("expected coinbase id 41e8976fafbf9263996733b8f857a11ca385a78798c33617af8c77cfd989da60, got %s", txId.String())
 	}
 
 	proofResult, _ := types.DifficultyFromString("00000000000000000000006ef6334490")

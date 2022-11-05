@@ -3,14 +3,15 @@ package sidechain
 import (
 	"bytes"
 	"encoding/binary"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 )
 
 type SideData struct {
-	PublicSpendKey       types.Hash
-	PublicViewKey        types.Hash
-	CoinbasePrivateKey   types.Hash
+	PublicSpendKey       crypto.PublicKeyBytes
+	PublicViewKey        crypto.PublicKeyBytes
+	CoinbasePrivateKey   crypto.PrivateKeyBytes
 	Parent               types.Hash
 	Uncles               []types.Hash
 	Height               uint64

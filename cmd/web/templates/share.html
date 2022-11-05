@@ -111,7 +111,7 @@
         <tr>
             <td class="mono">{{ raw.Main.Nonce|hex }}</td>
             <td class="mono smaller">{{ raw.Side.CumulativeDifficulty }}</td>
-            <td class="mono">{{ raw.Main.CoinbaseExtra.ExtraNonce|hex }}</td>
+            <td class="mono">{{ extra_nonce(raw)|hex }}</td>
             <td class="mono smaller">{{ block.template.difficulty }}</td>
         </tr>
 
@@ -164,11 +164,11 @@
 
     {% if block.main.found %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 8em)">
-        <tr><td colspan="4" class="mono smaller">{{ raw.Main.Coinbase.Extra|hex }}</td></tr>
+        <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
         <tr><td colspan="4">&nbsp;</td></tr>
     {% else %}
     <table class="center" style="max-width: calc(8em + 28em + 10em)">
-        <tr><td colspan="3" class="mono smaller">{{ raw.Main.Coinbase.Extra|hex }}</td></tr>
+        <tr><td colspan="3" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
         <tr><td colspan="3">&nbsp;</td></tr>
     {% endif %}
         <tr>
@@ -185,7 +185,7 @@
         {% for t in raw.Main.Coinbase.Outputs %}
         <tr>
             <td>{{ t.Index }}</td>
-            <td class="mono smaller">{{ t.EphemeralPublicKey }}</td>
+            <td class="mono smaller">{{ t.EphemeralPublicKey|hex }}</td>
             {% if block.main.found and attribute(block.coinbase.payouts, t.Index) is defined %}
             {% set payout = attribute(block.coinbase.payouts, t.Index) %}
             {% if payout.alias != "" %}

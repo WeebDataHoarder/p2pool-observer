@@ -7,13 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/slices"
 	"sync"
 )
 
-var NilHash types.Hash
+var NilHash = types.ZeroHash
 var UndefinedHash types.Hash
 var UndefinedDifficulty types.Difficulty
 
@@ -30,7 +31,7 @@ type BlockInterface interface {
 type BlockCoinbase struct {
 	Id         types.Hash `json:"id"`
 	Reward     uint64     `json:"reward"`
-	PrivateKey types.Hash `json:"private_key"`
+	PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
 	//Payouts extra JSON field, do not use
 	Payouts []*JSONCoinbaseOutput `json:"payouts,omitempty"`
 }
@@ -170,7 +171,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 							}
 							return
 						}(),
-						PrivateKey: uncle.Side.CoinbasePrivateKey,
+						PrivateKey: uncle.Side.CoinbasePrivateKey.AsBytes(),
 					},
 					Difficulty: uncle.Side.Difficulty,
 					Timestamp:  uncle.Main.Timestamp,
@@ -215,7 +216,7 @@ type JsonBlock2 struct {
 	MainHeight     uint64           `json:"main_height,string"`
 	Ts             uint64           `json:"ts,string"`
 	PrevId         types.Hash       `json:"prev_id"`
-	CoinbasePriv   types.Hash       `json:"coinbase_priv"`
+	CoinbasePriv   crypto.PrivateKeyBytes       `json:"coinbase_priv"`
 	Lts            uint64           `json:"lts,string"`
 	MainFound      string           `json:"main_found,omitempty"`
 
@@ -234,7 +235,7 @@ type JsonBlock2 struct {
 		MainHeight     uint64           `json:"main_height,string"`
 		Ts             uint64           `json:"ts,string"`
 		PrevId         types.Hash       `json:"prev_id"`
-		CoinbasePriv   types.Hash       `json:"coinbase_priv"`
+		CoinbasePriv   crypto.PrivateKeyBytes       `json:"coinbase_priv"`
 		Lts            uint64           `json:"lts,string"`
 		MainFound      string           `json:"main_found,omitempty"`
 	} `json:"uncles,omitempty"`
@@ -253,8 +254,8 @@ type JsonBlock1 struct {
 	TxCoinbase types.Hash       `json:"tx_coinbase"`
 	Lts        uint64           `json:"lts,string"`
 	MHash      types.Hash       `json:"mhash"`
-	TxPriv     types.Hash       `json:"tx_priv"`
-	TxPub      types.Hash       `json:"tx_pub"`
+	TxPriv     crypto.PrivateKeyBytes       `json:"tx_priv"`
+	TxPub      crypto.PublicKeyBytes      `json:"tx_pub"`
 	BlockFound string           `json:"main_found,omitempty"`
 
 	Uncles []struct {
@@ -419,7 +420,7 @@ func NewBlockFromJSONBlock(db *Database, data []byte) (block *Block, uncles []*U
 						Coinbase: BlockCoinbase{
 							Id:         NilHash,
 							Reward:     0,
-							PrivateKey: NilHash,
+							PrivateKey: crypto.PrivateKeyBytes(NilHash),
 						},
 						Difficulty: types.DifficultyFrom64(b.Diff),
 						Timestamp:  u.Ts,

@@ -1,17 +1,19 @@
 package database
 
 import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/slices"
 )
 
 type CoinbaseTransaction struct {
 	id         types.Hash
-	privateKey types.Hash
+	privateKey crypto.PrivateKeyBytes
 	outputs    []*CoinbaseTransactionOutput
 }
 
-func NewCoinbaseTransaction(id types.Hash, privateKey types.Hash, outputs []*CoinbaseTransactionOutput) *CoinbaseTransaction {
+func NewCoinbaseTransaction(id types.Hash, privateKey crypto.PrivateKeyBytes, outputs []*CoinbaseTransactionOutput) *CoinbaseTransaction {
 	return &CoinbaseTransaction{
 		id:         id,
 		privateKey: privateKey,
@@ -46,7 +48,7 @@ func (t *CoinbaseTransaction) OutputByMiner(miner uint64) *CoinbaseTransactionOu
 	return nil
 }
 
-func (t *CoinbaseTransaction) PrivateKey() types.Hash {
+func (t *CoinbaseTransaction) PrivateKey() crypto.PrivateKeyBytes {
 	return t.privateKey
 }
 
@@ -54,11 +56,11 @@ func (t *CoinbaseTransaction) Id() types.Hash {
 	return t.id
 }
 
-func (t *CoinbaseTransaction) GetEphemeralPublicKey(miner *Miner, index int64) types.Hash {
+func (t *CoinbaseTransaction) GetEphemeralPublicKey(miner *Miner, index int64) crypto.PublicKey {
 	if index != -1 {
-		return miner.MoneroAddress().GetEphemeralPublicKey(t.privateKey, uint64(index))
+		return address.GetEphemeralPublicKey(miner.MoneroAddress(), &t.privateKey, uint64(index))
 	} else {
-		return miner.MoneroAddress().GetEphemeralPublicKey(t.privateKey, t.OutputByMiner(miner.Id()).Index())
+		return address.GetEphemeralPublicKey(miner.MoneroAddress(), &t.privateKey, t.OutputByMiner(miner.Id()).Index())
 	}
 
 }

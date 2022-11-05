@@ -23,7 +23,7 @@ func processFoundBlockWithTransaction(api *api.Api, b database.BlockInterface, t
 		}
 	}
 
-	outputs := database.MatchOutputs(tx, miners, b.GetBlock().Coinbase.PrivateKey)
+	outputs := database.MatchOutputs(tx, miners, &b.GetBlock().Coinbase.PrivateKey)
 
 	if len(outputs) == len(miners) && len(outputs) == len(tx.Outputs) {
 		newOutputs := make([]*database.CoinbaseTransactionOutput, 0, len(outputs))

@@ -5,9 +5,17 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
+// Signature Schnorr signature
 type Signature struct {
-	C, R *edwards25519.Scalar
+	// C hash of data in signature, also called e
+	C *edwards25519.Scalar
+	// R result of the signature, also called s
+	R *edwards25519.Scalar
 }
+// SignatureSigningHandler receives k, inserts it or a pubkey into its data, and produces a []byte buffer for Signing/Verifying
+type SignatureSigningHandler func (r PrivateKey) []byte
+// SignatureVerificationHandler receives r = pubkey(k), inserts it into its data, and produces a []byte buffer for Signing/Verifying
+type SignatureVerificationHandler func (r PublicKey) []byte
 
 func NewSignatureFromBytes(buf []byte) *Signature {
 	if len(buf) != types.HashSize*2 {
@@ -31,41 +39,53 @@ func (s *Signature) Bytes() []byte {
 	return buf
 }
 
-func GenerateSignature(prefixHash types.Hash, keyPair *KeyPair) (signature *Signature) {
-	buf := &SignatureComm{}
-	buf.Hash = prefixHash
-	buf.Key = keyPair.PublicKey
-	buf.Comm = &edwards25519.Point{}
-	sig := &Signature{
-		R: &edwards25519.Scalar{},
+// Verify checks a Schnorr Signature using H = keccak
+func (s *Signature) Verify(handler SignatureVerificationHandler, publicKey PublicKey) (ok bool, r *PublicKeyPoint) {
+	//s = C * k, R * G
+	sp := (&edwards25519.Point{}).VarTimeDoubleScalarBaseMult(s.C, publicKey.AsPoint().Point(), s.R)
+	if sp.Equal(infinityPoint) == 1 {
+		return false, nil
 	}
-	for {
-		k := NewKeyPairFromPrivate(RandomScalar())
-		buf.Comm = k.PublicKey
-		sig.C = HashToScalar(buf.Bytes())
-		if sig.C.Equal(zeroScalar) == 1 {
-			continue
-		}
-
-		sig.R = sig.R.Subtract(k.PrivateKey, edwards25519.NewScalar().Multiply(sig.C, keyPair.PrivateKey))
-
-		if sig.R.Equal(zeroScalar) == 1 {
-			continue
-		}
-
-		return sig
-	}
+	r = PublicKeyFromPoint(sp)
+	return s.C.Equal(HashToScalar(handler(r))) == 1, r
 }
 
-func CheckSignature(prefixHash types.Hash, publicKey *edwards25519.Point, signature *Signature) bool {
+// CreateSignature produces a Schnorr Signature using H = keccak
+func CreateSignature(handler SignatureSigningHandler, privateKey PrivateKey) *Signature {
+	k := PrivateKeyFromScalar(RandomScalar())
+
+	signature := &Signature{
+		// e
+		C: HashToScalar(handler(k)),
+		R: &edwards25519.Scalar{},
+	}
+
+	// s = k - x * e
+	// EdDSA is an altered version, with addition instead of subtraction
+	signature.R = signature.R.Subtract(k.Scalar(), edwards25519.NewScalar().Multiply(signature.C, privateKey.AsScalar().Scalar()))
+	return signature
+}
+
+
+func CreateMessageSignature(prefixHash types.Hash, key PrivateKey) *Signature {
+	buf := &SignatureComm{}
+	buf.Hash = prefixHash
+	buf.Key = key.PublicKey()
+
+	return CreateSignature(func(k PrivateKey) []byte {
+		buf.Comm = k.PublicKey()
+		return buf.Bytes()
+	}, key)
+}
+
+func VerifyMessageSignature(prefixHash types.Hash, publicKey PublicKey, signature *Signature) bool {
 	buf := &SignatureComm{}
 	buf.Hash = prefixHash
 	buf.Key = publicKey
-	//get secret r public key
-	buf.Comm = (&edwards25519.Point{}).VarTimeDoubleScalarBaseMult(signature.C, publicKey, signature.R)
-	if buf.Comm.Equal(infinityPoint) == 1 {
-		return false
-	}
-	c := HashToScalar(buf.Bytes())
-	return c.Equal(signature.C) == 1
+
+	ok, _ := signature.Verify(func(r PublicKey) []byte {
+		buf.Comm = r
+		return buf.Bytes()
+	}, publicKey)
+	return ok
 }

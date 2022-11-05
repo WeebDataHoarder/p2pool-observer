@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	_ "github.com/lib/pq"
@@ -825,7 +826,7 @@ type Payout struct {
 	Coinbase  struct {
 		Id         types.Hash `json:"id"`
 		Reward     uint64     `json:"reward"`
-		PrivateKey types.Hash `json:"private_key"`
+		PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
 		Index      uint64     `json:"index"`
 	} `json:"coinbase"`
 }
@@ -863,9 +864,9 @@ func (db *Database) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payo
 				Coinbase: struct {
 					Id         types.Hash `json:"id"`
 					Reward     uint64     `json:"reward"`
-					PrivateKey types.Hash `json:"private_key"`
+					PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
 					Index      uint64     `json:"index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: types.HashFromBytes(privKey), Index: index},
+				}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
 			}
 			return nil
 		}
