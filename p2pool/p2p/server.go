@@ -38,6 +38,7 @@ type Server struct {
 	listenAddress netip.AddrPort
 
 	close atomic.Bool
+	listener net.Listener
 
 	MaxOutgoingPeers uint32
 	MaxIncomingPeers uint32
@@ -72,13 +73,13 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 	return s, nil
 }
 
-func (s *Server) Listen() error {
-	if listener, err := net.Listen("tcp", s.listenAddress.String()); err != nil {
+func (s *Server) Listen() (err error) {
+	if s.listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
 		return err
 	} else {
-		defer listener.Close()
+		defer s.listener.Close()
 		for !s.close.Load() {
-			if conn, err := listener.Accept(); err != nil {
+			if conn, err := s.listener.Accept(); err != nil {
 				return err
 			} else {
 				if err = func() error {
@@ -146,7 +147,9 @@ func (s *Server) Ban(ip netip.Addr, duration time.Duration) {
 }
 
 func (s *Server) Close() {
-	s.close.Store(true)
+	if !s.close.Swap(true) && s.listener != nil {
+		s.listener.Close()
+	}
 }
 
 func (s *Server) PeerId() uint64 {

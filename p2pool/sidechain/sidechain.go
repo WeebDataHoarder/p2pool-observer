@@ -292,7 +292,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 
 		// Uncle hashes must be sorted in the ascending order to prevent cheating when the same hash is repeated multiple times
 		for i, uncleId := range block.Side.Uncles {
-			if i == 1 {
+			if i == 0 {
 				continue
 			}
 			if bytes.Compare(block.Side.Uncles[i-1][:], uncleId[:]) < 0 {
@@ -303,7 +303,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 			}
 		}
 
-		expectedCummulativeDifficulty := parent.Side.CumulativeDifficulty.Add(block.Side.Difficulty)
+		expectedCumulativeDifficulty := parent.Side.CumulativeDifficulty.Add(block.Side.Difficulty)
 
 		//check uncles
 
@@ -388,7 +388,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 					return
 				}
 
-				expectedCummulativeDifficulty = expectedCummulativeDifficulty.Add(uncle.Side.Difficulty)
+				expectedCumulativeDifficulty = expectedCumulativeDifficulty.Add(uncle.Side.Difficulty)
 
 			}
 
@@ -398,7 +398,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 		// It can still turn out to be invalid
 		block.Verified.Store(true)
 
-		if !block.Side.CumulativeDifficulty.Equals(expectedCummulativeDifficulty) {
+		if !block.Side.CumulativeDifficulty.Equals(expectedCumulativeDifficulty) {
 			//TODO warn
 			block.Invalid.Store(true)
 			return

@@ -81,7 +81,7 @@ func (h *hasher) Hash(key []byte, input []byte) (output types.Hash, err error) {
 		h.key = make([]byte, len(key))
 		copy(h.key, key)
 
-		if h.dataset.GoInit(h.key, uint32(runtime.NumGoroutine())) == false {
+		if h.dataset.GoInit(h.key, uint32(runtime.NumCPU())) == false {
 			return types.Hash{}, errors.New("could not initialize dataset")
 		}
 		if h.vm != nil {

@@ -8,8 +8,8 @@ import (
 	"github.com/floatdrop/lru"
 )
 
-type derivationCacheKey [types.HashSize * 2]byte
-type sharedDataCacheKey [types.HashSize + 8]byte
+type derivationCacheKey [crypto.PublicKeySize * 2]byte
+type sharedDataCacheKey [crypto.PrivateKeySize + 8]byte
 
 type sharedDataWithTag struct {
 	SharedData *crypto.PrivateKeyScalar
@@ -33,10 +33,18 @@ func (d *DerivationCache) Clear() {
 	//keep a few recent blocks from the past few for uncles, and reused window miners
 	//~10s per share, keys change every Monero block (2m). around 2160 max shares per 6h (window), plus uncles. 6 shares per minute.
 	//each share can have up to 2160 outputs, plus uncles. each miner has its own private key per Monero block
-	d.deterministicKeyCache = lru.New[derivationCacheKey, *crypto.KeyPair](4096)
-	d.derivationCache = lru.New[derivationCacheKey, *crypto.PublicKeyPoint](4096)
-	d.sharedDataCache = lru.New[sharedDataCacheKey, sharedDataWithTag](4096 * 2160)
-	d.ephemeralPublicKeyCache = lru.New[derivationCacheKey, crypto.PublicKeyBytes](4096 * 2160)
+
+	const pplnsSize = 2160
+	const pplnsDurationInMinutes = 60 * 6
+	const sharesPerMinute = pplnsSize / pplnsDurationInMinutes
+	const cacheForNMinutesOfShares = sharesPerMinute * 5
+	const knownMinersPerPplns = pplnsSize / 4
+	const outputIdsPerMiner = 2
+
+	d.deterministicKeyCache = lru.New[derivationCacheKey, *crypto.KeyPair](cacheForNMinutesOfShares)
+	d.derivationCache = lru.New[derivationCacheKey, *crypto.PublicKeyPoint](pplnsSize * knownMinersPerPplns)
+	d.sharedDataCache = lru.New[sharedDataCacheKey, sharedDataWithTag](pplnsSize * knownMinersPerPplns * outputIdsPerMiner)
+	d.ephemeralPublicKeyCache = lru.New[derivationCacheKey, crypto.PublicKeyBytes](pplnsSize * knownMinersPerPplns * outputIdsPerMiner)
 }
 
 func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
