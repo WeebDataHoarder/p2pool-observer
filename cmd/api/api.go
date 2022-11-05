@@ -277,7 +277,7 @@ func main() {
 			return
 		}
 
-		result := address.Verify(miner.MoneroAddress(), []byte(message), sig)
+		result := address.VerifyMessage(miner.MoneroAddress(), []byte(message), sig)
 		if result == address.ResultSuccessSpend {
 			if message == "REMOVE_MINER_ALIAS" {
 				message = ""

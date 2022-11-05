@@ -3,6 +3,7 @@ package block
 import (
 	"bytes"
 	"encoding/binary"
+	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
@@ -260,12 +261,7 @@ func (b *Block) PowHashWithError() (types.Hash, error) {
 func (b *Block) Id() types.Hash {
 	//cached by sidechain.Share
 	buf := b.HashingBlob()
-
-	actualDataToHash := make([]byte, 0, len(buf)+binary.MaxVarintLen64)
-	actualDataToHash = binary.AppendUvarint(actualDataToHash, uint64(len(buf)))
-	actualDataToHash = append(actualDataToHash, buf...)
-
-	return types.HashFromBytes(keccak(actualDataToHash))
+	return types.Hash(moneroutil.Keccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf))
 }
 
 var hasher = randomx.NewRandomX()

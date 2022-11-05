@@ -22,11 +22,7 @@ func GetEphemeralPublicKey(a Interface, txKey crypto.PrivateKey, outputIndex uin
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
-
-	var prefixData []byte
-	prefixData = append(prefixData, txId[:]...)
-	prefixData = append(prefixData, []byte(message)...)
-	prefixHash := types.Hash(moneroutil.Keccak256(prefixData))
+	prefixHash := types.Hash(moneroutil.Keccak256(txId[:], []byte(message)))
 
 	sharedSecret, signature := crypto.GenerateTxProofV2(prefixHash, txKey, a.ViewPublicKey(), nil)
 
@@ -34,11 +30,7 @@ func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message
 }
 
 func GetTxProofV1(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
-
-	var prefixData []byte
-	prefixData = append(prefixData, txId[:]...)
-	prefixData = append(prefixData, []byte(message)...)
-	prefixHash := types.Hash(moneroutil.Keccak256(prefixData))
+	prefixHash := types.Hash(moneroutil.Keccak256(txId[:], []byte(message)))
 
 	sharedSecret, signature := crypto.GenerateTxProofV1(prefixHash, txKey, a.ViewPublicKey(), nil)
 
@@ -54,18 +46,17 @@ const (
 )
 
 func GetMessageHash(a Interface, message []byte, mode uint8) types.Hash {
-	buf := make([]byte, 0, 23+types.HashSize*2+1+len(message)+binary.MaxVarintLen64)
-	buf = append(buf, []byte("MoneroMessageSignature")...)
-	buf = append(buf, []byte{0}...) //null byte for previous string
-	buf = append(buf, a.SpendPublicKey().AsSlice()...)
-	buf = append(buf, a.ViewPublicKey().AsSlice()...)
-	buf = append(buf, []byte{mode}...) //mode, 0 = sign with spend key, 1 = sign with view key
-	buf = binary.AppendUvarint(buf, uint64(len(message)))
-	buf = append(buf, message...)
-	return types.Hash(moneroutil.Keccak256(buf))
+	return types.Hash(moneroutil.Keccak256(
+		[]byte("MoneroMessageSignature\x00"),
+		a.SpendPublicKey().AsSlice(),
+		a.ViewPublicKey().AsSlice(),
+		[]byte{mode},
+		binary.AppendUvarint(nil, uint64(len(message))),
+		message,
+		))
 }
 
-func Verify(a Interface, message []byte, signature string) SignatureVerifyResult {
+func VerifyMessage(a Interface, message []byte, signature string) SignatureVerifyResult {
 	var hash types.Hash
 
 	if strings.HasPrefix(signature, "SigV1") {

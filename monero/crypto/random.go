@@ -44,27 +44,28 @@ func RandomScalar() *edwards25519.Scalar {
 	}
 }
 
-func DeterministicScalar(entropy []byte) *edwards25519.Scalar {
+func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
 
 	var counter uint32
 
-	buf := make([]byte, len(entropy)+int(unsafe.Sizeof(counter)))
-	copy(buf, entropy)
+	entropy = append(entropy, make([]byte, int(unsafe.Sizeof(counter))))
 	h := sha3.NewLegacyKeccak256()
-	hash := make([]byte, types.HashSize*2)
+	var hash [types.HashSize*2]byte
 
 	scalar := edwards25519.NewScalar()
 
 	for {
 		h.Reset()
 		counter++
-		binary.LittleEndian.PutUint32(buf[len(entropy):], counter)
-		_, _ = h.Write(buf)
+		binary.LittleEndian.PutUint32(entropy[len(entropy)-1], counter)
+		for i := range entropy {
+			_, _ = h.Write(entropy[i])
+		}
 		_ = h.Sum(hash[:0])
 		if !less32(hash[:types.HashSize], limit) {
 			continue
 		}
-		scalar, _ = scalar.SetUniformBytes(hash)
+		scalar, _ = scalar.SetUniformBytes(hash[:])
 
 		if scalar.Equal(zeroScalar) == 0 {
 			return scalar

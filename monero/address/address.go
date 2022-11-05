@@ -71,7 +71,7 @@ func FromBase58(address string) *Address {
 }
 
 func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
-	nice := make([]byte, 69)
+	var nice [69]byte
 	nice[0] = network
 	copy(nice[1:], spend.AsSlice())
 	copy(nice[33:], view.AsSlice())

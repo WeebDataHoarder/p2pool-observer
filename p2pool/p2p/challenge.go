@@ -51,13 +51,6 @@ func FindChallengeSolution(challenge HandshakeChallenge, consensusId types.Hash,
 }
 
 func CalculateChallengeHash(challenge HandshakeChallenge, consensusId types.Hash, solution uint64) (hash types.Hash, ok bool) {
-
-	var buf [HandshakeChallengeSize*2 + types.HashSize]byte
-	copy(buf[:], challenge[:])
-	copy(buf[HandshakeChallengeSize:], consensusId[:])
-	binary.LittleEndian.PutUint64(buf[types.HashSize+HandshakeChallengeSize:], solution)
-
-	hash = types.Hash(moneroutil.Keccak256(buf[:]))
-
+	hash = types.Hash(moneroutil.Keccak256(challenge[:], consensusId[:], binary.LittleEndian.AppendUint64(nil, solution)))
 	return hash, types.DifficultyFrom64(binary.LittleEndian.Uint64(hash[types.HashSize-int(unsafe.Sizeof(uint64(0))):])).Mul64(HandshakeChallengeDifficulty).Hi == 0
 }
