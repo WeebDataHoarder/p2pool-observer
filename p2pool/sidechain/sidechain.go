@@ -583,7 +583,7 @@ func (c *SideChain) GetTransactionOutputType(majorVersion uint8) uint8 {
 	return expectedTxType
 }
 
-func (c *SideChain) getOutputs(block *PoolBlock) []*transaction.CoinbaseTransactionOutput {
+func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 	if b := c.GetPoolBlockByTemplateId(block.SideTemplateId(c.Consensus())); b != nil {
 		return b.Main.Coinbase.Outputs
 	}
@@ -600,7 +600,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) []*transaction.CoinbaseTransact
 	var counter atomic.Uint32
 	n := uint32(len(tmpShares))
 
-	outputs := make([]*transaction.CoinbaseTransactionOutput, n)
+	outputs := make(transaction.Outputs, n)
 
 	txType := c.GetTransactionOutputType(block.Main.MajorVersion)
 
@@ -618,7 +618,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) []*transaction.CoinbaseTransact
 					return
 				}
 
-				output := &transaction.CoinbaseTransactionOutput{
+				output := &transaction.Output{
 					Index: uint64(workIndex - 1),
 					Type:  txType,
 				}

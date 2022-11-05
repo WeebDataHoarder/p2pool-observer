@@ -6,17 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/moneroutil"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"io"
 	"sync"
 )
-
-const TxInGen = 0xff
-
-const TxOutToKey = 2
-const TxOutToTaggedKey = 3
 
 type CoinbaseTransaction struct {
 	id         types.Hash
@@ -26,7 +20,7 @@ type CoinbaseTransaction struct {
 	InputCount uint8
 	InputType  uint8
 	GenHeight  uint64
-	Outputs    []*CoinbaseTransactionOutput
+	Outputs    Outputs
 
 	// OutputsBlobSize length of serialized Outputs. Used by p2pool serialized pruned blocks, filled regardless
 	OutputsBlobSize uint64
@@ -84,50 +78,20 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		return err
 	}
 
-	var outputCount uint64
 
-	if outputCount, err = binary.ReadUvarint(reader); err != nil {
+	if err = c.Outputs.FromReader(reader); err != nil {
 		return err
-	}
-
-	if outputCount > 0 {
-		if outputCount < 8192 {
-			c.Outputs = make([]*CoinbaseTransactionOutput, 0, outputCount)
-		}
-
-		for index := 0; index < int(outputCount); index++ {
-			o := &CoinbaseTransactionOutput{
-				Index: uint64(index),
-			}
-
-			if o.Reward, err = binary.ReadUvarint(reader); err != nil {
-				return err
-			}
-
-			if err = binary.Read(reader, binary.BigEndian, &o.Type); err != nil {
-				return err
-			}
-
+	} else if len(c.Outputs) != 0 {
+		for _, o := range c.Outputs {
 			switch o.Type {
-			case TxOutToTaggedKey, TxOutToKey:
-				if _, err = io.ReadFull(reader, o.EphemeralPublicKey[:]); err != nil {
-					return err
-				}
-
-				if o.Type == TxOutToTaggedKey {
-					if err = binary.Read(reader, binary.BigEndian, &o.ViewTag); err != nil {
-						return err
-					}
-					c.OutputsBlobSize += 1 + types.HashSize + 1
-				} else {
-					c.OutputsBlobSize += 1 + types.HashSize
-				}
+			case TxOutToTaggedKey:
+				c.OutputsBlobSize += 1 + types.HashSize + 1
+			case TxOutToKey:
+				c.OutputsBlobSize += 1 + types.HashSize
 			default:
 				return fmt.Errorf("unknown %d TXOUT key", o.Type)
 			}
-
 			c.TotalReward += o.Reward
-			c.Outputs = append(c.Outputs, o)
 		}
 	} else {
 		// Outputs are not in the buffer and must be calculated from sidechain data
@@ -179,23 +143,9 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	_ = binary.Write(buf, binary.BigEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(c.Outputs)))])
 
-	for _, o := range c.Outputs {
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
-		_ = binary.Write(buf, binary.BigEndian, o.Type)
-
-		switch o.Type {
-		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
-
-			if o.Type == TxOutToTaggedKey {
-				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
-			}
-		default:
-			return nil, errors.New("unknown output type")
-		}
-	}
+	outputs, _ := c.Outputs.MarshalBinary()
+	_, _ = buf.Write(outputs)
 
 	txExtra, _ := c.Extra.MarshalBinary()
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
@@ -295,12 +245,4 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 func hashKeccak(data ...[]byte) []byte {
 	d := moneroutil.Keccak256(data...)
 	return d[:]
-}
-
-type CoinbaseTransactionOutput struct {
-	Index              uint64
-	Reward             uint64
-	Type               uint8
-	EphemeralPublicKey crypto.PublicKeyBytes
-	ViewTag            uint8
 }

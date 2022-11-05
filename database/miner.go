@@ -47,7 +47,7 @@ func (m *Miner) MoneroAddress() *address.Address {
 
 type outputResult struct {
 	Miner  *Miner
-	Output *transaction.CoinbaseTransactionOutput
+	Output *transaction.Output
 }
 
 func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKey crypto.PrivateKey) (result []outputResult) {
