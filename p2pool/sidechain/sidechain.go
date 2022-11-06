@@ -12,19 +12,25 @@ import (
 	"golang.org/x/exp/slices"
 	"log"
 	"math"
-	"runtime"
 	"sync"
 	"sync/atomic"
 )
 
-type ConsensusBroadcaster interface {
+type Cache interface {
+	GetBlob(key []byte) (blob []byte, err error)
+	SetBlob(key, blob []byte) (err error)
+	RemoveBlob(key []byte) (err error)
+}
+
+type P2PoolInterface interface {
 	ConsensusProvider
+	Cache
 	Broadcast(block *PoolBlock)
 }
 
 type SideChain struct {
 	cache  *DerivationCache
-	server ConsensusBroadcaster
+	server P2PoolInterface
 
 	sidechainLock sync.RWMutex
 
@@ -37,7 +43,7 @@ type SideChain struct {
 	currentDifficulty atomic.Pointer[types.Difficulty]
 }
 
-func NewSideChain(server ConsensusBroadcaster) *SideChain {
+func NewSideChain(server P2PoolInterface) *SideChain {
 	return &SideChain{
 		cache:              NewDerivationCache(),
 		server:             server,
@@ -72,17 +78,21 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 	return nil
 }
 
+func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
+	kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
+	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) == 0
+}
+
 func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error) {
 	// Technically some p2pool node could keep stuffing block with transactions until reward is less than 0.6 XMR
 	// But default transaction picking algorithm never does that. It's better to just ban such nodes
-	if block.Main.Coinbase.TotalReward < 600000000000 {
+	if block.Main.Coinbase.TotalReward < monero.TailEmissionReward {
 		return nil, errors.New("block reward too low")
 	}
 
 	// Enforce deterministic tx keys starting from v15
 	if block.Main.MajorVersion >= monero.HardForkViewTagsVersion {
-		kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
-		if bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) != 0 || bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) != 0 {
+		if !c.isPoolBlockTransactionKeyIsDeterministic(block) {
 			return nil, errors.New("invalid deterministic transaction keys")
 		}
 	}
@@ -253,7 +263,8 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 				}
 			}
 
-			//TODO save
+			//store for faster startup
+			c.saveBlock(block)
 
 			// Try to verify blocks on top of this one
 			for i := uint64(1); i <= UncleBlockDepth; i++ {
@@ -429,40 +440,19 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 		} else if rewards := c.SplitReward(totalReward, c.sharesCache); len(rewards) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
-			//TODO: check
+			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
+				out := block.Main.Coinbase.Outputs[workIndex]
+				if rewards[workIndex] != out.Reward {
+					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
+				}
 
-			var counter atomic.Uint32
-			n := uint32(len(rewards))
-			results := make([]error, utils.Max(runtime.NumCPU()-2, 4))
-
-			var wg sync.WaitGroup
-			for i := range results {
-				wg.Add(1)
-				go func(routineIndex int) {
-					defer wg.Done()
-					for {
-						workIndex := counter.Add(1)
-						if workIndex > n {
-							return
-						}
-
-						out := block.Main.Coinbase.Outputs[workIndex - 1]
-						if rewards[workIndex - 1] != out.Reward {
-							results[routineIndex] = fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex - 1, out.Reward, rewards[workIndex - 1])
-							return
-						}
-
-						if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex - 1].Address, &block.Side.CoinbasePrivateKey, uint64(workIndex - 1)); ephPublicKey != out.EphemeralPublicKey {
-							results[routineIndex] = fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex - 1, out.EphemeralPublicKey.String(), ephPublicKey.String())
-							return
-						} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
-							results[routineIndex] = fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex - 1, out.ViewTag, viewTag)
-							return
-						}
-					}
-				}(i)
-			}
-			wg.Wait()
+				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, &block.Side.CoinbasePrivateKey, workIndex); ephPublicKey != out.EphemeralPublicKey {
+					return fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
+				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
+					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
+				}
+				return nil
+			})
 
 			for i := range results {
 				if results[i] != nil {
@@ -591,10 +581,14 @@ func (c *SideChain) GetTransactionOutputType(majorVersion uint8) uint8 {
 
 func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 	//cannot use SideTemplateId() as it might not be proper to calculate yet. fetch from coinbase only here
-	if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
+	if b := c.getPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
 		return b.Main.Coinbase.Outputs
 	}
 
+	return c.calculateOutputs(block)
+}
+
+func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
 	//TODO: buffer
 	tmpShares := c.getShares(block, make(Shares, 0, c.Consensus().ChainWindowSize*2))
 	tmpRewards := c.SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
@@ -603,41 +597,24 @@ func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 		return nil
 	}
 
-	var wg sync.WaitGroup
-
-	var counter atomic.Uint32
-	n := uint32(len(tmpShares))
+	n := uint64(len(tmpShares))
 
 	outputs := make(transaction.Outputs, n)
 
 	txType := c.GetTransactionOutputType(block.Main.MajorVersion)
 
-	const helperRoutines = 4
+	_ = utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
+		output := &transaction.Output{
+			Index: workIndex,
+			Type:  txType,
+		}
+		output.Reward = tmpRewards[output.Index]
+		output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, &block.Side.CoinbasePrivateKey, output.Index)
 
-	//TODO: check
+		outputs[output.Index] = output
 
-	for i := 0; i < helperRoutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				workIndex := counter.Add(1)
-				if workIndex > n {
-					return
-				}
-
-				output := &transaction.Output{
-					Index: uint64(workIndex - 1),
-					Type:  txType,
-				}
-				output.Reward = tmpRewards[output.Index]
-				output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, &block.Side.CoinbasePrivateKey, output.Index)
-
-				outputs[output.Index] = output
-			}
-		}()
-	}
-	wg.Wait()
+		return nil
+	})
 
 	return outputs
 }

@@ -1,6 +1,7 @@
 package p2pool
 
 import (
+	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -10,6 +11,18 @@ type P2Pool struct {
 	consensus *sidechain.Consensus
 	sidechain *sidechain.SideChain
 	server    *p2p.Server
+}
+
+func (p *P2Pool) GetBlob(key []byte) (blob []byte, err error) {
+	return nil, errors.New("not found")
+}
+
+func (p *P2Pool) SetBlob(key, blob []byte) (err error) {
+	return nil
+}
+
+func (p *P2Pool) RemoveBlob(key []byte) (err error) {
+	return nil
 }
 
 func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) *P2Pool {
