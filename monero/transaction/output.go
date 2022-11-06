@@ -33,7 +33,7 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 				return err
 			}
 
-			if err = binary.Read(reader, binary.BigEndian, &o.Type); err != nil {
+			if o.Type, err = reader.ReadByte(); err != nil {
 				return err
 			}
 
@@ -44,6 +44,9 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 				}
 
 				if o.Type == TxOutToTaggedKey {
+					if o.ViewTag, err = reader.ReadByte(); err != nil {
+						return err
+					}
 				}
 			default:
 				return fmt.Errorf("unknown %d TXOUT key", o.Type)
