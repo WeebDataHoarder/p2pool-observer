@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
 	"net"
@@ -15,6 +16,7 @@ import (
 )
 
 const DefaultBanTime = time.Second * 600
+const PeerListResponseMaxPeers = 16
 
 type Client struct {
 	Owner                *Server
@@ -24,6 +26,8 @@ type Client struct {
 	LastActive           time.Time
 	LastBroadcast        time.Time
 	LastBlockRequest     time.Time
+	PingTime time.Duration
+	LastPeerListRequestTime time.Time
 	PeerId               uint64
 	IsIncomingConnection bool
 	HandshakeComplete    bool
@@ -36,6 +40,8 @@ type Client struct {
 
 	HandshakeChallenge HandshakeChallenge
 
+	messageChannel chan *ClientMessage
+
 	blockRequestThrottler <-chan time.Time
 }
 
@@ -47,6 +53,7 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		LastActive:            time.Now(),
 		ExpectedMessage:       MessageHandshakeChallenge,
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
+		messageChannel: make(chan *ClientMessage, 10),
 	}
 
 	return c
@@ -63,20 +70,19 @@ func (c *Client) OnAfterHandshake() {
 }
 
 func (c *Client) SendListenPort() {
-	var buf [1 + int(unsafe.Sizeof(uint32(0)))]byte
-	buf[0] = byte(MessageListenPort)
-	binary.LittleEndian.PutUint32(buf[1:], uint32(c.Owner.listenAddress.Port()))
-	_, _ = c.Write(buf[:])
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageListenPort,
+		Buffer: binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
+	})
 }
 
 func (c *Client) SendBlockRequest(hash types.Hash) {
 	<-c.blockRequestThrottler
 
-	var buf [1 + types.HashSize]byte
-	buf[0] = byte(MessageBlockRequest)
-	copy(buf[1:], hash[:])
-
-	_, _ = c.Write(buf[:])
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageBlockRequest,
+		Buffer: hash[:],
+	})
 
 	c.BlockPendingRequests++
 	if hash == types.ZeroHash {
@@ -88,25 +94,64 @@ func (c *Client) SendBlockRequest(hash types.Hash) {
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	if block != nil {
 		blockData, _ := block.MarshalBinary()
-		_, _ = c.Write(append(append([]byte{byte(MessageBlockResponse)}, binary.LittleEndian.AppendUint32(nil, uint32(len(blockData)))...), blockData...))
+
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageBlockResponse,
+			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+		})
+
 	} else {
-		_, _ = c.Write(append([]byte{byte(MessageBlockResponse)}, binary.LittleEndian.AppendUint32(nil, 0)...))
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageBlockResponse,
+			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+		})
 	}
 }
 
 func (c *Client) SendBlockBroadcast(block *sidechain.PoolBlock) {
 	if block != nil {
 		blockData, _ := block.MarshalBinary()
-		_, _ = c.Write(append(append([]byte{byte(MessageBlockBroadcast)}, binary.LittleEndian.AppendUint32(nil, uint32(len(blockData)))...), blockData...))
+
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageBlockBroadcast,
+			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+		})
+
 	} else {
-		_, _ = c.Write(append([]byte{byte(MessageBlockBroadcast)}, binary.LittleEndian.AppendUint32(nil, 0)...))
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageBlockBroadcast,
+			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+		})
 	}
 }
 
 func (c *Client) SendPeerListRequest() {
-	return
-	//TODO
-	_, _ = c.Write([]byte{byte(MessagePeerListRequest)})
+	c.SendMessage(&ClientMessage{
+		MessageId: MessagePeerListRequest,
+	})
+	c.LastPeerListRequestTime = time.Now()
+}
+
+func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
+	if len(list) > PeerListResponseMaxPeers {
+		return
+	}
+	buf := make([]byte, 0, 1 + len(list) * (1 + 16 + 2 ))
+	buf = append(buf, byte(len(list)))
+	for i := range list {
+		if list[i].Addr().Is6() {
+			buf = append(buf, 1)
+		} else {
+			buf = append(buf, 0)
+		}
+		ip := list[i].Addr().As16()
+		buf = append(buf, ip[:]...)
+		buf = binary.LittleEndian.AppendUint16(buf, list[i].Port())
+	}
+	c.SendMessage(&ClientMessage{
+		MessageId: MessagePeerListResponse,
+		Buffer: buf,
+	})
 }
 
 func (c *Client) OnConnection() {
@@ -115,6 +160,14 @@ func (c *Client) OnConnection() {
 	c.sendHandshakeChallenge()
 
 	var missingBlocks []types.Hash
+
+	go func() {
+		for message := range c.messageChannel {
+			//log.Printf("Sending message %d len %d", message.MessageId, len(message.Buffer))
+			_, _ = c.Write([]byte{byte(message.MessageId)})
+			_, _ = c.Write(message.Buffer)
+		}
+	}()
 
 	for !c.Closed.Load() {
 		var messageId MessageId
@@ -235,16 +288,18 @@ func (c *Client) OnConnection() {
 				return
 			}
 
-			var block *sidechain.PoolBlock
-			//if empty, return chain tip
-			if templateId == types.ZeroHash {
-				//todo: don't return stale
-				block = c.Owner.SideChain().GetChainTip()
-			} else {
-				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
-			}
+			go func() {
+				var block *sidechain.PoolBlock
+				//if empty, return chain tip
+				if templateId == types.ZeroHash {
+					//todo: don't return stale
+					block = c.Owner.SideChain().GetChainTip()
+				} else {
+					block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
+				}
 
-			c.SendBlockResponse(block)
+				c.SendBlockResponse(block)
+			}()
 		case MessageBlockResponse:
 			block := &sidechain.PoolBlock{}
 
@@ -256,36 +311,35 @@ func (c *Client) OnConnection() {
 			} else if blockSize == 0 {
 				//NOT found
 				//TODO log
-			} else if err = block.FromReader(c); err != nil {
-				//TODO warn
-				c.Ban(DefaultBanTime)
-				return
 			} else {
-				if c.ChainTipBlockRequest {
-					c.ChainTipBlockRequest = false
-
-					//peerHeight := block.Main.Coinbase.GenHeight
-					//ourHeight :=
-					//TODO: stale block
-
-					c.SendPeerListRequest()
-				}
-
-				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+				if err = block.FromReader(c); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime)
 					return
 				} else {
-					for _, id := range missingBlocks {
-						c.SendBlockRequest(id)
-					}
-				}
+					if c.ChainTipBlockRequest {
+						c.ChainTipBlockRequest = false
 
-				/*if c.Owner.SideChain().GetPoolBlockCount() > 20 {
-					c.Close()
-					c.Owner.Close()
-					return
-				}*/
+						//peerHeight := block.Main.Coinbase.GenHeight
+						//ourHeight :=
+						//TODO: stale block
+
+						c.SendPeerListRequest()
+					}
+
+					go func() {
+						if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+							//TODO warn
+							c.Ban(DefaultBanTime)
+							return
+						} else {
+							for _, id := range missingBlocks {
+								c.SendBlockRequest(id)
+							}
+						}
+
+					}()
+				}
 			}
 
 		case MessageBlockBroadcast:
@@ -303,33 +357,67 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime)
 				return
 			}
-
-			if err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
-				//TODO warn
-				c.Ban(DefaultBanTime)
-				return
-			} else {
-				//TODO: investigate different monero block mining
-
-				block.WantBroadcast.Store(true)
-				c.LastBroadcast = time.Now()
-				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+			c.LastBroadcast = time.Now()
+			go func() {
+				if err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime)
 					return
 				} else {
-					for _, id := range missingBlocks {
-						c.SendBlockRequest(id)
+					//TODO: investigate different monero block mining
+
+					block.WantBroadcast.Store(true)
+					if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+						//TODO warn
+						c.Ban(DefaultBanTime)
+						return
+					} else {
+						for _, id := range missingBlocks {
+							c.SendBlockRequest(id)
+						}
+					}
+				}
+			}()
+		case MessagePeerListRequest:
+			//TODO
+			c.SendPeerListResponse(nil)
+		case MessagePeerListResponse:
+			if numPeers, err := c.ReadByte(); err != nil {
+				c.Ban(DefaultBanTime)
+				return
+			} else if numPeers > PeerListResponseMaxPeers {
+				c.Ban(DefaultBanTime)
+				return
+			} else {
+				c.PingTime = utils.Max(time.Now().Sub(c.LastPeerListRequestTime), 0)
+				var rawIp [16]byte
+				var port uint16
+
+				for i := uint8(0); i < numPeers; i++ {
+					if isV6, err := c.ReadByte(); err != nil {
+						c.Ban(DefaultBanTime)
+						return
+					} else {
+
+						if _, err = c.Read(rawIp[:]); err != nil {
+							c.Ban(DefaultBanTime)
+							return
+						} else if err = binary.Read(c, binary.LittleEndian, &port); err != nil {
+							c.Ban(DefaultBanTime)
+							return
+						}
+						if isV6 != 0 {
+							copy(rawIp[:], make([]byte, 10))
+							rawIp[10], rawIp[11] = 0xFF, 0xFF
+						}
+						c.Owner.AddToPeerList(netip.AddrPortFrom(netip.AddrFrom16(rawIp), port))
 					}
 				}
 			}
-		case MessagePeerListRequest:
 			//TODO
-		case MessagePeerListResponse:
-			//TODO
-			fallthrough
 		default:
 			c.Ban(DefaultBanTime)
+			return
 		}
 	}
 }
@@ -341,12 +429,14 @@ func (c *Client) sendHandshakeChallenge() {
 		return
 	}
 
-	var buf [1 + HandshakeChallengeSize + int(unsafe.Sizeof(uint64(0)))]byte
-	buf[0] = byte(MessageHandshakeChallenge)
-	copy(buf[1:], c.HandshakeChallenge[:])
-	binary.LittleEndian.PutUint64(buf[1+HandshakeChallengeSize:], c.Owner.PeerId())
+	var buf [HandshakeChallengeSize + int(unsafe.Sizeof(uint64(0)))]byte
+	copy(buf[:], c.HandshakeChallenge[:])
+	binary.LittleEndian.PutUint64(buf[HandshakeChallengeSize:], c.Owner.PeerId())
 
-	_, _ = c.Write(buf[:])
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageHandshakeChallenge,
+		Buffer: buf[:],
+	})
 }
 
 func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
@@ -357,16 +447,19 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 	}
 
 	if solution, hash, ok := FindChallengeSolution(challenge, c.Owner.Consensus().Id(), stop); ok {
-		var buf [1 + HandshakeChallengeSize + types.HashSize]byte
-		buf[0] = byte(MessageHandshakeSolution)
-		copy(buf[1:], hash[:])
-		binary.LittleEndian.PutUint64(buf[1+types.HashSize:], solution)
 
-		_, _ = c.Write(buf[:])
+		var buf [HandshakeChallengeSize + types.HashSize]byte
+		copy(buf[:], hash[:])
+		binary.LittleEndian.PutUint64(buf[types.HashSize:], solution)
+
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageHandshakeSolution,
+			Buffer: buf[:],
+		})
 	}
 }
 
-// Write writes to underlying connection, on error it will Close
+// Write writes to underlying connection, on error it will Close. Do not use this directly, Use SendMessage instead.
 func (c *Client) Write(buf []byte) (n int, err error) {
 	if n, err = c.Connection.Write(buf); err != nil && c.Closed.Load() {
 		c.Close()
@@ -380,6 +473,15 @@ func (c *Client) Read(buf []byte) (n int, err error) {
 		c.Close()
 	}
 	return
+}
+
+type ClientMessage struct {
+	MessageId MessageId
+	Buffer []byte
+}
+
+func (c *Client) SendMessage(message *ClientMessage) {
+	c.messageChannel <- message
 }
 
 // ReadByte reads from underlying connection, on error it will Close
@@ -416,4 +518,5 @@ func (c *Client) Close() {
 	}
 
 	_ = c.Connection.Close()
+	close(c.messageChannel)
 }

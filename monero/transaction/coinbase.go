@@ -143,7 +143,6 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	_ = binary.Write(buf, binary.BigEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
-
 	outputs, _ := c.Outputs.MarshalBinary()
 	_, _ = buf.Write(outputs)
 
@@ -156,27 +155,7 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 }
 
 func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-
-	for _, o := range c.Outputs {
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
-		_ = binary.Write(buf, binary.BigEndian, o.Type)
-
-		switch o.Type {
-		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
-
-			if o.Type == TxOutToTaggedKey {
-				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
-			}
-		default:
-			return nil, errors.New("unknown output type")
-		}
-	}
-
-	return buf.Bytes(), nil
+	return c.Outputs.MarshalBinary()
 }
 
 func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
@@ -190,23 +169,8 @@ func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
 	_ = binary.Write(buf, binary.BigEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(c.Outputs)))])
-
-	for _, o := range c.Outputs {
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
-		_ = binary.Write(buf, binary.BigEndian, o.Type)
-
-		switch o.Type {
-		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
-
-			if o.Type == TxOutToTaggedKey {
-				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
-			}
-		default:
-			return nil, errors.New("unknown output type")
-		}
-	}
+	outputs, _ := c.Outputs.MarshalBinary()
+	_, _ = buf.Write(outputs)
 
 	txExtra, _ := c.Extra.SideChainHashingBlob()
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])

@@ -73,6 +73,10 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 	return s, nil
 }
 
+func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
+	log.Printf("TODO AddToPeerList %s", addressPort.String())
+}
+
 func (s *Server) Listen() (err error) {
 	if s.listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
 		return err
@@ -161,7 +165,23 @@ func (s *Server) SideChain() *sidechain.SideChain {
 }
 
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {
-	//TODO
+	var message *ClientMessage
+	if block != nil {
+		blockData, _ := block.MarshalBinary()
+		message = &ClientMessage{
+			MessageId: MessageBlockBroadcast,
+			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+		}
+	} else {
+		message = &ClientMessage{
+			MessageId: MessageBlockBroadcast,
+			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+		}
+	}
+
+	for _, c := range s.Clients() {
+		c.SendMessage(message)
+	}
 }
 
 func (s *Server) Consensus() *sidechain.Consensus {

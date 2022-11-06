@@ -65,7 +65,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 		if outputBlob, err := block.Main.Coinbase.OutputsBlob(); err != nil {
 			return err
 		} else if uint64(len(outputBlob)) != block.Main.Coinbase.OutputsBlobSize {
-			return errors.New("invalid output blob size")
+			return fmt.Errorf("invalid output blob size, got %d, expected %d", block.Main.Coinbase.OutputsBlobSize, len(outputBlob))
 		}
 	}
 
@@ -442,21 +442,21 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 					defer wg.Done()
 					for {
 						workIndex := counter.Add(1)
-						if workIndex >= n {
+						if workIndex > n {
 							return
 						}
 
-						out := block.Main.Coinbase.Outputs[workIndex]
-						if rewards[workIndex] != out.Reward {
-							results[routineIndex] = fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
+						out := block.Main.Coinbase.Outputs[workIndex - 1]
+						if rewards[workIndex - 1] != out.Reward {
+							results[routineIndex] = fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex - 1, out.Reward, rewards[workIndex - 1])
 							return
 						}
 
-						if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, &block.Side.CoinbasePrivateKey, uint64(workIndex)); ephPublicKey != out.EphemeralPublicKey {
-							results[routineIndex] = fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
+						if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex - 1].Address, &block.Side.CoinbasePrivateKey, uint64(workIndex - 1)); ephPublicKey != out.EphemeralPublicKey {
+							results[routineIndex] = fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex - 1, out.EphemeralPublicKey.String(), ephPublicKey.String())
 							return
 						} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
-							results[routineIndex] = fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
+							results[routineIndex] = fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex - 1, out.ViewTag, viewTag)
 							return
 						}
 					}
@@ -590,11 +590,13 @@ func (c *SideChain) GetTransactionOutputType(majorVersion uint8) uint8 {
 }
 
 func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
-	if b := c.GetPoolBlockByTemplateId(block.SideTemplateId(c.Consensus())); b != nil {
+	//cannot use SideTemplateId() as it might not be proper to calculate yet. fetch from coinbase only here
+	if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
 		return b.Main.Coinbase.Outputs
 	}
 
-	tmpShares := c.getShares(block, nil)
+	//TODO: buffer
+	tmpShares := c.getShares(block, make(Shares, 0, c.Consensus().ChainWindowSize*2))
 	tmpRewards := c.SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
 
 	if tmpShares == nil || tmpRewards == nil || len(tmpRewards) != len(tmpShares) {
@@ -620,7 +622,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 			defer wg.Done()
 			for {
 				workIndex := counter.Add(1)
-				if workIndex >= n {
+				if workIndex > n {
 					return
 				}
 
