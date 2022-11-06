@@ -13,3 +13,7 @@ func GetDerivationViewTagForOutputIndex(derivation PublicKey, outputIndex uint64
 	h := moneroutil.Keccak256([]byte("view_tag"), derivation.AsSlice(), binary.AppendUvarint(nil, outputIndex))
 	return h[0]
 }
+
+func GetKeyImage(pair *KeyPair) PublicKey {
+	return PublicKeyFromPoint(HashToPoint(pair.PublicKey)).Multiply(pair.PrivateKey.AsScalar())
+}

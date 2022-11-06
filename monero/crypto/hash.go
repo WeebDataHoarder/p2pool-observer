@@ -20,8 +20,12 @@ func HashToScalar(data ...[]byte) *edwards25519.Scalar {
 	return c
 }
 
-func HashToPoint(data ...[]byte) *edwards25519.Point {
-	h := moneroutil.Keccak256(data...)
-	p, _ := (&edwards25519.Point{}).SetBytes(h[:])
-	return p.ScalarMult(scalar8, p)
+func HashToPoint(publicKey PublicKey) *edwards25519.Point {
+	//TODO: make this work with existing edwards25519 library
+	input := moneroutil.Key(publicKey.AsBytes())
+	var key moneroutil.Key
+	(&input).HashToEC().ToBytes(&key)
+	p, _ := (&edwards25519.Point{}).SetBytes(key[:])
+	return p
 }
+
