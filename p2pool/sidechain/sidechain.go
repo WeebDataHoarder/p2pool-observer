@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/slices"
 	"log"
 	"math"
+	"runtime"
 	"sync"
 	"sync/atomic"
 )
@@ -25,7 +26,10 @@ type SideChain struct {
 	cache  *DerivationCache
 	server ConsensusBroadcaster
 
-	blocksByLock       sync.RWMutex
+	sidechainLock sync.RWMutex
+
+	sharesCache Shares
+
 	blocksByTemplateId map[types.Hash]*PoolBlock
 	blocksByHeight     map[uint64][]*PoolBlock
 
@@ -39,6 +43,7 @@ func NewSideChain(server ConsensusBroadcaster) *SideChain {
 		server:             server,
 		blocksByTemplateId: make(map[types.Hash]*PoolBlock),
 		blocksByHeight:     make(map[uint64][]*PoolBlock),
+		sharesCache:        make(Shares, 0, server.Consensus().ChainWindowSize*2),
 	}
 }
 
@@ -47,8 +52,8 @@ func (c *SideChain) Consensus() *Consensus {
 }
 
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
-	c.blocksByLock.RLock()
-	defer c.blocksByLock.RUnlock()
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
 
 	if len(block.Main.Coinbase.Outputs) == 0 {
 		if outputs := c.getOutputs(block); outputs == nil {
@@ -158,8 +163,8 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	//TODO: block found section
 
 	return func() []types.Hash {
-		c.blocksByLock.RLock()
-		defer c.blocksByLock.RUnlock()
+		c.sidechainLock.RLock()
+		defer c.sidechainLock.RUnlock()
 		missing := make([]types.Hash, 0, 4)
 		if block.Side.Parent != types.ZeroHash && c.getPoolBlockByTemplateId(block.Side.Parent) == nil {
 			missing = append(missing, block.Side.Parent)
@@ -175,8 +180,8 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 }
 
 func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
-	c.blocksByLock.Lock()
-	defer c.blocksByLock.Unlock()
+	c.sidechainLock.Lock()
+	defer c.sidechainLock.Unlock()
 	if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
 		//already inserted
 		//TODO WARN
@@ -236,7 +241,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 
 			// This block is now verified
 
-			if isLongerChain, _ := c.IsLongerChain(highestBlock, block); isLongerChain {
+			if isLongerChain, _ := c.isLongerChain(highestBlock, block); isLongerChain {
 				highestBlock = block
 			} else if highestBlock != nil && highestBlock.Side.Height > block.Side.Height {
 				log.Printf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
@@ -410,10 +415,10 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return nil, fmt.Errorf("wrong difficulty, got %s, expected %s", block.Side.Difficulty.StringNumeric(), diff.StringNumeric())
 		}
 
-		if shares := c.getShares(block); len(shares) == 0 {
+		if c.sharesCache = c.getShares(block, c.sharesCache); len(c.sharesCache) == 0 {
 			return nil, errors.New("could not get outputs")
-		} else if len(shares) != len(block.Main.Coinbase.Outputs) {
-			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(shares))
+		} else if len(c.sharesCache) != len(block.Main.Coinbase.Outputs) {
+			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(c.sharesCache))
 		} else if totalReward := func() (result uint64) {
 			for _, o := range block.Main.Coinbase.Outputs {
 				result += o.Reward
@@ -421,19 +426,47 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return
 		}(); totalReward != block.Main.Coinbase.TotalReward {
 			return nil, fmt.Errorf("invalid total reward, got %d, expected %d", block.Main.Coinbase.TotalReward, totalReward)
-		} else if rewards := c.SplitReward(totalReward, shares); len(rewards) != len(block.Main.Coinbase.Outputs) {
+		} else if rewards := c.SplitReward(totalReward, c.sharesCache); len(rewards) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
-			for i, reward := range rewards {
-				out := block.Main.Coinbase.Outputs[i]
-				if reward != out.Reward {
-					return nil, fmt.Errorf("has invalid reward at index %d, got %d, expected %d", i, out.Reward, reward)
-				}
+			//TODO: check
 
-				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&shares[i].Address, &block.Side.CoinbasePrivateKey, uint64(i)); ephPublicKey != out.EphemeralPublicKey {
-					return nil, fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", i, out.EphemeralPublicKey.String(), ephPublicKey.String())
-				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
-					return nil, fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", i, out.ViewTag, viewTag)
+			var counter atomic.Uint32
+			n := uint32(len(rewards))
+			results := make([]error, utils.Max(runtime.NumCPU()-2, 4))
+
+			var wg sync.WaitGroup
+			for i := range results {
+				wg.Add(1)
+				go func(routineIndex int) {
+					defer wg.Done()
+					for {
+						workIndex := counter.Add(1)
+						if workIndex >= n {
+							return
+						}
+
+						out := block.Main.Coinbase.Outputs[workIndex]
+						if rewards[workIndex] != out.Reward {
+							results[routineIndex] = fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
+							return
+						}
+
+						if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, &block.Side.CoinbasePrivateKey, uint64(workIndex)); ephPublicKey != out.EphemeralPublicKey {
+							results[routineIndex] = fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
+							return
+						} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
+							results[routineIndex] = fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
+							return
+						}
+					}
+				}(i)
+			}
+			wg.Wait()
+
+			for i := range results {
+				if results[i] != nil {
+					return nil, results[i]
 				}
 			}
 		}
@@ -515,7 +548,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 
 	tip := c.GetChainTip()
 
-	if isLongerChain, isAlternative := c.IsLongerChain(tip, block); isLongerChain {
+	if isLongerChain, isAlternative := c.isLongerChain(tip, block); isLongerChain {
 		if diff := c.getDifficulty(block); diff != types.ZeroDifficulty {
 			c.chainTip.Store(block)
 			c.currentDifficulty.Store(&diff)
@@ -561,7 +594,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 		return b.Main.Coinbase.Outputs
 	}
 
-	tmpShares := c.getShares(block)
+	tmpShares := c.getShares(block, nil)
 	tmpRewards := c.SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
 
 	if tmpShares == nil || tmpRewards == nil || len(tmpRewards) != len(tmpShares) {
@@ -587,7 +620,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 			defer wg.Done()
 			for {
 				workIndex := counter.Add(1)
-				if workIndex > n {
+				if workIndex >= n {
 					return
 				}
 
@@ -642,16 +675,15 @@ func (c *SideChain) SplitReward(reward uint64, shares Shares) (rewards []uint64)
 	return rewards
 }
 
-func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
-	shares = make(Shares, 0, c.Consensus().ChainWindowSize*2)
+func (c *SideChain) getShares(tip *PoolBlock, shares Shares) Shares {
+	shares = shares[:0]
 
 	var blockDepth uint64
 
 	cur := tip
-	var curShare Share
+
 	for {
-		curShare.Weight = cur.Side.Difficulty.Lo
-		curShare.Address = *cur.GetAddress()
+		curShare := &Share{Weight: cur.Side.Difficulty.Lo, Address: *cur.GetAddress()}
 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
@@ -668,7 +700,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 				unclePenalty := product.Div64(100)
 				curShare.Weight += unclePenalty.Lo
 
-				shares = append(shares, Share{Weight: uncle.Side.Difficulty.Sub(unclePenalty).Lo, Address: *uncle.GetAddress()})
+				shares = append(shares, &Share{Weight: uncle.Side.Difficulty.Sub(unclePenalty).Lo, Address: *uncle.GetAddress()})
 			}
 		}
 
@@ -693,7 +725,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 	}
 
 	// Combine shares with the same wallet addresses
-	slices.SortFunc(shares, func(a Share, b Share) bool {
+	slices.SortFunc(shares, func(a *Share, b *Share) bool {
 		return a.Address.Compare(&b.Address) < 0
 	})
 
@@ -717,8 +749,8 @@ type DifficultyData struct {
 }
 
 func (c *SideChain) GetDifficulty(tip *PoolBlock) types.Difficulty {
-	c.blocksByLock.RLock()
-	defer c.blocksByLock.RUnlock()
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
 	return c.getDifficulty(tip)
 }
 
@@ -819,8 +851,8 @@ func (c *SideChain) getDifficulty(tip *PoolBlock) types.Difficulty {
 }
 
 func (c *SideChain) GetParent(block *PoolBlock) *PoolBlock {
-	c.blocksByLock.RLock()
-	defer c.blocksByLock.RUnlock()
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
 	return c.getParent(block)
 }
 
@@ -829,14 +861,14 @@ func (c *SideChain) getParent(block *PoolBlock) *PoolBlock {
 }
 
 func (c *SideChain) GetPoolBlockByTemplateId(id types.Hash) *PoolBlock {
-	c.blocksByLock.RLock()
-	defer c.blocksByLock.RUnlock()
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
 	return c.getPoolBlockByTemplateId(id)
 }
 
 func (c *SideChain) GetPoolBlockCount() int {
-	c.blocksByLock.RLock()
-	defer c.blocksByLock.RUnlock()
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
 	return len(c.blocksByTemplateId)
 }
 
@@ -849,7 +881,13 @@ func (c *SideChain) GetChainTip() *PoolBlock {
 }
 
 func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlternative bool) {
-	if candidate == nil || !candidate.Verified.Load() || !candidate.Invalid.Load() {
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+	return c.isLongerChain(block, candidate)
+}
+
+func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlternative bool) {
+	if candidate == nil || !candidate.Verified.Load() || candidate.Invalid.Load() {
 		return false, false
 	}
 
@@ -862,14 +900,14 @@ func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 
 	blockAncestor := block
 	for blockAncestor != nil && blockAncestor.Side.Height > candidate.Side.Height {
-		blockAncestor = c.GetParent(blockAncestor)
+		blockAncestor = c.getParent(blockAncestor)
 		//TODO: err on blockAncestor nil
 	}
 
 	if blockAncestor != nil {
 		candidateAncestor := candidate
 		for candidateAncestor != nil && candidateAncestor.Side.Height > blockAncestor.Side.Height {
-			candidateAncestor = c.GetParent(candidateAncestor)
+			candidateAncestor = c.getParent(candidateAncestor)
 			//TODO: err on candidateAncestor nil
 		}
 
@@ -877,8 +915,8 @@ func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 			if blockAncestor.Side.Parent.Equals(candidateAncestor.Side.Parent) {
 				return block.Side.CumulativeDifficulty.Cmp(candidate.Side.CumulativeDifficulty) < 0, false
 			}
-			blockAncestor = c.GetParent(blockAncestor)
-			candidateAncestor = c.GetParent(candidateAncestor)
+			blockAncestor = c.getParent(blockAncestor)
+			candidateAncestor = c.getParent(candidateAncestor)
 		}
 	}
 
@@ -895,7 +933,7 @@ func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 	for i := uint64(0); i < c.Consensus().ChainWindowSize && (oldChain != nil || newChain != nil); i++ {
 		if oldChain != nil {
 			blockTotalDiff = blockTotalDiff.Add(oldChain.Side.Difficulty)
-			oldChain = c.GetParent(oldChain)
+			oldChain = c.getParent(oldChain)
 		}
 
 		if newChain != nil {
@@ -913,7 +951,7 @@ func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 				}
 			}
 
-			newChain = c.GetParent(newChain)
+			newChain = c.getParent(newChain)
 		}
 	}
 

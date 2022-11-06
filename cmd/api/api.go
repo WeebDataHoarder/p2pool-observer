@@ -831,10 +831,10 @@ func main() {
 						}{Id: types.HashFromBytes(mainId), Height: mainHeight},
 						Uncle: uncle,
 						Coinbase: struct {
-							Id         types.Hash `json:"id"`
-							Reward     uint64     `json:"reward"`
+							Id         types.Hash             `json:"id"`
+							Reward     uint64                 `json:"reward"`
 							PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-							Index      uint64     `json:"index"`
+							Index      uint64                 `json:"index"`
 						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
 					})
 					return nil
