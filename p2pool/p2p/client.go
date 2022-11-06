@@ -35,15 +35,18 @@ type Client struct {
 	ExpectedMessage MessageId
 
 	HandshakeChallenge HandshakeChallenge
+
+	blockRequestThrottler <-chan time.Time
 }
 
 func NewClient(owner *Server, conn net.Conn) *Client {
 	c := &Client{
-		Owner:           owner,
-		Connection:      conn,
-		AddressPort:     netip.MustParseAddrPort(conn.RemoteAddr().String()),
-		LastActive:      time.Now(),
-		ExpectedMessage: MessageHandshakeChallenge,
+		Owner:                 owner,
+		Connection:            conn,
+		AddressPort:           netip.MustParseAddrPort(conn.RemoteAddr().String()),
+		LastActive:            time.Now(),
+		ExpectedMessage:       MessageHandshakeChallenge,
+		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
 	}
 
 	return c
@@ -67,6 +70,8 @@ func (c *Client) SendListenPort() {
 }
 
 func (c *Client) SendBlockRequest(hash types.Hash) {
+	<-c.blockRequestThrottler
+
 	var buf [1 + types.HashSize]byte
 	buf[0] = byte(MessageBlockRequest)
 	copy(buf[1:], hash[:])
@@ -83,9 +88,18 @@ func (c *Client) SendBlockRequest(hash types.Hash) {
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	if block != nil {
 		blockData, _ := block.MarshalBinary()
-		_, _ = c.Write(append([]byte{byte(MessageBlockResponse)}, blockData...))
+		_, _ = c.Write(append(append([]byte{byte(MessageBlockResponse)}, binary.LittleEndian.AppendUint32(nil, uint32(len(blockData)))...), blockData...))
 	} else {
-		_, _ = c.Write([]byte{byte(MessageBlockResponse)})
+		_, _ = c.Write(append([]byte{byte(MessageBlockResponse)}, binary.LittleEndian.AppendUint32(nil, 0)...))
+	}
+}
+
+func (c *Client) SendBlockBroadcast(block *sidechain.PoolBlock) {
+	if block != nil {
+		blockData, _ := block.MarshalBinary()
+		_, _ = c.Write(append(append([]byte{byte(MessageBlockBroadcast)}, binary.LittleEndian.AppendUint32(nil, uint32(len(blockData)))...), blockData...))
+	} else {
+		_, _ = c.Write(append([]byte{byte(MessageBlockBroadcast)}, binary.LittleEndian.AppendUint32(nil, 0)...))
 	}
 }
 
@@ -99,6 +113,8 @@ func (c *Client) OnConnection() {
 	c.LastActive = time.Now()
 
 	c.sendHandshakeChallenge()
+
+	var missingBlocks []types.Hash
 
 	for !c.Closed.Load() {
 		var messageId MessageId
@@ -237,6 +253,9 @@ func (c *Client) OnConnection() {
 				//TODO warn
 				c.Ban(DefaultBanTime)
 				return
+			} else if blockSize == 0 {
+				//NOT found
+				//TODO log
 			} else if err = block.FromReader(c); err != nil {
 				//TODO warn
 				c.Ban(DefaultBanTime)
@@ -252,13 +271,21 @@ func (c *Client) OnConnection() {
 					c.SendPeerListRequest()
 				}
 
-				if err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime)
 					return
+				} else {
+					for _, id := range missingBlocks {
+						c.SendBlockRequest(id)
+					}
 				}
 
-				//TODO:
+				/*if c.Owner.SideChain().GetPoolBlockCount() > 20 {
+					c.Close()
+					c.Owner.Close()
+					return
+				}*/
 			}
 
 		case MessageBlockBroadcast:
@@ -268,6 +295,9 @@ func (c *Client) OnConnection() {
 				//TODO warn
 				c.Ban(DefaultBanTime)
 				return
+			} else if blockSize == 0 {
+				//NOT found
+				//TODO log
 			} else if err = block.FromReader(c); err != nil {
 				//TODO warn
 				c.Ban(DefaultBanTime)
@@ -278,16 +308,20 @@ func (c *Client) OnConnection() {
 				//TODO warn
 				c.Ban(DefaultBanTime)
 				return
-			}
+			} else {
+				//TODO: investigate different monero block mining
 
-			//TODO: investigate different monero block mining
-
-			block.WantBroadcast.Store(true)
-			c.LastBroadcast = time.Now()
-			if err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
-				//TODO warn
-				c.Ban(DefaultBanTime)
-				return
+				block.WantBroadcast.Store(true)
+				c.LastBroadcast = time.Now()
+				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+					//TODO warn
+					c.Ban(DefaultBanTime)
+					return
+				} else {
+					for _, id := range missingBlocks {
+						c.SendBlockRequest(id)
+					}
+				}
 			}
 		case MessagePeerListRequest:
 			//TODO

@@ -10,6 +10,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
+	"log"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -66,18 +67,18 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 	return nil
 }
 
-func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (err error) {
+func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error) {
 	// Technically some p2pool node could keep stuffing block with transactions until reward is less than 0.6 XMR
 	// But default transaction picking algorithm never does that. It's better to just ban such nodes
 	if block.Main.Coinbase.TotalReward < 600000000000 {
-		return errors.New("block reward too low")
+		return nil, errors.New("block reward too low")
 	}
 
 	// Enforce deterministic tx keys starting from v15
 	if block.Main.MajorVersion >= monero.HardForkViewTagsVersion {
 		kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
 		if bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) != 0 || bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) != 0 {
-			return errors.New("invalid deterministic transaction keys")
+			return nil, errors.New("invalid deterministic transaction keys")
 		}
 	}
 	// Both tx types are allowed by Monero consensus during v15 because it needs to process pre-fork mempool transactions,
@@ -85,31 +86,33 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (err error) {
 	expectedTxType := c.GetTransactionOutputType(block.Main.MajorVersion)
 
 	if err = c.PreprocessBlock(block); err != nil {
-		return err
+		return nil, err
 	}
 	for _, o := range block.Main.Coinbase.Outputs {
 		if o.Type != expectedTxType {
-			return errors.New("unexpected transaction type")
+			return nil, errors.New("unexpected transaction type")
 		}
 	}
 
 	templateId := c.Consensus().CalculateSideTemplateId(&block.Main, &block.Side)
 	if templateId != block.SideTemplateId(c.Consensus()) {
-		return fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String())
+		return nil, fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String())
 	}
 
 	if block.Side.Difficulty.Cmp64(c.Consensus().MinimumDifficulty) < 0 {
-		return fmt.Errorf("block has invalid difficulty %d, expected >= %d", block.Side.Difficulty.Lo, c.Consensus().MinimumDifficulty)
+		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty)
 	}
 
 	//TODO: cache?
-	expectedDifficulty := c.GetDifficulty(block)
-	tooLowDiff := block.Side.Difficulty.Cmp(expectedDifficulty) < 0
+	//expectedDifficulty := c.GetDifficulty(block)
+	//tooLowDiff := block.Side.Difficulty.Cmp(expectedDifficulty) < 0
+	tooLowDiff := false
+	var expectedDifficulty types.Difficulty
 
 	if otherBlock := c.GetPoolBlockByTemplateId(templateId); otherBlock != nil {
 		//already added
 		//TODO: specifically check Main id for nonce changes! p2pool does not do this
-		return nil
+		return nil, nil
 	}
 
 	// This is mainly an anti-spam measure, not an actual verification step
@@ -128,34 +131,47 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (err error) {
 	//TODO log
 
 	if tooLowDiff {
-		//TODO warn
-		return nil
+		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric())
 	}
 
 	// This check is not always possible to perform because of mainchain reorgs
 	//TODO: cache current miner data?
 	if data := mainblock.GetBlockHeaderByHash(block.Main.PreviousId); data != nil {
 		if data.Height+1 != block.Main.Coinbase.GenHeight {
-			return fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1)
+			return nil, fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1)
 		}
 	} else {
 		//TODO warn unknown block, reorg
 	}
 
 	if _, err := block.PowHashWithError(); err != nil {
-		return err
+		return nil, err
 	} else {
 		//TODO: fast monero submission
 		if isHigher, err := block.IsProofHigherThanDifficultyWithError(); err != nil {
-			return err
+			return nil, err
 		} else if !isHigher {
-			return fmt.Errorf("not enough PoW for height = %d, mainchain height %d", block.Side.Height, block.Main.Coinbase.GenHeight)
+			return nil, fmt.Errorf("not enough PoW for height = %d, mainchain height %d", block.Side.Height, block.Main.Coinbase.GenHeight)
 		}
 	}
 
 	//TODO: block found section
 
-	return c.AddPoolBlock(block)
+	return func() []types.Hash {
+		c.blocksByLock.RLock()
+		defer c.blocksByLock.RUnlock()
+		missing := make([]types.Hash, 0, 4)
+		if block.Side.Parent != types.ZeroHash && c.getPoolBlockByTemplateId(block.Side.Parent) == nil {
+			missing = append(missing, block.Side.Parent)
+		}
+
+		for _, uncleId := range block.Side.Uncles {
+			if uncleId != types.ZeroHash && c.getPoolBlockByTemplateId(uncleId) == nil {
+				missing = append(missing, uncleId)
+			}
+		}
+		return missing
+	}(), c.AddPoolBlock(block)
 }
 
 func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
@@ -180,44 +196,50 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		if !block.Invalid.Load() {
 			c.updateChainTip(block)
 		}
-	} else {
-		c.verifyLoop(block)
-	}
 
-	return nil
+		return nil
+	} else {
+		return c.verifyLoop(block)
+	}
 }
 
-func (c *SideChain) verifyLoop(block *PoolBlock) {
+func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 	// PoW is already checked at this point
 
 	blocksToVerify := make([]*PoolBlock, 1, 8)
-	blocksToVerify[0] = block
+	blocksToVerify[0] = blockToVerify
 	var highestBlock *PoolBlock
 	for len(blocksToVerify) != 0 {
-		block = blocksToVerify[len(blocksToVerify)-1]
+		block := blocksToVerify[len(blocksToVerify)-1]
 		blocksToVerify = blocksToVerify[:len(blocksToVerify)-1]
 
 		if block.Verified.Load() {
 			continue
 		}
 
-		c.verifyBlock(block)
-
-		if !block.Verified.Load() {
-			//TODO log
-			continue
-		}
-		if block.Invalid.Load() {
-			//TODO log
+		if verification, invalid := c.verifyBlock(block); invalid != nil {
+			log.Printf("[SideChain] block at height = %d, id = %s, mainchain height = %d, mined by %s is invalid: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), invalid.Error())
+			block.Invalid.Store(true)
+			block.Verified.Store(verification == nil)
+			if block == blockToVerify {
+				//Save error for return
+				err = invalid
+			}
+		} else if verification != nil {
+			log.Printf("[SideChain] can't verify block at height = %d, id = %s, mainchain height = %d, mined by %s: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), verification.Error())
+			block.Verified.Store(false)
+			block.Invalid.Store(false)
 		} else {
-			//TODO log
+			block.Verified.Store(true)
+			block.Invalid.Store(false)
+			log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58())
 
 			// This block is now verified
 
 			if isLongerChain, _ := c.IsLongerChain(highestBlock, block); isLongerChain {
 				highestBlock = block
 			} else if highestBlock != nil && highestBlock.Side.Height > block.Side.Height {
-				//TODO log
+				log.Printf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
 			}
 
 			if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
@@ -238,20 +260,21 @@ func (c *SideChain) verifyLoop(block *PoolBlock) {
 	if highestBlock != nil {
 		c.updateChainTip(highestBlock)
 	}
+
+	return
 }
 
-func (c *SideChain) verifyBlock(block *PoolBlock) {
+func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid error) {
 	// Genesis
 	if block.Side.Height == 0 {
 		if block.Side.Parent != types.ZeroHash ||
 			len(block.Side.Uncles) != 0 ||
 			block.Side.Difficulty.Cmp64(c.Consensus().MinimumDifficulty) != 0 ||
 			block.Side.CumulativeDifficulty.Cmp64(c.Consensus().MinimumDifficulty) != 0 {
-			block.Invalid.Store(true)
+			return nil, errors.New("genesis block has invalid parameters")
 		}
-		block.Verified.Store(true)
 		//this does not verify coinbase outputs, but that's fine
-		return
+		return nil, nil
 	}
 
 	// Deep block
@@ -261,33 +284,28 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 	// Also, having so many blocks on top of this one means it was verified by the network at some point
 	// We skip checks in this case to make pruning possible
 	if block.Depth.Load() >= c.Consensus().ChainWindowSize*2 {
-		//TODO log
-		block.Verified.Store(true)
-		block.Invalid.Store(false)
-		return
+		log.Printf("[SideChain] block at height = %d, id = %s skipped verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
+		return nil, nil
 	}
 
 	//Regular block
 	//Must have parent
 	if block.Side.Parent == types.ZeroHash {
-		block.Verified.Store(true)
-		block.Invalid.Store(true)
-		return
+		return nil, errors.New("block must have a parent")
 	}
 
 	if parent := c.getParent(block); parent != nil {
 		// If it's invalid then this block is also invalid
+		if !parent.Verified.Load() {
+			return errors.New("parent is not verified"), nil
+		}
 		if parent.Invalid.Load() {
-			block.Verified.Store(false)
-			block.Invalid.Store(false)
-			return
+			return nil, errors.New("parent is invalid")
 		}
 
 		expectedHeight := parent.Side.Height + 1
 		if expectedHeight != block.Side.Height {
-			//TODO WARN
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("wrong height, expected %d", expectedHeight)
 		}
 
 		// Uncle hashes must be sorted in the ascending order to prevent cheating when the same hash is repeated multiple times
@@ -296,10 +314,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 				continue
 			}
 			if bytes.Compare(block.Side.Uncles[i-1][:], uncleId[:]) < 0 {
-				//TODO warn
-				block.Verified.Store(true)
-				block.Invalid.Store(true)
-				return
+				return nil, errors.New("invalid uncle order")
 			}
 		}
 
@@ -324,51 +339,36 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 			// Empty hash is only used in the genesis block and only for its parent
 			// Uncles can't be empty
 			if uncleId == types.ZeroHash {
-				//TODO warn
-				block.Verified.Store(true)
-				block.Invalid.Store(true)
-				return
+				return nil, errors.New("empty uncle hash")
 			}
 
 			// Can't mine the same uncle block twice
 			if slices.Index(minedBlocks, uncleId) != -1 {
-				//TODO warn
-				block.Verified.Store(true)
-				block.Invalid.Store(true)
-				return
+				return nil, fmt.Errorf("uncle %s has already been mined", uncleId.String())
 			}
 
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
-				block.Verified.Store(false)
-				return
+				return errors.New("uncle does not exist"), nil
+			} else if !uncle.Verified.Load() {
+				// If it's invalid then this block is also invalid
+				return errors.New("uncle is not verified"), nil
 			} else if uncle.Invalid.Load() {
 				// If it's invalid then this block is also invalid
-				block.Verified.Store(true)
-				block.Invalid.Store(true)
-				return
+				return nil, errors.New("uncle is invalid")
 			} else if uncle.Side.Height >= block.Side.Height || (uncle.Side.Height+UncleBlockDepth < block.Side.Height) {
-				//TODO warn
-				block.Verified.Store(true)
-				block.Invalid.Store(true)
-				return
+				return nil, fmt.Errorf("uncle at the wrong height (%d)", uncle.Side.Height)
 			} else {
 				// Check that uncle and parent have the same ancestor (they must be on the same chain)
 				tmp := parent
 				for tmp.Side.Height > uncle.Side.Height {
 					tmp = c.getParent(tmp)
 					if tmp == nil {
-						//TODO warn
-						block.Verified.Store(true)
-						block.Invalid.Store(true)
-						return
+						return nil, errors.New("uncle from different chain (check 1)")
 					}
 				}
 
 				if tmp.Side.Height < uncle.Side.Height {
-					//TODO warn
-					block.Verified.Store(true)
-					block.Invalid.Store(true)
-					return
+					return nil, errors.New("uncle from different chain (check 2)")
 				}
 
 				if sameChain := func() bool {
@@ -382,10 +382,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 					}
 					return false
 				}(); !sameChain {
-					//TODO warn
-					block.Verified.Store(true)
-					block.Invalid.Store(true)
-					return
+					return nil, errors.New("uncle from different chain (check 3)")
 				}
 
 				expectedCumulativeDifficulty = expectedCumulativeDifficulty.Add(uncle.Side.Difficulty)
@@ -396,79 +393,55 @@ func (c *SideChain) verifyBlock(block *PoolBlock) {
 
 		// We can verify this block now (all previous blocks in the window are verified and valid)
 		// It can still turn out to be invalid
-		block.Verified.Store(true)
 
 		if !block.Side.CumulativeDifficulty.Equals(expectedCumulativeDifficulty) {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("wrong cumulative difficulty, got %s, expected %s", block.Side.CumulativeDifficulty.StringNumeric(), expectedCumulativeDifficulty.StringNumeric())
 		}
 
 		// Verify difficulty and miner rewards only for blocks in PPLNS window
 		if block.Depth.Load() >= c.Consensus().ChainWindowSize {
-			//TODO warn
-			block.Invalid.Store(true)
+			log.Printf("[SideChain] block at height = %d, id = %s skipped diff/reward verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
 			return
 		}
 
 		if diff := c.getDifficulty(parent); diff == types.ZeroDifficulty {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, errors.New("could not get difficulty")
 		} else if diff != block.Side.Difficulty {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("wrong difficulty, got %s, expected %s", block.Side.Difficulty.StringNumeric(), diff.StringNumeric())
 		}
 
 		if shares := c.getShares(block); len(shares) == 0 {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, errors.New("could not get outputs")
 		} else if len(shares) != len(block.Main.Coinbase.Outputs) {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(shares))
 		} else if totalReward := func() (result uint64) {
 			for _, o := range block.Main.Coinbase.Outputs {
 				result += o.Reward
 			}
 			return
 		}(); totalReward != block.Main.Coinbase.TotalReward {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("invalid total reward, got %d, expected %d", block.Main.Coinbase.TotalReward, totalReward)
 		} else if rewards := c.SplitReward(totalReward, shares); len(rewards) != len(block.Main.Coinbase.Outputs) {
-			//TODO warn
-			block.Invalid.Store(true)
-			return
+			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
 			for i, reward := range rewards {
 				out := block.Main.Coinbase.Outputs[i]
 				if reward != out.Reward {
-					//TODO warn
-					block.Invalid.Store(true)
-					return
+					return nil, fmt.Errorf("has invalid reward at index %d, got %d, expected %d", i, out.Reward, reward)
 				}
 
 				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&shares[i].Address, &block.Side.CoinbasePrivateKey, uint64(i)); ephPublicKey != out.EphemeralPublicKey {
-					//TODO warn
-					block.Invalid.Store(true)
-					return
+					return nil, fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", i, out.EphemeralPublicKey.String(), ephPublicKey.String())
 				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
-					//TODO warn
-					block.Invalid.Store(true)
-					return
+					return nil, fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", i, out.ViewTag, viewTag)
 				}
 			}
 		}
 
 		// All checks passed
-		block.Invalid.Store(false)
-		return
+		return nil, nil
 	} else {
-		block.Verified.Store(false)
-		return
+		return errors.New("parent does not exist"), nil
 	}
 }
 
@@ -670,7 +643,7 @@ func (c *SideChain) SplitReward(reward uint64, shares Shares) (rewards []uint64)
 }
 
 func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
-	shares = make([]Share, 0, c.Consensus().ChainWindowSize*2)
+	shares = make(Shares, 0, c.Consensus().ChainWindowSize*2)
 
 	var blockDepth uint64
 
@@ -681,7 +654,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 		curShare.Address = *cur.GetAddress()
 
 		for _, uncleId := range cur.Side.Uncles {
-			if uncle := c.GetPoolBlockByTemplateId(uncleId); uncle == nil {
+			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
 				//cannot find uncles
 				return nil
 			} else {
@@ -712,7 +685,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 			break
 		}
 
-		cur = c.getPoolBlockByTemplateId(cur.SideTemplateId(c.Consensus()))
+		cur = c.getParent(cur)
 
 		if cur == nil {
 			return nil
@@ -725,7 +698,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 	})
 
 	k := 0
-	for i := 0; i < len(shares); i++ {
+	for i := 1; i < len(shares); i++ {
 		if shares[i].Address.Compare(&shares[k].Address) == 0 {
 			shares[k].Weight += shares[i].Weight
 		} else {
@@ -735,7 +708,7 @@ func (c *SideChain) getShares(tip *PoolBlock) (shares Shares) {
 		}
 	}
 
-	return slices.Clone(shares[:k+1])
+	return shares[:k+1]
 }
 
 type DifficultyData struct {
@@ -784,7 +757,7 @@ func (c *SideChain) getDifficulty(tip *PoolBlock) types.Difficulty {
 			break
 		}
 
-		cur = c.getPoolBlockByTemplateId(cur.SideTemplateId(c.Consensus()))
+		cur = c.getParent(cur)
 
 		if cur == nil {
 			return types.ZeroDifficulty
@@ -832,7 +805,7 @@ func (c *SideChain) getDifficulty(tip *PoolBlock) types.Difficulty {
 
 	product := deltaDiff.Mul64(c.Consensus().TargetBlockTime)
 
-	if product.Cmp64(deltaT) >= 0 {
+	if product.Hi >= deltaT {
 		//TODO: error, calculated difficulty too high
 		return types.ZeroDifficulty
 	}
@@ -859,6 +832,12 @@ func (c *SideChain) GetPoolBlockByTemplateId(id types.Hash) *PoolBlock {
 	c.blocksByLock.RLock()
 	defer c.blocksByLock.RUnlock()
 	return c.getPoolBlockByTemplateId(id)
+}
+
+func (c *SideChain) GetPoolBlockCount() int {
+	c.blocksByLock.RLock()
+	defer c.blocksByLock.RUnlock()
+	return len(c.blocksByTemplateId)
 }
 
 func (c *SideChain) getPoolBlockByTemplateId(id types.Hash) *PoolBlock {

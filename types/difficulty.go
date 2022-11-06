@@ -237,6 +237,10 @@ func (d Difficulty) String() string {
 	return hex.EncodeToString(d.Bytes())
 }
 
+func (d Difficulty) StringNumeric() string {
+	return uint128.Uint128(d).String()
+}
+
 var powBase = uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
 
 func DifficultyFromPoW(powHash Hash) Difficulty {

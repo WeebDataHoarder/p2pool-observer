@@ -54,9 +54,9 @@ func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKey crypt
 	copy(key[:], a.SpendPublicKey().AsSlice())
 	copy(key[types.HashSize:], sharedData.AsSlice())
 	if ephemeralPubKey := d.ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
-		copy((*ephemeralPubKey)[:], address.GetPublicKeyForSharedData(a, sharedData).AsSlice())
-		d.ephemeralPublicKeyCache.Set(key, *ephemeralPubKey)
-		return *ephemeralPubKey, viewTag
+		ephemeralPubKey := address.GetPublicKeyForSharedData(a, sharedData).AsBytes()
+		d.ephemeralPublicKeyCache.Set(key, ephemeralPubKey)
+		return ephemeralPubKey, viewTag
 	} else {
 		return *ephemeralPubKey, viewTag
 	}
