@@ -49,6 +49,12 @@ func FromBase58(address string) *Address {
 	if len(raw) != 69 {
 		return nil
 	}
+
+	if raw[0] != moneroutil.MainNetwork {
+		//TODO: support other chains
+		return nil
+	}
+
 	checksum := moneroutil.GetChecksum(raw[:65])
 	if bytes.Compare(checksum[:], raw[65:]) != 0 {
 		return nil
