@@ -15,14 +15,11 @@ type Address struct {
 	checksum []byte
 	// IsSubAddress Always false
 	IsSubAddress bool
-
 }
 
 func (a *Address) Compare(b Interface) int {
-	if c := bytes.Compare(a.SpendPub.AsSlice(), b.SpendPublicKey().AsSlice()); c != 0 {
-		return c
-	}
-	return bytes.Compare(a.ViewPub.AsSlice(), b.ViewPublicKey().AsSlice())
+	//TODO
+	return a.ToPackedAddress().Compare(b)
 }
 
 func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {

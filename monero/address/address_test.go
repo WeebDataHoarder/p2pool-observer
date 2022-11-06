@@ -14,6 +14,7 @@ var privateKey = edwards25519.NewScalar()
 
 var testAddress = FromBase58("42HEEF3NM9cHkJoPpDhNyJHuZ6DFhdtymCohF9CwP5KPM1Mp3eH2RVXCPRrxe4iWRogT7299R8PP7drGvThE8bHmRDq1qWp")
 var testAddress2 = FromBase58("4AQ3YkqG2XdWsPHEgrDGdyQLq1qMMGFqWTFJfrVQW99qPmCzZKvJqzxgf5342KC17o9bchfJcUzLhVW9QgNKTYUBLg876Gt")
+var testAddress3 = FromBase58("47Eqp7fsvVnPPSU4rsXrKJhyAme6LhDRZDzFky9xWsWUS9pd6FPjJCMDCNX1NnNiDzTwfbAgGMk2N6A1aucNcrkhLffta1p")
 
 var ephemeralPubKey, _ = hex.DecodeString("20efc1310db960b0e8d22c8b85b3414fcaa1ed9aab40cf757321dd6099a62d5e")
 
@@ -42,5 +43,11 @@ func TestDeterministic(t *testing.T) {
 	detTx := types.HashFromBytes(GetDeterministicTransactionPrivateKey(testAddress2, previousId).AsSlice())
 	if detTx != detTxPriv {
 		t.Fatal()
+	}
+}
+
+func TestSort(t *testing.T) {
+	if testAddress2.Compare(testAddress3) != -1 {
+		t.Fatalf("expected address2 < address3, got %d", testAddress2.Compare(testAddress3))
 	}
 }
