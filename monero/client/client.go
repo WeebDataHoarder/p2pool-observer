@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -110,6 +112,145 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 		}
 	} else {
 		return *tx, nil
+	}
+}
+
+type TransactionInputResult struct {
+	Id types.Hash
+	UnlockTime uint64
+	Inputs []TransactionInput
+}
+
+type TransactionInput struct {
+	InputType uint8
+	Amount uint64
+	KeyOffsets []uint64
+	KeyImage types.Hash
+}
+
+func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputResult, error) {
+	<-c.throttler
+
+	if result, err := c.d.GetTransactions(context.Background(), func() []string {
+		result := make([]string, 0, len(hashes))
+		for _, h := range hashes {
+			result = append(result, h.String())
+		}
+		return result
+	}()); err != nil {
+		return nil, err
+	} else {
+		if len(result.Txs) != len(hashes) {
+			return nil, errors.New("invalid transaction count")
+		}
+
+		var (
+			Version uint8
+			InputCount uint8
+
+			OffsetCount uint8
+		)
+
+		s := make([]TransactionInputResult, len(result.Txs))
+
+		for ix := range result.Txs {
+			s[ix].Id = hashes[ix]
+			if buf, err := hex.DecodeString(result.Txs[ix].AsHex); err != nil {
+				return nil, err
+			} else {
+				reader := bytes.NewReader(buf)
+				if Version, err = reader.ReadByte(); err != nil {
+					return nil, err
+				}
+
+				if Version != 2 {
+					return nil, errors.New("version not supported")
+				}
+
+				if s[ix].UnlockTime, err = binary.ReadUvarint(reader); err != nil {
+					return nil, err
+				}
+
+				if InputCount, err = reader.ReadByte(); err != nil {
+					return nil, err
+				}
+
+
+				s[ix].Inputs = make([]TransactionInput, InputCount)
+
+				for i := 0; i < int(InputCount); i++ {
+					if s[ix].Inputs[i].InputType, err = reader.ReadByte(); err != nil {
+						return nil, err
+					}
+					if s[ix].Inputs[i].Amount, err = binary.ReadUvarint(reader); err != nil {
+						return nil, err
+					}
+					if s[ix].Inputs[i].InputType != transaction.TxInToKey {
+						continue
+					}
+					if OffsetCount, err = reader.ReadByte(); err != nil {
+						return nil, err
+					}
+
+					s[ix].Inputs[i].KeyOffsets = make([]uint64, OffsetCount)
+
+					for j := 0; j < int(OffsetCount); j++ {
+						if s[ix].Inputs[i].KeyOffsets[j], err = binary.ReadUvarint(reader); err != nil {
+							return nil, err
+						}
+
+						if j > 0 {
+							s[ix].Inputs[i].KeyOffsets[j] += s[ix].Inputs[i].KeyOffsets[j-1]
+						}
+					}
+
+					if err = binary.Read(reader, binary.LittleEndian, &s[ix].Inputs[i].KeyImage); err != nil {
+						return nil, err
+					}
+				}
+			}
+		}
+
+		return s, nil
+	}
+}
+
+type Output struct {
+	Height uint64
+	Key types.Hash
+	Mask types.Hash
+	TransactionId types.Hash
+	Unlocked bool
+}
+
+
+func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
+	<-c.throttler
+
+	if result, err := c.d.GetOuts(context.Background(), func() []uint {
+		r := make([]uint, len(inputs))
+		for i, v := range inputs {
+			r[i] = uint(v)
+		}
+		return r
+	}(), true); err != nil {
+		return nil, err
+	} else {
+		if len(result.Outs) != len(inputs) {
+			return nil, errors.New("invalid output count")
+		}
+
+		s := make([]Output, len(inputs))
+		for i := range result.Outs {
+			o := &result.Outs[i]
+			s[i].Height = o.Height
+			s[i].Key, _ = types.HashFromString(o.Key)
+			s[i].Mask, _ = types.HashFromString(o.Mask)
+			s[i].TransactionId, _ = types.HashFromString(o.Txid)
+			s[i].Unlocked = o.Unlocked
+		}
+
+		return s, nil
 	}
 }
 
