@@ -100,7 +100,7 @@ func (d *DerivationCache) GetDerivation(a address.Interface, txKey crypto.Privat
 	copy(key[types.HashSize:], txKey.AsSlice())
 
 	if derivation := d.derivationCache.Get(key); derivation == nil {
-		data := txKey.GetDerivation8(a.ViewPublicKey())
+		data := txKey.GetDerivationCofactor(a.ViewPublicKey())
 		d.derivationCache.Set(key, data.AsPoint())
 		return data.AsPoint()
 	} else {

@@ -6,17 +6,17 @@ import (
 )
 
 func BytesToScalar(buf []byte) *edwards25519.Scalar {
-	var wideBytes [64]byte
-	copy(wideBytes[:], buf[:])
-	c, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
+	var bytes [32]byte
+	copy(bytes[:], buf[:])
+	scReduce32(bytes[:])
+	c, _ := edwards25519.NewScalar().SetCanonicalBytes(bytes[:])
 	return c
 }
 
 func HashToScalar(data ...[]byte) *edwards25519.Scalar {
 	h := moneroutil.Keccak256(data...)
-	var wideBytes [64]byte
-	copy(wideBytes[:], h[:])
-	c, _ := edwards25519.NewScalar().SetUniformBytes(wideBytes[:])
+	scReduce32(h[:])
+	c, _ := edwards25519.NewScalar().SetCanonicalBytes(h[:])
 	return c
 }
 

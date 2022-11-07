@@ -68,7 +68,7 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 	result = make([]outputResult, 0, len(miners))
 
 	for _, k := range sortedAddresses {
-		derivation := privateKey.GetDerivation8(k.ViewPublicKey())
+		derivation := privateKey.GetDerivationCofactor(k.ViewPublicKey())
 		for i, o := range outputs {
 			if o == nil {
 				continue

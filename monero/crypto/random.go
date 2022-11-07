@@ -9,23 +9,6 @@ import (
 	"unsafe"
 )
 
-// limit = 2^252 + 27742317777372353535851937790883648493.
-// limit fits 15 times in 32 bytes (iow, 15 l is the highest multiple of l that fits in 32 bytes)
-var limit = []byte{0xe3, 0x6a, 0x67, 0x72, 0x8b, 0xce, 0x13, 0x29, 0x8f, 0x30, 0x82, 0x8c, 0x0b, 0xa4, 0x10, 0x39, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0}
-
-// less32 each input must be at least 32 bytes long
-func less32(a, b []byte) bool {
-	for n := 31; n >= 0; n-- {
-		if a[n] < b[n] {
-			return true
-		} else if a[n] > b[n] {
-			return false
-		}
-	}
-
-	return false
-}
-
 func RandomScalar() *edwards25519.Scalar {
 	buf := make([]byte, 32)
 	for {
@@ -50,7 +33,7 @@ func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
 
 	entropy = append(entropy, make([]byte, int(unsafe.Sizeof(counter))))
 	h := sha3.NewLegacyKeccak256()
-	var hash [types.HashSize*2]byte
+	var hash types.Hash
 
 	scalar := edwards25519.NewScalar()
 
@@ -62,10 +45,11 @@ func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
 			_, _ = h.Write(entropy[i])
 		}
 		_ = h.Sum(hash[:0])
-		if !less32(hash[:types.HashSize], limit) {
+		if !less32(hash[:], limit) {
 			continue
 		}
-		scalar, _ = scalar.SetUniformBytes(hash[:])
+		scReduce32(hash[:])
+		scalar, _ = scalar.SetCanonicalBytes(hash[:])
 
 		if scalar.Equal(zeroScalar) == 0 {
 			return scalar

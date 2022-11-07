@@ -26,7 +26,7 @@ func init() {
 }
 
 func TestAddress(t *testing.T) {
-	derivation := crypto.PrivateKeyFromScalar(privateKey).GetDerivation8(testAddress.ViewPublicKey())
+	derivation := crypto.PrivateKeyFromScalar(privateKey).GetDerivationCofactor(testAddress.ViewPublicKey())
 
 	sharedData := crypto.GetDerivationSharedDataForOutputIndex(derivation, 37)
 	ephemeralPublicKey := GetPublicKeyForSharedData(testAddress, sharedData)

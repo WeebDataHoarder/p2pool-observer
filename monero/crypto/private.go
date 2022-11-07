@@ -17,8 +17,8 @@ type PrivateKey interface {
 	// GetDerivation derives a secret via a peer PublicKey, ECDH
 	GetDerivation(public PublicKey) PublicKey
 
-	// GetDerivation8 derives a secret via a peer PublicKey, ECDH, making sure it is in the proper range (*8)
-	GetDerivation8(public PublicKey) PublicKey
+	// GetDerivationCofactor derives a secret via a peer PublicKey, ECDH, making sure it is in the proper range (*8)
+	GetDerivationCofactor(public PublicKey) PublicKey
 
 	String() string
 	UnmarshalJSON(b []byte) error
@@ -57,8 +57,8 @@ func (p *PrivateKeyScalar) GetDerivation(public PublicKey) PublicKey {
 	return deriveKeyExchangeSecret(p, public.AsPoint())
 }
 
-func (p *PrivateKeyScalar) GetDerivation8(public PublicKey) PublicKey {
-	return deriveKeyExchangeSecret8(p, public.AsPoint())
+func (p *PrivateKeyScalar) GetDerivationCofactor(public PublicKey) PublicKey {
+	return deriveKeyExchangeSecretCofactor(p, public.AsPoint())
 }
 
 
@@ -111,8 +111,8 @@ func (k *PrivateKeyBytes) GetDerivation(public PublicKey) PublicKey {
 	return k.AsScalar().GetDerivation(public)
 }
 
-func (k *PrivateKeyBytes) GetDerivation8(public PublicKey) PublicKey {
-	return k.AsScalar().GetDerivation8(public)
+func (k *PrivateKeyBytes) GetDerivationCofactor(public PublicKey) PublicKey {
+	return k.AsScalar().GetDerivationCofactor(public)
 }
 
 
@@ -163,8 +163,8 @@ func (k *PrivateKeySlice) GetDerivation(public PublicKey) PublicKey {
 	return k.AsScalar().GetDerivation(public)
 }
 
-func (k *PrivateKeySlice) GetDerivation8(public PublicKey) PublicKey {
-	return k.AsScalar().GetDerivation8(public)
+func (k *PrivateKeySlice) GetDerivationCofactor(public PublicKey) PublicKey {
+	return k.AsScalar().GetDerivationCofactor(public)
 }
 
 
@@ -191,8 +191,8 @@ func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {
 }
 
 
-func deriveKeyExchangeSecret8(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {
-	return public.Multiply(private).Multiply(PrivateKeyFromScalar(scalar8))
+func deriveKeyExchangeSecretCofactor(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {
+	return public.Multiply(private).Cofactor()
 }
 
 func deriveKeyExchangeSecret(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {

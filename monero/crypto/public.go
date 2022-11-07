@@ -49,6 +49,10 @@ func (k *PublicKeyPoint) Multiply(b *PrivateKeyScalar) *PublicKeyPoint{
 	return PublicKeyFromPoint((&edwards25519.Point{}).ScalarMult(b.Scalar(), k.Point()))
 }
 
+func (k *PublicKeyPoint) Cofactor() *PublicKeyPoint{
+	return PublicKeyFromPoint((&edwards25519.Point{}).MultByCofactor(k.Point()))
+}
+
 func PublicKeyFromPoint(point *edwards25519.Point, _ ...any) *PublicKeyPoint {
 	return (*PublicKeyPoint)(point)
 }
@@ -125,7 +129,7 @@ func (k *PublicKeySlice) AsSlice() PublicKeySlice {
 
 func (k *PublicKeySlice) AsBytes() (buf PublicKeyBytes) {
 	copy(buf[:], *k)
-	return
+	return buf
 }
 
 func (k *PublicKeySlice) AsPoint() *PublicKeyPoint {
