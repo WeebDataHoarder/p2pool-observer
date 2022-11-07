@@ -181,6 +181,11 @@ func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 
 func (s *Server) Close() {
 	if !s.close.Swap(true) && s.listener != nil {
+		s.clientsLock.Lock()
+		defer s.clientsLock.Unlock()
+		for _, c := range s.clients {
+			c.Connection.Close()
+		}
 		s.listener.Close()
 	}
 }
@@ -213,7 +218,9 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 	}
 
 	for _, c := range s.Clients() {
-		c.SendMessage(message)
+		if c.HandshakeComplete.Load() {
+			c.SendMessage(message)
+		}
 	}
 }
 

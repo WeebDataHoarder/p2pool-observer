@@ -200,7 +200,7 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 	}
 	c.blocksByTemplateId[block.SideTemplateId(c.Consensus())] = block
 
-	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load())
+	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
 
 	if l, ok := c.blocksByHeight[block.Side.Height]; ok {
 		c.blocksByHeight[block.Side.Height] = append(l, block)

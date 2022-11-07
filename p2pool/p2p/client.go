@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"bufio"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
+	"io"
 	"log"
 	"net"
 	"net/netip"
@@ -33,7 +35,7 @@ type Client struct {
 	LastPeerListRequestTime time.Time
 	PeerId               uint64
 	IsIncomingConnection bool
-	HandshakeComplete    bool
+	HandshakeComplete    atomic.Bool
 	ListenPort           uint32
 
 	BlockPendingRequests int64
@@ -188,14 +190,14 @@ func (c *Client) OnConnection() {
 			return
 		}
 
-		if !c.HandshakeComplete && messageId != c.expectedMessage {
+		if !c.HandshakeComplete.Load() && messageId != c.expectedMessage {
 			c.Ban(DefaultBanTime, fmt.Errorf("unexpected pre-handshake message: got %d, expected %d", messageId, c.expectedMessage))
 			return
 		}
 
 		switch messageId {
 		case MessageHandshakeChallenge:
-			if c.HandshakeComplete {
+			if c.HandshakeComplete.Load() {
 				c.Ban(DefaultBanTime, errors.New("got HANDSHAKE_CHALLENGE but handshake is complete"))
 				return
 			}
@@ -241,7 +243,7 @@ func (c *Client) OnConnection() {
 			c.OnAfterHandshake()
 
 		case MessageHandshakeSolution:
-			if c.HandshakeComplete {
+			if c.HandshakeComplete.Load() {
 				c.Ban(DefaultBanTime, errors.New("got HANDSHAKE_SOLUTION but handshake is complete"))
 				return
 			}
@@ -274,7 +276,7 @@ func (c *Client) OnConnection() {
 					return
 				}
 			}
-			c.HandshakeComplete = true
+			c.HandshakeComplete.Store(true)
 
 		case MessageListenPort:
 			if c.ListenPort != 0 {
@@ -324,7 +326,7 @@ func (c *Client) OnConnection() {
 				//NOT found
 				//TODO log
 			} else {
-				if err = block.FromReader(c); err != nil {
+				if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
@@ -364,7 +366,7 @@ func (c *Client) OnConnection() {
 			} else if blockSize == 0 {
 				//NOT found
 				//TODO log
-			} else if err = block.FromReader(c); err != nil {
+			} else if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 				//TODO warn
 				c.Ban(DefaultBanTime, err)
 				return
