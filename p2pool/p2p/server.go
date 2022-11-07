@@ -43,8 +43,8 @@ type Server struct {
 	MaxOutgoingPeers uint32
 	MaxIncomingPeers uint32
 
-	NumOutgoingConnections atomic.Uint32
-	NumIncomingConnections atomic.Uint32
+	NumOutgoingConnections atomic.Int32
+	NumIncomingConnections atomic.Int32
 
 	clientsLock sync.RWMutex
 	clients     []*Client
@@ -75,6 +75,14 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 
 func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
 	log.Printf("TODO AddToPeerList %s", addressPort.String())
+
+	if uint32(s.NumOutgoingConnections.Load()) < s.MaxOutgoingPeers {
+		go func() {
+			if err := s.Connect(addressPort); err != nil {
+				log.Printf("error connecting to %s: %s", addressPort.String(), err.Error())
+			}
+		}()
+	}
 }
 
 func (s *Server) Listen() (err error) {
@@ -87,18 +95,14 @@ func (s *Server) Listen() (err error) {
 				return err
 			} else {
 				if err = func() error {
-					if s.NumIncomingConnections.Load() > s.MaxIncomingPeers {
+					if uint32(s.NumIncomingConnections.Load()) > s.MaxIncomingPeers {
 						return errors.New("incoming connections limit was reached")
 					}
 					if addrPort, err := netip.ParseAddrPort(conn.RemoteAddr().String()); err != nil {
 						return err
 					} else if !addrPort.Addr().IsLoopback() {
-						s.clientsLock.RLock()
-						defer s.clientsLock.RUnlock()
-						for _, c := range s.clients {
-							if c.AddressPort.Addr().Compare(addrPort.Addr()) == 0 {
-								return errors.New("peer is already connected as " + c.AddressPort.String())
-							}
+						if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
+							return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 						}
 					}
 
@@ -117,6 +121,7 @@ func (s *Server) Listen() (err error) {
 					client := NewClient(s, conn)
 					client.IsIncomingConnection = true
 					s.clients = append(s.clients, client)
+					s.NumIncomingConnections.Add(1)
 					go client.OnConnection()
 				}()
 			}
@@ -127,14 +132,30 @@ func (s *Server) Listen() (err error) {
 	return nil
 }
 
-func (s *Server) Connect(addr netip.AddrPort) error {
-	if conn, err := net.Dial("tcp", addr.String()); err != nil {
+func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
+	s.clientsLock.RLock()
+	defer s.clientsLock.RUnlock()
+	for _, c := range s.clients {
+		if c.AddressPort.Addr().Compare(addr) == 0 {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+func (s *Server) Connect(addrPort netip.AddrPort) error {
+	if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
+		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
+	}
+
+	if conn, err := net.Dial("tcp", addrPort.String()); err != nil {
 		return err
 	} else {
 		s.clientsLock.Lock()
 		defer s.clientsLock.Unlock()
 		client := NewClient(s, conn)
 		s.clients = append(s.clients, client)
+		s.NumOutgoingConnections.Add(1)
 		go client.OnConnection()
 		return nil
 	}
@@ -146,8 +167,16 @@ func (s *Server) Clients() []*Client {
 	return slices.Clone(s.clients)
 }
 
-func (s *Server) Ban(ip netip.Addr, duration time.Duration) {
-	//TODO
+func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
+	//TODO: banlist
+	go func() {
+		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
+		if !ip.IsLoopback() {
+			for _, c := range s.GetAddressConnected(ip) {
+				c.Close()
+			}
+		}
+	}()
 }
 
 func (s *Server) Close() {
@@ -162,6 +191,10 @@ func (s *Server) PeerId() uint64 {
 
 func (s *Server) SideChain() *sidechain.SideChain {
 	return s.sidechain
+}
+
+func (s *Server) updateClients() {
+
 }
 
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {

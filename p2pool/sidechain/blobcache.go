@@ -120,7 +120,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 
 
 
-		if parent == nil || templateBlock == nil || (block.Side.Height % BlockSaveEpochSize) == 0 { //store full blocks every once in a while, or when there is no template block
+		if parent == nil || templateBlock == nil || block.Side.Height == fullBlockTemplateHeight { //store full blocks every once in a while, or when there is no template block
 			blockFlags |= BlockSaveOptionTemplate
 		} else {
 			if minerAddressOffset > 0 {

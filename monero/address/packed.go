@@ -7,11 +7,11 @@ import (
 	"unsafe"
 )
 
-type PackedAddress [crypto.PublicKeySize * 2]byte
+type PackedAddress [2]crypto.PublicKeyBytes
 
 func NewPackedAddressFromBytes(spend, view crypto.PublicKeyBytes) (result PackedAddress) {
-	copy(result[:], spend[:])
-	copy(result[crypto.PublicKeySize:], view[:])
+	copy(result[0][:], spend[:])
+	copy(result[1][:], view[:])
 	return
 }
 
@@ -19,23 +19,20 @@ func NewPackedAddress(spend, view crypto.PublicKey) (result PackedAddress) {
 	return NewPackedAddressFromBytes(spend.AsBytes(), view.AsBytes())
 }
 
+func (p *PackedAddress) Bytes() []byte {
+	return (*[crypto.PublicKeySize*2]byte)(unsafe.Pointer(p))[:]
+}
+
 func (p *PackedAddress) PublicKeys() (spend, view crypto.PublicKey) {
-	var s, v crypto.PublicKeyBytes
-	copy(s[:], (*p)[:])
-	copy(v[:], (*p)[crypto.PublicKeySize:])
-	return &s, &v
+	return &(*p)[0], &(*p)[1]
 }
 
 func (p *PackedAddress) SpendPublicKey() crypto.PublicKey {
-	var s crypto.PublicKeyBytes
-	copy(s[:], (*p)[:])
-	return &s
+	return &(*p)[0]
 }
 
 func (p *PackedAddress) ViewPublicKey() crypto.PublicKey {
-	var v crypto.PublicKeyBytes
-	copy(v[:], (*p)[crypto.PublicKeySize:])
-	return &v
+	return &(*p)[1]
 }
 
 func (p *PackedAddress) ToPackedAddress() *PackedAddress {
@@ -48,8 +45,8 @@ func (p *PackedAddress) Compare(otherI Interface) int {
 	//golang might free other otherwise
 	defer runtime.KeepAlive(other)
 	defer runtime.KeepAlive(p)
-	a := unsafe.Slice((*uint64)(unsafe.Pointer(p)), len(*p)/int(unsafe.Sizeof(uint64(0))))
-	b := unsafe.Slice((*uint64)(unsafe.Pointer(other)), len(*other)/int(unsafe.Sizeof(uint64(0))))
+	a := (*[(2*crypto.PublicKeySize)/8]uint64)(unsafe.Pointer(p))
+	b := (*[(2*crypto.PublicKeySize)/8]uint64)(unsafe.Pointer(other))
 
 	//compare spend key
 

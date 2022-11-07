@@ -3,6 +3,9 @@ package p2p
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
+	"errors"
+	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
@@ -36,11 +39,13 @@ type Client struct {
 	BlockPendingRequests int64
 	ChainTipBlockRequest bool
 
-	ExpectedMessage MessageId
+	expectedMessage MessageId
 
-	HandshakeChallenge HandshakeChallenge
+	handshakeChallenge HandshakeChallenge
 
 	messageChannel chan *ClientMessage
+
+	closeChannel chan struct{}
 
 	blockRequestThrottler <-chan time.Time
 }
@@ -51,16 +56,17 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		Connection:            conn,
 		AddressPort:           netip.MustParseAddrPort(conn.RemoteAddr().String()),
 		LastActive:            time.Now(),
-		ExpectedMessage:       MessageHandshakeChallenge,
+		expectedMessage:       MessageHandshakeChallenge,
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
-		messageChannel: make(chan *ClientMessage, 10),
+		messageChannel:        make(chan *ClientMessage, 10),
+		closeChannel:        make(chan struct{}),
 	}
 
 	return c
 }
 
-func (c *Client) Ban(duration time.Duration) {
-	c.Owner.Ban(c.AddressPort.Addr(), duration)
+func (c *Client) Ban(duration time.Duration, err error) {
+	c.Owner.Ban(c.AddressPort.Addr(), duration, err)
 	c.Close()
 }
 
@@ -162,40 +168,46 @@ func (c *Client) OnConnection() {
 	var missingBlocks []types.Hash
 
 	go func() {
-		for message := range c.messageChannel {
-			//log.Printf("Sending message %d len %d", message.MessageId, len(message.Buffer))
-			_, _ = c.Write([]byte{byte(message.MessageId)})
-			_, _ = c.Write(message.Buffer)
+		defer close(c.messageChannel)
+		for {
+			select {
+			case <-c.closeChannel:
+				return
+			case message := <- c.messageChannel:
+				//log.Printf("Sending message %d len %d", message.MessageId, len(message.Buffer))
+				_, _ = c.Write([]byte{byte(message.MessageId)})
+				_, _ = c.Write(message.Buffer)
+			}
 		}
 	}()
 
 	for !c.Closed.Load() {
 		var messageId MessageId
 		if err := binary.Read(c, binary.LittleEndian, &messageId); err != nil {
-			c.Ban(DefaultBanTime)
+			c.Ban(DefaultBanTime, err)
 			return
 		}
 
-		if !c.HandshakeComplete && messageId != c.ExpectedMessage {
-			c.Ban(DefaultBanTime)
+		if !c.HandshakeComplete && messageId != c.expectedMessage {
+			c.Ban(DefaultBanTime, fmt.Errorf("unexpected pre-handshake message: got %d, expected %d", messageId, c.expectedMessage))
 			return
 		}
 
 		switch messageId {
 		case MessageHandshakeChallenge:
 			if c.HandshakeComplete {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, errors.New("got HANDSHAKE_CHALLENGE but handshake is complete"))
 				return
 			}
 
 			var challenge HandshakeChallenge
 			var peerId uint64
 			if err := binary.Read(c, binary.LittleEndian, &challenge); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 			if err := binary.Read(c, binary.LittleEndian, &peerId); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 
@@ -224,41 +236,41 @@ func (c *Client) OnConnection() {
 
 			c.sendHandshakeSolution(challenge)
 
-			c.ExpectedMessage = MessageHandshakeSolution
+			c.expectedMessage = MessageHandshakeSolution
 
 			c.OnAfterHandshake()
 
 		case MessageHandshakeSolution:
 			if c.HandshakeComplete {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, errors.New("got HANDSHAKE_SOLUTION but handshake is complete"))
 				return
 			}
 
 			var challengeHash types.Hash
 			var solution uint64
 			if err := binary.Read(c, binary.LittleEndian, &challengeHash); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 			if err := binary.Read(c, binary.LittleEndian, &solution); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 
 			if c.IsIncomingConnection {
-				if hash, ok := CalculateChallengeHash(c.HandshakeChallenge, c.Owner.Consensus().Id(), solution); !ok {
+				if hash, ok := CalculateChallengeHash(c.handshakeChallenge, c.Owner.Consensus().Id(), solution); !ok {
 					//not enough PoW
-					c.Ban(DefaultBanTime)
+					c.Ban(DefaultBanTime, fmt.Errorf("not enough PoW on HANDSHAKE_SOLUTION, challenge = %s, solution = %d, calculated hash = %s, expected hash = %s", hex.EncodeToString(c.handshakeChallenge[:]), solution, hash.String(), challengeHash.String()))
 					return
 				} else if hash != challengeHash {
 					//wrong hash
-					c.Ban(DefaultBanTime)
+					c.Ban(DefaultBanTime, fmt.Errorf("wrong hash HANDSHAKE_SOLUTION, challenge = %s, solution = %d, calculated hash = %s, expected hash = %s", hex.EncodeToString(c.handshakeChallenge[:]), solution, hash.String(), challengeHash.String()))
 					return
 				}
 			} else {
-				if hash, _ := CalculateChallengeHash(c.HandshakeChallenge, c.Owner.Consensus().Id(), solution); hash != challengeHash {
+				if hash, _ := CalculateChallengeHash(c.handshakeChallenge, c.Owner.Consensus().Id(), solution); hash != challengeHash {
 					//wrong hash
-					c.Ban(DefaultBanTime)
+					c.Ban(DefaultBanTime, fmt.Errorf("wrong hash HANDSHAKE_SOLUTION, challenge = %s, solution = %d, calculated hash = %s, expected hash = %s", hex.EncodeToString(c.handshakeChallenge[:]), solution, hash.String(), challengeHash.String()))
 					return
 				}
 			}
@@ -266,17 +278,17 @@ func (c *Client) OnConnection() {
 
 		case MessageListenPort:
 			if c.ListenPort != 0 {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, errors.New("got LISTEN_PORT but we already received it"))
 				return
 			}
 
 			if err := binary.Read(c, binary.LittleEndian, &c.ListenPort); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 
 			if c.ListenPort == 0 || c.ListenPort >= 65536 {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, fmt.Errorf("listen port out of range: %d", c.ListenPort))
 				return
 			}
 		case MessageBlockRequest:
@@ -284,7 +296,7 @@ func (c *Client) OnConnection() {
 
 			var templateId types.Hash
 			if err := binary.Read(c, binary.LittleEndian, &templateId); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 
@@ -306,7 +318,7 @@ func (c *Client) OnConnection() {
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
 				//TODO warn
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			} else if blockSize == 0 {
 				//NOT found
@@ -314,7 +326,7 @@ func (c *Client) OnConnection() {
 			} else {
 				if err = block.FromReader(c); err != nil {
 					//TODO warn
-					c.Ban(DefaultBanTime)
+					c.Ban(DefaultBanTime, err)
 					return
 				} else {
 					if c.ChainTipBlockRequest {
@@ -330,7 +342,7 @@ func (c *Client) OnConnection() {
 					go func() {
 						if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 							//TODO warn
-							c.Ban(DefaultBanTime)
+							c.Ban(DefaultBanTime, err)
 							return
 						} else {
 							for _, id := range missingBlocks {
@@ -347,21 +359,21 @@ func (c *Client) OnConnection() {
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
 				//TODO warn
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			} else if blockSize == 0 {
 				//NOT found
 				//TODO log
 			} else if err = block.FromReader(c); err != nil {
 				//TODO warn
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			}
 			c.LastBroadcast = time.Now()
 			go func() {
 				if err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 					//TODO warn
-					c.Ban(DefaultBanTime)
+					c.Ban(DefaultBanTime, err)
 					return
 				} else {
 					//TODO: investigate different monero block mining
@@ -369,7 +381,7 @@ func (c *Client) OnConnection() {
 					block.WantBroadcast.Store(true)
 					if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 						//TODO warn
-						c.Ban(DefaultBanTime)
+						c.Ban(DefaultBanTime, err)
 						return
 					} else {
 						for _, id := range missingBlocks {
@@ -383,10 +395,10 @@ func (c *Client) OnConnection() {
 			c.SendPeerListResponse(nil)
 		case MessagePeerListResponse:
 			if numPeers, err := c.ReadByte(); err != nil {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, err)
 				return
 			} else if numPeers > PeerListResponseMaxPeers {
-				c.Ban(DefaultBanTime)
+				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
 				c.PingTime = utils.Max(time.Now().Sub(c.LastPeerListRequestTime), 0)
@@ -395,15 +407,15 @@ func (c *Client) OnConnection() {
 
 				for i := uint8(0); i < numPeers; i++ {
 					if isV6, err := c.ReadByte(); err != nil {
-						c.Ban(DefaultBanTime)
+						c.Ban(DefaultBanTime, err)
 						return
 					} else {
 
 						if _, err = c.Read(rawIp[:]); err != nil {
-							c.Ban(DefaultBanTime)
+							c.Ban(DefaultBanTime, err)
 							return
 						} else if err = binary.Read(c, binary.LittleEndian, &port); err != nil {
-							c.Ban(DefaultBanTime)
+							c.Ban(DefaultBanTime, err)
 							return
 						}
 						if isV6 != 0 {
@@ -416,21 +428,21 @@ func (c *Client) OnConnection() {
 			}
 			//TODO
 		default:
-			c.Ban(DefaultBanTime)
+			c.Ban(DefaultBanTime, fmt.Errorf("unknown MessageId %d", messageId))
 			return
 		}
 	}
 }
 
 func (c *Client) sendHandshakeChallenge() {
-	if _, err := rand.Read(c.HandshakeChallenge[:]); err != nil {
+	if _, err := rand.Read(c.handshakeChallenge[:]); err != nil {
 		log.Printf("[P2PServer] Unable to generate handshake challenge for %s", c.AddressPort.String())
 		c.Close()
 		return
 	}
 
 	var buf [HandshakeChallengeSize + int(unsafe.Sizeof(uint64(0)))]byte
-	copy(buf[:], c.HandshakeChallenge[:])
+	copy(buf[:], c.handshakeChallenge[:])
 	binary.LittleEndian.PutUint64(buf[HandshakeChallengeSize:], c.Owner.PeerId())
 
 	c.SendMessage(&ClientMessage{
@@ -481,7 +493,9 @@ type ClientMessage struct {
 }
 
 func (c *Client) SendMessage(message *ClientMessage) {
-	c.messageChannel <- message
+	if !c.Closed.Load() {
+		c.messageChannel <- message
+	}
 }
 
 // ReadByte reads from underlying connection, on error it will Close
@@ -515,8 +529,13 @@ func (c *Client) Close() {
 		c.Owner.clientsLock.Lock()
 		defer c.Owner.clientsLock.Unlock()
 		c.Owner.clients = slices.Delete(c.Owner.clients, i, i)
+		if c.IsIncomingConnection {
+			c.Owner.NumIncomingConnections.Add(-1)
+		} else {
+			c.Owner.NumOutgoingConnections.Add(-1)
+		}
 	}
 
 	_ = c.Connection.Close()
-	close(c.messageChannel)
+	close(c.closeChannel)
 }

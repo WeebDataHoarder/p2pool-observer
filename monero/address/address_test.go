@@ -51,3 +51,21 @@ func TestSort(t *testing.T) {
 		t.Fatalf("expected address2 < address3, got %d", testAddress2.Compare(testAddress3))
 	}
 }
+
+func BenchmarkCoinbaseDerivation(b *testing.B) {
+	packed := testAddress3.ToPackedAddress()
+	txKey := crypto.PrivateKeyFromScalar(privateKey)
+	for i := 0; i < b.N; i++ {
+		GetEphemeralPublicKey(packed, txKey, uint64(i))
+	}
+}
+
+func BenchmarkCoinbaseDerivationInline(b *testing.B) {
+	packed := testAddress3.ToPackedAddress()
+	spendPub, viewPub := packed.SpendPublicKey().AsPoint().Point(), packed.ViewPublicKey().AsPoint().Point()
+
+	p := new(edwards25519.Point)
+	for i := 0; i < b.N; i++ {
+		getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, uint64(i), p)
+	}
+}

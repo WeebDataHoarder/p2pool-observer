@@ -2,6 +2,7 @@ package address
 
 import (
 	"encoding/binary"
+	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
@@ -19,6 +20,24 @@ func GetPublicKeyForSharedData(a Interface, sharedData crypto.PrivateKey) crypto
 
 func GetEphemeralPublicKey(a Interface, txKey crypto.PrivateKey, outputIndex uint64) crypto.PublicKey {
 	return GetPublicKeyForSharedData(a, crypto.GetDerivationSharedDataForOutputIndex(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex))
+}
+
+func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *edwards25519.Scalar, outputIndex uint64, p *edwards25519.Point)  {
+	//derivation
+	p.ScalarMult(txKey, viewPub).MultByCofactor(p)
+
+	derivationAsBytes := p.Bytes()
+	var varIntBuf [binary.MaxVarintLen64]byte
+
+	sharedData := crypto.HashToScalar(derivationAsBytes, varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)])
+
+	//public key + add
+	p.ScalarBaseMult(sharedData).Add(p, spendPub)
+}
+
+func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKey, uint8) {
+	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndex(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
+	return GetPublicKeyForSharedData(a, pK), viewTag
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {

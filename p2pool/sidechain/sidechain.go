@@ -190,6 +190,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 }
 
 func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
+
 	c.sidechainLock.Lock()
 	defer c.sidechainLock.Unlock()
 	if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
@@ -198,6 +199,8 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		return nil
 	}
 	c.blocksByTemplateId[block.SideTemplateId(c.Consensus())] = block
+
+	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load())
 
 	if l, ok := c.blocksByHeight[block.Side.Height]; ok {
 		c.blocksByHeight[block.Side.Height] = append(l, block)
@@ -241,7 +244,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 				err = invalid
 			}
 		} else if verification != nil {
-			log.Printf("[SideChain] can't verify block at height = %d, id = %s, mainchain height = %d, mined by %s: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), verification.Error())
+			//log.Printf("[SideChain] can't verify block at height = %d, id = %s, mainchain height = %d, mined by %s: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), verification.Error())
 			block.Verified.Store(false)
 			block.Invalid.Store(false)
 		} else {
