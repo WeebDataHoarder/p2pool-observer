@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"runtime"
+	"unsafe"
 )
 
 const HashSize = 32
@@ -36,6 +38,45 @@ func HashFromBytes(buf []byte) (h Hash) {
 	}
 	copy(h[:], buf)
 	return
+}
+
+// Compare consensus way of comparison
+func (h Hash) Compare(other Hash) int {
+	//golang might free other otherwise
+	defer runtime.KeepAlive(other)
+	defer runtime.KeepAlive(h)
+	a := unsafe.Slice((*uint64)(unsafe.Pointer(&h)), len(h)/int(unsafe.Sizeof(uint64(0))))
+	b := unsafe.Slice((*uint64)(unsafe.Pointer(&other)), len(other)/int(unsafe.Sizeof(uint64(0))))
+
+	if a[3] < b[3] {
+		return -1
+	}
+	if a[3] > b[3] {
+		return 1
+	}
+
+	if a[2] < b[2] {
+		return -1
+	}
+	if a[2] > b[2] {
+		return 1
+	}
+
+	if a[1] < b[1] {
+		return -1
+	}
+	if a[1] > b[1] {
+		return 1
+	}
+
+	if a[0] < b[0] {
+		return -1
+	}
+	if a[0] > b[0] {
+		return 1
+	}
+
+	return 0
 }
 
 func (h Hash) Equals(o Hash) bool {

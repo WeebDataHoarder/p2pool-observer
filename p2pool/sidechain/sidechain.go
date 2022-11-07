@@ -329,7 +329,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			if i == 0 {
 				continue
 			}
-			if bytes.Compare(block.Side.Uncles[i-1][:], uncleId[:]) < 0 {
+			if block.Side.Uncles[i-1].Compare(uncleId) != -1 {
 				return nil, errors.New("invalid uncle order")
 			}
 		}
