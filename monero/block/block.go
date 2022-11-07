@@ -3,12 +3,13 @@ package block
 import (
 	"bytes"
 	"encoding/binary"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
+	"hash"
 	"io"
 )
 
@@ -197,6 +198,8 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 	} else if count == 2 {
 		rootHash = types.HashFromBytes(keccak(h))
 	} else {
+		hashInstance := crypto.GetKeccak256Hasher()
+		defer crypto.PutKeccak256Hasher(hashInstance)
 		var cnt int
 
 		{
@@ -214,7 +217,7 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 			i := cnt*2 - count
 			j := cnt*2 - count
 			for j < cnt {
-				copy(ints[j*types.HashSize:], keccakl(h[i*types.HashSize:], types.HashSize*2))
+				keccakl(hashInstance, ints[j*types.HashSize:], h[i*types.HashSize:], types.HashSize*2)
 				i += 2
 				j++
 			}
@@ -227,7 +230,7 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 				j := 0
 
 				for j < cnt {
-					copy(ints[j*types.HashSize:], keccakl(ints[i*types.HashSize:], types.HashSize*2))
+					keccakl(hashInstance, ints[j*types.HashSize:], ints[i*types.HashSize:], types.HashSize*2)
 
 					i += 2
 					j++
@@ -235,7 +238,7 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 			}
 		}
 
-		copy(rootHash[:], keccakl(ints, types.HashSize*2))
+		keccakl(hashInstance, rootHash[:], ints, types.HashSize*2)
 	}
 
 	return
@@ -261,15 +264,15 @@ func (b *Block) PowHashWithError() (types.Hash, error) {
 func (b *Block) Id() types.Hash {
 	//cached by sidechain.Share
 	buf := b.HashingBlob()
-	return types.Hash(moneroutil.Keccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf))
+	return crypto.PooledKeccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf)
 }
 
 var hasher = randomx.NewRandomX()
 
-func keccakl(data []byte, len int) []byte {
-	h := sha3.NewLegacyKeccak256()
-	h.Write(data[:len])
-	return h.Sum(nil)
+func keccakl(hasher hash.Hash, dst []byte, data []byte, len int) {
+	hasher.Reset()
+	hasher.Write(data[:len])
+	crypto.HashFastSum(hasher, dst)
 }
 
 func keccak(data ...[]byte) []byte {

@@ -50,7 +50,7 @@ func (p *PrivateKeyScalar) Scalar() *edwards25519.Scalar {
 }
 
 func (p *PrivateKeyScalar) PublicKey() PublicKey {
-	return PublicKeyFromPoint((&edwards25519.Point{}).ScalarBaseMult(p.Scalar()))
+	return PublicKeyFromPoint(GetEdwards25519Point().ScalarBaseMult(p.Scalar()))
 }
 
 func (p *PrivateKeyScalar) GetDerivation(public PublicKey) PublicKey {
@@ -60,7 +60,6 @@ func (p *PrivateKeyScalar) GetDerivation(public PublicKey) PublicKey {
 func (p *PrivateKeyScalar) GetDerivationCofactor(public PublicKey) PublicKey {
 	return deriveKeyExchangeSecretCofactor(p, public.AsPoint())
 }
-
 
 func (p *PrivateKeyScalar) String() string {
 	return hex.EncodeToString(p.Scalar().Bytes())
@@ -87,7 +86,6 @@ func (p *PrivateKeyScalar) UnmarshalJSON(b []byte) error {
 	}
 }
 
-
 type PrivateKeyBytes [PrivateKeySize]byte
 
 func (k *PrivateKeyBytes) AsSlice() PrivateKeySlice {
@@ -99,12 +97,12 @@ func (k *PrivateKeyBytes) AsBytes() PrivateKeyBytes {
 }
 
 func (k *PrivateKeyBytes) AsScalar() *PrivateKeyScalar {
-	secret, _ := edwards25519.NewScalar().SetCanonicalBytes((*k)[:])
+	secret, _ := GetEdwards25519Scalar().SetCanonicalBytes((*k)[:])
 	return PrivateKeyFromScalar(secret)
 }
 
 func (k *PrivateKeyBytes) PublicKey() PublicKey {
-	return PublicKeyFromPoint((&edwards25519.Point{}).ScalarBaseMult(k.AsScalar().Scalar()))
+	return PublicKeyFromPoint(GetEdwards25519Point().ScalarBaseMult(k.AsScalar().Scalar()))
 }
 
 func (k *PrivateKeyBytes) GetDerivation(public PublicKey) PublicKey {
@@ -114,7 +112,6 @@ func (k *PrivateKeyBytes) GetDerivation(public PublicKey) PublicKey {
 func (k *PrivateKeyBytes) GetDerivationCofactor(public PublicKey) PublicKey {
 	return k.AsScalar().GetDerivationCofactor(public)
 }
-
 
 func (k *PrivateKeyBytes) String() string {
 	return hex.EncodeToString(k.AsSlice())
@@ -138,7 +135,6 @@ func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
 	}
 }
 
-
 type PrivateKeySlice []byte
 
 func (k *PrivateKeySlice) AsSlice() PrivateKeySlice {
@@ -151,12 +147,12 @@ func (k *PrivateKeySlice) AsBytes() (buf PrivateKeyBytes) {
 }
 
 func (k *PrivateKeySlice) AsScalar() *PrivateKeyScalar {
-	secret, _ := edwards25519.NewScalar().SetCanonicalBytes(*k)
+	secret, _ := GetEdwards25519Scalar().SetCanonicalBytes(*k)
 	return PrivateKeyFromScalar(secret)
 }
 
 func (k *PrivateKeySlice) PublicKey() PublicKey {
-	return PublicKeyFromPoint((&edwards25519.Point{}).ScalarBaseMult(k.AsScalar().Scalar()))
+	return PublicKeyFromPoint(GetEdwards25519Point().ScalarBaseMult(k.AsScalar().Scalar()))
 }
 
 func (k *PrivateKeySlice) GetDerivation(public PublicKey) PublicKey {
@@ -166,7 +162,6 @@ func (k *PrivateKeySlice) GetDerivation(public PublicKey) PublicKey {
 func (k *PrivateKeySlice) GetDerivationCofactor(public PublicKey) PublicKey {
 	return k.AsScalar().GetDerivationCofactor(public)
 }
-
 
 func (k *PrivateKeySlice) String() string {
 	return hex.EncodeToString(*k)
@@ -189,7 +184,6 @@ func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 }
-
 
 func deriveKeyExchangeSecretCofactor(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {
 	return public.Multiply(private).Cofactor()

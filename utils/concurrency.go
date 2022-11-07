@@ -11,6 +11,10 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 		routines = Max(runtime.NumCPU()-routines, 4)
 	}
 
+	if workSize < uint64(routines) {
+		routines = int(workSize)
+	}
+
 	var counter atomic.Uint64
 
 	results := make([]error, routines)
@@ -27,7 +31,7 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 					return
 				}
 
-				if err = do(workIndex - 1, routineIndex); err != nil {
+				if err = do(workIndex-1, routineIndex); err != nil {
 					results[routineIndex] = err
 					return
 				}

@@ -9,11 +9,11 @@ import (
 )
 
 type deterministicTransactionCacheKey [crypto.PublicKeySize + types.HashSize]byte
-type ephemeralPublicKeyCacheKey [crypto.PrivateKeySize + crypto.PublicKeySize * 2 + 8]byte
+type ephemeralPublicKeyCacheKey [crypto.PrivateKeySize + crypto.PublicKeySize*2 + 8]byte
 
 type ephemeralPublicKeyWithViewTag struct {
 	PublicKey crypto.PublicKeyBytes
-	ViewTag    uint8
+	ViewTag   uint8
 }
 
 type DerivationCache struct {
@@ -43,13 +43,13 @@ func (d *DerivationCache) Clear() {
 	d.ephemeralPublicKeyCache = lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](pplnsSize * knownMinersPerPplns * outputIdsPerMiner)
 }
 
-func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
+func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
 	var key ephemeralPublicKeyCacheKey
-	copy(key[:], txKey.AsSlice())
+	copy(key[:], txKeySlice)
 	copy(key[crypto.PrivateKeySize:], a.ToPackedAddress().Bytes())
-	binary.LittleEndian.PutUint64(key[crypto.PrivateKeySize + crypto.PublicKeySize*2:], outputIndex)
+	binary.LittleEndian.PutUint64(key[crypto.PrivateKeySize+crypto.PublicKeySize*2:], outputIndex)
 	if ephemeralPubKey := d.ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
-		ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTag(a, txKey, outputIndex)
+		ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTag(a, txKeyScalar, outputIndex)
 		pKB := ephemeralPubKey.AsBytes()
 		d.ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag

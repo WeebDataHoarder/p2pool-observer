@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/moneroutil"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/crypto/sha3"
 	"io"
@@ -77,7 +77,6 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 	if c.GenHeight, err = binary.ReadUvarint(reader); err != nil {
 		return err
 	}
-
 
 	if err = c.Outputs.FromReader(reader); err != nil {
 		return err
@@ -207,6 +206,6 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 }
 
 func hashKeccak(data ...[]byte) []byte {
-	d := moneroutil.Keccak256(data...)
+	d := crypto.PooledKeccak256(data...)
 	return d[:]
 }

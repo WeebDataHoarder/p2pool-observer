@@ -1,7 +1,6 @@
 package transaction
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,7 +8,7 @@ import (
 	"io"
 )
 
-type Outputs []*Output
+type Outputs []Output
 
 
 func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
@@ -24,10 +23,9 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 			*s = make(Outputs, 0, outputCount)
 		}
 
+		var o Output
 		for index := 0; index < int(outputCount); index++ {
-			o := &Output{
-				Index: uint64(index),
-			}
+			o.Index = uint64(index)
 
 			if o.Reward, err = binary.ReadUvarint(reader); err != nil {
 				return err
@@ -47,6 +45,8 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 					if o.ViewTag, err = reader.ReadByte(); err != nil {
 						return err
 					}
+				} else {
+					o.ViewTag = 0
 				}
 			default:
 				return fmt.Errorf("unknown %d TXOUT key", o.Type)
@@ -59,28 +59,26 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 }
 
 func (s *Outputs) MarshalBinary() (data []byte, err error) {
-	buf := new(bytes.Buffer)
+	data = make([]byte, 0, binary.MaxVarintLen64 + len(*s) * (binary.MaxVarintLen64 + 1 + crypto.PublicKeySize + 1))
 
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(*s)))])
+	data = binary.AppendUvarint(data, uint64(len(*s)))
 
 	for _, o := range *s {
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, o.Reward)])
-		_ = binary.Write(buf, binary.BigEndian, o.Type)
+		data = binary.AppendUvarint(data, o.Reward)
+		data = append(data, o.Type)
 
 		switch o.Type {
 		case TxOutToTaggedKey, TxOutToKey:
-			_, _ = buf.Write(o.EphemeralPublicKey.AsSlice())
+			data = append(data, o.EphemeralPublicKey[:]...)
 
 			if o.Type == TxOutToTaggedKey {
-				_ = binary.Write(buf, binary.BigEndian, o.ViewTag)
+				data = append(data, o.ViewTag)
 			}
 		default:
 			return nil, errors.New("unknown output type")
 		}
 	}
-	return buf.Bytes(), nil
+	return data, nil
 }
 
 type Output struct {

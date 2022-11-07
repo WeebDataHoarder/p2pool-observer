@@ -3,9 +3,9 @@ package sidechain
 import (
 	"encoding/json"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"strconv"
@@ -139,7 +139,7 @@ func (i *Consensus) CalculateSideTemplateId(main *mainblock.Block, side *SideDat
 }
 
 func (i *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {
-	return types.Hash(moneroutil.Keccak256(mainBlob, sideBlob, i.id[:]))
+	return crypto.PooledKeccak256(mainBlob, sideBlob, i.id[:])
 }
 
 func (i *Consensus) Id() types.Hash {

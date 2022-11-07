@@ -24,19 +24,19 @@ const DefaultBanTime = time.Second * 600
 const PeerListResponseMaxPeers = 16
 
 type Client struct {
-	Owner                *Server
-	Connection           net.Conn
-	Closed               atomic.Bool
-	AddressPort          netip.AddrPort
-	LastActive           time.Time
-	LastBroadcast        time.Time
-	LastBlockRequest     time.Time
-	PingTime time.Duration
+	Owner                   *Server
+	Connection              net.Conn
+	Closed                  atomic.Bool
+	AddressPort             netip.AddrPort
+	LastActive              time.Time
+	LastBroadcast           time.Time
+	LastBlockRequest        time.Time
+	PingTime                time.Duration
 	LastPeerListRequestTime time.Time
-	PeerId               uint64
-	IsIncomingConnection bool
-	HandshakeComplete    atomic.Bool
-	ListenPort           uint32
+	PeerId                  uint64
+	IsIncomingConnection    bool
+	HandshakeComplete       atomic.Bool
+	ListenPort              uint32
 
 	BlockPendingRequests int64
 	ChainTipBlockRequest bool
@@ -61,7 +61,7 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		expectedMessage:       MessageHandshakeChallenge,
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
 		messageChannel:        make(chan *ClientMessage, 10),
-		closeChannel:        make(chan struct{}),
+		closeChannel:          make(chan struct{}),
 	}
 
 	return c
@@ -80,7 +80,7 @@ func (c *Client) OnAfterHandshake() {
 func (c *Client) SendListenPort() {
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageListenPort,
-		Buffer: binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
+		Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
 	})
 }
 
@@ -89,7 +89,7 @@ func (c *Client) SendBlockRequest(hash types.Hash) {
 
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageBlockRequest,
-		Buffer: hash[:],
+		Buffer:    hash[:],
 	})
 
 	c.BlockPendingRequests++
@@ -105,13 +105,13 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockResponse,
-			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
 		})
 
 	} else {
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockResponse,
-			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
 		})
 	}
 }
@@ -122,13 +122,13 @@ func (c *Client) SendBlockBroadcast(block *sidechain.PoolBlock) {
 
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
 		})
 
 	} else {
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
 		})
 	}
 }
@@ -144,7 +144,7 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	if len(list) > PeerListResponseMaxPeers {
 		return
 	}
-	buf := make([]byte, 0, 1 + len(list) * (1 + 16 + 2 ))
+	buf := make([]byte, 0, 1+len(list)*(1+16+2))
 	buf = append(buf, byte(len(list)))
 	for i := range list {
 		if list[i].Addr().Is6() {
@@ -158,7 +158,7 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	}
 	c.SendMessage(&ClientMessage{
 		MessageId: MessagePeerListResponse,
-		Buffer: buf,
+		Buffer:    buf,
 	})
 }
 
@@ -175,7 +175,7 @@ func (c *Client) OnConnection() {
 			select {
 			case <-c.closeChannel:
 				return
-			case message := <- c.messageChannel:
+			case message := <-c.messageChannel:
 				//log.Printf("Sending message %d len %d", message.MessageId, len(message.Buffer))
 				_, _ = c.Write([]byte{byte(message.MessageId)})
 				_, _ = c.Write(message.Buffer)
@@ -449,7 +449,7 @@ func (c *Client) sendHandshakeChallenge() {
 
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageHandshakeChallenge,
-		Buffer: buf[:],
+		Buffer:    buf[:],
 	})
 }
 
@@ -468,7 +468,7 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageHandshakeSolution,
-			Buffer: buf[:],
+			Buffer:    buf[:],
 		})
 	}
 }
@@ -491,7 +491,7 @@ func (c *Client) Read(buf []byte) (n int, err error) {
 
 type ClientMessage struct {
 	MessageId MessageId
-	Buffer []byte
+	Buffer    []byte
 }
 
 func (c *Client) SendMessage(message *ClientMessage) {

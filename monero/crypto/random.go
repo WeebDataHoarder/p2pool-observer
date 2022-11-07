@@ -35,7 +35,7 @@ func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
 	h := sha3.NewLegacyKeccak256()
 	var hash types.Hash
 
-	scalar := edwards25519.NewScalar()
+	scalar := GetEdwards25519Scalar()
 
 	for {
 		h.Reset()

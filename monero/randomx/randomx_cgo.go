@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
-	"git.gammaspectra.live/P2Pool/moneroutil"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/randomx-go-bindings"
 	"github.com/go-faster/xor"
@@ -17,7 +17,7 @@ import (
 )
 
 type hasherCollection struct {
-	lock sync.RWMutex
+	lock  sync.RWMutex
 	index int
 	cache []*hasherState
 }
@@ -56,7 +56,7 @@ func (h *hasherCollection) Close() {
 }
 
 type hasherState struct {
-	lock sync.Mutex
+	lock    sync.Mutex
 	dataset *randomx.RxDataset
 	vm      *randomx.RxVM
 	key     []byte
@@ -97,7 +97,7 @@ func ConsensusHash(buf []byte) types.Hash {
 		cachePtr = cachePtr[stride:]
 	}
 
-	return types.Hash(moneroutil.Keccak256(scratchpadTopPtr))
+	return crypto.Keccak256(scratchpadTopPtr)
 }
 
 func NewRandomX() Hasher {
@@ -141,7 +141,7 @@ func (h *hasherState) Init(key []byte) (err error) {
 		h.vm.Close()
 	}
 
-	if h.vm, err = randomx.NewRxVM(h.dataset, /*randomx.FlagFullMEM,*/ randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
+	if h.vm, err = randomx.NewRxVM(h.dataset /*randomx.FlagFullMEM,*/, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
 		return err
 	}
 	log.Printf("[RandomX] Initialized to seed %s", hex.EncodeToString(h.key))

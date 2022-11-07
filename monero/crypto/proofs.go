@@ -1,11 +1,10 @@
 package crypto
 
 import (
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
-var TxProofV2DomainSeparatorHash = types.Hash(moneroutil.Keccak256([]byte("TXPROOF_V2"))) // HASH_KEY_TXPROOF_V2
+var TxProofV2DomainSeparatorHash = Keccak256([]byte("TXPROOF_V2")) // HASH_KEY_TXPROOF_V2
 func GenerateTxProofV2(prefixHash types.Hash, txKey PrivateKey, recipientViewPublicKey PublicKey, recipientSpendPublicKey PublicKey) (derivation PublicKey, signature *Signature) {
 	comm := &SignatureComm_2{}
 	comm.Message = prefixHash

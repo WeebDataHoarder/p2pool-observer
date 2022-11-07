@@ -22,7 +22,7 @@ func GetEphemeralPublicKey(a Interface, txKey crypto.PrivateKey, outputIndex uin
 	return GetPublicKeyForSharedData(a, crypto.GetDerivationSharedDataForOutputIndex(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex))
 }
 
-func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *edwards25519.Scalar, outputIndex uint64, p *edwards25519.Point)  {
+func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *edwards25519.Scalar, outputIndex uint64, p *edwards25519.Point) {
 	//derivation
 	p.ScalarMult(txKey, viewPub).MultByCofactor(p)
 
@@ -41,7 +41,7 @@ func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outpu
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
-	prefixHash := types.Hash(moneroutil.Keccak256(txId[:], []byte(message)))
+	prefixHash := crypto.Keccak256(txId[:], []byte(message))
 
 	sharedSecret, signature := crypto.GenerateTxProofV2(prefixHash, txKey, a.ViewPublicKey(), nil)
 
@@ -49,7 +49,7 @@ func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message
 }
 
 func GetTxProofV1(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
-	prefixHash := types.Hash(moneroutil.Keccak256(txId[:], []byte(message)))
+	prefixHash := crypto.Keccak256(txId[:], []byte(message))
 
 	sharedSecret, signature := crypto.GenerateTxProofV1(prefixHash, txKey, a.ViewPublicKey(), nil)
 
@@ -65,21 +65,21 @@ const (
 )
 
 func GetMessageHash(a Interface, message []byte, mode uint8) types.Hash {
-	return types.Hash(moneroutil.Keccak256(
+	return crypto.Keccak256(
 		[]byte("MoneroMessageSignature\x00"),
 		a.SpendPublicKey().AsSlice(),
 		a.ViewPublicKey().AsSlice(),
 		[]byte{mode},
 		binary.AppendUvarint(nil, uint64(len(message))),
 		message,
-		))
+	)
 }
 
 func VerifyMessage(a Interface, message []byte, signature string) SignatureVerifyResult {
 	var hash types.Hash
 
 	if strings.HasPrefix(signature, "SigV1") {
-		hash = types.Hash(moneroutil.Keccak256(message))
+		hash = crypto.Keccak256(message)
 	} else if strings.HasPrefix(signature, "SigV2") {
 		hash = GetMessageHash(a, message, 0)
 	} else {

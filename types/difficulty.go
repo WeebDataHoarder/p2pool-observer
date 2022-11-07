@@ -244,12 +244,12 @@ func (d Difficulty) StringNumeric() string {
 var powBase = uint256.NewInt(0).SetBytes32(bytes.Repeat([]byte{0xff}, 32))
 
 func DifficultyFromPoW(powHash Hash) Difficulty {
-	pow := uint256.NewInt(0).SetBytes32(powHash[:])
-	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
-
-	if pow.Eq(uint256.NewInt(0)) {
+	if powHash == ZeroHash {
 		return ZeroDifficulty
 	}
+
+	pow := uint256.NewInt(0).SetBytes32(powHash[:])
+	pow = &uint256.Int{bits.ReverseBytes64(pow[3]), bits.ReverseBytes64(pow[2]), bits.ReverseBytes64(pow[1]), bits.ReverseBytes64(pow[0])}
 
 	powResult := uint256.NewInt(0).Div(powBase, pow).Bytes32()
 	return DifficultyFromBytes(powResult[16:])

@@ -12,10 +12,12 @@ type Signature struct {
 	// R result of the signature, also called s
 	R *edwards25519.Scalar
 }
+
 // SignatureSigningHandler receives k, inserts it or a pubkey into its data, and produces a []byte buffer for Signing/Verifying
-type SignatureSigningHandler func (r PrivateKey) []byte
+type SignatureSigningHandler func(r PrivateKey) []byte
+
 // SignatureVerificationHandler receives r = pubkey(k), inserts it into its data, and produces a []byte buffer for Signing/Verifying
-type SignatureVerificationHandler func (r PublicKey) []byte
+type SignatureVerificationHandler func(r PublicKey) []byte
 
 func NewSignatureFromBytes(buf []byte) *Signature {
 	if len(buf) != types.HashSize*2 {
@@ -23,9 +25,9 @@ func NewSignatureFromBytes(buf []byte) *Signature {
 	}
 	signature := &Signature{}
 	var err error
-	if signature.C, err = edwards25519.NewScalar().SetCanonicalBytes(buf[:32]); err != nil {
+	if signature.C, err = GetEdwards25519Scalar().SetCanonicalBytes(buf[:32]); err != nil {
 		return nil
-	} else if signature.R, err = edwards25519.NewScalar().SetCanonicalBytes(buf[32:]); err != nil {
+	} else if signature.R, err = GetEdwards25519Scalar().SetCanonicalBytes(buf[32:]); err != nil {
 		return nil
 	} else {
 		return signature
@@ -42,7 +44,7 @@ func (s *Signature) Bytes() []byte {
 // Verify checks a Schnorr Signature using H = keccak
 func (s *Signature) Verify(handler SignatureVerificationHandler, publicKey PublicKey) (ok bool, r *PublicKeyPoint) {
 	//s = C * k, R * G
-	sp := (&edwards25519.Point{}).VarTimeDoubleScalarBaseMult(s.C, publicKey.AsPoint().Point(), s.R)
+	sp := GetEdwards25519Point().VarTimeDoubleScalarBaseMult(s.C, publicKey.AsPoint().Point(), s.R)
 	if sp.Equal(infinityPoint) == 1 {
 		return false, nil
 	}
@@ -62,10 +64,9 @@ func CreateSignature(handler SignatureSigningHandler, privateKey PrivateKey) *Si
 
 	// s = k - x * e
 	// EdDSA is an altered version, with addition instead of subtraction
-	signature.R = signature.R.Subtract(k.Scalar(), edwards25519.NewScalar().Multiply(signature.C, privateKey.AsScalar().Scalar()))
+	signature.R = signature.R.Subtract(k.Scalar(), GetEdwards25519Scalar().Multiply(signature.C, privateKey.AsScalar().Scalar()))
 	return signature
 }
-
 
 func CreateMessageSignature(prefixHash types.Hash, key PrivateKey) *Signature {
 	buf := &SignatureComm{}

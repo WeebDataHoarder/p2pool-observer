@@ -7,6 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
+	"sync/atomic"
 	"testing"
 )
 
@@ -53,19 +54,26 @@ func TestSort(t *testing.T) {
 }
 
 func BenchmarkCoinbaseDerivation(b *testing.B) {
+	b.ReportAllocs()
 	packed := testAddress3.ToPackedAddress()
 	txKey := crypto.PrivateKeyFromScalar(privateKey)
-	for i := 0; i < b.N; i++ {
-		GetEphemeralPublicKey(packed, txKey, uint64(i))
-	}
+	var i atomic.Uint64
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			GetEphemeralPublicKey(packed, txKey, i.Load())
+		}
+	})
 }
 
 func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 	packed := testAddress3.ToPackedAddress()
 	spendPub, viewPub := packed.SpendPublicKey().AsPoint().Point(), packed.ViewPublicKey().AsPoint().Point()
 
-	p := new(edwards25519.Point)
-	for i := 0; i < b.N; i++ {
-		getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, uint64(i), p)
-	}
+	var i atomic.Uint64
+	b.RunParallel(func(pb *testing.PB) {
+		p := new(edwards25519.Point)
+		for pb.Next() {
+			getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, i.Load(), p)
+		}
+	})
 }

@@ -37,20 +37,20 @@ func (k *PublicKeyPoint) Point() *edwards25519.Point {
 	return (*edwards25519.Point)(k)
 }
 
-func (k *PublicKeyPoint) Add(b *PublicKeyPoint) *PublicKeyPoint{
-	return PublicKeyFromPoint((&edwards25519.Point{}).Add(k.Point(), b.Point()))
+func (k *PublicKeyPoint) Add(b *PublicKeyPoint) *PublicKeyPoint {
+	return PublicKeyFromPoint(GetEdwards25519Point().Add(k.Point(), b.Point()))
 }
 
-func (k *PublicKeyPoint) Subtract(b *PublicKeyPoint) *PublicKeyPoint{
-	return PublicKeyFromPoint((&edwards25519.Point{}).Subtract(k.Point(), b.Point()))
+func (k *PublicKeyPoint) Subtract(b *PublicKeyPoint) *PublicKeyPoint {
+	return PublicKeyFromPoint(GetEdwards25519Point().Subtract(k.Point(), b.Point()))
 }
 
-func (k *PublicKeyPoint) Multiply(b *PrivateKeyScalar) *PublicKeyPoint{
-	return PublicKeyFromPoint((&edwards25519.Point{}).ScalarMult(b.Scalar(), k.Point()))
+func (k *PublicKeyPoint) Multiply(b *PrivateKeyScalar) *PublicKeyPoint {
+	return PublicKeyFromPoint(GetEdwards25519Point().ScalarMult(b.Scalar(), k.Point()))
 }
 
-func (k *PublicKeyPoint) Cofactor() *PublicKeyPoint{
-	return PublicKeyFromPoint((&edwards25519.Point{}).MultByCofactor(k.Point()))
+func (k *PublicKeyPoint) Cofactor() *PublicKeyPoint {
+	return PublicKeyFromPoint(GetEdwards25519Point().MultByCofactor(k.Point()))
 }
 
 func PublicKeyFromPoint(point *edwards25519.Point, _ ...any) *PublicKeyPoint {
@@ -82,8 +82,6 @@ func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 	}
 }
 
-
-
 type PublicKeyBytes [PublicKeySize]byte
 
 func (k *PublicKeyBytes) AsSlice() PublicKeySlice {
@@ -95,7 +93,7 @@ func (k *PublicKeyBytes) AsBytes() PublicKeyBytes {
 }
 
 func (k *PublicKeyBytes) AsPoint() *PublicKeyPoint {
-	return PublicKeyFromPoint((&edwards25519.Point{}).SetBytes(k.AsSlice()))
+	return PublicKeyFromPoint(GetEdwards25519Point().SetBytes(k.AsSlice()))
 }
 
 func (k *PublicKeyBytes) String() string {
@@ -120,7 +118,6 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 	}
 }
 
-
 type PublicKeySlice []byte
 
 func (k *PublicKeySlice) AsSlice() PublicKeySlice {
@@ -133,7 +130,7 @@ func (k *PublicKeySlice) AsBytes() (buf PublicKeyBytes) {
 }
 
 func (k *PublicKeySlice) AsPoint() *PublicKeyPoint {
-	return PublicKeyFromPoint((&edwards25519.Point{}).SetBytes(*k))
+	return PublicKeyFromPoint(GetEdwards25519Point().SetBytes(*k))
 }
 
 func (k *PublicKeySlice) String() string {

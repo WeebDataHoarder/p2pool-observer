@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -443,13 +444,18 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 		} else if rewards := c.SplitReward(totalReward, c.sharesCache); len(rewards) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
+
+			//prevent multiple allocations
+			txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
+			txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
+
 			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]
 				if rewards[workIndex] != out.Reward {
 					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
 				}
 
-				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, &block.Side.CoinbasePrivateKey, workIndex); ephPublicKey != out.EphemeralPublicKey {
+				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex); ephPublicKey != out.EphemeralPublicKey {
 					return fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
 				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
 					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
@@ -606,13 +612,16 @@ func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
 
 	txType := c.GetTransactionOutputType(block.Main.MajorVersion)
 
+	txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
+	txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
+
 	_ = utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
-		output := &transaction.Output{
+		output := transaction.Output{
 			Index: workIndex,
 			Type:  txType,
 		}
 		output.Reward = tmpRewards[output.Index]
-		output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, &block.Side.CoinbasePrivateKey, output.Index)
+		output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, txPrivateKeySlice, txPrivateKeyScalar, output.Index)
 
 		outputs[output.Index] = output
 
@@ -657,15 +666,25 @@ func (c *SideChain) SplitReward(reward uint64, shares Shares) (rewards []uint64)
 	return rewards
 }
 
-func (c *SideChain) getShares(tip *PoolBlock, shares Shares) Shares {
-	shares = shares[:0]
+func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares {
 
 	var blockDepth uint64
 
 	cur := tip
 
+	index := 0
+	l := len(preAllocatedShares)
+	insert := func(weight uint64, a *address.PackedAddress) {
+		if index < l {
+			preAllocatedShares[index].Weight, preAllocatedShares[index].Address = weight, *a
+		} else {
+			preAllocatedShares = append(preAllocatedShares, &Share{Weight: weight, Address: *a})
+		}
+		index++
+	}
+
 	for {
-		curShare := &Share{Weight: cur.Side.Difficulty.Lo, Address: *cur.GetAddress()}
+		curWeight := cur.Side.Difficulty.Lo
 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
@@ -680,13 +699,13 @@ func (c *SideChain) getShares(tip *PoolBlock, shares Shares) Shares {
 				// Take some % of uncle's weight into this share
 				product := uncle.Side.Difficulty.Mul64(c.Consensus().UnclePenalty)
 				unclePenalty := product.Div64(100)
-				curShare.Weight += unclePenalty.Lo
+				curWeight += unclePenalty.Lo
 
-				shares = append(shares, &Share{Weight: uncle.Side.Difficulty.Sub(unclePenalty).Lo, Address: *uncle.GetAddress()})
+				insert(uncle.Side.Difficulty.Sub(unclePenalty).Lo, uncle.GetAddress())
 			}
 		}
 
-		shares = append(shares, curShare)
+		insert(curWeight, cur.GetAddress())
 
 		blockDepth++
 
@@ -705,6 +724,8 @@ func (c *SideChain) getShares(tip *PoolBlock, shares Shares) Shares {
 			return nil
 		}
 	}
+
+	shares := preAllocatedShares[:index]
 
 	// Combine shares with the same wallet addresses
 	slices.SortFunc(shares, func(a *Share, b *Share) bool {

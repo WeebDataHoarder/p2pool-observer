@@ -5,7 +5,7 @@ package randomx
 import (
 	"bytes"
 	"git.gammaspectra.live/P2Pool/go-randomx"
-	"git.gammaspectra.live/P2Pool/moneroutil"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/go-faster/xor"
 	"runtime"
@@ -49,7 +49,7 @@ func ConsensusHash(buf []byte) types.Hash {
 		cachePtr = cachePtr[stride:]
 	}
 
-	return types.Hash(moneroutil.Keccak256(scratchpadTopPtr))
+	return crypto.Keccak256(scratchpadTopPtr)
 }
 
 func NewRandomX() Hasher {

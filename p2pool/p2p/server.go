@@ -148,7 +148,7 @@ func (s *Server) Connect(addrPort netip.AddrPort) error {
 		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
 
-	if conn, err := net.Dial("tcp", addrPort.String()); err != nil {
+	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second * 10); err != nil {
 		return err
 	} else {
 		s.clientsLock.Lock()
