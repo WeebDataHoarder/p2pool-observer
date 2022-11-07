@@ -4,19 +4,59 @@ package randomx
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/randomx-go-bindings"
 	"github.com/go-faster/xor"
+	"log"
 	"runtime"
 	"sync"
 	"unsafe"
 )
 
-type hasher struct {
-	lock sync.Mutex
+type hasherCollection struct {
+	lock sync.RWMutex
+	index int
+	cache []*hasherState
+}
 
+func (h *hasherCollection) Hash(key []byte, input []byte) (types.Hash, error) {
+	if hash, err := func() (types.Hash, error) {
+		h.lock.RLock()
+		defer h.lock.RUnlock()
+		for _, c := range h.cache {
+			if len(c.key) > 0 && bytes.Compare(c.key, key) == 0 {
+				return c.Hash(input), nil
+			}
+		}
+
+		return types.ZeroHash, errors.New("no hasher")
+	}(); err == nil && hash != types.ZeroHash {
+		return hash, nil
+	} else {
+		h.lock.Lock()
+		defer h.lock.Unlock()
+		index := h.index
+		h.index = (h.index + 1) % len(h.cache)
+		if err = h.cache[index].Init(key); err != nil {
+			return types.ZeroHash, err
+		}
+		return h.cache[index].Hash(input), nil
+	}
+}
+
+func (h *hasherCollection) Close() {
+	h.lock.RLock()
+	defer h.lock.RUnlock()
+	for _, c := range h.cache {
+		c.Close()
+	}
+}
+
+type hasherState struct {
+	lock sync.Mutex
 	dataset *randomx.RxDataset
 	vm      *randomx.RxVM
 	key     []byte
@@ -61,44 +101,64 @@ func ConsensusHash(buf []byte) types.Hash {
 }
 
 func NewRandomX() Hasher {
+	collection := &hasherCollection{
+		cache: make([]*hasherState, 4),
+	}
 
-	h := &hasher{}
+	var err error
+
+	for i := range collection.cache {
+		if collection.cache[i], err = newRandomXState(); err != nil {
+			return nil
+		}
+	}
+	return collection
+}
+
+func newRandomXState() (*hasherState, error) {
+
+	h := &hasherState{}
 	if dataset, err := randomx.NewRxDataset(randomx.FlagJIT); err != nil {
-		return nil
+		return nil, err
 	} else {
-
 		h.dataset = dataset
 	}
 
-	return h
+	return h, nil
 }
 
-func (h *hasher) Hash(key []byte, input []byte) (output types.Hash, err error) {
+func (h *hasherState) Init(key []byte) (err error) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
+	h.key = make([]byte, len(key))
+	copy(h.key, key)
 
-	if h.key == nil || bytes.Compare(h.key, key) != 0 {
-		h.key = make([]byte, len(key))
-		copy(h.key, key)
-
-		if h.dataset.GoInit(h.key, uint32(runtime.NumCPU())) == false {
-			return types.Hash{}, errors.New("could not initialize dataset")
-		}
-		if h.vm != nil {
-			h.vm.Close()
-		}
-
-		if h.vm, err = randomx.NewRxVM(h.dataset, randomx.FlagFullMEM, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
-			return types.Hash{}, err
-		}
+	log.Printf("[RandomX] Initializing to seed %s", hex.EncodeToString(h.key))
+	if h.dataset.GoInit(h.key, uint32(runtime.NumCPU())) == false {
+		return errors.New("could not initialize dataset")
+	}
+	if h.vm != nil {
+		h.vm.Close()
 	}
 
+	if h.vm, err = randomx.NewRxVM(h.dataset, /*randomx.FlagFullMEM,*/ randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
+		return err
+	}
+	log.Printf("[RandomX] Initialized to seed %s", hex.EncodeToString(h.key))
+
+	return nil
+}
+
+func (h *hasherState) Hash(input []byte) (output types.Hash) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
 	outputBuf := h.vm.CalcHash(input)
 	copy(output[:], outputBuf)
+	runtime.KeepAlive(input)
 	return
 }
 
-func (h *hasher) Close() {
+func (h *hasherState) Close() {
 	if h.vm != nil {
 		h.vm.Close()
 	}
