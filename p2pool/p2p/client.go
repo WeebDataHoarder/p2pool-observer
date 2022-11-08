@@ -420,11 +420,11 @@ func (c *Client) OnConnection() {
 							c.Ban(DefaultBanTime, err)
 							return
 						}
-						if isV6 != 0 {
+						if isV6 == 0 {
 							copy(rawIp[:], make([]byte, 10))
 							rawIp[10], rawIp[11] = 0xFF, 0xFF
 						}
-						c.Owner.AddToPeerList(netip.AddrPortFrom(netip.AddrFrom16(rawIp), port))
+						c.Owner.AddToPeerList(netip.AddrPortFrom(netip.AddrFrom16(rawIp).Unmap(), port))
 					}
 				}
 			}
