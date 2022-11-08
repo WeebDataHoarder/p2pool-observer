@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
 	"unsafe"
 )
 
@@ -27,12 +26,15 @@ func RandomScalar() *edwards25519.Scalar {
 	}
 }
 
-func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
+// DeterministicScalar consensus way of generating a deterministic scalar from given entropy
+func DeterministicScalar(entropy []byte) *edwards25519.Scalar {
 
 	var counter uint32
 
-	entropy = append(entropy, make([]byte, int(unsafe.Sizeof(counter))))
-	h := sha3.NewLegacyKeccak256()
+	entropy = append(entropy, make([]byte, int(unsafe.Sizeof(counter)))...)
+	n := len(entropy) - int(unsafe.Sizeof(counter))
+	h := GetKeccak256Hasher()
+	defer PutKeccak256Hasher(h)
 	var hash types.Hash
 
 	scalar := GetEdwards25519Scalar()
@@ -40,11 +42,9 @@ func DeterministicScalar(entropy ...[]byte) *edwards25519.Scalar {
 	for {
 		h.Reset()
 		counter++
-		binary.LittleEndian.PutUint32(entropy[len(entropy)-1], counter)
-		for i := range entropy {
-			_, _ = h.Write(entropy[i])
-		}
-		_ = h.Sum(hash[:0])
+		binary.LittleEndian.PutUint32(entropy[n:], counter)
+		_, _ = h.Write(entropy)
+		HashFastSum(h, hash[:])
 		if !less32(hash[:], limit) {
 			continue
 		}

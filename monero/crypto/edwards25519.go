@@ -1,13 +1,13 @@
 package crypto
 
-
-
 // limit = 2^252 + 27742317777372353535851937790883648493.
 // limit fits 15 times in 32 bytes (iow, 15 l is the highest multiple of l that fits in 32 bytes)
 var limit = []byte{0xe3, 0x6a, 0x67, 0x72, 0x8b, 0xce, 0x13, 0x29, 0x8f, 0x30, 0x82, 0x8c, 0x0b, 0xa4, 0x10, 0x39, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0}
 
 // less32 each input must be at least 32 bytes long
 func less32(a, b []byte) bool {
+	_ = b[31] // bounds check hint to compiler; see golang.org/issue/14808
+
 	for n := 31; n >= 0; n-- {
 		if a[n] < b[n] {
 			return true
@@ -20,16 +20,20 @@ func less32(a, b []byte) bool {
 }
 
 func load3(in []byte) (result int64) {
+	_ = in[2] // bounds check hint to compiler; see golang.org/issue/14808
 	result = int64(in[0]) | (int64(in[1]) << 8) | (int64(in[2]) << 16)
 	return
 }
 
 func load4(in []byte) (result int64) {
+	_ = in[3] // bounds check hint to compiler; see golang.org/issue/14808
 	result = int64(in[0]) | (int64(in[1]) << 8) | (int64(in[2]) << 16) | (int64(in[3]) << 24)
 	return
 }
 
 func scReduce32(s []byte) {
+	_ = s[31] // bounds check hint to compiler; see golang.org/issue/14808
+
 	s0 := 2097151 & load3(s[:])
 	s1 := 2097151 & (load4(s[2:]) >> 5)
 	s2 := 2097151 & (load3(s[5:]) >> 2)

@@ -8,7 +8,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
 	"hash"
 	"io"
 )
@@ -196,7 +195,7 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 	if count == 1 {
 		rootHash = types.HashFromBytes(h)
 	} else if count == 2 {
-		rootHash = types.HashFromBytes(keccak(h))
+		rootHash = crypto.PooledKeccak256(h)
 	} else {
 		hashInstance := crypto.GetKeccak256Hasher()
 		defer crypto.PutKeccak256Hasher(hashInstance)
@@ -273,12 +272,4 @@ func keccakl(hasher hash.Hash, dst []byte, data []byte, len int) {
 	hasher.Reset()
 	hasher.Write(data[:len])
 	crypto.HashFastSum(hasher, dst)
-}
-
-func keccak(data ...[]byte) []byte {
-	h := sha3.NewLegacyKeccak256()
-	for _, b := range data {
-		h.Write(b)
-	}
-	return h.Sum(nil)
 }

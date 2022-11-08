@@ -10,6 +10,7 @@ import (
 )
 
 func BytesToScalar(buf []byte) *edwards25519.Scalar {
+	_ = buf[31] // bounds check hint to compiler; see golang.org/issue/14808
 	var bytes [32]byte
 	copy(bytes[:], buf[:])
 	scReduce32(bytes[:])
@@ -36,6 +37,8 @@ func HashToScalar(data ...[]byte) *edwards25519.Scalar {
 
 // HashFastSum sha3.Sum clones the state by allocating memory. prevent that. b must be pre-allocated to the expected size, or larger
 func HashFastSum(hash hash.Hash, b []byte) []byte {
+	_ = b[31] // bounds check hint to compiler; see golang.org/issue/14808
+
 	if r, ok := hash.(io.Reader); ok {
 		_, _ = r.Read(b[:hash.Size()])
 		return b
