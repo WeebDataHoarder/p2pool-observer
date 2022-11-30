@@ -29,7 +29,7 @@ pre {
 
     <div>
         <h3 class="mono">/api/pool_info</h3>
-        <p>Response contains general information on the current status of the P2Pool sidechain and Monero network, and other parameters.</p>
+        <p>Response contains general information on the current status of the P2Pool sidechain and Monero network, release versions, and other parameters.</p>
         <p><em>.sidechain.effort.last</em> keys are Monero block id effort for last found blocks.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/pool_info
@@ -112,6 +112,18 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/pool_info
         "height": 2456414,
         "difficulty": "0000000000000000000000497a57ebfd",
         "block_time": 120
+    },
+    "versions": {
+        "p2pool": {
+            "version": "v2.6",
+            "timestamp": 1669637678,
+            "link": "https://github.com/SChernykh/p2pool/releases/tag/v2.6"
+        },
+        "monero": {
+            "version": "v0.18.1.2",
+            "timestamp": 1664561178,
+            "link": "https://github.com/monero-project/monero/releases/tag/v0.18.1.2"
+        }
     }
 }
         </pre>

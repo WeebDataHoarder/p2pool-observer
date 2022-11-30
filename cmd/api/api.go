@@ -154,6 +154,10 @@ func main() {
 				Difficulty: tip.Template.Difficulty,
 				BlockTime:  monero.BlockTime,
 			},
+			Versions: struct {
+				P2Pool versionInfo `json:"p2pool"`
+				Monero versionInfo `json:"monero"`
+			}{P2Pool: getP2PoolVersion(), Monero: getMoneroVersion()},
 		}); err != nil {
 			log.Panic(err)
 		} else {

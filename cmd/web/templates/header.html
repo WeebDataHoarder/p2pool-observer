@@ -44,6 +44,25 @@
             <a href="https://xmrvsbeast.com/p2pool/" rel="nofollow">P2Pool Bonus Hash Rate Raffle by <em>XMRvsBEAST</em></a>
         </h4>
         {% endif %}
+        {% if pool.versions is defined %}
+
+            {% if (pool.versions.p2pool.timestamp+3600*24*30) > pool.sidechain.timestamp or (pool.versions.monero.timestamp+3600*24*7) > pool.sidechain.timestamp %}
+            <h4 style="font-size: 14px; margin-top: 5px; color:yellow;">
+                Latest releases: <a href="{{ pool.versions.p2pool.link }}" target="_blank">P2Pool {{ pool.versions.p2pool.version }}</a> <em title="{{ utc_date(pool.versions.p2pool.timestamp) }}"><small>{{ ((pool.sidechain.timestamp - pool.versions.p2pool.timestamp) / (3600*24))|round(1) }} day(s) ago</small></em>
+                ::
+                <a href="{{ pool.versions.monero.link }}" target="_blank">Monero {{ pool.versions.monero.version }}</a> <em title="{{ utc_date(pool.versions.monero.timestamp) }}"><small>{{ ((pool.sidechain.timestamp - pool.versions.monero.timestamp) / (3600*24))|round(1) }} day(s) ago</small></em>
+            </h4>
+            {% else %}
+            <h4 style="font-size: 13px; margin-top: 5px; ">
+                Latest releases: <a href="{{ pool.versions.p2pool.link }}" target="_blank">P2Pool {{ pool.versions.p2pool.version }}</a> <em title="{{ utc_date(pool.versions.p2pool.timestamp) }}"><small>{{ ((pool.sidechain.timestamp - pool.versions.p2pool.timestamp) / (3600*24))|round(1) }} day(s) ago</small></em>
+                ::
+                <a href="{{ pool.versions.monero.link }}" target="_blank">Monero {{ pool.versions.monero.version }}</a> <em title="{{ utc_date(pool.versions.monero.timestamp) }}"><small>{{ ((pool.sidechain.timestamp - pool.versions.monero.timestamp) / (3600*24))|round(1) }} day(s) ago</small></em>
+            </h4>
+            {% endif %}
+
+        {% endif %}
+
+
 
     </div>
 </div>

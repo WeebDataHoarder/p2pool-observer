@@ -9,6 +9,10 @@ import (
 type poolInfoResult struct {
 	SideChain poolInfoResultSideChain `json:"sidechain"`
 	MainChain poolInfoResultMainChain `json:"mainchain"`
+	Versions  struct {
+		P2Pool versionInfo `json:"p2pool"`
+		Monero versionInfo `json:"monero"`
+	} `json:"versions"`
 }
 
 type poolInfoResultSideChain struct {
