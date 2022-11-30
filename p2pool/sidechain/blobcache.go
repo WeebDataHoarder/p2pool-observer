@@ -8,32 +8,30 @@ import (
 	"log"
 )
 
-
 // BlockSaveEpochSize could be up to 256?
 const BlockSaveEpochSize = 32
 
 const (
 	BlockSaveOptionTemplate                = 1 << 0
 	BlockSaveOptionDeterministicPrivateKey = 1 << 1
-	BlockSaveOptionDeterministicBlobs = 1 << 2
-	BlockSaveOptionUncles = 1 << 3
+	BlockSaveOptionDeterministicBlobs      = 1 << 2
+	BlockSaveOptionUncles                  = 1 << 3
 
 	BlockSaveFieldSizeInBits = 8
 
-	BlockSaveOffsetAddress = BlockSaveFieldSizeInBits
+	BlockSaveOffsetAddress    = BlockSaveFieldSizeInBits
 	BlockSaveOffsetMainFields = BlockSaveFieldSizeInBits * 2
-
 )
 
 func (c *SideChain) uncompressedBlockId(block *PoolBlock) []byte {
 	templateId := block.SideTemplateId(c.Consensus())
-	buf := make([]byte, 0, 4 + len(templateId))
+	buf := make([]byte, 0, 4+len(templateId))
 	return append([]byte("RAW\x00"), buf...)
 }
 
 func (c *SideChain) compressedBlockId(block *PoolBlock) []byte {
 	templateId := block.SideTemplateId(c.Consensus())
-	buf := make([]byte, 0, 4 + len(templateId))
+	buf := make([]byte, 0, 4+len(templateId))
 	return append([]byte("PAK\x00"), buf...)
 }
 
@@ -57,7 +55,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		defer c.sidechainLock.RUnlock()
 
 		//only store keys when not deterministic
-		storePrivateTransactionKey := !c.isPoolBlockTransactionKeyIsDeterministic(block)
+		isDeterministicPrivateKey := c.isPoolBlockTransactionKeyIsDeterministic(block)
 
 		calculatedOutputs := c.calculateOutputs(block)
 		calcBlob, _ := calculatedOutputs.MarshalBinary()
@@ -65,7 +63,6 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		storeBlob := bytes.Compare(calcBlob, blockBlob) != 0
 
 		fullBlockTemplateHeight := block.Side.Height - (block.Side.Height % BlockSaveEpochSize)
-		var templateBlock *PoolBlock
 
 		minerAddressOffset := uint64(0)
 
@@ -77,7 +74,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 
 		var blockFlags uint64
 
-		if !storePrivateTransactionKey {
+		if isDeterministicPrivateKey {
 			blockFlags |= BlockSaveOptionDeterministicPrivateKey
 		}
 
@@ -86,6 +83,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		}
 
 		transactionOffsets := make([]uint64, len(block.Main.Transactions))
+		transactionOffsetsStored := 0
 
 		if block.Side.Height != fullBlockTemplateHeight {
 			tmp := parent
@@ -106,21 +104,20 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 					if tOffset == 0 {
 						if foundIndex := slices.Index(tmp.Main.Transactions, block.Main.Transactions[tIndex]); foundIndex != -1 {
 							transactionOffsets[tIndex] = (uint64(foundIndex) << BlockSaveFieldSizeInBits) | ((block.Side.Height - tmp.Side.Height) & 0xFF)
+							transactionOffsetsStored++
 						}
 					}
 				}
 
-				if tmp.Side.Height == fullBlockTemplateHeight {
-					templateBlock = tmp
+				// early exit
+				if tmp.Side.Height == fullBlockTemplateHeight || (transactionOffsetsStored == len(transactionOffsets) && mainFieldsOffset != 0 && minerAddressOffset != 0) {
 					break
 				}
 				tmp = c.getParent(tmp)
 			}
 		}
 
-
-
-		if parent == nil || templateBlock == nil || block.Side.Height == fullBlockTemplateHeight { //store full blocks every once in a while, or when there is no template block
+		if parent == nil || block.Side.Height == fullBlockTemplateHeight { //store full blocks every once in a while, or when there is no parent block
 			blockFlags |= BlockSaveOptionTemplate
 		} else {
 			if minerAddressOffset > 0 {
@@ -135,13 +132,12 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blockFlags |= BlockSaveOptionUncles
 		}
 
-
 		blob = binary.AppendUvarint(blob, blockFlags)
 
 		// side data
 
 		// miner address
-		if (blockFlags & BlockSaveOffsetAddress) == 0 || (blockFlags & BlockSaveOptionTemplate) != 0 {
+		if (blockFlags&BlockSaveOffsetAddress) == 0 || (blockFlags&BlockSaveOptionTemplate) != 0 {
 			blob = append(blob, block.Side.PublicSpendKey[:]...)
 			blob = append(blob, block.Side.PublicViewKey[:]...)
 		} else {
@@ -151,6 +147,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		// private key, if needed
 		if (blockFlags & BlockSaveOptionDeterministicPrivateKey) == 0 {
 			blob = append(blob, block.Side.CoinbasePrivateKey[:]...)
+			//public may be needed on invalid - TODO check
+			//blob = append(blob, block.CoinbaseExtra(SideCoinbasePublicKey)...)
 		}
 
 		// parent
@@ -176,12 +174,12 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob = binary.AppendUvarint(blob, block.Side.CumulativeDifficulty.Hi)
 		} else {
 			//store signed difference
-			blob = binary.AppendVarint(blob, int64(block.Side.Difficulty.Lo) - int64(parent.Side.Difficulty.Lo))
+			blob = binary.AppendVarint(blob, int64(block.Side.Difficulty.Lo)-int64(parent.Side.Difficulty.Lo))
 		}
 
 		// main data
 		// header
-		if (blockFlags & BlockSaveOffsetMainFields) == 0 || (blockFlags & BlockSaveOptionTemplate) != 0 {
+		if (blockFlags&BlockSaveOffsetMainFields) == 0 || (blockFlags&BlockSaveOptionTemplate) != 0 {
 			blob = append(blob, block.Main.MajorVersion)
 			blob = append(blob, block.Main.MinorVersion)
 			//timestamp is used as difference only
@@ -191,24 +189,24 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		} else {
 			blob = binary.AppendUvarint(blob, mainFieldsOffset)
 			//store signed difference
-			blob = binary.AppendVarint(blob, int64(block.Main.Timestamp) - int64(templateBlock.Main.Timestamp))
+			blob = binary.AppendVarint(blob, int64(block.Main.Timestamp)-int64(parent.Main.Timestamp))
 			blob = binary.LittleEndian.AppendUint32(blob, block.Main.Nonce)
 		}
 
 		// coinbase
-		if (blockFlags & BlockSaveOffsetMainFields) == 0 || (blockFlags & BlockSaveOptionTemplate) != 0 {
+		if (blockFlags&BlockSaveOffsetMainFields) == 0 || (blockFlags&BlockSaveOptionTemplate) != 0 {
 			blob = append(blob, block.Main.Coinbase.Version)
 			blob = binary.AppendUvarint(blob, block.Main.Coinbase.UnlockTime)
 			blob = binary.AppendUvarint(blob, block.Main.Coinbase.GenHeight)
-			blob = binary.AppendUvarint(blob, block.Main.Coinbase.TotalReward - monero.TailEmissionReward)
+			blob = binary.AppendUvarint(blob, block.Main.Coinbase.TotalReward-monero.TailEmissionReward)
 			blob = binary.AppendUvarint(blob, uint64(len(block.CoinbaseExtra(SideExtraNonce))))
 			blob = append(blob, block.CoinbaseExtra(SideExtraNonce)...)
 		} else {
 			blob = binary.AppendUvarint(blob, mainFieldsOffset)
 			//store signed difference with parent, not template
-			blob = binary.AppendVarint(blob, int64(block.Main.Timestamp) - int64(parent.Main.Timestamp))
+			blob = binary.AppendVarint(blob, int64(block.Main.Timestamp)-int64(parent.Main.Timestamp))
 			blob = binary.LittleEndian.AppendUint32(blob, block.Main.Nonce)
-			blob = binary.AppendVarint(blob, int64(block.Main.Coinbase.TotalReward) - int64(parent.Main.Coinbase.TotalReward))
+			blob = binary.AppendVarint(blob, int64(block.Main.Coinbase.TotalReward)-int64(parent.Main.Coinbase.TotalReward))
 			blob = binary.AppendUvarint(blob, uint64(len(block.CoinbaseExtra(SideExtraNonce))))
 			blob = append(blob, block.CoinbaseExtra(SideExtraNonce)...)
 		}
@@ -217,7 +215,6 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		if (blockFlags & BlockSaveOptionDeterministicBlobs) == 0 {
 			blob = append(blob, blockBlob...)
 		}
-
 
 		//transactions
 		if (blockFlags & BlockSaveOptionTemplate) != 0 {
@@ -236,7 +233,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		}
 
 		bblob, _ := block.MarshalBinary()
-		log.Printf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(bblob), len(bblob) - len(blockBlob))
+		log.Printf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(bblob), len(bblob)-len(blockBlob))
 
 		if err := c.server.SetBlob(c.compressedBlockId(block), blob); err != nil {
 			log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())

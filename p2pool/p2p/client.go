@@ -391,6 +391,12 @@ func (c *Client) OnConnection() {
 						}
 					}
 				}
+
+				/*tip := c.Owner.SideChain().GetChainTip()
+
+				if c.Owner.SideChain().GetPoolBlockCount() > int(c.Owner.SideChain().Consensus().ChainWindowSize*2+180) && tip != nil && tip.SideTemplateId(c.Owner.Consensus()) == block.SideTemplateId(c.Owner.Consensus()) {
+					c.Owner.Close()
+				}*/
 			}()
 		case MessagePeerListRequest:
 			//TODO
