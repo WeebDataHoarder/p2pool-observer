@@ -135,6 +135,9 @@ func main() {
 		runs++
 
 		diskTip, _, _ := api.GetShareEntry(knownTip)
+		if diskTip == nil {
+			log.Panicf("[CHAIN] could not find %d", knownTip)
+		}
 
 		if rawTip, _, _ := api.GetShareFromRawEntry(diskTip.Id, false); rawTip != nil {
 			diskTip = rawTip
