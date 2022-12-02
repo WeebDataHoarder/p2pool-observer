@@ -1,10 +1,19 @@
 package p2p
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net/netip"
 )
+
+func IsPeerVersionInformation(addr netip.AddrPort) bool {
+	if addr.Port() != 0xFFFF {
+		return false
+	}
+	rawIp := addr.Addr().As16()
+	return bytes.Compare(rawIp[12:], []byte{0xFF, 0xFF, 0xFF, 0xFF}) == 0
+}
 
 type PeerVersionInformation struct {
 	Protocol ProtocolVersion
