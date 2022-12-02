@@ -13,6 +13,7 @@ import (
 	"golang.org/x/exp/slices"
 	"io"
 	"log"
+	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
 	"sync/atomic"
@@ -38,7 +39,7 @@ type Client struct {
 	VersionInformation PeerVersionInformation
 	IsIncomingConnection    bool
 	HandshakeComplete       atomic.Bool
-	ListenPort              uint32
+	ListenPort              atomic.Uint32
 
 	BlockPendingRequests int64
 	ChainTipBlockRequest bool
@@ -164,6 +165,10 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	})
 }
 
+func (c *Client) IsGood() bool {
+	return c.HandshakeComplete.Load() && c.ListenPort.Load() > 0
+}
+
 func (c *Client) OnConnection() {
 	c.LastActive = time.Now()
 
@@ -281,20 +286,23 @@ func (c *Client) OnConnection() {
 			c.HandshakeComplete.Store(true)
 
 		case MessageListenPort:
-			if c.ListenPort != 0 {
+			if c.ListenPort.Load() != 0 {
 				c.Ban(DefaultBanTime, errors.New("got LISTEN_PORT but we already received it"))
 				return
 			}
 
-			if err := binary.Read(c, binary.LittleEndian, &c.ListenPort); err != nil {
+			var listenPort uint32
+
+			if err := binary.Read(c, binary.LittleEndian, &listenPort); err != nil {
 				c.Ban(DefaultBanTime, err)
 				return
 			}
 
-			if c.ListenPort == 0 || c.ListenPort >= 65536 {
-				c.Ban(DefaultBanTime, fmt.Errorf("listen port out of range: %d", c.ListenPort))
+			if listenPort == 0 || listenPort >= 65536 {
+				c.Ban(DefaultBanTime, fmt.Errorf("listen port out of range: %d", listenPort))
 				return
 			}
+			c.ListenPort.Store(listenPort)
 		case MessageBlockRequest:
 			c.LastBlockRequest = time.Now()
 
@@ -401,15 +409,45 @@ func (c *Client) OnConnection() {
 				}*/
 			}()
 		case MessagePeerListRequest:
-			if c.LastIncomingPeerListRequestTime.IsZero() {
-				c.LastIncomingPeerListRequestTime = time.Now()
-				//first, send version / protocol information
-				c.SendPeerListResponse([]netip.AddrPort{c.Owner.versionInformation.ToAddrPort()})
-			} else {
-				c.LastIncomingPeerListRequestTime = time.Now()
-				//TODO
-				c.SendPeerListResponse(nil)
+			connectedPeerList := c.Owner.Clients()
+
+			entriesToSend := make([]netip.AddrPort, 0, PeerListResponseMaxPeers)
+
+			// Send every 4th peer on average, selected at random
+			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(entriesToSend) / 4, 1))
+			n := 0
+			for _, peer := range connectedPeerList {
+				if peer.AddressPort.Addr().IsLoopback() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
+					continue
+				}
+
+				n++
+
+				// Use https://en.wikipedia.org/wiki/Reservoir_sampling algorithm
+				if len(entriesToSend) < peersToSendTarget {
+					entriesToSend = append(entriesToSend, peer.AddressPort)
+				}
+
+
+				k := unsafeRandom.Intn(n)
+				if k < peersToSendTarget {
+					entriesToSend[k] = peer.AddressPort
+				}
 			}
+
+
+			if c.LastIncomingPeerListRequestTime.IsZero() {
+				//first, send version / protocol information
+				if len(entriesToSend) == 0 {
+					entriesToSend = append(entriesToSend, c.Owner.versionInformation.ToAddrPort())
+				} else {
+					entriesToSend[0] = c.Owner.versionInformation.ToAddrPort()
+				}
+			}
+
+			c.LastIncomingPeerListRequestTime = time.Now()
+
+			c.SendPeerListResponse(entriesToSend)
 		case MessagePeerListResponse:
 			if numPeers, err := c.ReadByte(); err != nil {
 				c.Ban(DefaultBanTime, err)
