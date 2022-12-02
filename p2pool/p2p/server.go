@@ -34,6 +34,7 @@ type Server struct {
 	sidechain *sidechain.SideChain
 
 	peerId uint64
+	versionInformation PeerVersionInformation
 
 	listenAddress netip.AddrPort
 
@@ -68,6 +69,7 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 		peerId:           binary.LittleEndian.Uint64(peerId),
 		MaxOutgoingPeers: utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers: utils.Min(utils.Max(maxIncomingPeers, 10), 450),
+		versionInformation: PeerVersionInformation{Code: ImplementationCodeGoObserver, Version: CurrentImplementationVersion, Protocol: SupportedProtocolVersion},
 	}
 
 	return s, nil
@@ -188,6 +190,10 @@ func (s *Server) Close() {
 		}
 		s.listener.Close()
 	}
+}
+
+func (s *Server) VersionInformation() *PeerVersionInformation {
+	return &s.versionInformation
 }
 
 func (s *Server) PeerId() uint64 {

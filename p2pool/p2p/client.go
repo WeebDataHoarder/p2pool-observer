@@ -33,7 +33,9 @@ type Client struct {
 	LastBlockRequest        time.Time
 	PingTime                time.Duration
 	LastPeerListRequestTime time.Time
+	LastIncomingPeerListRequestTime time.Time
 	PeerId                  uint64
+	VersionInformation PeerVersionInformation
 	IsIncomingConnection    bool
 	HandshakeComplete       atomic.Bool
 	ListenPort              uint32
@@ -147,7 +149,7 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	buf := make([]byte, 0, 1+len(list)*(1+16+2))
 	buf = append(buf, byte(len(list)))
 	for i := range list {
-		if list[i].Addr().Is6() {
+		if list[i].Addr().Is6() && list[i].Port() != 0xFFFF {
 			buf = append(buf, 1)
 		} else {
 			buf = append(buf, 0)
@@ -399,8 +401,15 @@ func (c *Client) OnConnection() {
 				}*/
 			}()
 		case MessagePeerListRequest:
-			//TODO
-			c.SendPeerListResponse(nil)
+			if c.LastIncomingPeerListRequestTime.IsZero() {
+				c.LastIncomingPeerListRequestTime = time.Now()
+				//first, send version / protocol information
+				c.SendPeerListResponse([]netip.AddrPort{c.Owner.versionInformation.ToAddrPort()})
+			} else {
+				c.LastIncomingPeerListRequestTime = time.Now()
+				//TODO
+				c.SendPeerListResponse(nil)
+			}
 		case MessagePeerListResponse:
 			if numPeers, err := c.ReadByte(); err != nil {
 				c.Ban(DefaultBanTime, err)
@@ -418,7 +427,6 @@ func (c *Client) OnConnection() {
 						c.Ban(DefaultBanTime, err)
 						return
 					} else {
-
 						if _, err = c.Read(rawIp[:]); err != nil {
 							c.Ban(DefaultBanTime, err)
 							return
@@ -426,7 +434,22 @@ func (c *Client) OnConnection() {
 							c.Ban(DefaultBanTime, err)
 							return
 						}
+
 						if isV6 == 0 {
+							if rawIp[12] == 0 || rawIp[12] >= 224 {
+								// Ignore 0.0.0.0/8 (special-purpose range for "this network") and 224.0.0.0/3 (IP multicast and reserved ranges)
+
+
+								// Check for protocol version message
+								if binary.LittleEndian.Uint32(rawIp[12:]) == 0xFFFFFFFF && port == 0xFFFF {
+									c.VersionInformation.Protocol = ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
+									c.VersionInformation.Version = ImplementationVersion(binary.LittleEndian.Uint32(rawIp[4:]))
+									c.VersionInformation.Code = ImplementationCode(binary.LittleEndian.Uint32(rawIp[8:]))
+									log.Printf("peer %s is %s", c.AddressPort.String(), c.VersionInformation.String())
+								}
+								continue
+							}
+
 							copy(rawIp[:], make([]byte, 10))
 							rawIp[10], rawIp[11] = 0xFF, 0xFF
 						}
