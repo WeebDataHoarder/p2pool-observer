@@ -16,19 +16,6 @@ import (
 	"unsafe"
 )
 
-type MessageId uint8
-
-// from p2p_server.h
-const (
-	MessageHandshakeChallenge MessageId = iota
-	MessageHandshakeSolution
-	MessageListenPort
-	MessageBlockRequest
-	MessageBlockResponse
-	MessageBlockBroadcast
-	MessagePeerListRequest
-	MessagePeerListResponse
-)
 
 type Server struct {
 	sidechain *sidechain.SideChain

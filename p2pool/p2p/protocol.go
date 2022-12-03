@@ -58,7 +58,7 @@ const (
 	ProtocolVersion_1_1 ProtocolVersion = 0x00010001
 )
 
-const SupportedProtocolVersion = ProtocolVersion_0_0
+const SupportedProtocolVersion = ProtocolVersion_1_1
 
 type ImplementationVersion uint32
 

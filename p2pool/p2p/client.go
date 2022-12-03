@@ -41,6 +41,9 @@ type Client struct {
 	HandshakeComplete       atomic.Bool
 	ListenPort              atomic.Uint32
 
+	BroadcastedHashes [8]types.Hash
+	BroadcastedHashesIndex atomic.Uint32
+
 	BlockPendingRequests int64
 	ChainTipBlockRequest bool
 
@@ -53,6 +56,8 @@ type Client struct {
 	closeChannel chan struct{}
 
 	blockRequestThrottler <-chan time.Time
+
+
 }
 
 func NewClient(owner *Server, conn net.Conn) *Client {
@@ -366,7 +371,7 @@ func (c *Client) OnConnection() {
 				}
 			}
 
-		case MessageBlockBroadcast:
+		case MessageBlockBroadcast, MessageBlockBroadcastCompact:
 			block := &sidechain.PoolBlock{}
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
@@ -376,11 +381,22 @@ func (c *Client) OnConnection() {
 			} else if blockSize == 0 {
 				//NOT found
 				//TODO log
-			} else if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
-				//TODO warn
-				c.Ban(DefaultBanTime, err)
-				return
+			} else if messageId == MessageBlockBroadcastCompact {
+				if err = block.FromCompactReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+					//TODO warn
+					c.Ban(DefaultBanTime, err)
+					return
+				}
+			} else {
+				if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+					//TODO warn
+					c.Ban(DefaultBanTime, err)
+					return
+				}
 			}
+
+			c.BroadcastedHashes[c.BroadcastedHashesIndex.Add(1) % uint32(len(c.BroadcastedHashes))] = types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
+
 			c.LastBroadcast = time.Now()
 			go func() {
 				if err := c.Owner.SideChain().PreprocessBlock(block); err != nil {

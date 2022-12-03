@@ -76,6 +76,27 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 		}
 	}
 
+
+	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
+		parent := c.getParent(block)
+		if parent == nil {
+			return errors.New("parent does not exist in compact block")
+		}
+		for i, parentIndex := range block.Main.TransactionParentIndices {
+			if parentIndex != 0 {
+				// p2pool stores coinbase transaction hash as well
+				actualIndex := parentIndex - 1
+				if actualIndex > uint64(len(parent.Main.Transactions)) {
+					return errors.New("index of parent transaction out of bounds")
+
+				}
+				block.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
+			}
+		}
+		// set back to nil after processing
+		block.Main.TransactionParentIndices = nil
+	}
+
 	return nil
 }
 

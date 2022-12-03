@@ -22,6 +22,8 @@ type Block struct {
 	Coinbase *transaction.CoinbaseTransaction
 
 	Transactions []types.Hash
+	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks. Will be set to nil after initial pre-processing
+	TransactionParentIndices []uint64
 }
 
 type Header struct {
@@ -108,8 +110,73 @@ func (b *Block) FromReader(reader readerAndByteReader) (err error) {
 		if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
 			return err
 		}
-		//TODO: check if copy is needed
 		b.Transactions = append(b.Transactions, transactionHash)
+	}
+
+	return nil
+}
+
+
+func (b *Block) FromCompactReader(reader readerAndByteReader) (err error) {
+	var (
+		txCount         uint64
+		transactionHash types.Hash
+	)
+
+	if b.MajorVersion, err = reader.ReadByte(); err != nil {
+		return err
+	}
+	if b.MinorVersion, err = reader.ReadByte(); err != nil {
+		return err
+	}
+
+	if b.Timestamp, err = binary.ReadUvarint(reader); err != nil {
+		return err
+	}
+
+	if _, err = io.ReadFull(reader, b.PreviousId[:]); err != nil {
+		return err
+	}
+
+	if err = binary.Read(reader, binary.LittleEndian, &b.Nonce); err != nil {
+		return err
+	}
+
+	// Coinbase Tx Decoding
+	{
+		b.Coinbase = &transaction.CoinbaseTransaction{}
+		if err = b.Coinbase.FromReader(reader); err != nil {
+			return err
+		}
+	}
+
+	if txCount, err = binary.ReadUvarint(reader); err != nil {
+		return err
+	}
+
+	if txCount < 8192 {
+		b.Transactions = make([]types.Hash, 0, txCount)
+		b.TransactionParentIndices = make([]uint64, 0, txCount)
+	}
+
+	var parentIndex uint64
+	for i := 0; i < int(txCount); i++ {
+		if parentIndex, err = binary.ReadUvarint(reader); err != nil {
+			return err
+		}
+
+		if parentIndex == 0 {
+			//not in lookup
+			if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
+				return err
+			}
+
+			b.Transactions = append(b.Transactions, transactionHash)
+		} else {
+			b.Transactions = append(b.Transactions, types.ZeroHash)
+		}
+
+		b.TransactionParentIndices = append(b.TransactionParentIndices, parentIndex)
 	}
 
 	return nil

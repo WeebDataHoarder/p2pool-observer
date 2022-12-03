@@ -331,6 +331,19 @@ func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 	return nil
 }
 
+// FromCompactReader used in Protocol 1.1 and above
+func (b *PoolBlock) FromCompactReader(reader readerAndByteReader) (err error) {
+	if err = b.Main.FromCompactReader(reader); err != nil {
+		return err
+	}
+
+	if err = b.Side.FromReader(reader); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (b *PoolBlock) IsProofHigherThanMainDifficulty() bool {
 	r, _ := b.IsProofHigherThanMainDifficultyWithError()
 	return r
