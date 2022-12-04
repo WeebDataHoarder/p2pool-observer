@@ -57,25 +57,9 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 func (c *SideChain) Consensus() *Consensus {
 	return c.server.Consensus()
 }
-
-func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
+func (c *SideChain) PreprocessCompactBlock(block *PoolBlock) (err error) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
-
-	if len(block.Main.Coinbase.Outputs) == 0 {
-		if outputs := c.getOutputs(block); outputs == nil {
-			return errors.New("nil transaction outputs")
-		} else {
-			block.Main.Coinbase.Outputs = outputs
-		}
-
-		if outputBlob, err := block.Main.Coinbase.OutputsBlob(); err != nil {
-			return err
-		} else if uint64(len(outputBlob)) != block.Main.Coinbase.OutputsBlobSize {
-			return fmt.Errorf("invalid output blob size, got %d, expected %d", block.Main.Coinbase.OutputsBlobSize, len(outputBlob))
-		}
-	}
-
 
 	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
 		parent := c.getParent(block)
@@ -112,6 +96,61 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 	return nil
 }
 
+func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+
+	if len(block.Main.Coinbase.Outputs) == 0 {
+		if outputs := c.getOutputs(block); outputs == nil {
+			return nil, errors.New("nil transaction outputs")
+		} else {
+			block.Main.Coinbase.Outputs = outputs
+		}
+
+		if outputBlob, err := block.Main.Coinbase.OutputsBlob(); err != nil {
+			return nil, err
+		} else if uint64(len(outputBlob)) != block.Main.Coinbase.OutputsBlobSize {
+			return nil, fmt.Errorf("invalid output blob size, got %d, expected %d", block.Main.Coinbase.OutputsBlobSize, len(outputBlob))
+		}
+	}
+
+
+	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
+		parent := c.getParent(block)
+		if parent == nil {
+			missingBlocks = append(missingBlocks, block.Side.Parent)
+			return missingBlocks, errors.New("parent does not exist in compact block")
+		}
+		for i, parentIndex := range block.Main.TransactionParentIndices {
+			if parentIndex != 0 {
+				// p2pool stores coinbase transaction hash as well, decrease
+				actualIndex := parentIndex - 1
+				if actualIndex > uint64(len(parent.Main.Transactions)) {
+					return nil, errors.New("index of parent transaction out of bounds")
+
+				}
+				block.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
+			}
+		}
+	} else {
+		// fill if not received from network
+		block.Main.TransactionParentIndices = make([]uint64, len(block.Main.Transactions))
+
+		parent := c.getParent(block)
+		if parent != nil {
+			//do not fail if not found
+			for i, txHash := range block.Main.Transactions {
+				if parentIndex := slices.Index(parent.Main.Transactions, txHash); parentIndex != -1 {
+					//increase as p2pool stores tx hash as well
+					block.Main.TransactionParentIndices[i] = uint64(parentIndex + 1)
+				}
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
 	kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
 	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) == 0
@@ -134,8 +173,8 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	// but P2Pool can switch to using only TXOUT_TO_TAGGED_KEY for miner payouts starting from v15
 	expectedTxType := c.GetTransactionOutputType(block.Main.MajorVersion)
 
-	if err = c.PreprocessBlock(block); err != nil {
-		return nil, err
+	if missingBlocks, err = c.PreprocessBlock(block); err != nil {
+		return missingBlocks, err
 	}
 	for _, o := range block.Main.Coinbase.Outputs {
 		if o.Type != expectedTxType {

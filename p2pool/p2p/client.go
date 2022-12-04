@@ -162,8 +162,6 @@ func (c *Client) OnConnection() {
 
 	c.sendHandshakeChallenge()
 
-	var missingBlocks []types.Hash
-
 	go func() {
 		defer close(c.messageChannel)
 		for {
@@ -340,7 +338,7 @@ func (c *Client) OnConnection() {
 					}
 
 					go func() {
-						if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+						if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 							//TODO warn
 							c.Ban(DefaultBanTime, err)
 							return
@@ -382,9 +380,11 @@ func (c *Client) OnConnection() {
 
 			c.LastBroadcast = time.Now()
 			go func() {
-				if err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
-					//TODO warn
-					c.Ban(DefaultBanTime, err)
+				if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
+					for _, id := range missingBlocks {
+						c.SendBlockRequest(id)
+					}
+					//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
 					return
 				} else {
 					//TODO: investigate different monero block mining
