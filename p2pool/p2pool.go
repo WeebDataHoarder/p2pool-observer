@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	"strconv"
 )
 
 type P2Pool struct {
@@ -39,7 +40,12 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) *P2Po
 		listenAddress = addr
 	}
 
-	if pool.server, err = p2p.NewServer(pool.sidechain, listenAddress, 10, 450); err != nil {
+	maxOutgoingPeers := uint64(10)
+	if outgoingPeers, ok := settings["out-peers"]; ok {
+		maxOutgoingPeers, _ = strconv.ParseUint(outgoingPeers, 10, 0)
+	}
+
+	if pool.server, err = p2p.NewServer(pool.sidechain, listenAddress, uint32(maxOutgoingPeers), 450); err != nil {
 		return nil
 	}
 
