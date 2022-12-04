@@ -319,6 +319,19 @@ func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 	}
 }
 
+func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
+	if mainData, err := b.Main.MarshalBinaryFlags(pruned, compact); err != nil {
+		return nil, err
+	} else if sideData, err := b.Side.MarshalBinary(); err != nil {
+		return nil, err
+	} else {
+		data := make([]byte, 0, len(mainData)+len(sideData))
+		data = append(data, mainData...)
+		data = append(data, sideData...)
+		return data, nil
+	}
+}
+
 func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 	if err = b.Main.FromReader(reader); err != nil {
 		return err

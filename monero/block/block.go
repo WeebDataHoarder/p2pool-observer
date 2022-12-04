@@ -22,7 +22,7 @@ type Block struct {
 	Coinbase *transaction.CoinbaseTransaction
 
 	Transactions []types.Hash
-	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks. Will be set to nil after initial pre-processing
+	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks or by pre-processing.
 	TransactionParentIndices []uint64
 }
 
@@ -44,8 +44,12 @@ type readerAndByteReader interface {
 }
 
 func (b *Block) MarshalBinary() (buf []byte, err error) {
+	return b.MarshalBinaryFlags(false, false)
+}
+
+func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error) {
 	var txBuf []byte
-	if txBuf, err = b.Coinbase.MarshalBinary(); err != nil {
+	if txBuf, err = b.Coinbase.MarshalBinaryFlags(pruned); err != nil {
 		return nil, err
 	}
 	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
@@ -58,133 +62,113 @@ func (b *Block) MarshalBinary() (buf []byte, err error) {
 	buf = append(buf, txBuf[:]...)
 
 	buf = binary.AppendUvarint(buf, uint64(len(b.Transactions)))
-	for _, txId := range b.Transactions {
-		buf = append(buf, txId[:]...)
+	if compact {
+		for i, txId := range b.Transactions {
+			if i < len(b.TransactionParentIndices) && b.TransactionParentIndices[i] != 0 {
+				buf = binary.AppendUvarint(buf, b.TransactionParentIndices[i])
+			} else {
+				buf = binary.AppendUvarint(buf, 0)
+				buf = append(buf, txId[:]...)
+			}
+		}
+	} else {
+		for _, txId := range b.Transactions {
+			buf = append(buf, txId[:]...)
+		}
 	}
 
 	return buf, nil
 }
 
 func (b *Block) FromReader(reader readerAndByteReader) (err error) {
-	var (
-		txCount         uint64
-		transactionHash types.Hash
-	)
-
-	if b.MajorVersion, err = reader.ReadByte(); err != nil {
-		return err
-	}
-	if b.MinorVersion, err = reader.ReadByte(); err != nil {
-		return err
-	}
-
-	if b.Timestamp, err = binary.ReadUvarint(reader); err != nil {
-		return err
-	}
-
-	if _, err = io.ReadFull(reader, b.PreviousId[:]); err != nil {
-		return err
-	}
-
-	if err = binary.Read(reader, binary.LittleEndian, &b.Nonce); err != nil {
-		return err
-	}
-
-	// Coinbase Tx Decoding
-	{
-		b.Coinbase = &transaction.CoinbaseTransaction{}
-		if err = b.Coinbase.FromReader(reader); err != nil {
-			return err
-		}
-	}
-
-	if txCount, err = binary.ReadUvarint(reader); err != nil {
-		return err
-	}
-
-	if txCount < 8192 {
-		b.Transactions = make([]types.Hash, 0, txCount)
-	}
-
-	for i := 0; i < int(txCount); i++ {
-		if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
-			return err
-		}
-		b.Transactions = append(b.Transactions, transactionHash)
-	}
-
-	return nil
+	return b.FromReaderFlags(reader, false)
 }
 
-
 func (b *Block) FromCompactReader(reader readerAndByteReader) (err error) {
-	var (
-		txCount         uint64
-		transactionHash types.Hash
-	)
-
-	if b.MajorVersion, err = reader.ReadByte(); err != nil {
-		return err
-	}
-	if b.MinorVersion, err = reader.ReadByte(); err != nil {
-		return err
-	}
-
-	if b.Timestamp, err = binary.ReadUvarint(reader); err != nil {
-		return err
-	}
-
-	if _, err = io.ReadFull(reader, b.PreviousId[:]); err != nil {
-		return err
-	}
-
-	if err = binary.Read(reader, binary.LittleEndian, &b.Nonce); err != nil {
-		return err
-	}
-
-	// Coinbase Tx Decoding
-	{
-		b.Coinbase = &transaction.CoinbaseTransaction{}
-		if err = b.Coinbase.FromReader(reader); err != nil {
-			return err
-		}
-	}
-
-	if txCount, err = binary.ReadUvarint(reader); err != nil {
-		return err
-	}
-
-	if txCount < 8192 {
-		b.Transactions = make([]types.Hash, 0, txCount)
-		b.TransactionParentIndices = make([]uint64, 0, txCount)
-	}
-
-	var parentIndex uint64
-	for i := 0; i < int(txCount); i++ {
-		if parentIndex, err = binary.ReadUvarint(reader); err != nil {
-			return err
-		}
-
-		if parentIndex == 0 {
-			//not in lookup
-			if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
-				return err
-			}
-
-			b.Transactions = append(b.Transactions, transactionHash)
-		} else {
-			b.Transactions = append(b.Transactions, types.ZeroHash)
-		}
-
-		b.TransactionParentIndices = append(b.TransactionParentIndices, parentIndex)
-	}
-
-	return nil
+	return b.FromReaderFlags(reader, true)
 }
 
 func (b *Block) UnmarshalBinary(data []byte) error {
 	reader := bytes.NewReader(data)
 	return b.FromReader(reader)
+}
+
+func (b *Block) FromReaderFlags(reader readerAndByteReader, compact bool) (err error) {
+	var (
+		txCount         uint64
+		transactionHash types.Hash
+	)
+
+	if b.MajorVersion, err = reader.ReadByte(); err != nil {
+		return err
+	}
+	if b.MinorVersion, err = reader.ReadByte(); err != nil {
+		return err
+	}
+
+	if b.Timestamp, err = binary.ReadUvarint(reader); err != nil {
+		return err
+	}
+
+	if _, err = io.ReadFull(reader, b.PreviousId[:]); err != nil {
+		return err
+	}
+
+	if err = binary.Read(reader, binary.LittleEndian, &b.Nonce); err != nil {
+		return err
+	}
+
+	// Coinbase Tx Decoding
+	{
+		b.Coinbase = &transaction.CoinbaseTransaction{}
+		if err = b.Coinbase.FromReader(reader); err != nil {
+			return err
+		}
+	}
+
+	if txCount, err = binary.ReadUvarint(reader); err != nil {
+		return err
+	}
+
+	if compact {
+		if txCount < 8192 {
+			b.Transactions = make([]types.Hash, 0, txCount)
+			b.TransactionParentIndices = make([]uint64, 0, txCount)
+		}
+
+		var parentIndex uint64
+		for i := 0; i < int(txCount); i++ {
+			if parentIndex, err = binary.ReadUvarint(reader); err != nil {
+				return err
+			}
+
+			if parentIndex == 0 {
+				//not in lookup
+				if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
+					return err
+				}
+
+				b.Transactions = append(b.Transactions, transactionHash)
+			} else {
+				b.Transactions = append(b.Transactions, types.ZeroHash)
+			}
+
+			b.TransactionParentIndices = append(b.TransactionParentIndices, parentIndex)
+		}
+	} else {
+		if txCount < 8192 {
+			b.Transactions = make([]types.Hash, 0, txCount)
+		}
+
+		for i := 0; i < int(txCount); i++ {
+			if _, err = io.ReadFull(reader, transactionHash[:]); err != nil {
+				return err
+			}
+			b.Transactions = append(b.Transactions, transactionHash)
+		}
+	}
+
+	return nil
 }
 
 func (b *Block) Header() *Header {

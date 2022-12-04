@@ -132,6 +132,10 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 }
 
 func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
+	return c.MarshalBinaryFlags(false)
+}
+
+func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
@@ -142,8 +146,15 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	_ = binary.Write(buf, binary.BigEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
-	outputs, _ := c.Outputs.MarshalBinary()
-	_, _ = buf.Write(outputs)
+	outputs, _ := c.OutputsBlob()
+	if pruned {
+		//pruned output
+		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, 0)])
+		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.TotalReward)])
+		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(outputs)))])
+	} else {
+		_, _ = buf.Write(outputs)
+	}
 
 	txExtra, _ := c.Extra.MarshalBinary()
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])

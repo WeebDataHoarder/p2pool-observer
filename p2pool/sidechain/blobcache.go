@@ -232,8 +232,10 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			}
 		}
 
-		bblob, _ := block.MarshalBinary()
-		log.Printf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(bblob), len(bblob)-len(blockBlob))
+		fullBlob, _ := block.MarshalBinary()
+		prunedBlob, _ := block.MarshalBinaryFlags(true, false)
+		compactBlob, _ := block.MarshalBinaryFlags(true, true)
+		log.Printf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
 
 		if err := c.server.SetBlob(c.compressedBlockId(block), blob); err != nil {
 			log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())

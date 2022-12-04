@@ -41,8 +41,7 @@ type Client struct {
 	HandshakeComplete       atomic.Bool
 	ListenPort              atomic.Uint32
 
-	BroadcastedHashes [8]types.Hash
-	BroadcastedHashesIndex atomic.Uint32
+	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 
 	BlockPendingRequests int64
 	ChainTipBlockRequest bool
@@ -70,6 +69,7 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
 		messageChannel:        make(chan *ClientMessage, 10),
 		closeChannel:          make(chan struct{}),
+		BroadcastedHashes: utils.NewCircularBuffer[types.Hash](8),
 	}
 
 	return c
@@ -119,23 +119,6 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	} else {
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockResponse,
-			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
-		})
-	}
-}
-
-func (c *Client) SendBlockBroadcast(block *sidechain.PoolBlock) {
-	if block != nil {
-		blockData, _ := block.MarshalBinary()
-
-		c.SendMessage(&ClientMessage{
-			MessageId: MessageBlockBroadcast,
-			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
-		})
-
-	} else {
-		c.SendMessage(&ClientMessage{
-			MessageId: MessageBlockBroadcast,
 			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
 		})
 	}
@@ -395,7 +378,7 @@ func (c *Client) OnConnection() {
 				}
 			}
 
-			c.BroadcastedHashes[c.BroadcastedHashesIndex.Add(1) % uint32(len(c.BroadcastedHashes))] = types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
+			c.BroadcastedHashes.Push(types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)))
 
 			c.LastBroadcast = time.Now()
 			go func() {

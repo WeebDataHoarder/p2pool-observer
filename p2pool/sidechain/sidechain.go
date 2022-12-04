@@ -84,7 +84,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 		}
 		for i, parentIndex := range block.Main.TransactionParentIndices {
 			if parentIndex != 0 {
-				// p2pool stores coinbase transaction hash as well
+				// p2pool stores coinbase transaction hash as well, decrease
 				actualIndex := parentIndex - 1
 				if actualIndex > uint64(len(parent.Main.Transactions)) {
 					return errors.New("index of parent transaction out of bounds")
@@ -93,8 +93,20 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (err error) {
 				block.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
 			}
 		}
-		// set back to nil after processing
-		block.Main.TransactionParentIndices = nil
+	} else {
+		// fill if not received from network
+		block.Main.TransactionParentIndices = make([]uint64, len(block.Main.Transactions))
+
+		parent := c.getParent(block)
+		if parent != nil {
+			//do not fail if not found
+			for i, txHash := range block.Main.Transactions {
+				if parentIndex := slices.Index(parent.Main.Transactions, txHash); parentIndex != -1 {
+					//increase as p2pool stores tx hash as well
+					block.Main.TransactionParentIndices[i] = uint64(parentIndex + 1)
+				}
+			}
+		}
 	}
 
 	return nil

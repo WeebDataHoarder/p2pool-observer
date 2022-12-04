@@ -196,23 +196,54 @@ func (s *Server) updateClients() {
 }
 
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {
-	var message *ClientMessage
+	var message, prunedMessage, compactMessage *ClientMessage
 	if block != nil {
 		blockData, _ := block.MarshalBinary()
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
 			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
 		}
+		prunedBlockData, _ := block.MarshalBinaryFlags(true, false)
+		prunedMessage = &ClientMessage{
+			MessageId: MessageBlockBroadcast,
+			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(prunedBlockData)+4), uint32(len(prunedBlockData))), prunedBlockData...),
+		}
+		compactBlockData, _ := block.MarshalBinaryFlags(true, true)
+		compactMessage = &ClientMessage{
+			MessageId: MessageBlockBroadcastCompact,
+			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
+		}
 	} else {
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
 			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
 		}
+		prunedMessage, compactMessage = message, message
 	}
 
 	for _, c := range s.Clients() {
-		if c.HandshakeComplete.Load() {
-			c.SendMessage(message)
+		if c.IsGood() {
+			if !func() bool {
+				broadcastedHashes := c.BroadcastedHashes.Slice()
+				if slices.Index(broadcastedHashes, block.Side.Parent) == -1 {
+					return false
+				}
+				for _, uncleHash := range block.Side.Uncles {
+					if slices.Index(broadcastedHashes, uncleHash) == -1 {
+						return false
+					}
+				}
+
+				if c.VersionInformation.Protocol >= ProtocolVersion_1_1 {
+					c.SendMessage(compactMessage)
+				} else {
+					c.SendMessage(prunedMessage)
+				}
+				return true
+			}() {
+				//fallback
+				c.SendMessage(message)
+			}
 		}
 	}
 }
