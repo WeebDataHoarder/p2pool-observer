@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
+	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
 	"sync"
@@ -33,6 +34,9 @@ type Server struct {
 
 	NumOutgoingConnections atomic.Int32
 	NumIncomingConnections atomic.Int32
+
+	peerList []netip.AddrPort
+	peerListLock sync.RWMutex
 
 	clientsLock sync.RWMutex
 	clients     []*Client
@@ -63,14 +67,37 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 }
 
 func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
-	log.Printf("TODO AddToPeerList %s", addressPort.String())
+	if addressPort.Addr().IsLoopback() {
+		return
+	}
+	s.peerListLock.Lock()
+	defer s.peerListLock.Unlock()
+	for _, a := range s.peerList {
+		if a.Addr().Compare(addressPort.Addr()) == 0 {
+			//already added
+			return
+		}
+	}
+	s.peerList = append(s.peerList, addressPort)
+}
 
-	if uint32(s.NumOutgoingConnections.Load()) < s.MaxOutgoingPeers {
-		go func() {
-			if err := s.Connect(addressPort); err != nil {
-				log.Printf("error connecting to %s: %s", addressPort.String(), err.Error())
-			}
-		}()
+func (s *Server) PeerList() []netip.AddrPort {
+	s.peerListLock.RLock()
+	defer s.peerListLock.RUnlock()
+
+	peerList := make([]netip.AddrPort, len(s.peerList))
+	copy(peerList, s.peerList)
+	return peerList
+}
+
+func (s *Server) RemoveFromPeerList(ip netip.Addr) {
+	s.peerListLock.Lock()
+	defer s.peerListLock.Unlock()
+	for i, a := range s.peerList {
+		if a.Addr().Compare(ip) == 0 {
+			slices.Delete(s.peerList, i, i)
+			return
+		}
 	}
 }
 
@@ -79,6 +106,40 @@ func (s *Server) Listen() (err error) {
 		return err
 	} else {
 		defer s.listener.Close()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range time.Tick(time.Second * 5) {
+				if s.close.Load() {
+					return
+				}
+
+				for uint32(s.NumOutgoingConnections.Load()) < s.MaxOutgoingPeers {
+					peerList := s.PeerList()
+					if len(peerList) == 0 {
+						break
+					}
+					randomPeer := peerList[unsafeRandom.Intn(len(peerList))]
+					go func() {
+						if err := s.Connect(randomPeer); err != nil {
+							log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
+							s.RemoveFromPeerList(randomPeer.Addr())
+						} else {
+							log.Printf("connected to %s", randomPeer.String())
+						}
+					}()
+				}
+
+				curTime := uint64(time.Now().Unix())
+				for _, c := range s.Clients() {
+					if c.IsGood() && curTime >= c.NextOutgoingPeerListRequest.Load() {
+						c.SendPeerListRequest()
+					}
+				}
+			}
+		}()
 		for !s.close.Load() {
 			if conn, err := s.listener.Accept(); err != nil {
 				return err
@@ -116,6 +177,8 @@ func (s *Server) Listen() (err error) {
 			}
 
 		}
+
+		wg.Wait()
 	}
 
 	return nil
@@ -137,14 +200,17 @@ func (s *Server) Connect(addrPort netip.AddrPort) error {
 		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
 
-	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second * 10); err != nil {
+
+	s.NumOutgoingConnections.Add(1)
+
+	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second * 5); err != nil {
+		s.NumOutgoingConnections.Add(-1)
 		return err
 	} else {
 		s.clientsLock.Lock()
 		defer s.clientsLock.Unlock()
 		client := NewClient(s, conn)
 		s.clients = append(s.clients, client)
-		s.NumOutgoingConnections.Add(1)
 		go client.OnConnection()
 		return nil
 	}
@@ -157,9 +223,9 @@ func (s *Server) Clients() []*Client {
 }
 
 func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
-	//TODO: banlist
 	go func() {
 		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
+		s.RemoveFromPeerList(ip)
 		if !ip.IsLoopback() {
 			for _, c := range s.GetAddressConnected(ip) {
 				c.Close()

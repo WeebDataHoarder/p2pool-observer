@@ -4,6 +4,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
+	"sync"
 )
 
 func HashBlob(height uint64, blob []byte) (hash types.Hash, err error) {
@@ -16,6 +17,7 @@ func HashBlob(height uint64, blob []byte) (hash types.Hash, err error) {
 }
 
 var blockHeaderByHash = lru.New[types.Hash, *Header](128)
+var blockHeaderByHashLock sync.Mutex
 
 func GetBlockHeaderByHeight(height uint64) *Header {
 	//TODO: cache
@@ -39,6 +41,8 @@ func GetBlockHeaderByHeight(height uint64) *Header {
 }
 
 func GetBlockHeaderByHash(hash types.Hash) *Header {
+	blockHeaderByHashLock.Lock()
+	defer blockHeaderByHashLock.Unlock()
 	if h := blockHeaderByHash.Get(hash); h == nil {
 		if header, err := client.GetClient().GetBlockHeaderByHash(hash); err != nil || len(header.BlockHeaders) != 1 {
 			return nil

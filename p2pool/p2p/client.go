@@ -33,7 +33,8 @@ type Client struct {
 	LastBroadcast           time.Time
 	LastBlockRequest        time.Time
 	PingTime                time.Duration
-	LastPeerListRequestTime time.Time
+	LastPeerListRequestTime atomic.Uint64
+	NextOutgoingPeerListRequest atomic.Uint64
 	LastIncomingPeerListRequestTime time.Time
 	PeerId                  uint64
 	VersionInformation PeerVersionInformation
@@ -125,10 +126,12 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 }
 
 func (c *Client) SendPeerListRequest() {
+	c.NextOutgoingPeerListRequest.Store(uint64(time.Now().Unix()) + 60 + (unsafeRandom.Uint64() % 61))
 	c.SendMessage(&ClientMessage{
 		MessageId: MessagePeerListRequest,
 	})
-	c.LastPeerListRequestTime = time.Now()
+	c.LastPeerListRequestTime.Store(uint64(time.Now().UnixMicro()))
+	log.Printf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
 }
 
 func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
@@ -455,7 +458,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
-				c.PingTime = utils.Max(time.Now().Sub(c.LastPeerListRequestTime), 0)
+				c.PingTime = utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTime.Load()))), 0)
 				var rawIp [16]byte
 				var port uint16
 
