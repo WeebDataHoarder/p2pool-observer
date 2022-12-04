@@ -32,7 +32,7 @@ type Client struct {
 	LastActive              time.Time
 	LastBroadcast           time.Time
 	LastBlockRequest        time.Time
-	PingTime                time.Duration
+	PingTime                atomic.Uint64
 	LastPeerListRequestTime atomic.Uint64
 	NextOutgoingPeerListRequest atomic.Uint64
 	LastIncomingPeerListRequestTime time.Time
@@ -91,6 +91,17 @@ func (c *Client) SendListenPort() {
 		MessageId: MessageListenPort,
 		Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
 	})
+}
+
+func (c *Client) SendMissingBlockRequest(hash types.Hash) {
+	go func() {
+		fastest := c.Owner.GetFastestClient()
+		if fastest != nil && c != fastest && !c.Owner.SideChain().PreCalcFinished() {
+			//send towards the fastest peer as well
+			fastest.SendBlockRequest(hash)
+		}
+	}()
+	c.SendBlockRequest(hash)
 }
 
 func (c *Client) SendBlockRequest(hash types.Hash) {
@@ -347,7 +358,7 @@ func (c *Client) OnConnection() {
 							return
 						} else {
 							for _, id := range missingBlocks {
-								c.SendBlockRequest(id)
+								c.SendMissingBlockRequest(id)
 							}
 						}
 
@@ -385,7 +396,7 @@ func (c *Client) OnConnection() {
 			go func() {
 				if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 					for _, id := range missingBlocks {
-						c.SendBlockRequest(id)
+						c.SendMissingBlockRequest(id)
 					}
 					//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
 					return
@@ -399,7 +410,7 @@ func (c *Client) OnConnection() {
 						return
 					} else {
 						for _, id := range missingBlocks {
-							c.SendBlockRequest(id)
+							c.SendMissingBlockRequest(id)
 						}
 					}
 				}
@@ -458,7 +469,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
-				c.PingTime = utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTime.Load()))), 0)
+				c.PingTime.Store(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTime.Load()))), 0)))
 				var rawIp [16]byte
 				var port uint16
 

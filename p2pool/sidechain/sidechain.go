@@ -58,6 +58,10 @@ func (c *SideChain) Consensus() *Consensus {
 	return c.server.Consensus()
 }
 
+func (c *SideChain) PreCalcFinished() bool {
+	return c.GetChainTip() != nil && c.GetPoolBlockCount() > int(c.Consensus().ChainWindowSize*2+100)
+}
+
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()

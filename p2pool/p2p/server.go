@@ -101,6 +101,20 @@ func (s *Server) RemoveFromPeerList(ip netip.Addr) {
 	}
 }
 
+func (s *Server) GetFastestClient() *Client {
+	var client *Client
+	var ping uint64
+	for _, c := range s.Clients() {
+		p := c.PingTime.Load()
+		if p != 0 && (ping == 0 || p < ping) {
+			client = c
+			ping = p
+		}
+	}
+
+	return client
+}
+
 func (s *Server) Listen() (err error) {
 	if s.listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
 		return err
