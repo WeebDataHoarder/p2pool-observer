@@ -25,22 +25,22 @@ const DefaultBanTime = time.Second * 600
 const PeerListResponseMaxPeers = 16
 
 type Client struct {
-	Owner                   *Server
-	Connection              net.Conn
-	Closed                  atomic.Bool
-	AddressPort             netip.AddrPort
-	LastActive              time.Time
-	LastBroadcast           time.Time
-	LastBlockRequest        time.Time
-	PingTime                atomic.Uint64
-	LastPeerListRequestTime atomic.Uint64
-	NextOutgoingPeerListRequest atomic.Uint64
+	Owner                           *Server
+	Connection                      net.Conn
+	Closed                          atomic.Bool
+	AddressPort                     netip.AddrPort
+	LastActive                      time.Time
+	LastBroadcast                   time.Time
+	LastBlockRequest                time.Time
+	PingTime                        atomic.Uint64
+	LastPeerListRequestTime         atomic.Uint64
+	NextOutgoingPeerListRequest     atomic.Uint64
 	LastIncomingPeerListRequestTime time.Time
-	PeerId                  uint64
-	VersionInformation PeerVersionInformation
-	IsIncomingConnection    bool
-	HandshakeComplete       atomic.Bool
-	ListenPort              atomic.Uint32
+	PeerId                          uint64
+	VersionInformation              PeerVersionInformation
+	IsIncomingConnection            bool
+	HandshakeComplete               atomic.Bool
+	ListenPort                      atomic.Uint32
 
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 
@@ -56,8 +56,6 @@ type Client struct {
 	closeChannel chan struct{}
 
 	blockRequestThrottler <-chan time.Time
-
-
 }
 
 func NewClient(owner *Server, conn net.Conn) *Client {
@@ -70,7 +68,7 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
 		messageChannel:        make(chan *ClientMessage, 10),
 		closeChannel:          make(chan struct{}),
-		BroadcastedHashes: utils.NewCircularBuffer[types.Hash](8),
+		BroadcastedHashes:     utils.NewCircularBuffer[types.Hash](8),
 	}
 
 	return c
@@ -427,7 +425,7 @@ func (c *Client) OnConnection() {
 			entriesToSend := make([]netip.AddrPort, 0, PeerListResponseMaxPeers)
 
 			// Send every 4th peer on average, selected at random
-			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(entriesToSend) / 4, 1))
+			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(entriesToSend)/4, 1))
 			n := 0
 			for _, peer := range connectedPeerList {
 				if peer.AddressPort.Addr().IsLoopback() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
@@ -441,13 +439,11 @@ func (c *Client) OnConnection() {
 					entriesToSend = append(entriesToSend, peer.AddressPort)
 				}
 
-
 				k := unsafeRandom.Intn(n)
 				if k < peersToSendTarget {
 					entriesToSend[k] = peer.AddressPort
 				}
 			}
-
 
 			if c.LastIncomingPeerListRequestTime.IsZero() {
 				//first, send version / protocol information
@@ -489,7 +485,6 @@ func (c *Client) OnConnection() {
 						if isV6 == 0 {
 							if rawIp[12] == 0 || rawIp[12] >= 224 {
 								// Ignore 0.0.0.0/8 (special-purpose range for "this network") and 224.0.0.0/3 (IP multicast and reserved ranges)
-
 
 								// Check for protocol version message
 								if binary.LittleEndian.Uint32(rawIp[12:]) == 0xFFFFFFFF && port == 0xFFFF {
@@ -590,10 +585,6 @@ func (c *Client) ReadByte() (b byte, err error) {
 }
 
 func (c *Client) Close() {
-	if c.Closed.Load() {
-		return
-	}
-
 	if c.Closed.Swap(true) {
 		return
 	}
@@ -610,7 +601,7 @@ func (c *Client) Close() {
 	}(); ok {
 		c.Owner.clientsLock.Lock()
 		defer c.Owner.clientsLock.Unlock()
-		c.Owner.clients = slices.Delete(c.Owner.clients, i, i)
+		c.Owner.clients = slices.Delete(c.Owner.clients, i, i+1)
 		if c.IsIncomingConnection {
 			c.Owner.NumIncomingConnections.Add(-1)
 		} else {

@@ -95,7 +95,7 @@ func (s *Server) RemoveFromPeerList(ip netip.Addr) {
 	defer s.peerListLock.Unlock()
 	for i, a := range s.peerList {
 		if a.Addr().Compare(ip) == 0 {
-			slices.Delete(s.peerList, i, i)
+			slices.Delete(s.peerList, i, i+1)
 			return
 		}
 	}
@@ -130,12 +130,15 @@ func (s *Server) Listen() (err error) {
 					return
 				}
 
-				for uint32(s.NumOutgoingConnections.Load()) < s.MaxOutgoingPeers {
+				log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
+				currentPeers := uint32(s.NumOutgoingConnections.Load())
+				for currentPeers < s.MaxOutgoingPeers {
 					peerList := s.PeerList()
 					if len(peerList) == 0 {
 						break
 					}
 					randomPeer := peerList[unsafeRandom.Intn(len(peerList))]
+					currentPeers++
 					go func() {
 						if err := s.Connect(randomPeer); err != nil {
 							log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
