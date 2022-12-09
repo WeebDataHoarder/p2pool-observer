@@ -35,6 +35,8 @@ func SetClientSettings(addr string) {
 	client.Store(nil)
 }
 
+//TODO: ZMQ
+
 func GetClient() *Client {
 	if c := client.Load(); c == nil {
 		lock.Lock()
@@ -116,16 +118,16 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 }
 
 type TransactionInputResult struct {
-	Id types.Hash
+	Id         types.Hash
 	UnlockTime uint64
-	Inputs []TransactionInput
+	Inputs     []TransactionInput
 }
 
 type TransactionInput struct {
-	InputType uint8
-	Amount uint64
+	InputType  uint8
+	Amount     uint64
 	KeyOffsets []uint64
-	KeyImage types.Hash
+	KeyImage   types.Hash
 }
 
 func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputResult, error) {
@@ -145,7 +147,7 @@ func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputR
 		}
 
 		var (
-			Version uint8
+			Version    uint8
 			InputCount uint8
 
 			OffsetCount uint8
@@ -174,7 +176,6 @@ func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputR
 				if InputCount, err = reader.ReadByte(); err != nil {
 					return nil, err
 				}
-
 
 				s[ix].Inputs = make([]TransactionInput, InputCount)
 
@@ -216,13 +217,12 @@ func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputR
 }
 
 type Output struct {
-	Height uint64
-	Key types.Hash
-	Mask types.Hash
+	Height        uint64
+	Key           types.Hash
+	Mask          types.Hash
 	TransactionId types.Hash
-	Unlocked bool
+	Unlocked      bool
 }
-
 
 func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
 	<-c.throttler

@@ -15,6 +15,7 @@ import (
 	"math"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type Cache interface {
@@ -30,8 +31,8 @@ type P2PoolInterface interface {
 }
 
 type SideChain struct {
-	cache  *DerivationCache
-	server P2PoolInterface
+	derivationCache *DerivationCache
+	server          P2PoolInterface
 
 	sidechainLock sync.RWMutex
 
@@ -42,11 +43,13 @@ type SideChain struct {
 
 	chainTip          atomic.Pointer[PoolBlock]
 	currentDifficulty atomic.Pointer[types.Difficulty]
+
+	precalcFinished atomic.Bool
 }
 
 func NewSideChain(server P2PoolInterface) *SideChain {
 	return &SideChain{
-		cache:              NewDerivationCache(),
+		derivationCache:    NewDerivationCache(),
 		server:             server,
 		blocksByTemplateId: make(map[types.Hash]*PoolBlock),
 		blocksByHeight:     make(map[uint64][]*PoolBlock),
@@ -59,7 +62,7 @@ func (c *SideChain) Consensus() *Consensus {
 }
 
 func (c *SideChain) PreCalcFinished() bool {
-	return c.GetChainTip() != nil && c.GetPoolBlockCount() > int(c.Consensus().ChainWindowSize*2+100)
+	return c.precalcFinished.Load()
 }
 
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
@@ -79,7 +82,6 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 			return nil, fmt.Errorf("invalid output blob size, got %d, expected %d", block.Main.Coinbase.OutputsBlobSize, len(outputBlob))
 		}
 	}
-
 
 	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
 		if slices.Index(block.Main.Transactions, types.ZeroHash) != -1 { //only do this when zero hashes exist
@@ -120,7 +122,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 }
 
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
-	kP := c.cache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
+	kP := c.derivationCache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
 	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) == 0
 }
 
@@ -308,7 +310,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			}
 
 			//store for faster startup
-			c.saveBlock(block)
+			//TODO c.saveBlock(block)
 
 			// Try to verify blocks on top of this one
 			for i := uint64(1); i <= UncleBlockDepth; i++ {
@@ -495,7 +497,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
 				}
 
-				if ephPublicKey, viewTag := c.cache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex); ephPublicKey != out.EphemeralPublicKey {
+				if ephPublicKey, viewTag := c.derivationCache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex); ephPublicKey != out.EphemeralPublicKey {
 					return fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
 				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
 					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
@@ -596,15 +598,17 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 			block.WantBroadcast.Store(true)
 
 			if isAlternative {
-				c.cache.Clear()
+				c.derivationCache.Clear()
+
+				log.Printf("[SideChain] SYNCHRONIZED to tip %s", block.SideTemplateId(c.Consensus()))
 			}
 
 			c.pruneOldBlocks()
 		}
 	} else if block.Side.Height > tip.Side.Height {
-		//TODO log
+		log.Printf("[SideChain] block %s, height = %d, is not a longer chain than %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height, tip.SideTemplateId(c.Consensus()), tip.Side.Height)
 	} else if block.Side.Height+UncleBlockDepth > tip.Side.Height {
-		//TODO: log
+		log.Printf("[SideChain] possible uncle block: id = %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height)
 	}
 
 	if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
@@ -614,7 +618,55 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 }
 
 func (c *SideChain) pruneOldBlocks() {
-	//TODO
+
+	// Leave 2 minutes worth of spare blocks in addition to 2xPPLNS window for lagging nodes which need to sync
+	pruneDistance := c.Consensus().ChainWindowSize*2 + monero.BlockTime/c.Consensus().TargetBlockTime
+
+	curTime := uint64(time.Now().Unix())
+
+	// Remove old blocks from alternative unconnected chains after long enough time
+	pruneDelay := c.Consensus().ChainWindowSize * 4 * c.Consensus().TargetBlockTime
+
+	tip := c.GetChainTip()
+	if tip == nil || tip.Side.Height < pruneDistance {
+		return
+	}
+
+	h := tip.Side.Height - pruneDistance
+
+	numBlocksPruned := 0
+	for height, v := range c.blocksByHeight {
+		if height > h {
+			continue
+		}
+
+		// loop backwards for proper deletions
+		for i := len(v) - 1; i >= 0; i-- {
+			block := v[i]
+			if block.Depth.Load() >= pruneDistance || (curTime >= (block.LocalTimestamp + pruneDelay)) {
+				if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
+					delete(c.blocksByTemplateId, block.SideTemplateId(c.Consensus()))
+					numBlocksPruned++
+				} else {
+					log.Printf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
+				}
+				v = slices.Delete(v, i, i+1)
+			}
+		}
+
+		if len(v) == 0 {
+			delete(c.blocksByHeight, height)
+		} else {
+			c.blocksByHeight[height] = v
+		}
+	}
+
+	if numBlocksPruned > 0 {
+		log.Printf("[SideChain] pruned %d old blocks at heights <= %d", numBlocksPruned, h)
+		if !c.precalcFinished.Swap(true) {
+			c.derivationCache.Clear()
+		}
+	}
 }
 
 func (c *SideChain) GetTransactionOutputType(majorVersion uint8) uint8 {
@@ -661,7 +713,7 @@ func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
 			Type:  txType,
 		}
 		output.Reward = tmpRewards[output.Index]
-		output.EphemeralPublicKey, output.ViewTag = c.cache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, txPrivateKeySlice, txPrivateKeyScalar, output.Index)
+		output.EphemeralPublicKey, output.ViewTag = c.derivationCache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, txPrivateKeySlice, txPrivateKeyScalar, output.Index)
 
 		outputs[output.Index] = output
 

@@ -40,6 +40,8 @@ type PoolBlock struct {
 
 	WantBroadcast atomic.Bool
 	Broadcasted   atomic.Bool
+
+	LocalTimestamp uint64
 }
 
 // NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares

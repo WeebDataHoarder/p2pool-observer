@@ -170,9 +170,9 @@ func (i *Consensus) DefaultPort() uint16 {
 func (i *Consensus) InitialHintURL() string {
 	//TODO: do not require this later on
 	if i.IsMini() {
-		return "https://mini.p2pool.observer/api/shares?limit=2160&onlyBlocks"
+		return "https://mini.p2pool.observer/api/shares?limit=4320&onlyBlocks"
 	} else if i.IsDefault() {
-		return "https://p2pool.observer/api/shares?limit=2160&onlyBlocks"
+		return "https://p2pool.observer/api/shares?limit=4320&onlyBlocks"
 	}
 	return ""
 }

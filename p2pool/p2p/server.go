@@ -17,17 +17,16 @@ import (
 	"unsafe"
 )
 
-
 type Server struct {
 	sidechain *sidechain.SideChain
 
-	peerId uint64
+	peerId             uint64
 	versionInformation PeerVersionInformation
 
 	listenAddress netip.AddrPort
 
-	close atomic.Bool
-	listener net.Listener
+	close    atomic.Bool
+	listener *net.TCPListener
 
 	MaxOutgoingPeers uint32
 	MaxIncomingPeers uint32
@@ -35,7 +34,7 @@ type Server struct {
 	NumOutgoingConnections atomic.Int32
 	NumIncomingConnections atomic.Int32
 
-	peerList []netip.AddrPort
+	peerList     []netip.AddrPort
 	peerListLock sync.RWMutex
 
 	clientsLock sync.RWMutex
@@ -55,11 +54,11 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 	}
 
 	s := &Server{
-		sidechain:        sidechain,
-		listenAddress:    addrPort,
-		peerId:           binary.LittleEndian.Uint64(peerId),
-		MaxOutgoingPeers: utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
-		MaxIncomingPeers: utils.Min(utils.Max(maxIncomingPeers, 10), 450),
+		sidechain:          sidechain,
+		listenAddress:      addrPort,
+		peerId:             binary.LittleEndian.Uint64(peerId),
+		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
+		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
 		versionInformation: PeerVersionInformation{Code: ImplementationCodeGoObserver, Version: CurrentImplementationVersion, Protocol: SupportedProtocolVersion},
 	}
 
@@ -116,8 +115,12 @@ func (s *Server) GetFastestClient() *Client {
 }
 
 func (s *Server) Listen() (err error) {
-	if s.listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
+	var listener net.Listener
+	var ok bool
+	if listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
 		return err
+	} else if s.listener, ok = listener.(*net.TCPListener); !ok {
+		return errors.New("not a tcp listener")
 	} else {
 		defer s.listener.Close()
 
@@ -158,7 +161,7 @@ func (s *Server) Listen() (err error) {
 			}
 		}()
 		for !s.close.Load() {
-			if conn, err := s.listener.Accept(); err != nil {
+			if conn, err := s.listener.AcceptTCP(); err != nil {
 				return err
 			} else {
 				if err = func() error {
@@ -217,16 +220,18 @@ func (s *Server) Connect(addrPort netip.AddrPort) error {
 		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
 
-
 	s.NumOutgoingConnections.Add(1)
 
-	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second * 5); err != nil {
+	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second*5); err != nil {
 		s.NumOutgoingConnections.Add(-1)
 		return err
+	} else if tcpConn, ok := conn.(*net.TCPConn); !ok {
+		s.NumOutgoingConnections.Add(-1)
+		return errors.New("not a tcp connection")
 	} else {
 		s.clientsLock.Lock()
 		defer s.clientsLock.Unlock()
-		client := NewClient(s, conn)
+		client := NewClient(s, tcpConn)
 		s.clients = append(s.clients, client)
 		go client.OnConnection()
 		return nil
@@ -284,22 +289,22 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 		blockData, _ := block.MarshalBinary()
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
 		}
 		prunedBlockData, _ := block.MarshalBinaryFlags(true, false)
 		prunedMessage = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(prunedBlockData)+4), uint32(len(prunedBlockData))), prunedBlockData...),
+			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(prunedBlockData)+4), uint32(len(prunedBlockData))), prunedBlockData...),
 		}
 		compactBlockData, _ := block.MarshalBinaryFlags(true, true)
 		compactMessage = &ClientMessage{
 			MessageId: MessageBlockBroadcastCompact,
-			Buffer: append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
+			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
 		}
 	} else {
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer: binary.LittleEndian.AppendUint32(nil, 0),
+			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
 		}
 		prunedMessage, compactMessage = message, message
 	}

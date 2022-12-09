@@ -16,6 +16,7 @@ import (
 	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unsafe"
@@ -24,9 +25,12 @@ import (
 const DefaultBanTime = time.Second * 600
 const PeerListResponseMaxPeers = 16
 
+// MaxBlockTemplateSize Max P2P message size (128 KB) minus BLOCK_RESPONSE header (5 bytes)
+const MaxBlockTemplateSize = 128*1024 - (1 - 4)
+
 type Client struct {
 	Owner                           *Server
-	Connection                      net.Conn
+	Connection                      *net.TCPConn
 	Closed                          atomic.Bool
 	AddressPort                     netip.AddrPort
 	LastActive                      time.Time
@@ -43,22 +47,23 @@ type Client struct {
 	ListenPort                      atomic.Uint32
 
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
+	RequestedHashes   *utils.CircularBuffer[types.Hash]
 
 	BlockPendingRequests int64
-	ChainTipBlockRequest bool
+	ChainTipBlockRequest atomic.Bool
 
 	expectedMessage MessageId
 
 	handshakeChallenge HandshakeChallenge
 
-	messageChannel chan *ClientMessage
-
 	closeChannel chan struct{}
 
 	blockRequestThrottler <-chan time.Time
+
+	sendLock sync.Mutex
 }
 
-func NewClient(owner *Server, conn net.Conn) *Client {
+func NewClient(owner *Server, conn *net.TCPConn) *Client {
 	c := &Client{
 		Owner:                 owner,
 		Connection:            conn,
@@ -66,9 +71,9 @@ func NewClient(owner *Server, conn net.Conn) *Client {
 		LastActive:            time.Now(),
 		expectedMessage:       MessageHandshakeChallenge,
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
-		messageChannel:        make(chan *ClientMessage, 10),
 		closeChannel:          make(chan struct{}),
 		BroadcastedHashes:     utils.NewCircularBuffer[types.Hash](8),
+		RequestedHashes:       utils.NewCircularBuffer[types.Hash](16),
 	}
 
 	return c
@@ -92,18 +97,29 @@ func (c *Client) SendListenPort() {
 }
 
 func (c *Client) SendMissingBlockRequest(hash types.Hash) {
-	go func() {
+	if hash == types.ZeroHash {
+		return
+	}
+
+	// do not re-request hashes that have been requested
+	if !c.RequestedHashes.PushUnique(hash) {
+		return
+	}
+
+	// If the initial sync is not finished yet, try to ask the fastest peer too
+	if !c.Owner.SideChain().PreCalcFinished() {
 		fastest := c.Owner.GetFastestClient()
 		if fastest != nil && c != fastest && !c.Owner.SideChain().PreCalcFinished() {
 			//send towards the fastest peer as well
-			fastest.SendBlockRequest(hash)
+			fastest.SendMissingBlockRequest(hash)
 		}
-	}()
+	}
+
 	c.SendBlockRequest(hash)
 }
 
 func (c *Client) SendBlockRequest(hash types.Hash) {
-	<-c.blockRequestThrottler
+	//<-c.blockRequestThrottler
 
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageBlockRequest,
@@ -112,7 +128,7 @@ func (c *Client) SendBlockRequest(hash types.Hash) {
 
 	c.BlockPendingRequests++
 	if hash == types.ZeroHash {
-		c.ChainTipBlockRequest = true
+		c.ChainTipBlockRequest.Store(true)
 	}
 	c.LastBroadcast = time.Now()
 }
@@ -174,26 +190,15 @@ func (c *Client) OnConnection() {
 
 	c.sendHandshakeChallenge()
 
-	go func() {
-		defer close(c.messageChannel)
-		for {
-			select {
-			case <-c.closeChannel:
-				return
-			case message := <-c.messageChannel:
-				//log.Printf("Sending message %d len %d", message.MessageId, len(message.Buffer))
-				_, _ = c.Write([]byte{byte(message.MessageId)})
-				_, _ = c.Write(message.Buffer)
-			}
-		}
-	}()
-
+	var messageIdBuf [1]byte
+	var messageId MessageId
 	for !c.Closed.Load() {
-		var messageId MessageId
-		if err := binary.Read(c, binary.LittleEndian, &messageId); err != nil {
+		if _, err := io.ReadFull(c, messageIdBuf[:]); err != nil {
 			c.Ban(DefaultBanTime, err)
 			return
 		}
+
+		messageId = MessageId(messageIdBuf[0])
 
 		if !c.HandshakeComplete.Load() && messageId != c.expectedMessage {
 			c.Ban(DefaultBanTime, fmt.Errorf("unexpected pre-handshake message: got %d, expected %d", messageId, c.expectedMessage))
@@ -310,20 +315,20 @@ func (c *Client) OnConnection() {
 				return
 			}
 
-			go func() {
-				var block *sidechain.PoolBlock
-				//if empty, return chain tip
-				if templateId == types.ZeroHash {
-					//todo: don't return stale
-					block = c.Owner.SideChain().GetChainTip()
-				} else {
-					block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
-				}
+			var block *sidechain.PoolBlock
+			//if empty, return chain tip
+			if templateId == types.ZeroHash {
+				//todo: don't return stale
+				block = c.Owner.SideChain().GetChainTip()
+			} else {
+				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
+			}
 
-				c.SendBlockResponse(block)
-			}()
+			c.SendBlockResponse(block)
 		case MessageBlockResponse:
-			block := &sidechain.PoolBlock{}
+			block := &sidechain.PoolBlock{
+				LocalTimestamp: uint64(time.Now().Unix()),
+			}
 
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
@@ -339,33 +344,31 @@ func (c *Client) OnConnection() {
 					c.Ban(DefaultBanTime, err)
 					return
 				} else {
-					if c.ChainTipBlockRequest {
-						c.ChainTipBlockRequest = false
-
+					if c.ChainTipBlockRequest.Swap(false) {
 						//peerHeight := block.Main.Coinbase.GenHeight
 						//ourHeight :=
 						//TODO: stale block
 
+						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
+
 						c.SendPeerListRequest()
 					}
-
-					go func() {
-						if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
-							//TODO warn
-							c.Ban(DefaultBanTime, err)
-							return
-						} else {
-							for _, id := range missingBlocks {
-								c.SendMissingBlockRequest(id)
-							}
+					if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+						//TODO warn
+						c.Ban(DefaultBanTime, err)
+						return
+					} else {
+						for _, id := range missingBlocks {
+							c.SendMissingBlockRequest(id)
 						}
-
-					}()
+					}
 				}
 			}
 
 		case MessageBlockBroadcast, MessageBlockBroadcastCompact:
-			block := &sidechain.PoolBlock{}
+			block := &sidechain.PoolBlock{
+				LocalTimestamp: uint64(time.Now().Unix()),
+			}
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
 				//TODO warn
@@ -391,34 +394,26 @@ func (c *Client) OnConnection() {
 			c.BroadcastedHashes.Push(types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)))
 
 			c.LastBroadcast = time.Now()
-			go func() {
-				if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
+			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
+				for _, id := range missingBlocks {
+					c.SendMissingBlockRequest(id)
+				}
+				//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
+				return
+			} else {
+				//TODO: investigate different monero block mining
+
+				block.WantBroadcast.Store(true)
+				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+					//TODO warn
+					c.Ban(DefaultBanTime, err)
+					return
+				} else {
 					for _, id := range missingBlocks {
 						c.SendMissingBlockRequest(id)
 					}
-					//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
-					return
-				} else {
-					//TODO: investigate different monero block mining
-
-					block.WantBroadcast.Store(true)
-					if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
-						//TODO warn
-						c.Ban(DefaultBanTime, err)
-						return
-					} else {
-						for _, id := range missingBlocks {
-							c.SendMissingBlockRequest(id)
-						}
-					}
 				}
-
-				/*tip := c.Owner.SideChain().GetChainTip()
-
-				if c.Owner.SideChain().GetPoolBlockCount() > int(c.Owner.SideChain().Consensus().ChainWindowSize*2+180) && tip != nil && tip.SideTemplateId(c.Owner.Consensus()) == block.SideTemplateId(c.Owner.Consensus()) {
-					c.Owner.Close()
-				}*/
-			}()
+			}
 		case MessagePeerListRequest:
 			connectedPeerList := c.Owner.Clients()
 
@@ -550,7 +545,7 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 
 // Write writes to underlying connection, on error it will Close. Do not use this directly, Use SendMessage instead.
 func (c *Client) Write(buf []byte) (n int, err error) {
-	if n, err = c.Connection.Write(buf); err != nil && c.Closed.Load() {
+	if n, err = c.Connection.Write(buf); err != nil {
 		c.Close()
 	}
 	return
@@ -558,7 +553,7 @@ func (c *Client) Write(buf []byte) (n int, err error) {
 
 // Read reads from underlying connection, on error it will Close
 func (c *Client) Read(buf []byte) (n int, err error) {
-	if n, err = c.Connection.Read(buf); err != nil && c.Closed.Load() {
+	if n, err = c.Connection.Read(buf); err != nil {
 		c.Close()
 	}
 	return
@@ -571,7 +566,10 @@ type ClientMessage struct {
 
 func (c *Client) SendMessage(message *ClientMessage) {
 	if !c.Closed.Load() {
-		c.messageChannel <- message
+		//c.sendLock.Lock()
+		//defer c.sendLock.Unlock()
+		_, _ = c.Write(append([]byte{byte(message.MessageId)}, message.Buffer...))
+		//_, _ = c.Write(message.Buffer)
 	}
 }
 
@@ -589,18 +587,9 @@ func (c *Client) Close() {
 		return
 	}
 
-	if i, ok := func() (int, bool) {
-		c.Owner.clientsLock.RLock()
-		defer c.Owner.clientsLock.RUnlock()
-		for i, client := range c.Owner.clients {
-			if client == c {
-				return i, true
-			}
-		}
-		return 0, false
-	}(); ok {
-		c.Owner.clientsLock.Lock()
-		defer c.Owner.clientsLock.Unlock()
+	c.Owner.clientsLock.Lock()
+	defer c.Owner.clientsLock.Unlock()
+	if i := slices.Index(c.Owner.clients, c); i != -1 {
 		c.Owner.clients = slices.Delete(c.Owner.clients, i, i+1)
 		if c.IsIncomingConnection {
 			c.Owner.NumIncomingConnections.Add(-1)
