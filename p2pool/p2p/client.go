@@ -101,10 +101,17 @@ func (c *Client) OnAfterHandshake() {
 }
 
 func (c *Client) SendListenPort() {
-	c.SendMessage(&ClientMessage{
-		MessageId: MessageListenPort,
-		Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
-	})
+	if c.Owner.externalListenPort != 0 {
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageListenPort,
+			Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.externalListenPort)),
+		})
+	} else {
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageListenPort,
+			Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
+		})
+	}
 }
 
 func (c *Client) SendMissingBlockRequest(hash types.Hash) {

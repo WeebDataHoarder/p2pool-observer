@@ -23,7 +23,8 @@ type Server struct {
 	peerId             uint64
 	versionInformation PeerVersionInformation
 
-	listenAddress netip.AddrPort
+	listenAddress      netip.AddrPort
+	externalListenPort uint16
 
 	close    atomic.Bool
 	listener *net.TCPListener
@@ -41,7 +42,7 @@ type Server struct {
 	clients     []*Client
 }
 
-func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoingPeers, maxIncomingPeers uint32) (*Server, error) {
+func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32) (*Server, error) {
 	peerId := make([]byte, int(unsafe.Sizeof(uint64(0))))
 	_, err := rand.Read(peerId)
 	if err != nil {
@@ -56,6 +57,7 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 	s := &Server{
 		sidechain:          sidechain,
 		listenAddress:      addrPort,
+		externalListenPort: externalListenPort,
 		peerId:             binary.LittleEndian.Uint64(peerId),
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),

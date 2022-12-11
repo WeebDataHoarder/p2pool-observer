@@ -167,12 +167,11 @@ func (i *Consensus) DefaultPort() uint16 {
 	return 37889
 }
 
-func (i *Consensus) InitialHintURL() string {
-	//TODO: do not require this later on
+func (i *Consensus) SeedNode() string {
 	if i.IsMini() {
-		return "https://mini.p2pool.observer/api/shares?limit=4320&onlyBlocks"
+		return "seeds-mini.p2pool.io"
 	} else if i.IsDefault() {
-		return "https://p2pool.observer/api/shares?limit=4320&onlyBlocks"
+		return "seeds.p2pool.io"
 	}
 	return ""
 }

@@ -45,7 +45,17 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) *P2Po
 		maxOutgoingPeers, _ = strconv.ParseUint(outgoingPeers, 10, 0)
 	}
 
-	if pool.server, err = p2p.NewServer(pool.sidechain, listenAddress, uint32(maxOutgoingPeers), 450); err != nil {
+	maxIncomingPeers := uint64(450)
+	if incomingPeers, ok := settings["in-peers"]; ok {
+		maxIncomingPeers, _ = strconv.ParseUint(incomingPeers, 10, 0)
+	}
+
+	externalListenPort := uint64(0)
+	if externalPort, ok := settings["external-port"]; ok {
+		externalListenPort, _ = strconv.ParseUint(externalPort, 10, 0)
+	}
+
+	if pool.server, err = p2p.NewServer(pool.sidechain, listenAddress, uint16(externalListenPort), uint32(maxOutgoingPeers), uint32(maxIncomingPeers)); err != nil {
 		return nil
 	}
 
