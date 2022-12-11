@@ -543,14 +543,6 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 	}
 }
 
-// Write writes to underlying connection, on error it will Close. Do not use this directly, Use SendMessage instead.
-func (c *Client) Write(buf []byte) (n int, err error) {
-	if n, err = c.Connection.Write(buf); err != nil {
-		c.Close()
-	}
-	return
-}
-
 // Read reads from underlying connection, on error it will Close
 func (c *Client) Read(buf []byte) (n int, err error) {
 	if n, err = c.Connection.Read(buf); err != nil {
@@ -568,7 +560,9 @@ func (c *Client) SendMessage(message *ClientMessage) {
 	if !c.Closed.Load() {
 		//c.sendLock.Lock()
 		//defer c.sendLock.Unlock()
-		_, _ = c.Write(append([]byte{byte(message.MessageId)}, message.Buffer...))
+		if _, err := c.Connection.Write(append([]byte{byte(message.MessageId)}, message.Buffer...)); err != nil {
+			c.Close()
+		}
 		//_, _ = c.Write(message.Buffer)
 	}
 }
