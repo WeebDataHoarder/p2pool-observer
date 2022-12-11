@@ -961,14 +961,24 @@ func (c *SideChain) GetPoolBlockByTemplateId(id types.Hash) *PoolBlock {
 	return c.getPoolBlockByTemplateId(id)
 }
 
+func (c *SideChain) getPoolBlockByTemplateId(id types.Hash) *PoolBlock {
+	return c.blocksByTemplateId[id]
+}
+
+func (c *SideChain) GetPoolBlocksByHeight(height uint64) []*PoolBlock {
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+	return slices.Clone(c.getPoolBlocksByHeight(height))
+}
+
+func (c *SideChain) getPoolBlocksByHeight(height uint64) []*PoolBlock {
+	return c.blocksByHeight[height]
+}
+
 func (c *SideChain) GetPoolBlockCount() int {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
 	return len(c.blocksByTemplateId)
-}
-
-func (c *SideChain) getPoolBlockByTemplateId(id types.Hash) *PoolBlock {
-	return c.blocksByTemplateId[id]
 }
 
 func (c *SideChain) GetChainTip() *PoolBlock {

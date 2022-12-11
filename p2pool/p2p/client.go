@@ -29,22 +29,31 @@ const PeerListResponseMaxPeers = 16
 const MaxBlockTemplateSize = 128*1024 - (1 - 4)
 
 type Client struct {
-	Owner                           *Server
-	Connection                      *net.TCPConn
-	Closed                          atomic.Bool
-	AddressPort                     netip.AddrPort
-	LastActive                      time.Time
-	LastBroadcast                   time.Time
-	LastBlockRequest                time.Time
-	PingTime                        atomic.Uint64
-	LastPeerListRequestTime         atomic.Uint64
-	NextOutgoingPeerListRequest     atomic.Uint64
-	LastIncomingPeerListRequestTime time.Time
-	PeerId                          uint64
-	VersionInformation              PeerVersionInformation
-	IsIncomingConnection            bool
-	HandshakeComplete               atomic.Bool
-	ListenPort                      atomic.Uint32
+	// Peer general static-ish information
+	PeerId               uint64
+	VersionInformation   PeerVersionInformation
+	IsIncomingConnection bool
+	ConnectionTime       time.Time
+	ListenPort           atomic.Uint32
+	AddressPort          netip.AddrPort
+
+	// Peer general dynamic-ish information
+	BroadcastMaxHeight atomic.Uint64
+	PingDuration       atomic.Uint64
+
+	// Internal values
+	Owner                                *Server
+	Connection                           *net.TCPConn
+	Closed                               atomic.Bool
+	LastBroadcast                        time.Time
+	LastBlockRequest                     time.Time
+	LastIncomingPeerListRequestTime      time.Time
+	LastActiveTimestamp                  atomic.Uint64
+	LastPeerListRequestTimestamp         atomic.Uint64
+	NextOutgoingPeerListRequestTimestamp atomic.Uint64
+
+	//State properties
+	HandshakeComplete atomic.Bool
 
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
@@ -67,14 +76,16 @@ func NewClient(owner *Server, conn *net.TCPConn) *Client {
 	c := &Client{
 		Owner:                 owner,
 		Connection:            conn,
+		ConnectionTime:        time.Now(),
 		AddressPort:           netip.MustParseAddrPort(conn.RemoteAddr().String()),
-		LastActive:            time.Now(),
 		expectedMessage:       MessageHandshakeChallenge,
 		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
 		closeChannel:          make(chan struct{}),
 		BroadcastedHashes:     utils.NewCircularBuffer[types.Hash](8),
 		RequestedHashes:       utils.NewCircularBuffer[types.Hash](16),
 	}
+
+	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
 
 	return c
 }
@@ -151,11 +162,11 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 }
 
 func (c *Client) SendPeerListRequest() {
-	c.NextOutgoingPeerListRequest.Store(uint64(time.Now().Unix()) + 60 + (unsafeRandom.Uint64() % 61))
+	c.NextOutgoingPeerListRequestTimestamp.Store(uint64(time.Now().Unix()) + 60 + (unsafeRandom.Uint64() % 61))
 	c.SendMessage(&ClientMessage{
 		MessageId: MessagePeerListRequest,
 	})
-	c.LastPeerListRequestTime.Store(uint64(time.Now().UnixMicro()))
+	c.LastPeerListRequestTimestamp.Store(uint64(time.Now().UnixMicro()))
 	log.Printf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
 }
 
@@ -186,7 +197,7 @@ func (c *Client) IsGood() bool {
 }
 
 func (c *Client) OnConnection() {
-	c.LastActive = time.Now()
+	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
 
 	c.sendHandshakeChallenge()
 
@@ -391,6 +402,16 @@ func (c *Client) OnConnection() {
 				}
 			}
 
+			//Atomic max, not necessary as no external writers exist
+			topHeight := utils.Max(c.BroadcastMaxHeight.Load(), block.Side.Height)
+			for {
+				if oldHeight := c.BroadcastMaxHeight.Swap(topHeight); oldHeight <= topHeight {
+					break
+				} else {
+					topHeight = oldHeight
+				}
+			}
+
 			c.BroadcastedHashes.Push(types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)))
 
 			c.LastBroadcast = time.Now()
@@ -460,7 +481,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
-				c.PingTime.Store(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTime.Load()))), 0)))
+				c.PingDuration.Store(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTimestamp.Load()))), 0)))
 				var rawIp [16]byte
 				var port uint16
 
@@ -484,8 +505,8 @@ func (c *Client) OnConnection() {
 								// Check for protocol version message
 								if binary.LittleEndian.Uint32(rawIp[12:]) == 0xFFFFFFFF && port == 0xFFFF {
 									c.VersionInformation.Protocol = ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
-									c.VersionInformation.Version = ImplementationVersion(binary.LittleEndian.Uint32(rawIp[4:]))
-									c.VersionInformation.Code = ImplementationCode(binary.LittleEndian.Uint32(rawIp[8:]))
+									c.VersionInformation.SoftwareVersion = SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
+									c.VersionInformation.SoftwareId = SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
 									log.Printf("peer %s is %s", c.AddressPort.String(), c.VersionInformation.String())
 								}
 								continue
@@ -503,6 +524,8 @@ func (c *Client) OnConnection() {
 			c.Ban(DefaultBanTime, fmt.Errorf("unknown MessageId %d", messageId))
 			return
 		}
+
+		c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
 	}
 }
 

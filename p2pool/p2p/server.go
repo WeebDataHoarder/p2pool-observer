@@ -59,7 +59,7 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, maxOutgoing
 		peerId:             binary.LittleEndian.Uint64(peerId),
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
-		versionInformation: PeerVersionInformation{Code: ImplementationCodeGoObserver, Version: CurrentImplementationVersion, Protocol: SupportedProtocolVersion},
+		versionInformation: PeerVersionInformation{SoftwareId: SoftwareIdGoObserver, SoftwareVersion: CurrentSoftwareVersion, Protocol: SupportedProtocolVersion},
 	}
 
 	return s, nil
@@ -104,7 +104,7 @@ func (s *Server) GetFastestClient() *Client {
 	var client *Client
 	var ping uint64
 	for _, c := range s.Clients() {
-		p := c.PingTime.Load()
+		p := c.PingDuration.Load()
 		if p != 0 && (ping == 0 || p < ping) {
 			client = c
 			ping = p
@@ -154,7 +154,7 @@ func (s *Server) Listen() (err error) {
 
 				curTime := uint64(time.Now().Unix())
 				for _, c := range s.Clients() {
-					if c.IsGood() && curTime >= c.NextOutgoingPeerListRequest.Load() {
+					if c.IsGood() && curTime >= c.NextOutgoingPeerListRequestTimestamp.Load() {
 						c.SendPeerListRequest()
 					}
 				}
