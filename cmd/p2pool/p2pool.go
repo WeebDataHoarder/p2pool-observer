@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -25,7 +26,7 @@ func main() {
 	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
 	//TODO: zmq
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
-	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a file or an URL to obtain peer lists from")
+	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path")
 	consensusConfigFile := flag.String("config", "", "Name of the p2pool config file")
 	useMiniSidechain := flag.Bool("mini", false, "Connect to p2pool-mini sidechain. Note that it will also change default p2p port.")
 
@@ -125,6 +126,21 @@ func main() {
 							if addrPort, err := netip.ParseAddrPort(strings.TrimSpace(scanner.Text())); err == nil {
 								p2pool.Server().AddToPeerList(addrPort)
 							}
+						}
+					}
+				}()
+
+				go func() {
+					contents := make([]byte, 0, 4096)
+					for range time.Tick(time.Minute * 5) {
+						contents = contents[:0]
+						for _, addrPort := range p2pool.Server().PeerList() {
+							contents = append(contents, []byte(addrPort.String())...)
+							contents = append(contents, '\n')
+						}
+						if err := os.WriteFile(*peerList, contents, 0644); err != nil {
+							log.Printf("error writing %s: %s", *peerList, err.Error())
+							break
 						}
 					}
 				}()

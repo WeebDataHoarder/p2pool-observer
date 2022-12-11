@@ -30,7 +30,7 @@ const MaxBlockTemplateSize = 128*1024 - (1 - 4)
 
 type Client struct {
 	// Peer general static-ish information
-	PeerId               uint64
+	PeerId               atomic.Uint64
 	VersionInformation   PeerVersionInformation
 	IsIncomingConnection bool
 	ConnectionTime       time.Time
@@ -247,13 +247,13 @@ func (c *Client) OnConnection() {
 				return
 			}
 
-			c.PeerId = peerId
+			c.PeerId.Store(peerId)
 
 			if func() bool {
 				c.Owner.clientsLock.RLock()
 				defer c.Owner.clientsLock.RUnlock()
 				for _, client := range c.Owner.clients {
-					if client != c && client.PeerId == peerId {
+					if client != c && client.PeerId.Load() == peerId {
 						return true
 					}
 				}

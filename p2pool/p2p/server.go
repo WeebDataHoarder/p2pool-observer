@@ -35,6 +35,8 @@ type Server struct {
 	NumOutgoingConnections atomic.Int32
 	NumIncomingConnections atomic.Int32
 
+	PendingOutgoingConnections *utils.CircularBuffer[string]
+
 	peerList     []netip.AddrPort
 	peerListLock sync.RWMutex
 
@@ -64,6 +66,8 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalLis
 		versionInformation: PeerVersionInformation{SoftwareId: SoftwareIdGoObserver, SoftwareVersion: CurrentSoftwareVersion, Protocol: SupportedProtocolVersion},
 	}
 
+	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
+
 	return s, nil
 }
 
@@ -86,9 +90,7 @@ func (s *Server) PeerList() []netip.AddrPort {
 	s.peerListLock.RLock()
 	defer s.peerListLock.RUnlock()
 
-	peerList := make([]netip.AddrPort, len(s.peerList))
-	copy(peerList, s.peerList)
-	return peerList
+	return slices.Clone(s.peerList)
 }
 
 func (s *Server) RemoveFromPeerList(ip netip.Addr) {
@@ -96,7 +98,7 @@ func (s *Server) RemoveFromPeerList(ip netip.Addr) {
 	defer s.peerListLock.Unlock()
 	for i, a := range s.peerList {
 		if a.Addr().Compare(ip) == 0 {
-			slices.Delete(s.peerList, i, i+1)
+			s.peerList = slices.Delete(s.peerList, i, i+1)
 			return
 		}
 	}
@@ -137,13 +139,12 @@ func (s *Server) Listen() (err error) {
 
 				log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
 				currentPeers := uint32(s.NumOutgoingConnections.Load())
-				for currentPeers < s.MaxOutgoingPeers {
-					peerList := s.PeerList()
-					if len(peerList) == 0 {
-						break
-					}
-					randomPeer := peerList[unsafeRandom.Intn(len(peerList))]
+				peerList := s.PeerList()
+				for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
+					peerIndex := unsafeRandom.Intn(len(peerList))
+					randomPeer := peerList[peerIndex]
 					currentPeers++
+					peerList = slices.Delete(peerList, peerIndex, peerIndex+1)
 					go func() {
 						if err := s.Connect(randomPeer); err != nil {
 							log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
@@ -220,6 +221,10 @@ func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
 func (s *Server) Connect(addrPort netip.AddrPort) error {
 	if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
 		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
+	}
+
+	if !s.PendingOutgoingConnections.PushUnique(addrPort.Addr().String()) {
+		return errors.New("peer is already attempting connection")
 	}
 
 	s.NumOutgoingConnections.Add(1)
@@ -311,31 +316,33 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 		prunedMessage, compactMessage = message, message
 	}
 
-	for _, c := range s.Clients() {
-		if c.IsGood() {
-			if !func() bool {
-				broadcastedHashes := c.BroadcastedHashes.Slice()
-				if slices.Index(broadcastedHashes, block.Side.Parent) == -1 {
-					return false
-				}
-				for _, uncleHash := range block.Side.Uncles {
-					if slices.Index(broadcastedHashes, uncleHash) == -1 {
+	go func() {
+		for _, c := range s.Clients() {
+			if c.IsGood() {
+				if !func() bool {
+					broadcastedHashes := c.BroadcastedHashes.Slice()
+					if slices.Index(broadcastedHashes, block.Side.Parent) == -1 {
 						return false
 					}
-				}
+					for _, uncleHash := range block.Side.Uncles {
+						if slices.Index(broadcastedHashes, uncleHash) == -1 {
+							return false
+						}
+					}
 
-				if c.VersionInformation.Protocol >= ProtocolVersion_1_1 {
-					c.SendMessage(compactMessage)
-				} else {
-					c.SendMessage(prunedMessage)
+					if c.VersionInformation.Protocol >= ProtocolVersion_1_1 {
+						c.SendMessage(compactMessage)
+					} else {
+						c.SendMessage(prunedMessage)
+					}
+					return true
+				}() {
+					//fallback
+					c.SendMessage(message)
 				}
-				return true
-			}() {
-				//fallback
-				c.SendMessage(message)
 			}
 		}
-	}
+	}()
 }
 
 func (s *Server) Consensus() *sidechain.Consensus {
