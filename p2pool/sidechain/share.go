@@ -1,10 +1,13 @@
 package sidechain
 
-import "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+)
 
 type Shares []*Share
 
 type Share struct {
-	Weight  uint64
+	Weight  types.Difficulty
 	Address address.PackedAddress
 }

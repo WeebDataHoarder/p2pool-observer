@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/slices"
 	"log"
 )
@@ -48,7 +49,12 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			return
 		}
 		if block.Depth.Load() >= c.Consensus().ChainWindowSize {
-			//TODO: save raw
+			//TODO: check for compressed blob existence before saving uncompressed
+			blob, _ := block.MarshalBinary()
+
+			if err := c.server.SetBlob(c.uncompressedBlockId(block), blob); err != nil {
+				log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+			}
 			return
 		}
 		c.sidechainLock.RLock()
@@ -85,6 +91,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		transactionOffsets := make([]uint64, len(block.Main.Transactions))
 		transactionOffsetsStored := 0
 
+		parentTransactions := make([]types.Hash, 0, 512)
+
 		if block.Side.Height != fullBlockTemplateHeight {
 			tmp := parent
 			for offset := uint64(1); tmp != nil && offset < BlockSaveEpochSize; offset++ {
@@ -100,11 +108,22 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 					mainFieldsOffset = block.Side.Height - tmp.Side.Height
 				}
 
-				for tIndex, tOffset := range transactionOffsets {
-					if tOffset == 0 {
-						if foundIndex := slices.Index(tmp.Main.Transactions, block.Main.Transactions[tIndex]); foundIndex != -1 {
-							transactionOffsets[tIndex] = (uint64(foundIndex) << BlockSaveFieldSizeInBits) | ((block.Side.Height - tmp.Side.Height) & 0xFF)
-							transactionOffsetsStored++
+				if transactionOffsetsStored != len(transactionOffsets) {
+					//store last offset to not spend time looking on already checked sections
+					prevLen := len(parentTransactions)
+					for _, txHash := range tmp.Main.Transactions {
+						//if it doesn't exist yet
+						if slices.Index(parentTransactions, txHash) == -1 {
+							parentTransactions = append(parentTransactions, txHash)
+						}
+					}
+
+					for tIndex, tOffset := range transactionOffsets {
+						if tOffset == 0 {
+							if foundIndex := slices.Index(parentTransactions[prevLen:], block.Main.Transactions[tIndex]); foundIndex != -1 {
+								transactionOffsets[tIndex] = uint64(prevLen) + uint64(foundIndex) + 1
+								transactionOffsetsStored++
+							}
 						}
 					}
 				}

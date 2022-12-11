@@ -310,7 +310,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			}
 
 			//store for faster startup
-			//TODO c.saveBlock(block)
+			c.saveBlock(block)
 
 			// Try to verify blocks on top of this one
 			for i := uint64(1); i <= UncleBlockDepth; i++ {
@@ -724,26 +724,26 @@ func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
 }
 
 func (c *SideChain) SplitReward(reward uint64, shares Shares) (rewards []uint64) {
-	var totalWeight uint64
+	var totalWeight types.Difficulty
 	for i := range shares {
-		totalWeight += shares[i].Weight
+		totalWeight = totalWeight.Add(shares[i].Weight)
 	}
 
-	if totalWeight == 0 {
+	if totalWeight.Equals64(0) {
 		//TODO: err
 		return nil
 	}
 
 	rewards = make([]uint64, len(shares))
 
-	var w uint64
+	var w types.Difficulty
 	var rewardGiven uint64
 
 	for i := range shares {
-		w += shares[i].Weight
-		nextValue := types.DifficultyFrom64(w).Mul64(reward).Div64(totalWeight).Lo
-		rewards[i] = nextValue - rewardGiven
-		rewardGiven = nextValue
+		w = w.Add(shares[i].Weight)
+		nextValue := w.Mul64(reward).Div(totalWeight)
+		rewards[i] = nextValue.Lo - rewardGiven
+		rewardGiven = nextValue.Lo
 	}
 
 	// Double check that we gave out the exact amount
@@ -766,7 +766,7 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 
 	index := 0
 	l := len(preAllocatedShares)
-	insert := func(weight uint64, a *address.PackedAddress) {
+	insert := func(weight types.Difficulty, a *address.PackedAddress) {
 		if index < l {
 			preAllocatedShares[index].Weight, preAllocatedShares[index].Address = weight, *a
 		} else {
@@ -776,7 +776,7 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 	}
 
 	for {
-		curWeight := cur.Side.Difficulty.Lo
+		curWeight := cur.Side.Difficulty
 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
@@ -791,9 +791,9 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 				// Take some % of uncle's weight into this share
 				product := uncle.Side.Difficulty.Mul64(c.Consensus().UnclePenalty)
 				unclePenalty := product.Div64(100)
-				curWeight += unclePenalty.Lo
+				curWeight = curWeight.Add(unclePenalty)
 
-				insert(uncle.Side.Difficulty.Sub(unclePenalty).Lo, uncle.GetAddress())
+				insert(uncle.Side.Difficulty.Sub(unclePenalty), uncle.GetAddress())
 			}
 		}
 
@@ -827,7 +827,7 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 	k := 0
 	for i := 1; i < len(shares); i++ {
 		if shares[i].Address.Compare(&shares[k].Address) == 0 {
-			shares[k].Weight += shares[i].Weight
+			shares[k].Weight = shares[k].Weight.Add(shares[i].Weight)
 		} else {
 			k++
 			shares[k].Address = shares[i].Address
@@ -927,17 +927,9 @@ func (c *SideChain) getDifficulty(tip *PoolBlock) types.Difficulty {
 		}
 	}
 
-	//TODO: p2pool uses uint64 instead of full range here: This is correct as long as the difference between two 128-bit difficulties is less than 2^64, even if it wraps
 	deltaDiff := diff2.Sub(diff1)
 
-	product := deltaDiff.Mul64(c.Consensus().TargetBlockTime)
-
-	if product.Hi >= deltaT {
-		//TODO: error, calculated difficulty too high
-		return types.ZeroDifficulty
-	}
-
-	curDifficulty := product.Div64(deltaT)
+	curDifficulty := deltaDiff.Mul64(c.Consensus().TargetBlockTime).Div64(deltaT)
 
 	if curDifficulty.Cmp64(c.Consensus().MinimumDifficulty) < 0 {
 		curDifficulty = types.DifficultyFrom64(c.Consensus().MinimumDifficulty)
