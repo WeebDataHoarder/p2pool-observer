@@ -304,9 +304,14 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(prunedBlockData)+4), uint32(len(prunedBlockData))), prunedBlockData...),
 		}
 		compactBlockData, _ := block.MarshalBinaryFlags(true, true)
-		compactMessage = &ClientMessage{
-			MessageId: MessageBlockBroadcastCompact,
-			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
+		if len(compactBlockData) >= len(prunedBlockData) {
+			//do not send compact if it ends up larger due to some reason, like parent missing or mismatch in transactions
+			compactMessage = prunedMessage
+		} else {
+			compactMessage = &ClientMessage{
+				MessageId: MessageBlockBroadcastCompact,
+				Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
+			}
 		}
 	} else {
 		message = &ClientMessage{
