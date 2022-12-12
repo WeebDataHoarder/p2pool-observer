@@ -191,13 +191,13 @@ func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
 }
 
 func (c *CoinbaseTransaction) Id() types.Hash {
-	if c.id != (types.Hash{}) {
+	if c.id != types.ZeroHash {
 		return c.id
 	}
 
 	c.idLock.Lock()
 	defer c.idLock.Unlock()
-	if c.id != (types.Hash{}) {
+	if c.id != types.ZeroHash {
 		return c.id
 	}
 

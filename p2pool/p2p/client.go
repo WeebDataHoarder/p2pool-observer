@@ -535,7 +535,6 @@ func (c *Client) OnConnection() {
 					}
 				}
 			}
-			//TODO
 		default:
 			c.Ban(DefaultBanTime, fmt.Errorf("unknown MessageId %d", messageId))
 			return

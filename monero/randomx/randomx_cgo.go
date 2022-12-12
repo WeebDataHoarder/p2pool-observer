@@ -65,12 +65,12 @@ type hasherState struct {
 func ConsensusHash(buf []byte) types.Hash {
 	dataset, err := randomx.AllocDataset(randomx.FlagDefault)
 	if err != nil {
-		return types.Hash{}
+		return types.ZeroHash
 	}
 	defer randomx.ReleaseDataset(dataset)
 	cache, err := randomx.AllocCache(randomx.FlagDefault)
 	if err != nil {
-		return types.Hash{}
+		return types.ZeroHash
 	}
 	defer randomx.ReleaseCache(cache)
 

@@ -256,10 +256,10 @@ func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
 
 func (c *Client) GetBlockIdByHeight(height uint64) (types.Hash, error) {
 	if r, err := c.GetBlockHeaderByHeight(height); err != nil {
-		return types.Hash{}, err
+		return types.ZeroHash, err
 	} else {
 		if h, err := types.HashFromString(r.BlockHeader.Hash); err != nil {
-			return types.Hash{}, err
+			return types.ZeroHash, err
 		} else {
 			return h, nil
 		}
