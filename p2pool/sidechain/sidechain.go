@@ -104,10 +104,18 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 		}
 	} else {
 		// fill if not received from network
-		block.Main.TransactionParentIndices = make([]uint64, len(block.Main.Transactions))
+		c.fillPoolBlockTransactionParentIndices(block)
+	}
+
+	return nil, nil
+}
+
+func (c *SideChain) fillPoolBlockTransactionParentIndices(block *PoolBlock) {
+	if len(block.Main.Transactions) != len(block.Main.TransactionParentIndices) {
 
 		parent := c.getParent(block)
 		if parent != nil {
+			block.Main.TransactionParentIndices = make([]uint64, len(block.Main.Transactions))
 			//do not fail if not found
 			for i, txHash := range block.Main.Transactions {
 				if parentIndex := slices.Index(parent.Main.Transactions, txHash); parentIndex != -1 {
@@ -118,7 +126,6 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 		}
 	}
 
-	return nil, nil
 }
 
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
@@ -302,6 +309,8 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			} else if highestBlock != nil && highestBlock.Side.Height > block.Side.Height {
 				log.Printf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
 			}
+
+			c.fillPoolBlockTransactionParentIndices(block)
 
 			if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
 				if block.Depth.Load() < UncleBlockDepth {
