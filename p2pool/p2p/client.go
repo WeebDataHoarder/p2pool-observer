@@ -67,22 +67,19 @@ type Client struct {
 
 	closeChannel chan struct{}
 
-	blockRequestThrottler <-chan time.Time
-
 	sendLock sync.Mutex
 }
 
 func NewClient(owner *Server, conn *net.TCPConn) *Client {
 	c := &Client{
-		Owner:                 owner,
-		Connection:            conn,
-		ConnectionTime:        time.Now(),
-		AddressPort:           netip.MustParseAddrPort(conn.RemoteAddr().String()),
-		expectedMessage:       MessageHandshakeChallenge,
-		blockRequestThrottler: time.Tick(time.Second / 50), //maximum 50 per second
-		closeChannel:          make(chan struct{}),
-		BroadcastedHashes:     utils.NewCircularBuffer[types.Hash](8),
-		RequestedHashes:       utils.NewCircularBuffer[types.Hash](16),
+		Owner:             owner,
+		Connection:        conn,
+		ConnectionTime:    time.Now(),
+		AddressPort:       netip.MustParseAddrPort(conn.RemoteAddr().String()),
+		expectedMessage:   MessageHandshakeChallenge,
+		closeChannel:      make(chan struct{}),
+		BroadcastedHashes: utils.NewCircularBuffer[types.Hash](8),
+		RequestedHashes:   utils.NewCircularBuffer[types.Hash](16),
 	}
 
 	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
@@ -136,8 +133,20 @@ func (c *Client) SendMissingBlockRequest(hash types.Hash) {
 	c.SendBlockRequest(hash)
 }
 
+func (c *Client) SendUniqueBlockRequest(hash types.Hash) {
+	if hash == types.ZeroHash {
+		return
+	}
+
+	// do not re-request hashes that have been requested
+	if !c.RequestedHashes.PushUnique(hash) {
+		return
+	}
+
+	c.SendBlockRequest(hash)
+}
+
 func (c *Client) SendBlockRequest(hash types.Hash) {
-	//<-c.blockRequestThrottler
 
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageBlockRequest,

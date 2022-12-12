@@ -678,6 +678,40 @@ func (c *SideChain) pruneOldBlocks() {
 	}
 }
 
+func (c *SideChain) GetMissingBlocks() []types.Hash {
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+
+	missingBlocks := make([]types.Hash, 0)
+
+	for _, b := range c.blocksByTemplateId {
+		if b.Verified.Load() {
+			continue
+		}
+
+		if !b.Side.Parent.Equals(types.ZeroHash) && c.getPoolBlockByTemplateId(b.Side.Parent) == nil {
+			missingBlocks = append(missingBlocks, b.Side.Parent)
+		}
+
+		missingUncles := 0
+
+		for _, uncleId := range b.Side.Uncles {
+			if !uncleId.Equals(types.ZeroHash) && c.getPoolBlockByTemplateId(uncleId) == nil {
+				missingBlocks = append(missingBlocks, uncleId)
+				missingUncles++
+
+				// Get no more than 2 first missing uncles at a time from each block
+				// Blocks with more than 2 uncles are very rare and they will be processed in several steps
+				if missingUncles >= 2 {
+					break
+				}
+			}
+		}
+	}
+
+	return missingBlocks
+}
+
 func (c *SideChain) GetTransactionOutputType(majorVersion uint8) uint8 {
 	// Both tx types are allowed by Monero consensus during v15 because it needs to process pre-fork mempool transactions,
 	// but P2Pool can switch to using only TXOUT_TO_TAGGED_KEY for miner payouts starting from v15

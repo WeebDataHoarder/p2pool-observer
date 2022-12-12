@@ -118,6 +118,46 @@ func (s *Server) GetFastestClient() *Client {
 	return client
 }
 
+func (s *Server) updatePeerList() {
+	curTime := uint64(time.Now().Unix())
+	for _, c := range s.Clients() {
+		if c.IsGood() && curTime >= c.NextOutgoingPeerListRequestTimestamp.Load() {
+			c.SendPeerListRequest()
+		}
+	}
+}
+
+func (s *Server) updateClientConnections() {
+	log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
+	currentPeers := uint32(s.NumOutgoingConnections.Load())
+	peerList := s.PeerList()
+	for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
+		peerIndex := unsafeRandom.Intn(len(peerList))
+		randomPeer := peerList[peerIndex]
+		currentPeers++
+		peerList = slices.Delete(peerList, peerIndex, peerIndex+1)
+		go func() {
+			if err := s.Connect(randomPeer); err != nil {
+				log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
+				s.RemoveFromPeerList(randomPeer.Addr())
+			} else {
+				log.Printf("connected to %s", randomPeer.String())
+			}
+		}()
+	}
+}
+
+func (s *Server) DownloadMissingBlocks() {
+	clientList := s.Clients()
+
+	if len(clientList) == 0 {
+		return
+	}
+	for _, h := range s.SideChain().GetMissingBlocks() {
+		clientList[unsafeRandom.Intn(len(clientList))].SendUniqueBlockRequest(h)
+	}
+}
+
 func (s *Server) Listen() (err error) {
 	var listener net.Listener
 	var ok bool
@@ -137,30 +177,19 @@ func (s *Server) Listen() (err error) {
 					return
 				}
 
-				log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
-				currentPeers := uint32(s.NumOutgoingConnections.Load())
-				peerList := s.PeerList()
-				for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
-					peerIndex := unsafeRandom.Intn(len(peerList))
-					randomPeer := peerList[peerIndex]
-					currentPeers++
-					peerList = slices.Delete(peerList, peerIndex, peerIndex+1)
-					go func() {
-						if err := s.Connect(randomPeer); err != nil {
-							log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
-							s.RemoveFromPeerList(randomPeer.Addr())
-						} else {
-							log.Printf("connected to %s", randomPeer.String())
-						}
-					}()
+				s.updatePeerList()
+				s.updateClientConnections()
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range time.Tick(time.Second * 60) {
+				if s.close.Load() {
+					return
 				}
 
-				curTime := uint64(time.Now().Unix())
-				for _, c := range s.Clients() {
-					if c.IsGood() && curTime >= c.NextOutgoingPeerListRequestTimestamp.Load() {
-						c.SendPeerListRequest()
-					}
-				}
+				s.DownloadMissingBlocks()
 			}
 		}()
 		for !s.close.Load() {
