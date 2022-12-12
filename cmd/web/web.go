@@ -647,7 +647,7 @@ func main() {
 			miner := share["miner"].(string)
 			if _, ok := miners[miner]; !ok {
 				miners[miner] = make(map[string]any)
-				miners[miner]["weight"] = types.Difficulty{}
+				miners[miner]["weight"] = types.ZeroDifficulty
 				miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 				miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 				if a, ok := share["miner_alias"]; ok {
@@ -668,7 +668,7 @@ func main() {
 					miner := uncle["miner"].(string)
 					if _, ok := miners[miner]; !ok {
 						miners[miner] = make(map[string]any)
-						miners[miner]["weight"] = types.Difficulty{}
+						miners[miner]["weight"] = types.ZeroDifficulty
 						miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 						miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
 						if a, ok := uncle["miner_alias"]; ok {

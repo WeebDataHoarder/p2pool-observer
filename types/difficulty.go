@@ -190,10 +190,10 @@ func (d Difficulty) MarshalJSON() ([]byte, error) {
 
 func DifficultyFromString(s string) (Difficulty, error) {
 	if buf, err := hex.DecodeString(s); err != nil {
-		return Difficulty{}, err
+		return ZeroDifficulty, err
 	} else {
 		if len(buf) != DifficultySize {
-			return Difficulty{}, errors.New("wrong hash size")
+			return ZeroDifficulty, errors.New("wrong hash size")
 		}
 
 		return DifficultyFromBytes(buf), nil
