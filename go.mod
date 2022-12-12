@@ -17,7 +17,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/tyler-sommer/stick v1.0.4
 	golang.org/x/crypto v0.4.0
-	golang.org/x/exp v0.0.0-20221211133740-4296e2f59697
+	golang.org/x/exp v0.0.0-20221211140036-ad323defaf05
 	golang.org/x/net v0.4.0
 	lukechampine.com/uint128 v1.2.0
 )
