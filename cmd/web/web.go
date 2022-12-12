@@ -892,7 +892,7 @@ func main() {
 
 		block := getFromAPI(fmt.Sprintf("block_by_id/%s?coinbase", identifier)).(map[string]any)
 
-		if block == nil || block["main"].(map[string]any)["found"] == false {
+		if block == nil || block["main"].(map[string]any)["found"] == false || block["coinbase"].(map[string]any)["payouts"] == nil {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
