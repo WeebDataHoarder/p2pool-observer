@@ -58,7 +58,7 @@ type Client struct {
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
 
-	BlockPendingRequests int64
+	BlockPendingRequests atomic.Int64
 	ChainTipBlockRequest atomic.Bool
 
 	expectedMessage MessageId
@@ -95,6 +95,8 @@ func (c *Client) Ban(duration time.Duration, err error) {
 func (c *Client) OnAfterHandshake() {
 	c.SendListenPort()
 	c.SendBlockRequest(types.ZeroHash)
+
+	c.LastBroadcast = time.Now()
 }
 
 func (c *Client) SendListenPort() {
@@ -153,11 +155,10 @@ func (c *Client) SendBlockRequest(hash types.Hash) {
 		Buffer:    hash[:],
 	})
 
-	c.BlockPendingRequests++
+	c.BlockPendingRequests.Add(1)
 	if hash == types.ZeroHash {
 		c.ChainTipBlockRequest.Store(true)
 	}
-	c.LastBroadcast = time.Now()
 }
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
@@ -356,6 +357,13 @@ func (c *Client) OnConnection() {
 			block := &sidechain.PoolBlock{
 				LocalTimestamp: uint64(time.Now().Unix()),
 			}
+
+			if c.BlockPendingRequests.Load() <= 0 {
+				c.Ban(DefaultBanTime, errors.New("unexpected BLOCK_RESPONSE"))
+				return
+			}
+
+			c.BlockPendingRequests.Add(-1)
 
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
