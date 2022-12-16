@@ -34,7 +34,7 @@ func encodeJson(r *http.Request, d any) ([]byte, error) {
 }
 
 func main() {
-	client.SetClientSettings(os.Getenv("MONEROD_RPC_URL"))
+	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 	db, err := database.NewDatabase(os.Args[1])
 	if err != nil {
 		log.Panic(err)

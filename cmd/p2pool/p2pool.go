@@ -36,7 +36,7 @@ func main() {
 
 	flag.Parse()
 
-	client.SetClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
+	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 
 	settings := make(map[string]string)
 	settings["listen"] = *p2pListen

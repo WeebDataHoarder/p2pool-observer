@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	client.SetClientSettings(os.Getenv("MONEROD_RPC_URL"))
+	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 	db, err := database.NewDatabase(os.Args[1])
 	if err != nil {
 		log.Panic(err)
@@ -92,7 +92,7 @@ func main() {
 			if !b.Main.Found && b.IsProofHigherThanDifficulty() {
 				log.Printf("[CHAIN] BLOCK FOUND! Main height %d, main id %s\n", b.Main.Height, b.Main.Id.String())
 
-				if tx, _ := client.GetClient().GetCoinbaseTransaction(b.Coinbase.Id); tx != nil {
+				if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(b.Coinbase.Id); tx != nil {
 					_ = db.SetBlockFound(b.Id, true)
 					processFoundBlockWithTransaction(api, b, tx)
 				}
@@ -113,7 +113,7 @@ func main() {
 			if !u.Block.Main.Found && u.Block.IsProofHigherThanDifficulty() {
 				log.Printf("[CHAIN] BLOCK FOUND! Main height %d, main id %s\n", u.Block.Main.Height, u.Block.Main.Id.String())
 
-				if tx, _ := client.GetClient().GetCoinbaseTransaction(u.Block.Coinbase.Id); tx != nil {
+				if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(u.Block.Coinbase.Id); tx != nil {
 					_ = db.SetBlockFound(u.Block.Id, true)
 					processFoundBlockWithTransaction(api, u, tx)
 				}
@@ -225,7 +225,7 @@ func main() {
 
 				// Look between +1 block and +4 blocks
 				if (diskTip.Main.Height-1) > foundBlock.GetBlock().Main.Height && (diskTip.Main.Height-5) < foundBlock.GetBlock().Main.Height || db.GetCoinbaseTransaction(foundBlock.GetBlock()) == nil {
-					if tx, _ := client.GetClient().GetCoinbaseTransaction(foundBlock.GetBlock().Coinbase.Id); tx == nil {
+					if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(foundBlock.GetBlock().Coinbase.Id); tx == nil {
 						// If more than two minutes have passed before we get utxo, remove from found
 						log.Printf("[CHAIN] Block that was found at main height %d, cannot find output, marking not found\n", foundBlock.GetBlock().Main.Height)
 						_ = db.SetBlockFound(foundBlock.GetBlock().Id, false)

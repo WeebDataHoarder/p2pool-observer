@@ -9,7 +9,7 @@ import (
 
 func HashBlob(height uint64, blob []byte) (hash types.Hash, err error) {
 
-	if seed, err := client.GetClient().GetSeedByHeight(height); err != nil {
+	if seed, err := client.GetDefaultClient().GetSeedByHeight(height); err != nil {
 		return types.ZeroHash, err
 	} else {
 		return hasher.Hash(seed[:], blob)
@@ -21,7 +21,7 @@ var blockHeaderByHashLock sync.Mutex
 
 func GetBlockHeaderByHeight(height uint64) *Header {
 	//TODO: cache
-	if header, err := client.GetClient().GetBlockHeaderByHeight(height); err != nil {
+	if header, err := client.GetDefaultClient().GetBlockHeaderByHeight(height); err != nil {
 		return nil
 	} else {
 		prevHash, _ := types.HashFromString(header.BlockHeader.PrevHash)
@@ -44,7 +44,7 @@ func GetBlockHeaderByHash(hash types.Hash) *Header {
 	blockHeaderByHashLock.Lock()
 	defer blockHeaderByHashLock.Unlock()
 	if h := blockHeaderByHash.Get(hash); h == nil {
-		if header, err := client.GetClient().GetBlockHeaderByHash(hash); err != nil || len(header.BlockHeaders) != 1 {
+		if header, err := client.GetDefaultClient().GetBlockHeaderByHash(hash); err != nil || len(header.BlockHeaders) != 1 {
 			return nil
 		} else {
 			prevHash, _ := types.HashFromString(header.BlockHeaders[0].PrevHash)
@@ -71,7 +71,7 @@ func GetBlockHeaderByHash(hash types.Hash) *Header {
 }
 
 func GetLastBlockHeader() *Header {
-	if header, err := client.GetClient().GetLastBlockHeader(); err != nil {
+	if header, err := client.GetDefaultClient().GetLastBlockHeader(); err != nil {
 		return nil
 	} else {
 		prevHash, _ := types.HashFromString(header.BlockHeader.PrevHash)

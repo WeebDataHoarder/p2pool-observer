@@ -34,8 +34,8 @@ func setHeightDifficulty(height uint64, difficulty types.Difficulty) {
 
 func cacheHeightDifficulty(height uint64) {
 	if _, ok := getHeightDifficulty(height); !ok {
-		if header, err := client.GetClient().GetBlockHeaderByHeight(height); err != nil {
-			if template, err := client.GetClient().GetBlockTemplate(types.DonationAddress); err != nil {
+		if header, err := client.GetDefaultClient().GetBlockHeaderByHeight(height); err != nil {
+			if template, err := client.GetDefaultClient().GetBlockTemplate(types.DonationAddress); err != nil {
 				setHeightDifficulty(uint64(template.Height), types.DifficultyFrom64(uint64(template.Difficulty)))
 			}
 		} else {

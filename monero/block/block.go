@@ -296,7 +296,7 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 
 func (b *Block) Difficulty() types.Difficulty {
 	//cached by sidechain.Share
-	d, _ := client.GetClient().GetDifficultyByHeight(b.Coinbase.GenHeight)
+	d, _ := client.GetDefaultClient().GetDifficultyByHeight(b.Coinbase.GenHeight)
 	return d
 }
 

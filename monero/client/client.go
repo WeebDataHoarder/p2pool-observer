@@ -25,7 +25,7 @@ var lock sync.Mutex
 
 var address = "http://localhost:18081"
 
-func SetClientSettings(addr string) {
+func SetDefaultClientSettings(addr string) {
 	if addr == "" {
 		return
 	}
@@ -35,15 +35,13 @@ func SetClientSettings(addr string) {
 	client.Store(nil)
 }
 
-//TODO: ZMQ
-
-func GetClient() *Client {
+func GetDefaultClient() *Client {
 	if c := client.Load(); c == nil {
 		lock.Lock()
 		defer lock.Unlock()
 		if c = client.Load(); c == nil {
 			//fallback for lock racing
-			if c, err := newClient(); err != nil {
+			if c, err := NewClient(address); err != nil {
 				log.Panic(err)
 			} else {
 				client.Store(c)
@@ -70,7 +68,7 @@ type Client struct {
 	throttler <-chan time.Time
 }
 
-func newClient() (*Client, error) {
+func NewClient(address string) (*Client, error) {
 	c, err := rpc.NewClient(address)
 	if err != nil {
 		return nil, err
