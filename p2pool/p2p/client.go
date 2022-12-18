@@ -58,8 +58,8 @@ type Client struct {
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
 
-	BlockPendingRequests atomic.Int64
-	ChainTipBlockRequest atomic.Bool
+	blockPendingRequests chan types.Hash
+	chainTipBlockRequest atomic.Bool
 
 	expectedMessage MessageId
 
@@ -72,14 +72,15 @@ type Client struct {
 
 func NewClient(owner *Server, conn *net.TCPConn) *Client {
 	c := &Client{
-		Owner:             owner,
-		Connection:        conn,
-		ConnectionTime:    time.Now(),
-		AddressPort:       netip.MustParseAddrPort(conn.RemoteAddr().String()),
-		expectedMessage:   MessageHandshakeChallenge,
-		closeChannel:      make(chan struct{}),
-		BroadcastedHashes: utils.NewCircularBuffer[types.Hash](8),
-		RequestedHashes:   utils.NewCircularBuffer[types.Hash](16),
+		Owner:                owner,
+		Connection:           conn,
+		ConnectionTime:       time.Now(),
+		AddressPort:          netip.MustParseAddrPort(conn.RemoteAddr().String()),
+		expectedMessage:      MessageHandshakeChallenge,
+		closeChannel:         make(chan struct{}),
+		BroadcastedHashes:    utils.NewCircularBuffer[types.Hash](8),
+		RequestedHashes:      utils.NewCircularBuffer[types.Hash](16),
+		blockPendingRequests: make(chan types.Hash, 100), //allow max 100 pending block requests at the same time
 	}
 
 	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
@@ -97,6 +98,15 @@ func (c *Client) OnAfterHandshake() {
 	c.SendBlockRequest(types.ZeroHash)
 
 	c.LastBroadcast = time.Now()
+}
+
+func (c *Client) getNextBlockRequest() (id types.Hash, ok bool) {
+	select {
+	case id = <-c.blockPendingRequests:
+		return id, true
+	default:
+		return types.ZeroHash, false
+	}
 }
 
 func (c *Client) SendListenPort() {
@@ -148,16 +158,16 @@ func (c *Client) SendUniqueBlockRequest(hash types.Hash) {
 	c.SendBlockRequest(hash)
 }
 
-func (c *Client) SendBlockRequest(hash types.Hash) {
+func (c *Client) SendBlockRequest(id types.Hash) {
 
 	c.SendMessage(&ClientMessage{
 		MessageId: MessageBlockRequest,
-		Buffer:    hash[:],
+		Buffer:    id[:],
 	})
 
-	c.BlockPendingRequests.Add(1)
-	if hash == types.ZeroHash {
-		c.ChainTipBlockRequest.Store(true)
+	c.blockPendingRequests <- id
+	if id == types.ZeroHash {
+		c.chainTipBlockRequest.Store(true)
 	}
 }
 
@@ -358,12 +368,12 @@ func (c *Client) OnConnection() {
 				LocalTimestamp: uint64(time.Now().Unix()),
 			}
 
-			if c.BlockPendingRequests.Load() <= 0 {
+			expectedBlockId, ok := c.getNextBlockRequest()
+
+			if !ok {
 				c.Ban(DefaultBanTime, errors.New("unexpected BLOCK_RESPONSE"))
 				return
 			}
-
-			c.BlockPendingRequests.Add(-1)
 
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
@@ -379,12 +389,18 @@ func (c *Client) OnConnection() {
 					c.Ban(DefaultBanTime, err)
 					return
 				} else {
-					if c.ChainTipBlockRequest.Swap(false) {
+					isChainTipBlockRequest := false
+					if c.chainTipBlockRequest.Swap(false) {
+						isChainTipBlockRequest = true
 						//peerHeight := block.Main.Coinbase.GenHeight
 						//ourHeight :=
 						//TODO: stale block
 
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
+
+						if expectedBlockId != types.ZeroHash {
+							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId, types.ZeroHash.String()))
+						}
 
 						c.SendPeerListRequest()
 					}
@@ -393,6 +409,10 @@ func (c *Client) OnConnection() {
 						c.Ban(DefaultBanTime, err)
 						return
 					} else {
+						if !isChainTipBlockRequest && expectedBlockId != block.SideTemplateId(c.Owner.SideChain().Consensus()) {
+							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId.String(), block.SideTemplateId(c.Owner.SideChain().Consensus()).String()))
+							return
+						}
 						for _, id := range missingBlocks {
 							c.SendMissingBlockRequest(id)
 						}
