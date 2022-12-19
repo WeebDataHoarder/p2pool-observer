@@ -626,7 +626,9 @@ func (c *Client) SendMessage(message *ClientMessage) {
 	if !c.Closed.Load() {
 		//c.sendLock.Lock()
 		//defer c.sendLock.Unlock()
-		if _, err := c.Connection.Write(append([]byte{byte(message.MessageId)}, message.Buffer...)); err != nil {
+		if err := c.Connection.SetWriteDeadline(time.Now().Add(time.Second * 5)); err != nil {
+			c.Close()
+		} else if _, err = c.Connection.Write(append([]byte{byte(message.MessageId)}, message.Buffer...)); err != nil {
 			c.Close()
 		}
 		//_, _ = c.Write(message.Buffer)
