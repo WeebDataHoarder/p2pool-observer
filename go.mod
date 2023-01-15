@@ -11,19 +11,27 @@ require (
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
 	github.com/go-faster/xor v0.3.0
+	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.1
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.7
+	github.com/stretchr/testify v1.7.0
 	github.com/tyler-sommer/stick v1.0.4
-	golang.org/x/crypto v0.4.0
-	golang.org/x/exp v0.0.0-20221211140036-ad323defaf05
-	golang.org/x/net v0.4.0
+	golang.org/x/crypto v0.5.0
+	golang.org/x/exp v0.0.0-20230113213754-f9f960f08ad4
+	golang.org/x/net v0.5.0
 	lukechampine.com/uint128 v1.2.0
 )
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
-	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/sync v0.0.0-20220929204114-8fcdb60fdcc0 // indirect
+	golang.org/x/sys v0.4.0 // indirect
+	golang.org/x/text v0.6.0 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 )
