@@ -66,12 +66,22 @@ func TestJSONFromFrame(t *testing.T) {
 }
 
 func TestClient(t *testing.T) {
-	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), "json-minimal-txpool_add")
+	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
 	s, err := client.Listen(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	for d := range s.MinimalTxPoolAddC {
-		log.Print(d)
+
+	for {
+		select {
+		case fullChainMain := <-s.FullChainMainC:
+			log.Print(fullChainMain)
+		case fullTxPoolAdd := <-s.FullTxPoolAddC:
+			log.Print(fullTxPoolAdd)
+		case minimalChainMain := <-s.MinimalChainMainC:
+			log.Print(minimalChainMain)
+		case minimalTxPoolAdd := <-s.MinimalTxPoolAddC:
+			log.Print(minimalTxPoolAdd)
+		}
 	}
 }

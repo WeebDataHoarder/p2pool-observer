@@ -5,19 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/slices"
+	"strings"
 
 	"github.com/go-zeromq/zmq4"
 )
 
 type Client struct {
 	endpoint string
-	topic    Topic
+	topics   []Topic
 	sub      zmq4.Socket
 }
 
 // NewClient instantiates a new client that will receive monerod's zmq events.
 //
-//   - `topic` is a fully-formed zmq topic to subscribe to
+//   - `topics` is a list of fully-formed zmq topic to subscribe to
 //
 //   - `endpoint` is the full address where monerod has been configured to
 //     publish the messages to, including the network schama. for instance,
@@ -26,10 +28,10 @@ type Client struct {
 //     monerod --zmq-pub tcp://127.0.0.1:18085
 //
 //     `endpoint` should be 'tcp://127.0.0.1:18085'.
-func NewClient(endpoint string, topic Topic) *Client {
+func NewClient(endpoint string, topics ...Topic) *Client {
 	return &Client{
 		endpoint: endpoint,
-		topic:    topic,
+		topics:   topics,
 	}
 }
 
@@ -49,8 +51,13 @@ type Stream struct {
 // Clients listen to a single topic at a time - to listen to multiple topics,
 // create new clients and listen on the corresponding stream's channel.
 func (c *Client) Listen(ctx context.Context) (*Stream, error) {
-	if err := c.listen(ctx, c.topic); err != nil {
-		return nil, fmt.Errorf("listen on '%s': %w", c.topic, err)
+	if err := c.listen(ctx, c.topics...); err != nil {
+		return nil, fmt.Errorf("listen on '%s': %w", strings.Join(func() (r []string) {
+			for _, s := range c.topics {
+				r = append(r, string(s))
+			}
+			return r
+		}(), ", "), err)
 	}
 
 	stream := &Stream{
@@ -87,7 +94,7 @@ func (c *Client) Close() error {
 	return c.sub.Close()
 }
 
-func (c *Client) listen(ctx context.Context, topic Topic) error {
+func (c *Client) listen(ctx context.Context, topics ...Topic) error {
 	c.sub = zmq4.NewSub(ctx)
 
 	err := c.sub.Dial(c.endpoint)
@@ -95,9 +102,11 @@ func (c *Client) listen(ctx context.Context, topic Topic) error {
 		return fmt.Errorf("dial '%s': %w", c.endpoint, err)
 	}
 
-	err = c.sub.SetOption(zmq4.OptionSubscribe, string(topic))
-	if err != nil {
-		return fmt.Errorf("subscribe: %w", err)
+	for _, topic := range topics {
+		err = c.sub.SetOption(zmq4.OptionSubscribe, string(topic))
+		if err != nil {
+			return fmt.Errorf("subscribe: %w", err)
+		}
 	}
 
 	return nil
@@ -125,12 +134,17 @@ func (c *Client) ingestFrameArray(stream *Stream, frame []byte) error {
 		return fmt.Errorf("json from frame: %w", err)
 	}
 
-	if c.topic != topic {
+	if slices.Index(c.topics, topic) == -1 {
 		return fmt.Errorf("topic '%s' doesn't match "+
-			"expected '%s'", topic, c.topic)
+			"expected any of '%s'", topic, strings.Join(func() (r []string) {
+			for _, s := range c.topics {
+				r = append(r, string(s))
+			}
+			return r
+		}(), ", "))
 	}
 
-	switch c.topic {
+	switch Topic(topic) {
 	case TopicFullChainMain:
 		return c.transmitFullChainMain(stream, gson)
 	case TopicFullTxPoolAdd:
@@ -145,7 +159,7 @@ func (c *Client) ingestFrameArray(stream *Stream, frame []byte) error {
 }
 
 func (c *Client) transmitFullChainMain(stream *Stream, gson []byte) error {
-	arr := []*FullChainMain{}
+	var arr []*FullChainMain
 
 	if err := json.Unmarshal(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
@@ -158,7 +172,7 @@ func (c *Client) transmitFullChainMain(stream *Stream, gson []byte) error {
 }
 
 func (c *Client) transmitFullTxPoolAdd(stream *Stream, gson []byte) error {
-	arr := []*FullTxPoolAdd{}
+	var arr []*FullTxPoolAdd
 
 	if err := json.Unmarshal(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
@@ -181,7 +195,7 @@ func (c *Client) transmitMinimalChainMain(stream *Stream, gson []byte) error {
 }
 
 func (c *Client) transmitMinimalTxPoolAdd(stream *Stream, gson []byte) error {
-	arr := []*MinimalTxPoolAdd{}
+	var arr []*MinimalTxPoolAdd
 
 	if err := json.Unmarshal(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
