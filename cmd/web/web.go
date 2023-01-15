@@ -795,7 +795,7 @@ func main() {
 		var shares, payouts, lastShares, lastFound []any
 		if toUint64(miner["id"]) != 0 {
 			shares = getFromAPI(fmt.Sprintf("shares_in_window/%d?from=%d&window=%d", toUint64(miner["id"]), tipHeight, wsize)).([]any)
-			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=50", toUint64(miner["id"]))).([]any)
+			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"]))).([]any)
 			lastShares = getFromAPI(fmt.Sprintf("shares?limit=50&miner=%d", toUint64(miner["id"]))).([]any)
 			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
 		}
