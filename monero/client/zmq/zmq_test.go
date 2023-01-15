@@ -66,7 +66,7 @@ func TestJSONFromFrame(t *testing.T) {
 }
 
 func TestClient(t *testing.T) {
-	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
+	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicFullMinerData, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
 	s, err := client.Listen(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -74,10 +74,14 @@ func TestClient(t *testing.T) {
 
 	for {
 		select {
+		case err := <-s.ErrC:
+			t.Fatal(err)
 		case fullChainMain := <-s.FullChainMainC:
 			log.Print(fullChainMain)
 		case fullTxPoolAdd := <-s.FullTxPoolAddC:
 			log.Print(fullTxPoolAdd)
+		case fullMinerData := <-s.FullMinerDataC:
+			log.Print(fullMinerData)
 		case minimalChainMain := <-s.MinimalChainMainC:
 			log.Print(minimalChainMain)
 		case minimalTxPoolAdd := <-s.MinimalTxPoolAddC:

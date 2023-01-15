@@ -42,6 +42,7 @@ type Stream struct {
 
 	FullChainMainC    chan *FullChainMain
 	FullTxPoolAddC    chan *FullTxPoolAdd
+	FullMinerDataC    chan *FullMinerData
 	MinimalChainMainC chan *MinimalChainMain
 	MinimalTxPoolAddC chan *MinimalTxPoolAdd
 }
@@ -65,6 +66,7 @@ func (c *Client) Listen(ctx context.Context) (*Stream, error) {
 
 		FullChainMainC:    make(chan *FullChainMain),
 		FullTxPoolAddC:    make(chan *FullTxPoolAdd),
+		FullMinerDataC:    make(chan *FullMinerData),
 		MinimalChainMainC: make(chan *MinimalChainMain),
 		MinimalTxPoolAddC: make(chan *MinimalTxPoolAdd),
 	}
@@ -78,6 +80,7 @@ func (c *Client) Listen(ctx context.Context) (*Stream, error) {
 
 		close(stream.FullChainMainC)
 		close(stream.FullTxPoolAddC)
+		close(stream.FullMinerDataC)
 		close(stream.MinimalChainMainC)
 		close(stream.MinimalTxPoolAddC)
 	}()
@@ -149,6 +152,8 @@ func (c *Client) ingestFrameArray(stream *Stream, frame []byte) error {
 		return c.transmitFullChainMain(stream, gson)
 	case TopicFullTxPoolAdd:
 		return c.transmitFullTxPoolAdd(stream, gson)
+	case TopicFullMinerData:
+		return c.transmitFullMinerData(stream, gson)
 	case TopicMinimalChainMain:
 		return c.transmitMinimalChainMain(stream, gson)
 	case TopicMinimalTxPoolAdd:
@@ -181,6 +186,16 @@ func (c *Client) transmitFullTxPoolAdd(stream *Stream, gson []byte) error {
 		stream.FullTxPoolAddC <- element
 	}
 
+	return nil
+}
+
+func (c *Client) transmitFullMinerData(stream *Stream, gson []byte) error {
+	element := &FullMinerData{}
+
+	if err := json.Unmarshal(gson, element); err != nil {
+		return fmt.Errorf("unmarshal: %w", err)
+	}
+	stream.FullMinerDataC <- element
 	return nil
 }
 
@@ -223,6 +238,8 @@ func jsonFromFrame(frame []byte) (Topic, []byte, error) {
 		return TopicMinimalChainMain, gson, nil
 	case string(TopicFullChainMain):
 		return TopicFullChainMain, gson, nil
+	case string(TopicFullMinerData):
+		return TopicFullMinerData, gson, nil
 	case string(TopicFullTxPoolAdd):
 		return TopicFullTxPoolAdd, gson, nil
 	case string(TopicMinimalTxPoolAdd):

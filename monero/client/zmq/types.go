@@ -1,5 +1,10 @@
 package zmq
 
+import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+)
+
 type Topic string
 
 const (
@@ -10,20 +15,22 @@ const (
 
 	TopicMinimalChainMain Topic = "json-minimal-chain_main"
 	TopicFullChainMain    Topic = "json-full-chain_main"
+
+	TopicFullMinerData Topic = "json-full-miner_data"
 )
 
 type MinimalChainMain struct {
-	FirstHeight uint64   `json:"first_height"`
-	FirstPrevID string   `json:"first_prev_id"`
-	Ids         []string `json:"ids"`
+	FirstHeight uint64       `json:"first_height"`
+	FirstPrevID types.Hash   `json:"first_prev_id"`
+	Ids         []types.Hash `json:"ids"`
 }
 
 type FullChainMain struct {
-	MajorVersion int    `json:"major_version"`
-	MinorVersion int    `json:"minor_version"`
-	Timestamp    int64  `json:"timestamp"`
-	PrevID       string `json:"prev_id"`
-	Nonce        uint64 `json:"nonce"`
+	MajorVersion int        `json:"major_version"`
+	MinorVersion int        `json:"minor_version"`
+	Timestamp    int64      `json:"timestamp"`
+	PrevID       types.Hash `json:"prev_id"`
+	Nonce        uint64     `json:"nonce"`
 	MinerTx      struct {
 		Version    int   `json:"version"`
 		UnlockTime int64 `json:"unlock_time"`
@@ -35,7 +42,7 @@ type FullChainMain struct {
 		Outputs []struct {
 			Amount uint64 `json:"amount"`
 			ToKey  struct {
-				Key string `json:"key"`
+				Key crypto.PublicKeyBytes `json:"key"`
 			} `json:"to_key"`
 		} `json:"outputs"`
 		Extra      string        `json:"extra"`
@@ -47,12 +54,12 @@ type FullChainMain struct {
 			Fee         uint64        `json:"fee"`
 		} `json:"ringct"`
 	} `json:"miner_tx"`
-	TxHashes []string `json:"tx_hashes"`
+	TxHashes []types.Hash `json:"tx_hashes"`
 }
 
 type MinimalTxPoolAdd struct {
-	ID       string `json:"id"`
-	BlobSize uint64 `json:"blob_size"`
+	ID       types.Hash `json:"id"`
+	BlobSize uint64     `json:"blob_size"`
 }
 
 type FullTxPoolAdd struct {
@@ -60,15 +67,15 @@ type FullTxPoolAdd struct {
 	UnlockTime int64 `json:"unlock_time"`
 	Inputs     []struct {
 		ToKey struct {
-			Amount     uint64   `json:"amount"`
-			KeyOffsets []uint64 `json:"key_offsets"`
-			KeyImage   string   `json:"key_image"`
+			Amount     uint64     `json:"amount"`
+			KeyOffsets []uint64   `json:"key_offsets"`
+			KeyImage   types.Hash `json:"key_image"`
 		} `json:"to_key"`
 	} `json:"inputs"`
 	Outputs []struct {
 		Amount int `json:"amount"`
 		ToKey  struct {
-			Key string `json:"key"`
+			Key crypto.PublicKeyBytes `json:"key"`
 		} `json:"to_key"`
 	} `json:"outputs"`
 	Extra      string        `json:"extra"`
@@ -101,4 +108,22 @@ type FullTxPoolAdd struct {
 			PseudoOuts []string      `json:"pseudo_outs"`
 		} `json:"prunable"`
 	} `json:"ringct"`
+}
+type TxMempoolData struct {
+	Id       types.Hash `json:"id"`
+	BlobSize uint64     `json:"blob_size"`
+	Weight   uint64     `json:"weight"`
+	Fee      uint64     `json:"fee"`
+}
+
+type FullMinerData struct {
+	MajorVersion          uint8            `json:"major_version"`
+	Height                uint64           `json:"height"`
+	PrevId                types.Hash       `json:"prev_id"`
+	SeedHash              types.Hash       `json:"seed_hash"`
+	Difficulty            types.Difficulty `json:"difficulty"`
+	MedianWeight          uint64           `json:"median_weight"`
+	AlreadyGeneratedCoins uint64           `json:"already_generated_coins"`
+	MedianTimestamp       uint64           `json:"median_timestamp"`
+	TxBacklog             []TxMempoolData  `json:"tx_backlog"`
 }
