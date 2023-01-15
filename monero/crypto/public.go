@@ -71,7 +71,7 @@ func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PublicKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		if _, err = k.Point().SetBytes(buf); err != nil {
@@ -110,7 +110,7 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PublicKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		copy((*k)[:], buf)
@@ -147,7 +147,7 @@ func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PublicKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		*k = buf

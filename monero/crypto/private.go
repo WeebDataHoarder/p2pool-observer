@@ -75,7 +75,7 @@ func (p *PrivateKeyScalar) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PrivateKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		if _, err = p.Scalar().SetCanonicalBytes(buf); err != nil {
@@ -127,7 +127,7 @@ func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PrivateKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		copy((*k)[:], buf)
@@ -177,7 +177,7 @@ func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {
 		return err
 	} else {
 		if len(buf) != PrivateKeySize {
-			return errors.New("wrong hash size")
+			return errors.New("wrong key size")
 		}
 
 		*k = buf

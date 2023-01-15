@@ -9,6 +9,7 @@ import (
 	"lukechampine.com/uint128"
 	"math/big"
 	"math/bits"
+	"strings"
 )
 
 const DifficultySize = 16
@@ -189,14 +190,25 @@ func (d Difficulty) MarshalJSON() ([]byte, error) {
 }
 
 func DifficultyFromString(s string) (Difficulty, error) {
-	if buf, err := hex.DecodeString(s); err != nil {
-		return ZeroDifficulty, err
-	} else {
-		if len(buf) != DifficultySize {
-			return ZeroDifficulty, errors.New("wrong hash size")
+	if strings.HasPrefix(s, "0x") {
+		if buf, err := hex.DecodeString(s[2:]); err != nil {
+			return ZeroDifficulty, err
+		} else {
+			//TODO: check this
+			var d [DifficultySize]byte
+			copy(d[DifficultySize-len(buf):], buf)
+			return DifficultyFromBytes(d[:]), nil
 		}
+	} else {
+		if buf, err := hex.DecodeString(s); err != nil {
+			return ZeroDifficulty, err
+		} else {
+			if len(buf) != DifficultySize {
+				return ZeroDifficulty, errors.New("wrong difficulty size")
+			}
 
-		return DifficultyFromBytes(buf), nil
+			return DifficultyFromBytes(buf), nil
+		}
 	}
 }
 
