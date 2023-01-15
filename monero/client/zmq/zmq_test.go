@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +68,9 @@ func TestJSONFromFrame(t *testing.T) {
 
 func TestClient(t *testing.T) {
 	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicFullMinerData, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
-	s, err := client.Listen(context.Background())
+	ctx, ctxFunc := context.WithTimeout(context.Background(), time.Second*30)
+	defer ctxFunc()
+	s, err := client.Listen(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,6 +79,7 @@ func TestClient(t *testing.T) {
 		select {
 		case err := <-s.ErrC:
 			t.Fatal(err)
+			return
 		case fullChainMain := <-s.FullChainMainC:
 			log.Print(fullChainMain)
 		case fullTxPoolAdd := <-s.FullTxPoolAddC:

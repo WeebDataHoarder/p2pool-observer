@@ -47,10 +47,7 @@ type Stream struct {
 	MinimalTxPoolAddC chan *MinimalTxPoolAdd
 }
 
-// Listen listens for a topic pre-configured for this client (via NewClient).
-//
-// Clients listen to a single topic at a time - to listen to multiple topics,
-// create new clients and listen on the corresponding stream's channel.
+// Listen listens for a list of topics pre-configured for this client (via NewClient).
 func (c *Client) Listen(ctx context.Context) (*Stream, error) {
 	if err := c.listen(ctx, c.topics...); err != nil {
 		return nil, fmt.Errorf("listen on '%s': %w", strings.Join(func() (r []string) {
