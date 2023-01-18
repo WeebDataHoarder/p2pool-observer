@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
@@ -10,8 +11,11 @@ import (
 )
 
 func main() {
+	startFromHeight := flag.Uint64("from", 0, "Start sync from this height")
+	dbString := flag.String("db", "", "")
+	flag.Parse()
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
-	db, err := database.NewDatabase(os.Args[1])
+	db, err := database.NewDatabase(*dbString)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -50,6 +54,11 @@ func main() {
 		for i := diskTip; api.BlockExists(i); i-- {
 			startFrom = i
 		}
+	}
+
+	if *startFromHeight != 0 {
+		log.Printf("[CHAIN] Forcing start tip to %d\n", *startFromHeight)
+		startFrom = *startFromHeight
 	}
 
 	if isFresh || startFrom != tipHeight {
