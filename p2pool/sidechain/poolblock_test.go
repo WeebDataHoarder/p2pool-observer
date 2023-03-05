@@ -1,10 +1,12 @@
 package sidechain
 
 import (
+	"context"
 	"encoding/hex"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	block2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"log"
@@ -72,24 +74,42 @@ func TestPoolBlockDecode(t *testing.T) {
 
 	proofResult, _ := types.DifficultyFromString("00000000000000000000006ef6334490")
 
-	if types.DifficultyFromPoW(block.PowHash()).Cmp(proofResult) != 0 {
-		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), types.DifficultyFromPoW(block.PowHash()).String())
+	getSeedByHeight := func(height uint64) (hash types.Hash) {
+		seedHeight := randomx.SeedHeight(height)
+		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(seedHeight, context.Background()); err != nil {
+			return types.ZeroHash
+		} else {
+			hash, _ := types.HashFromString(h.BlockHeader.Hash)
+			return hash
+		}
+	}
+
+	getDifficultyByHeight := func(height uint64) types.Difficulty {
+		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(height, context.Background()); err != nil {
+			return types.ZeroDifficulty
+		} else {
+			return types.DifficultyFrom64(h.BlockHeader.Difficulty)
+		}
+	}
+
+	if types.DifficultyFromPoW(block.PowHash(getSeedByHeight)).Cmp(proofResult) != 0 {
+		t.Fatalf("expected PoW difficulty %s, got %s", proofResult.String(), types.DifficultyFromPoW(block.PowHash(getSeedByHeight)).String())
 	}
 
 	t.Log(block.Main.Id().String())
 	//t.Log(block.Main.PowHash().String())
 	//t.Log(block.Main.PowHash().String())
 
-	if !block.IsProofHigherThanMainDifficulty() {
+	if !block.IsProofHigherThanMainDifficulty(getDifficultyByHeight, getSeedByHeight) {
 		t.Fatal("expected proof higher than difficulty")
 	}
 
 	block.cache.powHash[31] = 1
 
-	if block.IsProofHigherThanMainDifficulty() {
+	if block.IsProofHigherThanMainDifficulty(getDifficultyByHeight, getSeedByHeight) {
 		t.Fatal("expected proof lower than difficulty")
 	}
 
-	log.Print(types.DifficultyFromPoW(block.PowHash()).String())
-	log.Print(block.MainDifficulty().String())
+	log.Print(types.DifficultyFromPoW(block.PowHash(getSeedByHeight)).String())
+	log.Print(block.MainDifficulty(getDifficultyByHeight).String())
 }

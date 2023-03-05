@@ -41,9 +41,13 @@ type FullChainMain struct {
 		} `json:"inputs"`
 		Outputs []struct {
 			Amount uint64 `json:"amount"`
-			ToKey  struct {
+			ToKey  *struct {
 				Key crypto.PublicKeyBytes `json:"key"`
 			} `json:"to_key"`
+			ToTaggedKey *struct {
+				Key     crypto.PublicKeyBytes `json:"key"`
+				ViewTag string                `json:"view_tag"`
+			} `json:"to_tagged_key"`
 		} `json:"outputs"`
 		Extra      string        `json:"extra"`
 		Signatures []interface{} `json:"signatures"`

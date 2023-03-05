@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
@@ -54,14 +53,10 @@ func GetDefaultClient() *Client {
 	}
 }
 
-// Client TODO: ratelimit
+// Client
 type Client struct {
 	c *rpc.Client
 	d *daemon.Client
-
-	difficultyCache *lru.LRU[uint64, types.Difficulty]
-
-	seedCache *lru.LRU[uint64, types.Hash]
 
 	coinbaseTransactionCache *lru.LRU[types.Hash, *transaction.CoinbaseTransaction]
 
@@ -76,10 +71,8 @@ func NewClient(address string) (*Client, error) {
 	return &Client{
 		c:                        c,
 		d:                        daemon.NewClient(c),
-		difficultyCache:          lru.New[uint64, types.Difficulty](1024),
-		seedCache:                lru.New[uint64, types.Hash](1024),
 		coinbaseTransactionCache: lru.New[types.Hash, *transaction.CoinbaseTransaction](1024),
-		throttler:                time.Tick(time.Second / 2),
+		throttler:                time.Tick(time.Second / 8),
 	}, nil
 }
 
@@ -252,63 +245,27 @@ func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
 	}
 }
 
-func (c *Client) GetBlockIdByHeight(height uint64) (types.Hash, error) {
-	if r, err := c.GetBlockHeaderByHeight(height); err != nil {
-		return types.ZeroHash, err
-	} else {
-		if h, err := types.HashFromString(r.BlockHeader.Hash); err != nil {
-			return types.ZeroHash, err
-		} else {
-			return h, nil
-		}
-	}
-}
-
-func (c *Client) AddSeedByHeightToCache(seedHeight uint64, seed types.Hash) {
-	c.seedCache.Set(seedHeight, seed)
-}
-
-func (c *Client) GetSeedByHeight(height uint64) (types.Hash, error) {
-
-	seedHeight := randomx.SeedHeight(height)
-
-	if seed := c.seedCache.Get(seedHeight); seed == nil {
-		if seed, err := c.GetBlockIdByHeight(seedHeight); err != nil {
-			return types.ZeroHash, err
-		} else {
-			c.AddSeedByHeightToCache(seedHeight, seed)
-			return seed, nil
-		}
-	} else {
-		return *seed, nil
-	}
-}
-
-func (c *Client) GetDifficultyByHeight(height uint64) (types.Difficulty, error) {
-	if difficulty := c.difficultyCache.Get(height); difficulty == nil {
-		if header, err := c.GetBlockHeaderByHeight(height); err != nil {
-			if template, err := c.GetBlockTemplate(types.DonationAddress); err != nil {
-				return types.ZeroDifficulty, err
-			} else if uint64(template.Height) == height {
-				difficulty := types.DifficultyFrom64(uint64(template.Difficulty))
-				c.difficultyCache.Set(height, difficulty)
-				return difficulty, nil
-			} else {
-				return types.ZeroDifficulty, errors.New("height not found and is not next template")
-			}
-		} else {
-			difficulty := types.DifficultyFrom64(uint64(header.BlockHeader.Difficulty))
-			c.difficultyCache.Set(height, difficulty)
-			return difficulty, nil
-		}
-	} else {
-		return *difficulty, nil
-	}
-}
-
-func (c *Client) GetBlockHeaderByHash(hash types.Hash) (*daemon.GetBlockHeaderByHashResult, error) {
+func (c *Client) GetVersion() (*daemon.GetVersionResult, error) {
 	<-c.throttler
-	if result, err := c.d.GetBlockHeaderByHash(context.Background(), []string{hash.String()}); err != nil {
+	if result, err := c.d.GetVersion(context.Background()); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetInfo() (*daemon.GetInfoResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetInfo(context.Background()); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetBlockHeaderByHash(hash types.Hash, ctx context.Context) (*daemon.GetBlockHeaderByHashResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetBlockHeaderByHash(ctx, []string{hash.String()}); err != nil {
 		return nil, err
 	} else {
 		return result, nil
@@ -324,9 +281,43 @@ func (c *Client) GetLastBlockHeader() (*daemon.GetLastBlockHeaderResult, error) 
 	}
 }
 
-func (c *Client) GetBlockHeaderByHeight(height uint64) (*daemon.GetBlockHeaderByHeightResult, error) {
+func (c *Client) GetBlockHeaderByHeight(height uint64, ctx context.Context) (*daemon.GetBlockHeaderByHeightResult, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.throttler:
+		if result, err := c.d.GetBlockHeaderByHeight(ctx, height); err != nil {
+			return nil, err
+		} else {
+			return result, nil
+		}
+	}
+}
+
+func (c *Client) GetBlockHeadersRangeResult(start, end uint64, ctx context.Context) (*daemon.GetBlockHeadersRangeResult, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-c.throttler:
+		if result, err := c.d.GetBlockHeadersRange(ctx, start, end); err != nil {
+			return nil, err
+		} else {
+			return result, nil
+		}
+	}
+}
+
+func (c *Client) SubmitBlock(blob []byte) (*daemon.SubmitBlockResult, error) {
+	if result, err := c.d.SubmitBlock(context.Background(), blob); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetMinerData() (*daemon.GetMinerDataResult, error) {
 	<-c.throttler
-	if result, err := c.d.GetBlockHeaderByHeight(context.Background(), height); err != nil {
+	if result, err := c.d.GetMinerData(context.Background()); err != nil {
 		return nil, err
 	} else {
 		return result, nil

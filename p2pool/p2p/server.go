@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -42,9 +43,11 @@ type Server struct {
 
 	clientsLock sync.RWMutex
 	clients     []*Client
+
+	ctx context.Context
 }
 
-func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32) (*Server, error) {
+func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32, ctx context.Context) (*Server, error) {
 	peerId := make([]byte, int(unsafe.Sizeof(uint64(0))))
 	_, err := rand.Read(peerId)
 	if err != nil {
@@ -64,6 +67,7 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalLis
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
 		versionInformation: PeerVersionInformation{SoftwareId: SoftwareIdGoObserver, SoftwareVersion: CurrentSoftwareVersion, Protocol: SupportedProtocolVersion},
+		ctx:                ctx,
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
@@ -161,7 +165,7 @@ func (s *Server) DownloadMissingBlocks() {
 func (s *Server) Listen() (err error) {
 	var listener net.Listener
 	var ok bool
-	if listener, err = net.Listen("tcp", s.listenAddress.String()); err != nil {
+	if listener, err = (&net.ListenConfig{}).Listen(s.ctx, "tcp", s.listenAddress.String()); err != nil {
 		return err
 	} else if s.listener, ok = listener.(*net.TCPListener); !ok {
 		return errors.New("not a tcp listener")
@@ -258,7 +262,7 @@ func (s *Server) Connect(addrPort netip.AddrPort) error {
 
 	s.NumOutgoingConnections.Add(1)
 
-	if conn, err := net.DialTimeout("tcp", addrPort.String(), time.Second*5); err != nil {
+	if conn, err := (&net.Dialer{Timeout: time.Second * 5}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
 		return err
 	} else if tcpConn, ok := conn.(*net.TCPConn); !ok {

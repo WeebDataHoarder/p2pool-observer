@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/maps"
@@ -32,9 +33,10 @@ func setHeightDifficulty(height uint64, difficulty types.Difficulty) {
 	difficultyCache[height] = difficulty
 }
 
+// TODO: remove
 func cacheHeightDifficulty(height uint64) {
 	if _, ok := getHeightDifficulty(height); !ok {
-		if header, err := client.GetDefaultClient().GetBlockHeaderByHeight(height); err != nil {
+		if header, err := client.GetDefaultClient().GetBlockHeaderByHeight(height, context.Background()); err != nil {
 			if template, err := client.GetDefaultClient().GetBlockTemplate(types.DonationAddress); err != nil {
 				setHeightDifficulty(uint64(template.Height), types.DifficultyFrom64(uint64(template.Difficulty)))
 			}

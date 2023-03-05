@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
@@ -98,99 +99,120 @@ func NewConsensus(networkType NetworkType, poolName, poolPassword string, target
 		UnclePenalty:      unclePenalty,
 	}
 
-	if len(c.PoolName) > 128 {
-		return nil
-	}
-
-	if len(c.PoolPassword) > 128 {
-		return nil
-	}
-
-	if c.TargetBlockTime < 1 || c.TargetBlockTime > monero.BlockTime {
-		return nil
-	}
-
-	if c.MinimumDifficulty < SmallestMinimumDifficulty || c.MinimumDifficulty > LargestMinimumDifficulty {
-		return nil
-	}
-
-	if c.ChainWindowSize < 60 || c.ChainWindowSize > 2160 {
-		return nil
-	}
-
-	if c.UnclePenalty < 1 || c.UnclePenalty > 99 {
-		return nil
-	}
-
-	var emptyHash types.Hash
-	c.id = c.CalculateId()
-	if c.id == emptyHash {
+	if !c.verify() {
 		return nil
 	}
 	return c
 }
 
-func (i *Consensus) CalculateSideTemplateId(main *mainblock.Block, side *SideData) types.Hash {
+func NewConsensusFromJSON(data []byte) (*Consensus, error) {
+	var c Consensus
+	if err := json.Unmarshal(data, &c); err != nil {
+		return nil, err
+	}
+
+	if !c.verify() {
+		return nil, errors.New("could not verify")
+	}
+
+	return &c, nil
+}
+
+func (c *Consensus) verify() bool {
+	if len(c.PoolName) > 128 {
+		return false
+	}
+
+	if len(c.PoolPassword) > 128 {
+		return false
+	}
+
+	if c.TargetBlockTime < 1 || c.TargetBlockTime > monero.BlockTime {
+		return false
+	}
+
+	if c.MinimumDifficulty < SmallestMinimumDifficulty || c.MinimumDifficulty > LargestMinimumDifficulty {
+		return false
+	}
+
+	if c.ChainWindowSize < 60 || c.ChainWindowSize > 2160 {
+		return false
+	}
+
+	if c.UnclePenalty < 1 || c.UnclePenalty > 99 {
+		return false
+	}
+
+	var emptyHash types.Hash
+	c.id = c.CalculateId()
+	if c.id == emptyHash {
+		return false
+	}
+
+	return true
+}
+
+func (c *Consensus) CalculateSideTemplateId(main *mainblock.Block, side *SideData) types.Hash {
 
 	mainData, _ := main.SideChainHashingBlob()
 	sideData, _ := side.MarshalBinary()
 
-	return i.CalculateSideChainIdFromBlobs(mainData, sideData)
+	return c.CalculateSideChainIdFromBlobs(mainData, sideData)
 }
 
-func (i *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {
-	return crypto.PooledKeccak256(mainBlob, sideBlob, i.id[:])
+func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {
+	return crypto.PooledKeccak256(mainBlob, sideBlob, c.id[:])
 }
 
-func (i *Consensus) Id() types.Hash {
+func (c *Consensus) Id() types.Hash {
 	var h types.Hash
-	if i.id == h {
+	if c.id == h {
 		//this data race is fine
-		i.id = i.CalculateId()
-		return i.id
+		c.id = c.CalculateId()
+		return c.id
 	}
-	return i.id
+	return c.id
 }
 
-func (i *Consensus) IsDefault() bool {
-	return i.id == ConsensusDefault.id
+func (c *Consensus) IsDefault() bool {
+	return c.id == ConsensusDefault.id
 }
 
-func (i *Consensus) IsMini() bool {
-	return i.id == ConsensusMini.id
+func (c *Consensus) IsMini() bool {
+	return c.id == ConsensusMini.id
 }
 
-func (i *Consensus) DefaultPort() uint16 {
-	if i.IsMini() {
+func (c *Consensus) DefaultPort() uint16 {
+	if c.IsMini() {
 		return 37888
 	}
 	return 37889
 }
 
-func (i *Consensus) SeedNode() string {
-	if i.IsMini() {
+func (c *Consensus) SeedNode() string {
+	if c.IsMini() {
 		return "seeds-mini.p2pool.io"
-	} else if i.IsDefault() {
+	} else if c.IsDefault() {
 		return "seeds.p2pool.io"
 	}
 	return ""
 }
 
-func (i *Consensus) CalculateId() types.Hash {
+func (c *Consensus) CalculateId() types.Hash {
 	var buf []byte
-	buf = append(buf, i.NetworkType.String()...)
+	buf = append(buf, c.NetworkType.String()...)
 	buf = append(buf, 0)
-	buf = append(buf, i.PoolName...)
+	buf = append(buf, c.PoolName...)
 	buf = append(buf, 0)
-	buf = append(buf, i.PoolPassword...)
+	buf = append(buf, c.PoolPassword...)
 	buf = append(buf, 0)
-	buf = append(buf, strconv.FormatUint(i.TargetBlockTime, 10)...)
+	buf = append(buf, strconv.FormatUint(c.TargetBlockTime, 10)...)
 	buf = append(buf, 0)
-	buf = append(buf, strconv.FormatUint(i.MinimumDifficulty, 10)...)
+	buf = append(buf, strconv.FormatUint(c.MinimumDifficulty, 10)...)
 	buf = append(buf, 0)
-	buf = append(buf, strconv.FormatUint(i.ChainWindowSize, 10)...)
+	buf = append(buf, strconv.FormatUint(c.ChainWindowSize, 10)...)
 	buf = append(buf, 0)
-	buf = append(buf, strconv.FormatUint(i.UnclePenalty, 10)...)
+	buf = append(buf, strconv.FormatUint(c.UnclePenalty, 10)...)
 	buf = append(buf, 0)
 
 	return randomx.ConsensusHash(buf)

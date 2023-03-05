@@ -43,8 +43,6 @@ func (m *Miner) MoneroAddress() *address.Address {
 	}
 }
 
-
-
 type outputResult struct {
 	Miner  *Miner
 	Output *transaction.Output
@@ -53,7 +51,10 @@ type outputResult struct {
 func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKey crypto.PrivateKey) (result []outputResult) {
 	addresses := make(map[address.PackedAddress]*Miner, len(miners))
 
-	outputs := c.Outputs
+	outputs := make([]*transaction.Output, len(c.Outputs))
+	for i, o := range c.Outputs {
+		outputs[i] = &o
+	}
 
 	for _, m := range miners {
 		addresses[*m.MoneroAddress().ToPackedAddress()] = m

@@ -3,7 +3,7 @@ package block
 import (
 	"bytes"
 	"encoding/binary"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
@@ -294,21 +294,24 @@ func (b *Block) TxTreeHash() (rootHash types.Hash) {
 	return
 }
 
-func (b *Block) Difficulty() types.Difficulty {
+func (b *Block) Difficulty(f GetDifficultyByHeightFunc) types.Difficulty {
 	//cached by sidechain.Share
-	d, _ := client.GetDefaultClient().GetDifficultyByHeight(b.Coinbase.GenHeight)
-	return d
+	return f(b.Coinbase.GenHeight)
 }
 
-func (b *Block) PowHash() types.Hash {
+func (b *Block) PowHash(f GetSeedByHeightFunc) types.Hash {
 	//cached by sidechain.Share
-	h, _ := HashBlob(b.Coinbase.GenHeight, b.HashingBlob())
+	h, _ := b.PowHashWithError(f)
 	return h
 }
 
-func (b *Block) PowHashWithError() (types.Hash, error) {
+func (b *Block) PowHashWithError(f GetSeedByHeightFunc) (types.Hash, error) {
 	//not cached
-	return HashBlob(b.Coinbase.GenHeight, b.HashingBlob())
+	if seed := f(b.Coinbase.GenHeight); seed == types.ZeroHash {
+		return types.ZeroHash, errors.New("could not get seed")
+	} else {
+		return hasher.Hash(seed[:], b.HashingBlob())
+	}
 }
 
 func (b *Block) Id() types.Hash {

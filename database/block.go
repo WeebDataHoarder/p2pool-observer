@@ -2,12 +2,15 @@ package database
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/slices"
@@ -29,8 +32,8 @@ type BlockInterface interface {
 }
 
 type BlockCoinbase struct {
-	Id         types.Hash `json:"id"`
-	Reward     uint64     `json:"reward"`
+	Id         types.Hash             `json:"id"`
+	Reward     uint64                 `json:"reward"`
 	PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
 	//Payouts extra JSON field, do not use
 	Payouts []*JSONCoinbaseOutput `json:"payouts,omitempty"`
@@ -117,6 +120,24 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 		return nil, nil, errors.New("could not get or create miner")
 	}
 
+	getSeedByHeight := func(height uint64) (hash types.Hash) {
+		seedHeight := randomx.SeedHeight(height)
+		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(seedHeight, context.Background()); err != nil {
+			return types.ZeroHash
+		} else {
+			hash, _ := types.HashFromString(h.BlockHeader.Hash)
+			return hash
+		}
+	}
+
+	getDifficultyByHeight := func(height uint64) types.Difficulty {
+		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(height, context.Background()); err != nil {
+			return types.ZeroDifficulty
+		} else {
+			return types.DifficultyFrom64(h.BlockHeader.Difficulty)
+		}
+	}
+
 	block = &Block{
 		Id:         types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)),
 		Height:     b.Side.Height,
@@ -134,18 +155,18 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 		Difficulty: b.Side.Difficulty,
 		Timestamp:  b.Main.Timestamp,
 		MinerId:    miner.Id(),
-		PowHash:    b.PowHash(),
+		PowHash:    b.PowHash(getSeedByHeight),
 		Main: BlockMainData{
 			Id:     b.MainId(),
 			Height: b.Main.Coinbase.GenHeight,
-			Found:  b.IsProofHigherThanMainDifficulty(),
+			Found:  b.IsProofHigherThanMainDifficulty(getDifficultyByHeight, getSeedByHeight),
 		},
 		Template: struct {
 			Id         types.Hash       `json:"id"`
 			Difficulty types.Difficulty `json:"difficulty"`
 		}{
 			Id:         b.Main.PreviousId,
-			Difficulty: b.MainDifficulty(),
+			Difficulty: b.MainDifficulty(getDifficultyByHeight),
 		},
 	}
 
@@ -176,18 +197,18 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 					Difficulty: uncle.Side.Difficulty,
 					Timestamp:  uncle.Main.Timestamp,
 					MinerId:    uncleMiner.Id(),
-					PowHash:    uncle.PowHash(),
+					PowHash:    uncle.PowHash(getSeedByHeight),
 					Main: BlockMainData{
 						Id:     uncle.MainId(),
 						Height: uncle.Main.Coinbase.GenHeight,
-						Found:  uncle.IsProofHigherThanMainDifficulty(),
+						Found:  uncle.IsProofHigherThanMainDifficulty(getDifficultyByHeight, getSeedByHeight),
 					},
 					Template: struct {
 						Id         types.Hash       `json:"id"`
 						Difficulty types.Difficulty `json:"difficulty"`
 					}{
 						Id:         uncle.Main.PreviousId,
-						Difficulty: uncle.MainDifficulty(),
+						Difficulty: uncle.MainDifficulty(getDifficultyByHeight),
 					},
 				},
 				ParentId:     block.Id,
@@ -202,61 +223,61 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 }
 
 type JsonBlock2 struct {
-	MinerMainId    types.Hash       `json:"miner_main_id"`
-	CoinbaseReward uint64           `json:"coinbase_reward,string"`
-	CoinbaseId     types.Hash       `json:"coinbase_id"`
-	Version        uint64           `json:"version,string"`
-	Diff           types.Difficulty `json:"diff"`
-	Wallet         *address.Address `json:"wallet"`
-	MinerMainDiff  types.Difficulty `json:"miner_main_diff"`
-	Id             types.Hash       `json:"id"`
-	Height         uint64           `json:"height,string"`
-	PowHash        types.Hash       `json:"pow_hash"`
-	MainId         types.Hash       `json:"main_id"`
-	MainHeight     uint64           `json:"main_height,string"`
-	Ts             uint64           `json:"ts,string"`
-	PrevId         types.Hash       `json:"prev_id"`
-	CoinbasePriv   crypto.PrivateKeyBytes       `json:"coinbase_priv"`
-	Lts            uint64           `json:"lts,string"`
-	MainFound      string           `json:"main_found,omitempty"`
+	MinerMainId    types.Hash             `json:"miner_main_id"`
+	CoinbaseReward uint64                 `json:"coinbase_reward,string"`
+	CoinbaseId     types.Hash             `json:"coinbase_id"`
+	Version        uint64                 `json:"version,string"`
+	Diff           types.Difficulty       `json:"diff"`
+	Wallet         *address.Address       `json:"wallet"`
+	MinerMainDiff  types.Difficulty       `json:"miner_main_diff"`
+	Id             types.Hash             `json:"id"`
+	Height         uint64                 `json:"height,string"`
+	PowHash        types.Hash             `json:"pow_hash"`
+	MainId         types.Hash             `json:"main_id"`
+	MainHeight     uint64                 `json:"main_height,string"`
+	Ts             uint64                 `json:"ts,string"`
+	PrevId         types.Hash             `json:"prev_id"`
+	CoinbasePriv   crypto.PrivateKeyBytes `json:"coinbase_priv"`
+	Lts            uint64                 `json:"lts,string"`
+	MainFound      string                 `json:"main_found,omitempty"`
 
 	Uncles []struct {
-		MinerMainId    types.Hash       `json:"miner_main_id"`
-		CoinbaseReward uint64           `json:"coinbase_reward,string"`
-		CoinbaseId     types.Hash       `json:"coinbase_id"`
-		Version        uint64           `json:"version,string"`
-		Diff           types.Difficulty `json:"diff"`
-		Wallet         *address.Address `json:"wallet"`
-		MinerMainDiff  types.Difficulty `json:"miner_main_diff"`
-		Id             types.Hash       `json:"id"`
-		Height         uint64           `json:"height,string"`
-		PowHash        types.Hash       `json:"pow_hash"`
-		MainId         types.Hash       `json:"main_id"`
-		MainHeight     uint64           `json:"main_height,string"`
-		Ts             uint64           `json:"ts,string"`
-		PrevId         types.Hash       `json:"prev_id"`
-		CoinbasePriv   crypto.PrivateKeyBytes       `json:"coinbase_priv"`
-		Lts            uint64           `json:"lts,string"`
-		MainFound      string           `json:"main_found,omitempty"`
+		MinerMainId    types.Hash             `json:"miner_main_id"`
+		CoinbaseReward uint64                 `json:"coinbase_reward,string"`
+		CoinbaseId     types.Hash             `json:"coinbase_id"`
+		Version        uint64                 `json:"version,string"`
+		Diff           types.Difficulty       `json:"diff"`
+		Wallet         *address.Address       `json:"wallet"`
+		MinerMainDiff  types.Difficulty       `json:"miner_main_diff"`
+		Id             types.Hash             `json:"id"`
+		Height         uint64                 `json:"height,string"`
+		PowHash        types.Hash             `json:"pow_hash"`
+		MainId         types.Hash             `json:"main_id"`
+		MainHeight     uint64                 `json:"main_height,string"`
+		Ts             uint64                 `json:"ts,string"`
+		PrevId         types.Hash             `json:"prev_id"`
+		CoinbasePriv   crypto.PrivateKeyBytes `json:"coinbase_priv"`
+		Lts            uint64                 `json:"lts,string"`
+		MainFound      string                 `json:"main_found,omitempty"`
 	} `json:"uncles,omitempty"`
 }
 
 type JsonBlock1 struct {
-	Wallet     *address.Address `json:"wallet"`
-	Height     uint64           `json:"height,string"`
-	MHeight    uint64           `json:"mheight,string"`
-	PrevId     types.Hash       `json:"prev_id"`
-	Ts         uint64           `json:"ts,string"`
-	PowHash    types.Hash       `json:"pow_hash"`
-	Id         types.Hash       `json:"id"`
-	PrevHash   types.Hash       `json:"prev_hash"`
-	Diff       uint64           `json:"diff,string"`
-	TxCoinbase types.Hash       `json:"tx_coinbase"`
-	Lts        uint64           `json:"lts,string"`
-	MHash      types.Hash       `json:"mhash"`
-	TxPriv     crypto.PrivateKeyBytes       `json:"tx_priv"`
-	TxPub      crypto.PublicKeyBytes      `json:"tx_pub"`
-	BlockFound string           `json:"main_found,omitempty"`
+	Wallet     *address.Address       `json:"wallet"`
+	Height     uint64                 `json:"height,string"`
+	MHeight    uint64                 `json:"mheight,string"`
+	PrevId     types.Hash             `json:"prev_id"`
+	Ts         uint64                 `json:"ts,string"`
+	PowHash    types.Hash             `json:"pow_hash"`
+	Id         types.Hash             `json:"id"`
+	PrevHash   types.Hash             `json:"prev_hash"`
+	Diff       uint64                 `json:"diff,string"`
+	TxCoinbase types.Hash             `json:"tx_coinbase"`
+	Lts        uint64                 `json:"lts,string"`
+	MHash      types.Hash             `json:"mhash"`
+	TxPriv     crypto.PrivateKeyBytes `json:"tx_priv"`
+	TxPub      crypto.PublicKeyBytes  `json:"tx_pub"`
+	BlockFound string                 `json:"main_found,omitempty"`
 
 	Uncles []struct {
 		Diff     uint64           `json:"diff,string"`

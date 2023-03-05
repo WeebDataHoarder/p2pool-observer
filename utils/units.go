@@ -13,3 +13,8 @@ func SiUnits(number float64, decimals int) string {
 
 	return fmt.Sprintf("%.*f ", decimals, number)
 }
+
+func XMRUnits(v uint64) string {
+	const denomination = 1000000000000
+	return fmt.Sprintf("%d.%012d", v/denomination, v%denomination)
+}

@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
@@ -23,6 +22,7 @@ func main() {
 
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
+	moneroZmqPort := flag.Uint("zmq-port", 18083, "monerod ZMQ pub port number")
 	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
 	//TODO: zmq
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
@@ -40,11 +40,20 @@ func main() {
 
 	settings := make(map[string]string)
 	settings["listen"] = *p2pListen
-	if *useMiniSidechain {
-		if settings["listen"] == fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()) {
-			settings["listen"] = fmt.Sprintf("0.0.0.0:%d", sidechain.ConsensusMini.DefaultPort())
+
+	changeConsensus := func(newConsensus *sidechain.Consensus) {
+		oldListen := netip.MustParseAddrPort(settings["listen"])
+		// if default exists, change port to match
+		if settings["listen"] == fmt.Sprintf("%s:%d", oldListen.Addr().String(), currentConsensus.DefaultPort()) {
+			settings["listen"] = fmt.Sprintf("%s:%d", oldListen.Addr().String(), newConsensus.DefaultPort())
 		}
-		currentConsensus = sidechain.ConsensusMini
+		currentConsensus = newConsensus
+	}
+
+	settings["rpc-url"] = fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort)
+	settings["zmq-url"] = fmt.Sprintf("tcp://%s:%d", *moneroHost, *moneroZmqPort)
+	if *useMiniSidechain {
+		changeConsensus(sidechain.ConsensusMini)
 	}
 
 	if *consensusConfigFile != "" {
@@ -52,24 +61,24 @@ func main() {
 		if err != nil {
 			log.Panic(err)
 		}
-		var newConsensus sidechain.Consensus
-		if err = json.Unmarshal(consensusData, &newConsensus); err != nil {
-			log.Panic(err)
-		}
 
-		if settings["listen"] == fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()) {
-			settings["listen"] = fmt.Sprintf("0.0.0.0:%d", newConsensus.DefaultPort())
+		if newConsensus, err := sidechain.NewConsensusFromJSON(consensusData); err != nil {
+			log.Panic(err)
+		} else {
+			changeConsensus(newConsensus)
 		}
-		currentConsensus = &newConsensus
 	}
 
 	settings["out-peers"] = strconv.FormatUint(*outPeers, 10)
 	settings["in-peers"] = strconv.FormatUint(*inPeers, 10)
 	settings["external-port"] = strconv.FormatUint(*p2pExternalPort, 10)
 
-	if p2pool := p2pool2.NewP2Pool(currentConsensus, settings); p2pool == nil {
-		log.Fatal("Could not start p2pool")
+	if p2pool, err := p2pool2.NewP2Pool(currentConsensus, settings); err != nil {
+		log.Fatalf("Could not start p2pool: %s", err)
 	} else {
+		defer p2pool.Close()
+
+		var connectList []netip.AddrPort
 		for _, peerAddr := range strings.Split(*addPeers, ",") {
 			if peerAddr == "" {
 				continue
@@ -79,11 +88,7 @@ func main() {
 				log.Panic(err)
 			} else {
 				p2pool.Server().AddToPeerList(addrPort)
-				go func() {
-					if err := p2pool.Server().Connect(addrPort); err != nil {
-						log.Printf("error connecting to peer %s: %s", addrPort.String(), err.Error())
-					}
-				}()
+				connectList = append(connectList, addrPort)
 			}
 		}
 
@@ -93,11 +98,7 @@ func main() {
 			for _, seedNodeIp := range ips {
 				seedNodeAddr := netip.MustParseAddrPort(fmt.Sprintf("%s:%d", seedNodeIp.String(), currentConsensus.DefaultPort()))
 				p2pool.Server().AddToPeerList(seedNodeAddr)
-				go func() {
-					if err := p2pool.Server().Connect(seedNodeAddr); err != nil {
-						log.Printf("error connecting to seed node peer %s: %s", seedNodeAddr.String(), err.Error())
-					}
-				}()
+				//connectList = append(connectList, seedNodeAddr)
 			}
 		}
 
@@ -147,7 +148,21 @@ func main() {
 			}
 		}
 
-		if err := p2pool.Server().Listen(); err != nil {
+		go func() {
+			for !p2pool.Started() {
+				time.Sleep(time.Second * 1)
+			}
+
+			for _, addrPort := range connectList {
+				go func(addrPort netip.AddrPort) {
+					if err := p2pool.Server().Connect(addrPort); err != nil {
+						log.Printf("error connecting to peer %s: %s", addrPort.String(), err.Error())
+					}
+				}(addrPort)
+			}
+		}()
+
+		if err := p2pool.Run(); err != nil {
 			log.Panic(err)
 		}
 	}

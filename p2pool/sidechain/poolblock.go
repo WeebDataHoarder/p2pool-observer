@@ -235,7 +235,7 @@ func (b *PoolBlock) CalculateFullId(consensus *Consensus) FullId {
 	return buf
 }
 
-func (b *PoolBlock) MainDifficulty() types.Difficulty {
+func (b *PoolBlock) MainDifficulty(f mainblock.GetDifficultyByHeightFunc) types.Difficulty {
 	if difficulty, ok := func() (types.Difficulty, bool) {
 		b.cache.lock.RLock()
 		defer b.cache.lock.RUnlock()
@@ -250,7 +250,7 @@ func (b *PoolBlock) MainDifficulty() types.Difficulty {
 		b.cache.lock.Lock()
 		defer b.cache.lock.Unlock()
 		if b.cache.mainDifficulty == types.ZeroDifficulty { //check again for race
-			b.cache.mainDifficulty = b.Main.Difficulty()
+			b.cache.mainDifficulty = b.Main.Difficulty(f)
 		}
 		return b.cache.mainDifficulty
 	}
@@ -277,12 +277,12 @@ func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 	}
 }
 
-func (b *PoolBlock) PowHash() types.Hash {
-	h, _ := b.PowHashWithError()
+func (b *PoolBlock) PowHash(f mainblock.GetSeedByHeightFunc) types.Hash {
+	h, _ := b.PowHashWithError(f)
 	return h
 }
 
-func (b *PoolBlock) PowHashWithError() (powHash types.Hash, err error) {
+func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash types.Hash, err error) {
 	if hash, ok := func() (types.Hash, bool) {
 		b.cache.lock.RLock()
 		defer b.cache.lock.RUnlock()
@@ -297,7 +297,7 @@ func (b *PoolBlock) PowHashWithError() (powHash types.Hash, err error) {
 		b.cache.lock.Lock()
 		defer b.cache.lock.Unlock()
 		if b.cache.powHash == types.ZeroHash { //check again for race
-			b.cache.powHash, err = b.Main.PowHashWithError()
+			b.cache.powHash, err = b.Main.PowHashWithError(f)
 		}
 		return b.cache.powHash, err
 	}
@@ -359,28 +359,28 @@ func (b *PoolBlock) FromCompactReader(reader readerAndByteReader) (err error) {
 	return nil
 }
 
-func (b *PoolBlock) IsProofHigherThanMainDifficulty() bool {
-	r, _ := b.IsProofHigherThanMainDifficultyWithError()
+func (b *PoolBlock) IsProofHigherThanMainDifficulty(difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) bool {
+	r, _ := b.IsProofHigherThanMainDifficultyWithError(difficultyFunc, seedFunc)
 	return r
 }
 
-func (b *PoolBlock) IsProofHigherThanMainDifficultyWithError() (bool, error) {
-	if mainDifficulty := b.MainDifficulty(); mainDifficulty == types.ZeroDifficulty {
+func (b *PoolBlock) IsProofHigherThanMainDifficultyWithError(difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) (bool, error) {
+	if mainDifficulty := b.MainDifficulty(difficultyFunc); mainDifficulty == types.ZeroDifficulty {
 		return false, errors.New("could not get main difficulty")
-	} else if powHash, err := b.PowHashWithError(); err != nil {
+	} else if powHash, err := b.PowHashWithError(seedFunc); err != nil {
 		return false, err
 	} else {
 		return mainDifficulty.CheckPoW(powHash), nil
 	}
 }
 
-func (b *PoolBlock) IsProofHigherThanDifficulty() bool {
-	r, _ := b.IsProofHigherThanDifficultyWithError()
+func (b *PoolBlock) IsProofHigherThanDifficulty(f mainblock.GetSeedByHeightFunc) bool {
+	r, _ := b.IsProofHigherThanDifficultyWithError(f)
 	return r
 }
 
-func (b *PoolBlock) IsProofHigherThanDifficultyWithError() (bool, error) {
-	if powHash, err := b.PowHashWithError(); err != nil {
+func (b *PoolBlock) IsProofHigherThanDifficultyWithError(f mainblock.GetSeedByHeightFunc) (bool, error) {
+	if powHash, err := b.PowHashWithError(f); err != nil {
 		return false, err
 	} else {
 		return b.Side.Difficulty.CheckPoW(powHash), nil

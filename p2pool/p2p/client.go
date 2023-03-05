@@ -204,6 +204,7 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	buf := make([]byte, 0, 1+len(list)*(1+16+2))
 	buf = append(buf, byte(len(list)))
 	for i := range list {
+		//TODO: check ipv4 gets sent properly
 		if list[i].Addr().Is6() && !IsPeerVersionInformation(list[i]) {
 			buf = append(buf, 1)
 		} else {

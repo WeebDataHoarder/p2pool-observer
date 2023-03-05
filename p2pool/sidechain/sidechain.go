@@ -7,6 +7,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
@@ -28,6 +30,23 @@ type P2PoolInterface interface {
 	ConsensusProvider
 	Cache
 	Broadcast(block *PoolBlock)
+	ClientRPC() *client.Client
+	GetChainMainByHeight(height uint64) *ChainMain
+	GetChainMainByHash(hash types.Hash) *ChainMain
+	GetMinimalBlockHeaderByHeight(height uint64) *mainblock.Header
+	GetMinimalBlockHeaderByHash(hash types.Hash) *mainblock.Header
+	GetDifficultyByHeight(height uint64) types.Difficulty
+	UpdateBlockFound(data *ChainMain, block *PoolBlock)
+	SubmitBlock(block *mainblock.Block)
+	GetChainMainTip() *ChainMain
+}
+
+type ChainMain struct {
+	Difficulty types.Difficulty
+	Height     uint64
+	Timestamp  uint64
+	Reward     uint64
+	Id         types.Hash
 }
 
 type SideChain struct {
@@ -35,6 +54,9 @@ type SideChain struct {
 	server          P2PoolInterface
 
 	sidechainLock sync.RWMutex
+
+	watchBlock            *ChainMain
+	watchBlockSidechainId types.Hash
 
 	sharesCache Shares
 
@@ -133,6 +155,17 @@ func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) b
 	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) == 0
 }
 
+func (c *SideChain) getSeedByHeightFunc() mainblock.GetSeedByHeightFunc {
+	return func(height uint64) (hash types.Hash) {
+		seedHeight := randomx.SeedHeight(height)
+		if h := c.server.GetMinimalBlockHeaderByHeight(seedHeight); h != nil {
+			return h.Id
+		} else {
+			return types.ZeroHash
+		}
+	}
+}
+
 func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error) {
 	// Technically some p2pool node could keep stuffing block with transactions until reward is less than 0.6 XMR
 	// But default transaction picking algorithm never does that. It's better to just ban such nodes
@@ -201,7 +234,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 
 	// This check is not always possible to perform because of mainchain reorgs
 	//TODO: cache current miner data?
-	if data := mainblock.GetBlockHeaderByHash(block.Main.PreviousId); data != nil {
+	if data := c.server.GetChainMainByHash(block.Main.PreviousId); data != nil {
 		if data.Height+1 != block.Main.Coinbase.GenHeight {
 			return nil, fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1)
 		}
@@ -209,11 +242,16 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		//TODO warn unknown block, reorg
 	}
 
-	if _, err := block.PowHashWithError(); err != nil {
+	if _, err := block.PowHashWithError(c.getSeedByHeightFunc()); err != nil {
 		return nil, err
 	} else {
-		//TODO: fast monero submission
-		if isHigher, err := block.IsProofHigherThanDifficultyWithError(); err != nil {
+		if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
+			log.Printf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
+		} else if isHigherMainChain {
+			log.Printf("[SideChain]: add_external_block: block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
+			c.server.SubmitBlock(&block.Main)
+		}
+		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.getSeedByHeightFunc()); err != nil {
 			return nil, err
 		} else if !isHigher {
 			return nil, fmt.Errorf("not enough PoW for height = %d, mainchain height %d", block.Side.Height, block.Main.Coinbase.GenHeight)
@@ -251,6 +289,11 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 	c.blocksByTemplateId[block.SideTemplateId(c.Consensus())] = block
 
 	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
+
+	if block.SideTemplateId(c.Consensus()) == c.watchBlockSidechainId {
+		c.server.UpdateBlockFound(c.watchBlock, block)
+		c.watchBlockSidechainId = types.ZeroHash
+	}
 
 	if l, ok := c.blocksByHeight[block.Side.Height]; ok {
 		c.blocksByHeight[block.Side.Height] = append(l, block)
@@ -1016,6 +1059,14 @@ func (c *SideChain) GetPoolBlockCount() int {
 	return len(c.blocksByTemplateId)
 }
 
+func (c *SideChain) WatchMainChainBlock(mainData *ChainMain, possibleId types.Hash) {
+	c.sidechainLock.Lock()
+	defer c.sidechainLock.Unlock()
+
+	c.watchBlock = mainData
+	c.watchBlockSidechainId = possibleId
+}
+
 func (c *SideChain) GetChainTip() *PoolBlock {
 	return c.chainTip.Load()
 }
@@ -1085,7 +1136,7 @@ func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 			candidateTotalDiff = candidateTotalDiff.Add(newChain.Side.Difficulty)
 
 			if !newChain.Main.PreviousId.Equals(mainchainPrevId) {
-				if data := mainblock.GetBlockHeaderByHash(newChain.Main.PreviousId); data != nil {
+				if data := c.server.GetMinimalBlockHeaderByHash(newChain.Main.PreviousId); data != nil {
 					mainchainPrevId = data.Id
 					candidateMainchainHeight = utils.Max(candidateMainchainHeight, data.Height)
 				}
@@ -1100,14 +1151,14 @@ func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 	}
 
 	// Final check: candidate chain must be built on top of recent mainchain blocks
-	if data := mainblock.GetLastBlockHeader(); data != nil {
-		if candidateMainchainHeight+10 < data.Height {
+	if headerTip := c.server.GetChainMainTip(); headerTip != nil {
+		if candidateMainchainHeight+10 < headerTip.Height {
 			//TODO: warn received a longer alternative chain but it's stale: height
 			return false, true
 		}
 
 		limit := c.Consensus().ChainWindowSize * 4 * c.Consensus().TargetBlockTime / monero.BlockTime
-		if candidateMainchainMinHeight+limit < data.Height {
+		if candidateMainchainMinHeight+limit < headerTip.Height {
 			//TODO: warn received a longer alternative chain but it's stale: min height
 			return false, true
 		}
