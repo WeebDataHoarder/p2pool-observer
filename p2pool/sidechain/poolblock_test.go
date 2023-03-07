@@ -32,7 +32,7 @@ func TestPoolBlockDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	block, err := NewShareFromExportedBytes(contents)
+	block, err := NewShareFromExportedBytes(contents, NetworkMainnet)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,14 +57,14 @@ func TestPoolBlockDecode(t *testing.T) {
 
 	b2, _ := block.Main.MarshalBinary()
 	side2 := &SideData{}
-	if err = side2.UnmarshalBinary(b2); err != nil {
+	if err = side2.UnmarshalBinary(b2, block.ShareVersion()); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log(block.SideTemplateId(ConsensusDefault).String())
 
 	t.Log(block.Side.CoinbasePrivateKey.String())
-	t.Log(address.GetDeterministicTransactionPrivateKey(block.GetAddress(), block.Main.PreviousId).String())
+	t.Log(address.GetDeterministicTransactionPrivateKey(block.GetPrivateKeySeed(), block.Main.PreviousId).String())
 
 	txId := block.Main.Coinbase.Id()
 

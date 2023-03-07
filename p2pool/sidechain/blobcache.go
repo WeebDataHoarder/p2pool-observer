@@ -13,10 +13,10 @@ import (
 const BlockSaveEpochSize = 32
 
 const (
-	BlockSaveOptionTemplate                = 1 << 0
-	BlockSaveOptionDeterministicPrivateKey = 1 << 1
-	BlockSaveOptionDeterministicBlobs      = 1 << 2
-	BlockSaveOptionUncles                  = 1 << 3
+	BlockSaveOptionTemplate = 1 << 0
+	//BlockSaveOptionDeterministicPrivateKey = 1 << 1
+	BlockSaveOptionDeterministicBlobs = 1 << 2
+	BlockSaveOptionUncles             = 1 << 3
 
 	BlockSaveFieldSizeInBits = 8
 
@@ -61,7 +61,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		defer c.sidechainLock.RUnlock()
 
 		//only store keys when not deterministic
-		isDeterministicPrivateKey := c.isPoolBlockTransactionKeyIsDeterministic(block)
+		//isDeterministicPrivateKey := c.isPoolBlockTransactionKeyIsDeterministic(block)
 
 		calculatedOutputs := c.calculateOutputs(block)
 		calcBlob, _ := calculatedOutputs.MarshalBinary()
@@ -80,9 +80,9 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 
 		var blockFlags uint64
 
-		if isDeterministicPrivateKey {
+		/*if isDeterministicPrivateKey {
 			blockFlags |= BlockSaveOptionDeterministicPrivateKey
-		}
+		}*/
 
 		if !storeBlob {
 			blockFlags |= BlockSaveOptionDeterministicBlobs
@@ -164,8 +164,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		}
 
 		// private key, if needed
-		if (blockFlags & BlockSaveOptionDeterministicPrivateKey) == 0 {
-			blob = append(blob, block.Side.CoinbasePrivateKey[:]...)
+		if true /*(blockFlags & BlockSaveOptionDeterministicPrivateKey) == 0*/ {
+			blob = append(blob, block.Side.CoinbasePrivateKeySeed[:]...)
 			//public may be needed on invalid - TODO check
 			//blob = append(blob, block.CoinbaseExtra(SideCoinbasePublicKey)...)
 		}

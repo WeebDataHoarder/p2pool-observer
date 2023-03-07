@@ -197,7 +197,9 @@ func (b *Block) HeaderBlob() []byte {
 	return buf
 }
 
+// SideChainHashingBlob Same as MarshalBinary but with nonce set to 0
 func (b *Block) SideChainHashingBlob() (buf []byte, err error) {
+
 	var txBuf []byte
 	if txBuf, err = b.Coinbase.SideChainHashingBlob(); err != nil {
 		return nil, err

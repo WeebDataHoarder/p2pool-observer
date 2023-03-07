@@ -182,7 +182,7 @@ func (c *MainChain) HandleMainBlock(b *mainblock.Block) {
 }
 
 // HandleChainMain
-// deprecated
+// Deprecated
 func (c *MainChain) HandleChainMain(mainData *sidechain.ChainMain, extra []byte) {
 	func() {
 		c.lock.Lock()

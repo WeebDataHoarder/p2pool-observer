@@ -15,6 +15,7 @@ import (
 const DifficultySize = 16
 
 var ZeroDifficulty = Difficulty(uint128.Zero)
+var MaxDifficulty = Difficulty(uint128.Max)
 
 type Difficulty uint128.Uint128
 

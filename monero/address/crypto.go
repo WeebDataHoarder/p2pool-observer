@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-func GetDeterministicTransactionPrivateKey(a Interface, prevId types.Hash) crypto.PrivateKey {
-	return p2poolcrypto.GetDeterministicTransactionPrivateKey(a.SpendPublicKey(), prevId)
+func GetDeterministicTransactionPrivateKey(seed types.Hash, prevId types.Hash) crypto.PrivateKey {
+	return p2poolcrypto.GetDeterministicTransactionPrivateKey(seed, prevId)
 }
 
 func GetPublicKeyForSharedData(a Interface, sharedData crypto.PrivateKey) crypto.PublicKey {

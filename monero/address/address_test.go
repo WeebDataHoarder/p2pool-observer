@@ -41,7 +41,7 @@ var previousId, _ = types.HashFromString("d59abce89ce8131eba025988d1ea372937f2ac
 var detTxPriv, _ = types.HashFromString("10f3941fd50ca266d3350984004a804c887c36ec11620080fe0b7c4a2a208605")
 
 func TestDeterministic(t *testing.T) {
-	detTx := types.HashFromBytes(GetDeterministicTransactionPrivateKey(testAddress2, previousId).AsSlice())
+	detTx := types.HashFromBytes(GetDeterministicTransactionPrivateKey(types.Hash(testAddress2.SpendPublicKey().AsBytes()), previousId).AsSlice())
 	if detTx != detTxPriv {
 		t.Fatal()
 	}

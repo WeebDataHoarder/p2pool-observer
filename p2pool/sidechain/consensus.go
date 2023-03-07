@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
-	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -131,7 +130,7 @@ func (c *Consensus) verify() bool {
 		return false
 	}
 
-	if c.MinimumDifficulty < SmallestMinimumDifficulty || c.MinimumDifficulty > LargestMinimumDifficulty {
+	if c.NetworkType == NetworkMainnet && c.MinimumDifficulty < SmallestMinimumDifficulty || c.MinimumDifficulty > LargestMinimumDifficulty {
 		return false
 	}
 
@@ -152,15 +151,16 @@ func (c *Consensus) verify() bool {
 	return true
 }
 
-func (c *Consensus) CalculateSideTemplateId(main *mainblock.Block, side *SideData) types.Hash {
+func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) types.Hash {
 
-	mainData, _ := main.SideChainHashingBlob()
-	sideData, _ := side.MarshalBinary()
+	mainData, _ := share.Main.SideChainHashingBlob()
+	sideData, _ := share.Side.MarshalBinary(share.ShareVersion())
 
 	return c.CalculateSideChainIdFromBlobs(mainData, sideData)
 }
 
 func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {
+	//TODO: handle extra nonce
 	return crypto.PooledKeccak256(mainBlob, sideBlob, c.id[:])
 }
 

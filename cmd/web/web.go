@@ -736,7 +736,7 @@ func main() {
 
 			if buf, err := hex.DecodeString(string(s)); err == nil {
 
-				raw, _ = sidechain.NewShareFromExportedBytes(buf)
+				raw, _ = sidechain.NewShareFromExportedBytes(buf, sidechain.NetworkMainnet)
 			}
 		}
 

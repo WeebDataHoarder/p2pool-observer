@@ -2,18 +2,21 @@ package sidechain
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
+	"lukechampine.com/uint128"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -151,8 +154,11 @@ func (c *SideChain) fillPoolBlockTransactionParentIndices(block *PoolBlock) {
 }
 
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
-	kP := c.derivationCache.GetDeterministicTransactionKey(block.GetAddress(), block.Main.PreviousId)
-	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(block.Side.CoinbasePrivateKey[:], kP.PrivateKey.AsSlice()) == 0
+	kP := c.derivationCache.GetDeterministicTransactionKey(block.GetPrivateKeySeed(), block.Main.PreviousId)
+	if block.ShareVersion() > ShareVersion_V1 {
+		block.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
+	}
+	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(kP.PrivateKey.AsSlice(), block.Side.CoinbasePrivateKey[:]) == 0
 }
 
 func (c *SideChain) getSeedByHeightFunc() mainblock.GetSeedByHeightFunc {
@@ -192,7 +198,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		}
 	}
 
-	templateId := c.Consensus().CalculateSideTemplateId(&block.Main, &block.Side)
+	templateId := c.Consensus().CalculateSideTemplateId(block)
 	if templateId != block.SideTemplateId(c.Consensus()) {
 		return nil, fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String())
 	}
@@ -384,7 +390,8 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 		if block.Side.Parent != types.ZeroHash ||
 			len(block.Side.Uncles) != 0 ||
 			block.Side.Difficulty.Cmp64(c.Consensus().MinimumDifficulty) != 0 ||
-			block.Side.CumulativeDifficulty.Cmp64(c.Consensus().MinimumDifficulty) != 0 {
+			block.Side.CumulativeDifficulty.Cmp64(c.Consensus().MinimumDifficulty) != 0 ||
+			(block.ShareVersion() > ShareVersion_V1 && block.Side.CoinbasePrivateKeySeed == types.ZeroHash) {
 			return nil, errors.New("genesis block has invalid parameters")
 		}
 		//this does not verify coinbase outputs, but that's fine
@@ -415,6 +422,16 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 		}
 		if parent.Invalid.Load() {
 			return nil, errors.New("parent is invalid")
+		}
+
+		if block.ShareVersion() > ShareVersion_V1 {
+			expectedSeed := parent.Side.CoinbasePrivateKeySeed
+			if parent.Main.PreviousId != block.Main.PreviousId {
+				expectedSeed = parent.CalculateTransactionPrivateKeySeed()
+			}
+			if block.Side.CoinbasePrivateKeySeed != expectedSeed {
+				return nil, fmt.Errorf("invalid tx key seed: expected %s, got %s", expectedSeed.String(), block.Side.CoinbasePrivateKeySeed.String())
+			}
 		}
 
 		expectedHeight := parent.Side.Height + 1
@@ -524,7 +541,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return nil, fmt.Errorf("wrong difficulty, got %s, expected %s", block.Side.Difficulty.StringNumeric(), diff.StringNumeric())
 		}
 
-		if c.sharesCache = c.getShares(block, c.sharesCache); len(c.sharesCache) == 0 {
+		if c.sharesCache, _ = c.getShares(block, c.sharesCache); len(c.sharesCache) == 0 {
 			return nil, errors.New("could not get outputs")
 		} else if len(c.sharesCache) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(c.sharesCache))
@@ -640,6 +657,11 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 	}
 
 	tip := c.GetChainTip()
+
+	if block == tip {
+		log.Printf("[SideChain] Trying to update chain tip to the same block again. Ignoring it.")
+		return
+	}
 
 	if isLongerChain, isAlternative := c.isLongerChain(tip, block); isLongerChain {
 		if diff := c.getDifficulty(block); diff != types.ZeroDifficulty {
@@ -777,7 +799,7 @@ func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
 
 func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
 	//TODO: buffer
-	tmpShares := c.getShares(block, make(Shares, 0, c.Consensus().ChainWindowSize*2))
+	tmpShares, _ := c.getShares(block, make(Shares, 0, c.Consensus().ChainWindowSize*2))
 	tmpRewards := c.SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
 
 	if tmpShares == nil || tmpRewards == nil || len(tmpRewards) != len(tmpShares) {
@@ -844,19 +866,54 @@ func (c *SideChain) SplitReward(reward uint64, shares Shares) (rewards []uint64)
 	return rewards
 }
 
-func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares {
+func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
 
 	var blockDepth uint64
 
 	cur := tip
 
+	var mainchainDiff types.Difficulty
+
+	if tip.Side.Parent != types.ZeroHash {
+		mainchainDiff = c.server.GetDifficultyByHeight(tip.Main.Coinbase.GenHeight)
+		if mainchainDiff == types.ZeroDifficulty {
+			log.Printf("[SideChain] get_shares: couldn't get mainchain difficulty for height = %d", tip.Main.Coinbase.GenHeight)
+			return nil, 0
+		}
+	}
+
+	// Dynamic PPLNS window starting from v2
+	// Limit PPLNS weight to 2x of the Monero difficulty (max 2 blocks per PPLNS window on average)
+	sidechainVersion := tip.ShareVersion()
+
+	maxPplnsWeight := types.MaxDifficulty
+
+	if sidechainVersion > ShareVersion_V1 {
+		maxPplnsWeight = mainchainDiff.Mul64(2)
+	}
+
+	var pplnsWeight types.Difficulty
+
+	sharesSet := make(map[address.PackedAddress]*Share, c.Consensus().ChainWindowSize*2)
+
+	insertSet := func(weight types.Difficulty, a *address.PackedAddress) {
+		if _, ok := sharesSet[*a]; ok {
+			sharesSet[*a].Weight = sharesSet[*a].Weight.Add(weight)
+		} else {
+			sharesSet[*a] = &Share{
+				Weight:  weight,
+				Address: *a,
+			}
+		}
+	}
+
 	index := 0
 	l := len(preAllocatedShares)
-	insert := func(weight types.Difficulty, a *address.PackedAddress) {
+	insertPreAllocated := func(share *Share) {
 		if index < l {
-			preAllocatedShares[index].Weight, preAllocatedShares[index].Address = weight, *a
+			preAllocatedShares[index].Weight, preAllocatedShares[index].Address = share.Weight, share.Address
 		} else {
-			preAllocatedShares = append(preAllocatedShares, &Share{Weight: weight, Address: *a})
+			preAllocatedShares = append(preAllocatedShares, share)
 		}
 		index++
 	}
@@ -867,7 +924,7 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
 				//cannot find uncles
-				return nil
+				return nil, 0
 			} else {
 				// Skip uncles which are already out of PPLNS window
 				if (tip.Side.Height - uncle.Side.Height) >= c.Consensus().ChainWindowSize {
@@ -875,15 +932,31 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 				}
 
 				// Take some % of uncle's weight into this share
-				product := uncle.Side.Difficulty.Mul64(c.Consensus().UnclePenalty)
-				unclePenalty := product.Div64(100)
+				unclePenalty := uncle.Side.Difficulty.Mul64(c.Consensus().UnclePenalty).Div64(100)
+				uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+				newPplnsWeight := pplnsWeight.Add(uncleWeight)
+
+				// Skip uncles that push PPLNS weight above the limit
+				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
+					continue
+				}
 				curWeight = curWeight.Add(unclePenalty)
 
-				insert(uncle.Side.Difficulty.Sub(unclePenalty), uncle.GetAddress())
+				insertSet(uncleWeight, uncle.GetAddress())
+
+				pplnsWeight = newPplnsWeight
 			}
 		}
 
-		insert(curWeight, cur.GetAddress())
+		// Always add non-uncle shares even if PPLNS weight goes above the limit
+		insertSet(curWeight, cur.GetAddress())
+
+		pplnsWeight = pplnsWeight.Add(curWeight)
+
+		// One non-uncle share can go above the limit, but it will also guarantee that "shares" is never empty
+		if pplnsWeight.Cmp(maxPplnsWeight) > 0 {
+			break
+		}
 
 		blockDepth++
 
@@ -899,29 +972,39 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) Shares 
 		cur = c.getParent(cur)
 
 		if cur == nil {
-			return nil
+			return nil, 0
 		}
 	}
 
-	shares := preAllocatedShares[:index]
+	bottomHeight = cur.Side.Height
+
+	for _, share := range sharesSet {
+		insertPreAllocated(share)
+	}
+
+	shares = preAllocatedShares[:index]
 
 	// Combine shares with the same wallet addresses
 	slices.SortFunc(shares, func(a *Share, b *Share) bool {
 		return a.Address.Compare(&b.Address) < 0
 	})
 
-	k := 0
-	for i := 1; i < len(shares); i++ {
-		if shares[i].Address.Compare(&shares[k].Address) == 0 {
-			shares[k].Weight = shares[k].Weight.Add(shares[i].Weight)
-		} else {
-			k++
-			shares[k].Address = shares[i].Address
-			shares[k].Weight = shares[i].Weight
+	n := len(shares)
+
+	//Shuffle shares
+	if sidechainVersion > ShareVersion_V1 && n > 1 {
+		h := crypto.PooledKeccak256(tip.Side.CoinbasePrivateKeySeed[:])
+		seed := binary.LittleEndian.Uint64(h[:])
+
+		for i := 0; i < (n - 1); i++ {
+			seed = utils.XorShift64Star(seed)
+			k := int(uint128.From64(seed).Mul64(uint64(n - 1)).Hi)
+			//swap
+			shares[i], shares[i+k] = shares[i+k], shares[i]
 		}
 	}
 
-	return shares[:k+1]
+	return shares, bottomHeight
 }
 
 type DifficultyData struct {

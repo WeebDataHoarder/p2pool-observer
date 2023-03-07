@@ -367,6 +367,7 @@ func (c *Client) OnConnection() {
 		case MessageBlockResponse:
 			block := &sidechain.PoolBlock{
 				LocalTimestamp: uint64(time.Now().Unix()),
+				NetworkType:    c.Owner.Consensus().NetworkType,
 			}
 
 			expectedBlockId, ok := c.getNextBlockRequest()
@@ -424,6 +425,7 @@ func (c *Client) OnConnection() {
 		case MessageBlockBroadcast, MessageBlockBroadcastCompact:
 			block := &sidechain.PoolBlock{
 				LocalTimestamp: uint64(time.Now().Unix()),
+				NetworkType:    c.Owner.Consensus().NetworkType,
 			}
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {

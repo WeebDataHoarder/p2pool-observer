@@ -9,14 +9,24 @@ import (
 )
 
 type SideData struct {
-	PublicSpendKey       crypto.PublicKeyBytes
-	PublicViewKey        crypto.PublicKeyBytes
+	PublicSpendKey         crypto.PublicKeyBytes
+	PublicViewKey          crypto.PublicKeyBytes
+	CoinbasePrivateKeySeed types.Hash
+	// CoinbasePrivateKey filled either on decoding, or side chain filling
 	CoinbasePrivateKey   crypto.PrivateKeyBytes
 	Parent               types.Hash
 	Uncles               []types.Hash
 	Height               uint64
 	Difficulty           types.Difficulty
 	CumulativeDifficulty types.Difficulty
+
+	// ExtraBuffer available in ShareVersion_2 and above
+	ExtraBuffer struct {
+		SoftwareId          uint32
+		Version             uint32
+		RandomNumber        uint32
+		SideChainExtraNonce uint32
+	}
 }
 
 type readerAndByteReader interface {
@@ -24,11 +34,11 @@ type readerAndByteReader interface {
 	io.ByteReader
 }
 
-func (b *SideData) MarshalBinary() (buf []byte, err error) {
-	buf = make([]byte, 0, types.HashSize+types.HashSize+types.HashSize+types.HashSize+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64)
+func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
+	buf = make([]byte, 0, types.HashSize+types.HashSize+types.HashSize+types.HashSize+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+4*4)
 	buf = append(buf, b.PublicSpendKey[:]...)
 	buf = append(buf, b.PublicViewKey[:]...)
-	buf = append(buf, b.CoinbasePrivateKey[:]...)
+	buf = append(buf, b.CoinbasePrivateKeySeed[:]...)
 	buf = append(buf, b.Parent[:]...)
 	buf = binary.AppendUvarint(buf, uint64(len(b.Uncles)))
 	for _, uId := range b.Uncles {
@@ -39,11 +49,17 @@ func (b *SideData) MarshalBinary() (buf []byte, err error) {
 	buf = binary.AppendUvarint(buf, b.Difficulty.Hi)
 	buf = binary.AppendUvarint(buf, b.CumulativeDifficulty.Lo)
 	buf = binary.AppendUvarint(buf, b.CumulativeDifficulty.Hi)
+	if version > ShareVersion_V1 {
+		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.SoftwareId)
+		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.Version)
+		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.RandomNumber)
+		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.SideChainExtraNonce)
+	}
 
 	return buf, nil
 }
 
-func (b *SideData) FromReader(reader readerAndByteReader) (err error) {
+func (b *SideData) FromReader(reader readerAndByteReader, version ShareVersion) (err error) {
 	var (
 		uncleCount uint64
 		uncleHash  types.Hash
@@ -54,8 +70,13 @@ func (b *SideData) FromReader(reader readerAndByteReader) (err error) {
 	if _, err = io.ReadFull(reader, b.PublicViewKey[:]); err != nil {
 		return err
 	}
-	if _, err = io.ReadFull(reader, b.CoinbasePrivateKey[:]); err != nil {
+	if _, err = io.ReadFull(reader, b.CoinbasePrivateKeySeed[:]); err != nil {
 		return err
+	}
+	if version > ShareVersion_V1 {
+		//needs preprocessing
+	} else {
+		b.CoinbasePrivateKey = crypto.PrivateKeyBytes(b.CoinbasePrivateKeySeed)
 	}
 	if _, err = io.ReadFull(reader, b.Parent[:]); err != nil {
 		return err
@@ -95,11 +116,25 @@ func (b *SideData) FromReader(reader readerAndByteReader) (err error) {
 			return err
 		}
 	}
+	if version > ShareVersion_V1 {
+		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SoftwareId); err != nil {
+			return err
+		}
+		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.Version); err != nil {
+			return err
+		}
+		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.RandomNumber); err != nil {
+			return err
+		}
+		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SideChainExtraNonce); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
 
-func (b *SideData) UnmarshalBinary(data []byte) error {
+func (b *SideData) UnmarshalBinary(data []byte, version ShareVersion) error {
 	reader := bytes.NewReader(data)
-	return b.FromReader(reader)
+	return b.FromReader(reader, version)
 }

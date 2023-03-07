@@ -61,14 +61,14 @@ func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice 
 	}
 }
 
-func (d *DerivationCache) GetDeterministicTransactionKey(a address.Interface, prevId types.Hash) *crypto.KeyPair {
+func (d *DerivationCache) GetDeterministicTransactionKey(seed types.Hash, prevId types.Hash) *crypto.KeyPair {
 	var key deterministicTransactionCacheKey
-	copy(key[:], a.SpendPublicKey().AsSlice())
+	copy(key[:], seed[:])
 	copy(key[types.HashSize:], prevId[:])
 
 	deterministicKeyCache := d.deterministicKeyCache.Load()
 	if kp := deterministicKeyCache.Get(key); kp == nil {
-		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(a, prevId))
+		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
 		deterministicKeyCache.Set(key, data)
 		return data
 	} else {

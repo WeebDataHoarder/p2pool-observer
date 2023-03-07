@@ -9,8 +9,10 @@ import (
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
+	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
+	"log"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -27,6 +29,17 @@ const (
 	SideTemplateId        = transaction.TxExtraTagMergeMining
 )
 
+type ShareVersion int
+
+const (
+	ShareVersion_None ShareVersion = 0
+	ShareVersion_V1   ShareVersion = 1
+	ShareVersion_V2   ShareVersion = 2
+)
+
+const ShareVersion_V2MainNetTimestamp uint64 = 1679173200 // 2023-03-18 21:00 UTC
+const ShareVersion_V2TestNetTimestamp uint64 = 1674507600 // 2023-01-23 21:00 UTC
+
 type PoolBlock struct {
 	Main mainblock.Block
 
@@ -41,12 +54,16 @@ type PoolBlock struct {
 	WantBroadcast atomic.Bool
 	Broadcasted   atomic.Bool
 
+	NetworkType    NetworkType
 	LocalTimestamp uint64
 }
 
 // NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares
-func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
-	b := &PoolBlock{}
+// Deprecated
+func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock, error) {
+	b := &PoolBlock{
+		NetworkType: networkType,
+	}
 
 	if len(buf) < 32 {
 		return nil, errors.New("invalid block data")
@@ -141,13 +158,44 @@ func NewShareFromExportedBytes(buf []byte) (*PoolBlock, error) {
 		return nil, err
 	}
 
-	if err = b.Side.UnmarshalBinary(sideData); err != nil {
+	if err = b.Side.UnmarshalBinary(sideData, b.ShareVersion()); err != nil {
 		return nil, err
 	}
 
 	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
 
 	return b, nil
+}
+
+func (b *PoolBlock) ShareVersion() ShareVersion {
+	// P2Pool forks to v2 at 2023-03-18 21:00 UTC
+	// Different miners can have different timestamps,
+	// so a temporary mix of v1 and v2 blocks is allowed
+	switch b.NetworkType {
+	case NetworkInvalid:
+		log.Panicf("invalid network type for determining share version")
+	case NetworkMainnet:
+		if b.Main.Timestamp >= ShareVersion_V2MainNetTimestamp {
+			return ShareVersion_V2
+		}
+	case NetworkTestnet:
+		if b.Main.Timestamp >= ShareVersion_V2TestNetTimestamp {
+			return ShareVersion_V2
+		}
+	case NetworkStagenet:
+		return ShareVersion_V2
+	}
+	if b.Main.Timestamp >= ShareVersion_V2MainNetTimestamp {
+		return ShareVersion_V2
+	}
+	return ShareVersion_V1
+}
+
+func (b *PoolBlock) ShareVersionSignaling() ShareVersion {
+	if b.ShareVersion() == ShareVersion_V1 && ((binary.LittleEndian.Uint32(b.CoinbaseExtra(SideExtraNonce)))&0xFF100000 == 0xFF000000) {
+		return ShareVersion_V2
+	}
+	return ShareVersion_None
 }
 
 func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
@@ -271,7 +319,7 @@ func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 		b.cache.lock.Lock()
 		defer b.cache.lock.Unlock()
 		if b.cache.templateId == types.ZeroHash { //check again for race
-			b.cache.templateId = consensus.CalculateSideTemplateId(&b.Main, &b.Side)
+			b.cache.templateId = consensus.CalculateSideTemplateId(b)
 		}
 		return b.cache.templateId
 	}
@@ -311,7 +359,7 @@ func (b *PoolBlock) UnmarshalBinary(data []byte) error {
 func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 	if mainData, err := b.Main.MarshalBinary(); err != nil {
 		return nil, err
-	} else if sideData, err := b.Side.MarshalBinary(); err != nil {
+	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
 		return nil, err
 	} else {
 		data := make([]byte, 0, len(mainData)+len(sideData))
@@ -324,7 +372,7 @@ func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
 	if mainData, err := b.Main.MarshalBinaryFlags(pruned, compact); err != nil {
 		return nil, err
-	} else if sideData, err := b.Side.MarshalBinary(); err != nil {
+	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
 		return nil, err
 	} else {
 		data := make([]byte, 0, len(mainData)+len(sideData))
@@ -339,7 +387,7 @@ func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 		return err
 	}
 
-	if err = b.Side.FromReader(reader); err != nil {
+	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
 		return err
 	}
 
@@ -352,7 +400,7 @@ func (b *PoolBlock) FromCompactReader(reader readerAndByteReader) (err error) {
 		return err
 	}
 
-	if err = b.Side.FromReader(reader); err != nil {
+	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
 		return err
 	}
 
@@ -385,6 +433,26 @@ func (b *PoolBlock) IsProofHigherThanDifficultyWithError(f mainblock.GetSeedByHe
 	} else {
 		return b.Side.Difficulty.CheckPoW(powHash), nil
 	}
+}
+
+func (b *PoolBlock) GetPrivateKeySeed() types.Hash {
+	if b.ShareVersion() > ShareVersion_V1 {
+		return b.Side.CoinbasePrivateKeySeed
+	}
+	return types.Hash(b.Side.PublicSpendKey.AsBytes())
+}
+
+func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
+	if b.ShareVersion() > ShareVersion_V1 {
+		mainData, _ := b.Main.SideChainHashingBlob()
+		sideData, _ := b.Side.MarshalBinary(b.ShareVersion())
+		return p2poolcrypto.CalculateTransactionPrivateKeySeed(
+			mainData,
+			sideData,
+		)
+	}
+
+	return types.Hash(b.Side.PublicSpendKey.AsBytes())
 }
 
 func (b *PoolBlock) GetAddress() *address.PackedAddress {

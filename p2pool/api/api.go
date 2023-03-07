@@ -92,7 +92,7 @@ func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.PoolBlock, err erro
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromExportedBytes(data)
+		return sidechain.NewShareFromExportedBytes(data, sidechain.NetworkMainnet)
 	}
 }
 
@@ -111,7 +111,7 @@ func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.PoolBlock, err error) {
 	} else {
 		data := make([]byte, len(buf)/2)
 		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromExportedBytes(data)
+		return sidechain.NewShareFromExportedBytes(data, sidechain.NetworkMainnet)
 	}
 }
 

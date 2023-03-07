@@ -6,7 +6,16 @@ import (
 	"unsafe"
 )
 
-func GetDeterministicTransactionPrivateKey(spendPublicKey crypto.PublicKey, previousMoneroId types.Hash) crypto.PrivateKey {
+func CalculateTransactionPrivateKeySeed(main, side []byte) types.Hash {
+	return crypto.PooledKeccak256(
+		// domain
+		[]byte("tx_key_seed"), //TODO: check for null termination
+		main,
+		side,
+	)
+}
+
+func GetDeterministicTransactionPrivateKey(seed types.Hash, previousMoneroId types.Hash) crypto.PrivateKey {
 	/*
 		Current deterministic key issues
 		* This Deterministic private key changes too ofter, and does not fit full purpose (prevent knowledge of private keys on Coinbase without observing of sidechains).
@@ -20,11 +29,11 @@ func GetDeterministicTransactionPrivateKey(spendPublicKey crypto.PublicKey, prev
 
 	*/
 
-	var entropy [13 + crypto.PublicKeySize + types.HashSize + (int(unsafe.Sizeof(uint32(0))) /*pre-allocate uint32 for counter*/)]byte
+	var entropy [13 + types.HashSize + types.HashSize + (int(unsafe.Sizeof(uint32(0))) /*pre-allocate uint32 for counter*/)]byte
 	copy(entropy[:], []byte("tx_secret_key")) //domain
-	copy(entropy[13:], spendPublicKey.AsSlice())
-	copy(entropy[13+crypto.PublicKeySize:], previousMoneroId[:])
-	return crypto.PrivateKeyFromScalar(crypto.DeterministicScalar(entropy[:13+crypto.PublicKeySize+types.HashSize]))
+	copy(entropy[13:], seed[:])
+	copy(entropy[13+types.HashSize:], previousMoneroId[:])
+	return crypto.PrivateKeyFromScalar(crypto.DeterministicScalar(entropy[:13+types.HashSize+types.HashSize]))
 
 	/*
 
