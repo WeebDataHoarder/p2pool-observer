@@ -13,10 +13,10 @@ import (
 const BlockSaveEpochSize = 32
 
 const (
-	BlockSaveOptionTemplate = 1 << 0
-	//BlockSaveOptionDeterministicPrivateKey = 1 << 1
-	BlockSaveOptionDeterministicBlobs = 1 << 2
-	BlockSaveOptionUncles             = 1 << 3
+	BlockSaveOptionTemplate                    = 1 << 0
+	BlockSaveOptionDeterministicPrivateKeySeed = 1 << 1
+	BlockSaveOptionDeterministicBlobs          = 1 << 2
+	BlockSaveOptionUncles                      = 1 << 3
 
 	BlockSaveFieldSizeInBits = 8
 
@@ -60,9 +60,6 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		c.sidechainLock.RLock()
 		defer c.sidechainLock.RUnlock()
 
-		//only store keys when not deterministic
-		//isDeterministicPrivateKey := c.isPoolBlockTransactionKeyIsDeterministic(block)
-
 		calculatedOutputs := c.calculateOutputs(block)
 		calcBlob, _ := calculatedOutputs.MarshalBinary()
 		blockBlob, _ := block.Main.Coinbase.Outputs.MarshalBinary()
@@ -76,13 +73,26 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 
 		parent := c.getParent(block)
 
+		//only store keys when not deterministic
+		isDeterministicPrivateKeySeed := parent != nil && c.isPoolBlockTransactionKeyIsDeterministic(block)
+
+		if isDeterministicPrivateKeySeed && block.ShareVersion() > ShareVersion_V1 {
+			expectedSeed := parent.Side.CoinbasePrivateKeySeed
+			if parent.Main.PreviousId != block.Main.PreviousId {
+				expectedSeed = parent.CalculateTransactionPrivateKeySeed()
+			}
+			if block.Side.CoinbasePrivateKeySeed != expectedSeed {
+				isDeterministicPrivateKeySeed = false
+			}
+		}
+
 		blob := make([]byte, 0, 4096*2)
 
 		var blockFlags uint64
 
-		/*if isDeterministicPrivateKey {
-			blockFlags |= BlockSaveOptionDeterministicPrivateKey
-		}*/
+		if isDeterministicPrivateKeySeed {
+			blockFlags |= BlockSaveOptionDeterministicPrivateKeySeed
+		}
 
 		if !storeBlob {
 			blockFlags |= BlockSaveOptionDeterministicBlobs
@@ -163,8 +173,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob = binary.AppendUvarint(blob, minerAddressOffset)
 		}
 
-		// private key, if needed
-		if true /*(blockFlags & BlockSaveOptionDeterministicPrivateKey) == 0*/ {
+		// private key seed, if needed
+		if (blockFlags&BlockSaveOptionDeterministicPrivateKeySeed) == 0 || (block.ShareVersion() > ShareVersion_V1 && (blockFlags&BlockSaveOptionTemplate) != 0) {
 			blob = append(blob, block.Side.CoinbasePrivateKeySeed[:]...)
 			//public may be needed on invalid - TODO check
 			//blob = append(blob, block.CoinbaseExtra(SideCoinbasePublicKey)...)

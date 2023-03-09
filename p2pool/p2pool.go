@@ -3,7 +3,6 @@ package p2pool
 import (
 	"context"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
@@ -13,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
 	"strconv"
@@ -95,7 +95,7 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 		externalListenPort, _ = strconv.ParseUint(externalPort, 10, 0)
 	}
 
-	if pool.server, err = p2p.NewServer(pool.sidechain, listenAddress, uint16(externalListenPort), uint32(maxOutgoingPeers), uint32(maxIncomingPeers), pool.ctx); err != nil {
+	if pool.server, err = p2p.NewServer(pool, listenAddress, uint16(externalListenPort), uint32(maxOutgoingPeers), uint32(maxIncomingPeers), pool.ctx); err != nil {
 		return nil, err
 	}
 
@@ -114,8 +114,13 @@ func (p *P2Pool) GetChainMainTip() *sidechain.ChainMain {
 	return p.mainchain.GetChainMainTip()
 }
 
+func (p *P2Pool) GetMinerDataTip() *p2pooltypes.MinerData {
+	return p.mainchain.GetMinerDataTip()
+}
+
 // GetMinimalBlockHeaderByHeight Only Id / Height / Timestamp are assured
 func (p *P2Pool) GetMinimalBlockHeaderByHeight(height uint64) *block.Header {
+	lowerThanTip := height <= p.mainchain.GetChainMainTip().Height
 	if chainMain := p.mainchain.GetChainMainByHeight(height); chainMain != nil && chainMain.Id != types.ZeroHash {
 		return &block.Header{
 			Timestamp:  chainMain.Timestamp,
@@ -124,7 +129,7 @@ func (p *P2Pool) GetMinimalBlockHeaderByHeight(height uint64) *block.Header {
 			Difficulty: chainMain.Difficulty,
 			Id:         chainMain.Id,
 		}
-	} else {
+	} else if lowerThanTip {
 		if header, err := p.ClientRPC().GetBlockHeaderByHeight(height, p.ctx); err != nil {
 			return nil
 		} else {
@@ -146,11 +151,14 @@ func (p *P2Pool) GetMinimalBlockHeaderByHeight(height uint64) *block.Header {
 			return blockHeader
 		}
 	}
+
+	return nil
 }
 func (p *P2Pool) GetDifficultyByHeight(height uint64) types.Difficulty {
+	lowerThanTip := height <= p.mainchain.GetChainMainTip().Height
 	if chainMain := p.mainchain.GetChainMainByHeight(height); chainMain != nil && chainMain.Difficulty != types.ZeroDifficulty {
 		return chainMain.Difficulty
-	} else {
+	} else if lowerThanTip {
 		//TODO cache
 		if header, err := p.ClientRPC().GetBlockHeaderByHeight(height, p.ctx); err != nil {
 			return types.ZeroDifficulty
@@ -173,6 +181,8 @@ func (p *P2Pool) GetDifficultyByHeight(height uint64) types.Difficulty {
 			return blockHeader.Difficulty
 		}
 	}
+
+	return types.ZeroDifficulty
 }
 
 // GetMinimalBlockHeaderByHash Only Id / Height / Timestamp are assured
@@ -221,6 +231,14 @@ func (p *P2Pool) Context() context.Context {
 	return p.ctx
 }
 
+func (p *P2Pool) SideChain() *sidechain.SideChain {
+	return p.sidechain
+}
+
+func (p *P2Pool) MainChain() *mainchain.MainChain {
+	return p.mainchain
+}
+
 func (p *P2Pool) Server() *p2p.Server {
 	return p.server
 }
@@ -241,106 +259,11 @@ func (p *P2Pool) Run() (err error) {
 		return err
 	}
 
-	if zmqStream, err := p.ClientZMQ().Listen(p.ctx); err != nil {
-		return err
-	} else {
-		go func() {
-			for {
-				select {
-				case <-zmqStream.ErrC:
-					p.Close()
-					return
-				case fullChainMain := <-zmqStream.FullChainMainC:
-					if len(fullChainMain.MinerTx.Inputs) < 1 {
-						continue
-					}
-					d := &sidechain.ChainMain{
-						Difficulty: types.ZeroDifficulty,
-						Height:     fullChainMain.MinerTx.Inputs[0].Gen.Height,
-						Timestamp:  uint64(fullChainMain.Timestamp),
-						Reward:     0,
-						Id:         types.ZeroHash,
-					}
-					for _, o := range fullChainMain.MinerTx.Outputs {
-						d.Reward += o.Amount
-					}
-
-					outputs := make(transaction.Outputs, 0, len(fullChainMain.MinerTx.Outputs))
-					var totalReward uint64
-					for i, o := range fullChainMain.MinerTx.Outputs {
-						if o.ToKey != nil {
-							outputs = append(outputs, transaction.Output{
-								Index:              uint64(i),
-								Reward:             o.Amount,
-								Type:               transaction.TxOutToKey,
-								EphemeralPublicKey: o.ToKey.Key,
-								ViewTag:            0,
-							})
-						} else if o.ToTaggedKey != nil {
-							tk, _ := hex.DecodeString(o.ToTaggedKey.ViewTag)
-							outputs = append(outputs, transaction.Output{
-								Index:              uint64(i),
-								Reward:             o.Amount,
-								Type:               transaction.TxOutToTaggedKey,
-								EphemeralPublicKey: o.ToTaggedKey.Key,
-								ViewTag:            tk[0],
-							})
-						} else {
-							//error
-							break
-						}
-						totalReward += o.Amount
-					}
-
-					if len(outputs) != len(fullChainMain.MinerTx.Outputs) {
-						continue
-					}
-
-					extraDataRaw, _ := hex.DecodeString(fullChainMain.MinerTx.Extra)
-					extraTags := transaction.ExtraTags{}
-					if err = extraTags.UnmarshalBinary(extraDataRaw); err != nil {
-						continue
-					}
-
-					blockData := &block.Block{
-						MajorVersion: uint8(fullChainMain.MajorVersion),
-						MinorVersion: uint8(fullChainMain.MinorVersion),
-						Timestamp:    uint64(fullChainMain.Timestamp),
-						PreviousId:   fullChainMain.PrevID,
-						Nonce:        uint32(fullChainMain.Nonce),
-						Coinbase: &transaction.CoinbaseTransaction{
-							Version:         uint8(fullChainMain.MinerTx.Version),
-							UnlockTime:      uint64(fullChainMain.MinerTx.UnlockTime),
-							InputCount:      uint8(len(fullChainMain.MinerTx.Inputs)),
-							InputType:       transaction.TxInGen,
-							GenHeight:       fullChainMain.MinerTx.Inputs[0].Gen.Height,
-							Outputs:         outputs,
-							OutputsBlobSize: 0,
-							TotalReward:     totalReward,
-							Extra:           extraTags,
-							ExtraBaseRCT:    0,
-						},
-						Transactions:             fullChainMain.TxHashes,
-						TransactionParentIndices: nil,
-					}
-					p.mainchain.HandleMainBlock(blockData)
-				case fullMinerData := <-zmqStream.FullMinerDataC:
-					p.mainchain.HandleMinerData(&mainchain.MinerData{
-						MajorVersion:          fullMinerData.MajorVersion,
-						Height:                fullMinerData.Height,
-						PrevId:                fullMinerData.PrevId,
-						SeedHash:              fullMinerData.SeedHash,
-						Difficulty:            fullMinerData.Difficulty,
-						MedianWeight:          fullMinerData.MedianWeight,
-						AlreadyGeneratedCoins: fullMinerData.AlreadyGeneratedCoins,
-						MedianTimestamp:       fullMinerData.MedianTimestamp,
-						TimeReceived:          time.Now(),
-					})
-				}
-			}
-		}()
-
-	}
+	go func() {
+		if p.mainchain.Listen() != nil {
+			p.Close()
+		}
+	}()
 
 	p.started.Store(true)
 
@@ -405,7 +328,7 @@ func (p *P2Pool) getMinerData() error {
 		prevId, _ := types.HashFromString(minerData.PrevId)
 		seedHash, _ := types.HashFromString(minerData.SeedHash)
 		diff, _ := types.DifficultyFromString(minerData.Difficulty)
-		p.mainchain.HandleMinerData(&mainchain.MinerData{
+		p.mainchain.HandleMinerData(&p2pooltypes.MinerData{
 			MajorVersion:          minerData.MajorVersion,
 			Height:                minerData.Height,
 			PrevId:                prevId,
@@ -463,5 +386,16 @@ func (p *P2Pool) Started() bool {
 }
 
 func (p *P2Pool) Broadcast(block *sidechain.PoolBlock) {
+	minerData := p.GetMinerDataTip()
+	if (block.Main.Coinbase.GenHeight)+2 < minerData.Height {
+		log.Printf("[P2Pool] Trying to broadcast a stale block %s (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
+		return
+	}
+
+	if block.Main.Coinbase.GenHeight > (minerData.Height + 2) {
+		log.Printf("[P2Pool] Trying to broadcast a block %s ahead on mainchain (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
+		return
+	}
+
 	p.server.Broadcast(block)
 }

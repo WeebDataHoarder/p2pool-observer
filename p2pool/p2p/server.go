@@ -5,7 +5,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
@@ -18,8 +20,16 @@ import (
 	"unsafe"
 )
 
+type P2PoolInterface interface {
+	sidechain.ConsensusProvider
+	SideChain() *sidechain.SideChain
+	MainChain() *mainchain.MainChain
+	GetChainMainTip() *sidechain.ChainMain
+	GetMinerDataTip() *p2pooltypes.MinerData
+}
+
 type Server struct {
-	sidechain *sidechain.SideChain
+	p2pool P2PoolInterface
 
 	peerId             uint64
 	versionInformation PeerVersionInformation
@@ -47,7 +57,7 @@ type Server struct {
 	ctx context.Context
 }
 
-func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32, ctx context.Context) (*Server, error) {
+func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32, ctx context.Context) (*Server, error) {
 	peerId := make([]byte, int(unsafe.Sizeof(uint64(0))))
 	_, err := rand.Read(peerId)
 	if err != nil {
@@ -60,7 +70,7 @@ func NewServer(sidechain *sidechain.SideChain, listenAddress string, externalLis
 	}
 
 	s := &Server{
-		sidechain:          sidechain,
+		p2pool:             p2pool,
 		listenAddress:      addrPort,
 		externalListenPort: externalListenPort,
 		peerId:             binary.LittleEndian.Uint64(peerId),
@@ -316,7 +326,11 @@ func (s *Server) PeerId() uint64 {
 }
 
 func (s *Server) SideChain() *sidechain.SideChain {
-	return s.sidechain
+	return s.p2pool.SideChain()
+}
+
+func (s *Server) MainChain() *mainchain.MainChain {
+	return s.p2pool.MainChain()
 }
 
 func (s *Server) updateClients() {
@@ -384,5 +398,5 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 }
 
 func (s *Server) Consensus() *sidechain.Consensus {
-	return s.sidechain.Consensus()
+	return s.p2pool.Consensus()
 }

@@ -12,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
+	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
@@ -42,6 +43,7 @@ type P2PoolInterface interface {
 	UpdateBlockFound(data *ChainMain, block *PoolBlock)
 	SubmitBlock(block *mainblock.Block)
 	GetChainMainTip() *ChainMain
+	GetMinerDataTip() *p2pooltypes.MinerData
 }
 
 type ChainMain struct {

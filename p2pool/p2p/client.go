@@ -394,14 +394,22 @@ func (c *Client) OnConnection() {
 					isChainTipBlockRequest := false
 					if c.chainTipBlockRequest.Swap(false) {
 						isChainTipBlockRequest = true
-						//peerHeight := block.Main.Coinbase.GenHeight
-						//ourHeight :=
+						if expectedBlockId == types.ZeroHash {
+							peerHeight := block.Main.Coinbase.GenHeight
+							ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
+
+							if (peerHeight + 2) < ourHeight {
+								c.Ban(DefaultBanTime, fmt.Errorf("mining on top of a stale block (mainchain peer height %d, expected >= %d)", peerHeight, ourHeight))
+								return
+							}
+						}
 						//TODO: stale block
 
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
 
 						if expectedBlockId != types.ZeroHash {
 							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId, types.ZeroHash.String()))
+							return
 						}
 
 						c.SendPeerListRequest()
@@ -469,7 +477,32 @@ func (c *Client) OnConnection() {
 				//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
 				return
 			} else {
-				//TODO: investigate different monero block mining
+				ourMinerData := c.Owner.MainChain().GetMinerDataTip()
+
+				if block.Main.PreviousId != ourMinerData.PrevId {
+					// This peer is mining on top of a different Monero block, investigate it
+
+					peerHeight := block.Main.Coinbase.GenHeight
+					ourHeight := ourMinerData.Height
+
+					if peerHeight < ourHeight {
+						if (ourHeight - peerHeight) < 5 {
+							elapsedTime := time.Now().Sub(ourMinerData.TimeReceived)
+							if (ourHeight-peerHeight) > 1 || elapsedTime > (time.Second*10) {
+								log.Printf("[P2PClient] Peer %s broadcasted a stale block (%d ms late, mainchain height %d, expected >= %d), ignoring it", c.AddressPort.String(), elapsedTime.Milliseconds(), peerHeight, ourHeight)
+							}
+						} else {
+							c.Ban(DefaultBanTime, fmt.Errorf("broadcasted an unreasonably stale block (mainchain height %d, expected >= %d)", peerHeight, ourHeight))
+							return
+						}
+					} else if peerHeight > ourHeight {
+						if peerHeight >= (ourHeight + 2) {
+							log.Printf("[P2PClient] Peer %s is ahead on mainchain (mainchain height %d, your height %d). Is monerod stuck or lagging?", c.AddressPort.String(), peerHeight, ourHeight)
+						}
+					} else {
+						log.Printf("[P2PClient] Peer %s is mining on an alternative mainchain tip (mainchain height %d, previous_id = %s)", c.AddressPort.String(), peerHeight, block.Main.PreviousId)
+					}
+				}
 
 				block.WantBroadcast.Store(true)
 				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
