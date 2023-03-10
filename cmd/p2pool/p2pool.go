@@ -24,7 +24,6 @@ func main() {
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
 	moneroZmqPort := flag.Uint("zmq-port", 18083, "monerod ZMQ pub port number")
 	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
-	//TODO: zmq
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
 	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path")
 	consensusConfigFile := flag.String("config", "", "Name of the p2pool config file")
@@ -33,6 +32,8 @@ func main() {
 	outPeers := flag.Uint64("out-peers", 10, "Maximum number of outgoing connections for p2p server (any value between 10 and 450)")
 	inPeers := flag.Uint64("in-peers", 10, "Maximum number of incoming connections for p2p server (any value between 10 and 450)")
 	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
+
+	noCache := flag.Bool("no-cache", false, "Disable p2pool.cache")
 
 	flag.Parse()
 
@@ -72,6 +73,10 @@ func main() {
 	settings["out-peers"] = strconv.FormatUint(*outPeers, 10)
 	settings["in-peers"] = strconv.FormatUint(*inPeers, 10)
 	settings["external-port"] = strconv.FormatUint(*p2pExternalPort, 10)
+
+	if !*noCache {
+		settings["cache"] = "p2pool.cache"
+	}
 
 	if p2pool, err := p2pool2.NewP2Pool(currentConsensus, settings); err != nil {
 		log.Fatalf("Could not start p2pool: %s", err)

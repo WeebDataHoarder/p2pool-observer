@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
@@ -54,6 +55,9 @@ type Server struct {
 	clientsLock sync.RWMutex
 	clients     []*Client
 
+	cachedBlocksLock sync.RWMutex
+	cachedBlocks     map[types.Hash]*sidechain.PoolBlock
+
 	ctx context.Context
 }
 
@@ -76,6 +80,7 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		peerId:             binary.LittleEndian.Uint64(peerId),
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
+		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
 		versionInformation: PeerVersionInformation{SoftwareId: SoftwareIdGoObserver, SoftwareVersion: CurrentSoftwareVersion, Protocol: SupportedProtocolVersion},
 		ctx:                ctx,
 	}
@@ -142,7 +147,7 @@ func (s *Server) updatePeerList() {
 }
 
 func (s *Server) updateClientConnections() {
-	log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
+	//log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
 	currentPeers := uint32(s.NumOutgoingConnections.Load())
 	peerList := s.PeerList()
 	for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
@@ -161,13 +166,48 @@ func (s *Server) updateClientConnections() {
 	}
 }
 
+func (s *Server) AddCachedBlock(block *sidechain.PoolBlock) {
+	s.cachedBlocksLock.Lock()
+	defer s.cachedBlocksLock.Unlock()
+
+	if s.cachedBlocks == nil {
+		return
+	}
+
+	s.cachedBlocks[block.SideTemplateId(s.p2pool.Consensus())] = block
+}
+
+func (s *Server) ClearCachedBlocks() {
+	s.cachedBlocksLock.Lock()
+	defer s.cachedBlocksLock.Unlock()
+
+	s.cachedBlocks = nil
+}
+
+func (s *Server) GetCachedBlock(hash types.Hash) *sidechain.PoolBlock {
+	s.cachedBlocksLock.RLock()
+	defer s.cachedBlocksLock.RUnlock()
+
+	return s.cachedBlocks[hash]
+}
+
 func (s *Server) DownloadMissingBlocks() {
 	clientList := s.Clients()
 
 	if len(clientList) == 0 {
 		return
 	}
+
+	s.cachedBlocksLock.RLock()
+	defer s.cachedBlocksLock.RUnlock()
+
 	for _, h := range s.SideChain().GetMissingBlocks() {
+		if b, ok := s.cachedBlocks[h]; ok {
+			if _, err := s.SideChain().AddPoolBlockExternal(b); err == nil {
+				continue
+			}
+		}
+
 		clientList[unsafeRandom.Intn(len(clientList))].SendUniqueBlockRequest(h)
 	}
 }
@@ -198,9 +238,13 @@ func (s *Server) Listen() (err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range time.Tick(time.Second * 60) {
+			for range time.Tick(time.Second) {
 				if s.close.Load() {
 					return
+				}
+
+				if s.SideChain().PreCalcFinished() {
+					s.ClearCachedBlocks()
 				}
 
 				s.DownloadMissingBlocks()

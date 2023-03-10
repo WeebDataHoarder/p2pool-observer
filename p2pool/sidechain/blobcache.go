@@ -38,6 +38,8 @@ func (c *SideChain) compressedBlockId(block *PoolBlock) []byte {
 
 func (c *SideChain) saveBlock(block *PoolBlock) {
 	go func() {
+		c.server.Store(block)
+
 		//TODO: make this a worker with a queue?
 
 		if !block.Verified.Load() || block.Invalid.Load() {

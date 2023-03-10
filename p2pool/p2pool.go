@@ -9,6 +9,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -24,6 +26,7 @@ type P2Pool struct {
 	consensus *sidechain.Consensus
 	sidechain *sidechain.SideChain
 	mainchain *mainchain.MainChain
+	cache     cache.HeapCache
 	server    *p2p.Server
 
 	ctx       context.Context
@@ -74,6 +77,12 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 
 	if pool.mainchain == nil {
 		return nil, errors.New("could not create MainChain")
+	}
+
+	if cachePath, ok := settings["cache"]; ok {
+		if pool.cache, err = legacy.NewCache(cachePath); err != nil {
+			return nil, fmt.Errorf("could not create cache: %w", err)
+		}
 	}
 
 	if addr, ok := settings["listen"]; ok {
@@ -265,6 +274,12 @@ func (p *P2Pool) Run() (err error) {
 		}
 	}()
 
+	//TODO: move peer list loading here
+
+	if p.cache != nil {
+		p.cache.LoadAll(p.Server())
+	}
+
 	p.started.Store(true)
 
 	if err = p.Server().Listen(); err != nil {
@@ -379,6 +394,16 @@ func (p *P2Pool) SubmitBlock(b *block.Block) {
 			}
 		}
 	}()
+}
+
+func (p *P2Pool) Store(block *sidechain.PoolBlock) {
+	if p.cache != nil {
+		p.cache.Store(block)
+	}
+}
+
+func (p *P2Pool) ClearCachedBlocks() {
+	p.server.ClearCachedBlocks()
 }
 
 func (p *P2Pool) Started() bool {

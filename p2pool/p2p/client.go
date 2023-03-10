@@ -128,6 +128,16 @@ func (c *Client) SendMissingBlockRequest(hash types.Hash) {
 		return
 	}
 
+	if b := c.Owner.GetCachedBlock(hash); b != nil {
+		log.Printf("[P2PClient] Using cached block for id = %s", hash.String())
+		if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
+			for _, id := range missingBlocks {
+				c.SendMissingBlockRequest(id)
+			}
+			return
+		}
+	}
+
 	// do not re-request hashes that have been requested
 	if !c.RequestedHashes.PushUnique(hash) {
 		return
@@ -194,7 +204,7 @@ func (c *Client) SendPeerListRequest() {
 		MessageId: MessagePeerListRequest,
 	})
 	c.LastPeerListRequestTimestamp.Store(uint64(time.Now().UnixMicro()))
-	log.Printf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
+	//log.Printf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
 }
 
 func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
@@ -394,21 +404,19 @@ func (c *Client) OnConnection() {
 					isChainTipBlockRequest := false
 					if c.chainTipBlockRequest.Swap(false) {
 						isChainTipBlockRequest = true
-						if expectedBlockId == types.ZeroHash {
-							peerHeight := block.Main.Coinbase.GenHeight
-							ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
-
-							if (peerHeight + 2) < ourHeight {
-								c.Ban(DefaultBanTime, fmt.Errorf("mining on top of a stale block (mainchain peer height %d, expected >= %d)", peerHeight, ourHeight))
-								return
-							}
-						}
 						//TODO: stale block
 
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
 
 						if expectedBlockId != types.ZeroHash {
 							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId, types.ZeroHash.String()))
+							return
+						}
+						peerHeight := block.Main.Coinbase.GenHeight
+						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
+
+						if (peerHeight + 2) < ourHeight {
+							c.Ban(DefaultBanTime, fmt.Errorf("mining on top of a stale block (mainchain peer height %d, expected >= %d)", peerHeight, ourHeight))
 							return
 						}
 

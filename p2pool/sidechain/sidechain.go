@@ -44,6 +44,8 @@ type P2PoolInterface interface {
 	SubmitBlock(block *mainblock.Block)
 	GetChainMainTip() *ChainMain
 	GetMinerDataTip() *p2pooltypes.MinerData
+	Store(block *PoolBlock)
+	ClearCachedBlocks()
 }
 
 type ChainMain struct {

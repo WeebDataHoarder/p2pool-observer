@@ -14,6 +14,8 @@ import (
 	"strconv"
 )
 
+// Api
+// Deprecated
 type Api struct {
 	db   *database.Database
 	path string
