@@ -243,9 +243,8 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	}
 
 	// This check is not always possible to perform because of mainchain reorgs
-	//TODO: cache current miner data?
 	if data := c.server.GetChainMainByHash(block.Main.PreviousId); data != nil {
-		if data.Height+1 != block.Main.Coinbase.GenHeight {
+		if (data.Height + 1) != block.Main.Coinbase.GenHeight {
 			return nil, fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1)
 		}
 	} else {
@@ -879,9 +878,10 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) (shares
 	var mainchainDiff types.Difficulty
 
 	if tip.Side.Parent != types.ZeroHash {
-		mainchainDiff = c.server.GetDifficultyByHeight(tip.Main.Coinbase.GenHeight)
+		seedHeight := randomx.SeedHeight(tip.Main.Coinbase.GenHeight)
+		mainchainDiff = c.server.GetDifficultyByHeight(seedHeight)
 		if mainchainDiff == types.ZeroDifficulty {
-			log.Printf("[SideChain] get_shares: couldn't get mainchain difficulty for height = %d", tip.Main.Coinbase.GenHeight)
+			log.Printf("[SideChain] get_shares: couldn't get mainchain difficulty for height = %d", seedHeight)
 			return nil, 0
 		}
 	}
