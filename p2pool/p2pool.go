@@ -16,6 +16,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"strconv"
 	"sync/atomic"
@@ -34,6 +35,8 @@ type P2Pool struct {
 
 	rpcClient *client.Client
 	zmqClient *zmq.Client
+
+	recentSubmittedBlocks *utils.CircularBuffer[types.Hash]
 
 	started atomic.Bool
 }
@@ -57,7 +60,8 @@ func (p *P2Pool) Close() {
 
 func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2Pool, error) {
 	pool := &P2Pool{
-		consensus: consensus,
+		consensus:             consensus,
+		recentSubmittedBlocks: utils.NewCircularBuffer[types.Hash](8),
 	}
 	var err error
 
@@ -370,8 +374,12 @@ func (p *P2Pool) UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.Po
 
 func (p *P2Pool) SubmitBlock(b *block.Block) {
 
-	//TODO: do not submit multiple times
 	go func() {
+		//do not submit multiple monero blocks to monerod
+		if !p.recentSubmittedBlocks.PushUnique(b.Id()) {
+			return
+		}
+
 		if blob, err := b.MarshalBinary(); err == nil {
 			var templateId types.Hash
 			var extraNonce uint32
