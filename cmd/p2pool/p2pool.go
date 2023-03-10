@@ -18,6 +18,9 @@ import (
 )
 
 func main() {
+
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+
 	currentConsensus := sidechain.ConsensusDefault
 
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
@@ -34,8 +37,14 @@ func main() {
 	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
 
 	noCache := flag.Bool("no-cache", false, "Disable p2pool.cache")
+	debugLog := flag.Bool("debug", false, "Log more details")
+	//TODO extend verbosity to debug flag
 
 	flag.Parse()
+
+	if *debugLog {
+		log.SetFlags(log.Flags() | log.Lshortfile)
+	}
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 

@@ -124,7 +124,7 @@ func (c *Client) SendListenPort() {
 }
 
 func (c *Client) SendMissingBlockRequest(hash types.Hash) {
-	if hash == types.ZeroHash {
+	if hash == types.ZeroHash || c.Owner.SideChain().GetPoolBlockByTemplateId(hash) != nil {
 		return
 	}
 
