@@ -192,7 +192,7 @@ func (b *PoolBlock) ShareVersion() ShareVersion {
 }
 
 func (b *PoolBlock) ShareVersionSignaling() ShareVersion {
-	if b.ShareVersion() == ShareVersion_V1 && ((binary.LittleEndian.Uint32(b.CoinbaseExtra(SideExtraNonce)))&0xFF100000 == 0xFF000000) {
+	if b.ShareVersion() == ShareVersion_V1 && ((binary.LittleEndian.Uint32(b.CoinbaseExtra(SideExtraNonce)))&0xFF000000 == 0xFF000000) {
 		return ShareVersion_V2
 	}
 	return ShareVersion_None
