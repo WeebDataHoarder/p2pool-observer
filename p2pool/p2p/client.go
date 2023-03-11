@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
@@ -31,7 +32,7 @@ const MaxBlockTemplateSize = 128*1024 - (1 - 4)
 type Client struct {
 	// Peer general static-ish information
 	PeerId               atomic.Uint64
-	VersionInformation   PeerVersionInformation
+	VersionInformation   p2pooltypes.PeerVersionInformation
 	IsIncomingConnection bool
 	ConnectionTime       time.Time
 	ListenPort           atomic.Uint32
@@ -215,7 +216,7 @@ func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
 	buf = append(buf, byte(len(list)))
 	for i := range list {
 		//TODO: check ipv4 gets sent properly
-		if list[i].Addr().Is6() && !IsPeerVersionInformation(list[i]) {
+		if list[i].Addr().Is6() && !p2pooltypes.IsPeerVersionInformation(list[i]) {
 			buf = append(buf, 1)
 		} else {
 			buf = append(buf, 0)
@@ -592,9 +593,9 @@ func (c *Client) OnConnection() {
 
 								// Check for protocol version message
 								if binary.LittleEndian.Uint32(rawIp[12:]) == 0xFFFFFFFF && port == 0xFFFF {
-									c.VersionInformation.Protocol = ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
-									c.VersionInformation.SoftwareVersion = SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
-									c.VersionInformation.SoftwareId = SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
+									c.VersionInformation.Protocol = p2pooltypes.ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
+									c.VersionInformation.SoftwareVersion = p2pooltypes.SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
+									c.VersionInformation.SoftwareId = p2pooltypes.SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
 									log.Printf("peer %s is %s", c.AddressPort.String(), c.VersionInformation.String())
 								}
 								continue

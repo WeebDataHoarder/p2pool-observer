@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 )
@@ -20,11 +21,11 @@ type SideData struct {
 	Difficulty           types.Difficulty
 	CumulativeDifficulty types.Difficulty
 
-	// ExtraBuffer available in ShareVersion_2 and above
+	// ExtraBuffer available in ShareVersion ShareVersion_2 and above
 	ExtraBuffer struct {
-		SoftwareId          uint32
-		Version             uint32
-		RandomNumber        uint32
+		SoftwareId      p2pooltypes.SoftwareId
+		SoftwareVersion p2pooltypes.SoftwareVersion
+		RandomNumber    uint32
 		SideChainExtraNonce uint32
 	}
 }
@@ -50,8 +51,8 @@ func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
 	buf = binary.AppendUvarint(buf, b.CumulativeDifficulty.Lo)
 	buf = binary.AppendUvarint(buf, b.CumulativeDifficulty.Hi)
 	if version > ShareVersion_V1 {
-		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.SoftwareId)
-		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.Version)
+		buf = binary.LittleEndian.AppendUint32(buf, uint32(b.ExtraBuffer.SoftwareId))
+		buf = binary.LittleEndian.AppendUint32(buf, uint32(b.ExtraBuffer.SoftwareVersion))
 		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.RandomNumber)
 		buf = binary.LittleEndian.AppendUint32(buf, b.ExtraBuffer.SideChainExtraNonce)
 	}
@@ -120,7 +121,7 @@ func (b *SideData) FromReader(reader readerAndByteReader, version ShareVersion) 
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SoftwareId); err != nil {
 			return err
 		}
-		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.Version); err != nil {
+		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SoftwareVersion); err != nil {
 			return err
 		}
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.RandomNumber); err != nil {

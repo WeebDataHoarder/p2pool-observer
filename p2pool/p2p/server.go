@@ -33,7 +33,7 @@ type Server struct {
 	p2pool P2PoolInterface
 
 	peerId             uint64
-	versionInformation PeerVersionInformation
+	versionInformation p2pooltypes.PeerVersionInformation
 
 	listenAddress      netip.AddrPort
 	externalListenPort uint16
@@ -81,7 +81,7 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
-		versionInformation: PeerVersionInformation{SoftwareId: SoftwareIdGoObserver, SoftwareVersion: CurrentSoftwareVersion, Protocol: SupportedProtocolVersion},
+		versionInformation: p2pooltypes.PeerVersionInformation{SoftwareId: p2pooltypes.SoftwareIdGoObserver, SoftwareVersion: p2pooltypes.CurrentSoftwareVersion, Protocol: p2pooltypes.SupportedProtocolVersion},
 		ctx:                ctx,
 	}
 
@@ -149,6 +149,9 @@ func (s *Server) updatePeerList() {
 func (s *Server) updateClientConnections() {
 	//log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
 	currentPeers := uint32(s.NumOutgoingConnections.Load())
+
+	//TODO: remove peers from peerlist not seen in the last hour
+
 	peerList := s.PeerList()
 	for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
 		peerIndex := unsafeRandom.Intn(len(peerList))
@@ -361,7 +364,7 @@ func (s *Server) Close() {
 	}
 }
 
-func (s *Server) VersionInformation() *PeerVersionInformation {
+func (s *Server) VersionInformation() *p2pooltypes.PeerVersionInformation {
 	return &s.versionInformation
 }
 
@@ -426,7 +429,7 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 						}
 					}
 
-					if c.VersionInformation.Protocol >= ProtocolVersion_1_1 {
+					if c.VersionInformation.Protocol >= p2pooltypes.ProtocolVersion_1_1 {
 						c.SendMessage(compactMessage)
 					} else {
 						c.SendMessage(prunedMessage)
