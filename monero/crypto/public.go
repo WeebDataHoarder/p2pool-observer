@@ -14,6 +14,7 @@ type PublicKey interface {
 
 	String() string
 	UnmarshalJSON(b []byte) error
+	MarshalJSON() ([]byte, error)
 }
 
 const PublicKeySize = 32
@@ -82,6 +83,10 @@ func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 	}
 }
 
+func (k *PublicKeyPoint) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
 type PublicKeyBytes [PublicKeySize]byte
 
 func (k *PublicKeyBytes) AsSlice() PublicKeySlice {
@@ -116,6 +121,10 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 		copy((*k)[:], buf)
 		return nil
 	}
+}
+
+func (k *PublicKeyBytes) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
 }
 
 type PublicKeySlice []byte
@@ -153,4 +162,8 @@ func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {
 		*k = buf
 		return nil
 	}
+}
+
+func (k *PublicKeySlice) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
 }

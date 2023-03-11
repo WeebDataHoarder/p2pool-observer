@@ -22,6 +22,7 @@ type PrivateKey interface {
 
 	String() string
 	UnmarshalJSON(b []byte) error
+	MarshalJSON() ([]byte, error)
 }
 
 const PrivateKeySize = 32
@@ -60,7 +61,6 @@ func (p *PrivateKeyScalar) GetDerivation(public PublicKey) PublicKey {
 func (p *PrivateKeyScalar) GetDerivationCofactor(public PublicKey) PublicKey {
 	return deriveKeyExchangeSecretCofactor(p, public.AsPoint())
 }
-
 func (p *PrivateKeyScalar) String() string {
 	return hex.EncodeToString(p.Scalar().Bytes())
 }
@@ -85,6 +85,11 @@ func (p *PrivateKeyScalar) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 }
+
+func (p *PrivateKeyScalar) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.String())
+}
+
 
 type PrivateKeyBytes [PrivateKeySize]byte
 
@@ -135,6 +140,10 @@ func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
 	}
 }
 
+func (k *PrivateKeyBytes) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
+}
+
 type PrivateKeySlice []byte
 
 func (k *PrivateKeySlice) AsSlice() PrivateKeySlice {
@@ -183,6 +192,10 @@ func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {
 		*k = buf
 		return nil
 	}
+}
+
+func (k *PrivateKeySlice) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.String())
 }
 
 func deriveKeyExchangeSecretCofactor(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {
