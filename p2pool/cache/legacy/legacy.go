@@ -2,7 +2,7 @@ package legacy
 
 import (
 	"encoding/binary"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"io"
 	"log"
@@ -61,7 +61,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	}
 }
 
-func (c *Cache) LoadAll(s *p2p.Server) {
+func (c *Cache) LoadAll(l cache.Loadee) {
 	c.loadingStarted.Do(func() {
 		c.loadingInProgress.Store(true)
 		defer c.loadingInProgress.Store(false)
@@ -87,7 +87,7 @@ func (c *Cache) LoadAll(s *p2p.Server) {
 			}
 
 			block := &sidechain.PoolBlock{
-				NetworkType:    s.Consensus().NetworkType,
+				NetworkType:    l.Consensus().NetworkType,
 				LocalTimestamp: uint64(time.Now().Unix()),
 			}
 
@@ -95,7 +95,7 @@ func (c *Cache) LoadAll(s *p2p.Server) {
 				continue
 			}
 
-			s.AddCachedBlock(block)
+			l.AddCachedBlock(block)
 
 			blocksLoaded++
 		}
