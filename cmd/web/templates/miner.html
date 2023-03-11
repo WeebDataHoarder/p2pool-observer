@@ -17,7 +17,7 @@
 <div style="text-align: center">
     {% if miner.last_share_timestamp == 0 %}
     <div style="border: #d1d1d1 1px dashed;">
-        <h3 style="color:#FF0000">No shares have been reported to the P2Pool network in the past for this miner.</h3>
+        <h3 style="color:#FF4433">No shares have been reported to the P2Pool network in the past for this miner.</h3>
 
         <p>Finding shares is a random process based on your hashrate vs P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
         <p>Please use the calculator below to find your average share time (with average luck).</p>
@@ -35,6 +35,20 @@
             <br/>
             <input type="submit" value="Calculate" style="width: 20em; margin: 20px;"/>
         </form>
+    </div>
+
+    <hr/>
+    {% endif %}
+
+    {% if (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v2") and (last_raw_share.ShareVersionSignaling()|str != "v2") %}
+    <div style="border: #d1d1d1 1px dashed;">
+        <h3 style="color:#FF4433" title="Share version {{ last_raw_share.ShareVersion() }}, signaling {{ last_raw_share.ShareVersionSignaling() }}">Recent shares indicate you are running an outdated version of P2Pool</h3>
+
+        <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.1">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
+        <p>P2Pool (not Monero!) will hardfork to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.1 is recommended.</p>
+        <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
+        <p>After upgrading to a supported P2Pool version and mine a share, this message will be dismissed.</p>
+        <br/>
     </div>
 
     <hr/>

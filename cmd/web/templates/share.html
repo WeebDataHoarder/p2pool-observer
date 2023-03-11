@@ -12,7 +12,7 @@
     <h1 style="color:#00C000">This share mined Monero block at height {{ block.main.height }}</h1>
     {% endif %}
     {% if (block.invalid is defined) and block.invalid %}
-    <h1 style="color:#FF0000">This share is invalid</h1>
+    <h1 style="color:#FF4433">This share is invalid</h1>
         {% if raw.Extra.Peer is defined %}
     <h3>Share was received from peer <span class="mono">{{ raw.Extra.Peer }}</span></h3>
         {% endif %}
@@ -113,6 +113,19 @@
             <td class="mono smaller">{{ raw.Side.CumulativeDifficulty }}</td>
             <td class="mono">{{ extra_nonce(raw)|hex }}</td>
             <td class="mono smaller">{{ block.template.difficulty }}</td>
+        </tr>
+        <tr><td colspan="4">&nbsp;</td></tr>
+        <tr>
+            <th>Software</th>
+            <th>Version Signaling</th>
+            <th></th>
+            <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Coinbase Private Key Seed</th>
+        </tr>
+        <tr>
+            <td>{% if raw.ShareVersion()|str != "v1" %}{{ raw.Side.ExtraData.SoftwareId }} {{ raw.Side.ExtraData.SoftwareVersion }}{% else %}Not present{% endif %}</td>
+            <td>{{ raw.ShareVersion() }} <span class="small">({% if raw.ShareVersionSignaling()|str != "none" %}signaling {{ raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
+            <td></td>
+            <td class="mono smaller">{{ raw.GetPrivateKeySeed() }}</td>
         </tr>
 
     </table>

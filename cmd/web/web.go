@@ -503,6 +503,12 @@ func main() {
 	env.Filters["intstr"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
 		return strconv.FormatUint(toUint64(val), 10)
 	}
+	env.Filters["str"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
+		if strVal, ok := val.(fmt.Stringer); ok {
+			return strVal.String()
+		}
+		return strconv.FormatUint(toUint64(val), 10)
+	}
 	env.Tests["defined"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) bool {
 		return val != nil
 	}
@@ -813,6 +819,17 @@ func main() {
 			foundPayout.Add(int(int64(tipHeight)-toInt64(p.(map[string]any)["height"])), 1)
 		}
 
+		var raw *sidechain.PoolBlock
+
+		if len(lastShares) > 0 {
+			rawBlock := getFromAPI(fmt.Sprintf("block_by_id/%s/raw", lastShares[0].(map[string]any)["id"]))
+			if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
+				if buf, err := hex.DecodeString(string(s)); err == nil {
+					raw, _ = sidechain.NewShareFromExportedBytes(buf, sidechain.NetworkMainnet)
+				}
+			}
+		}
+
 		for _, share := range shares {
 			s := share.(map[string]any)
 			if p, ok := s["parent"]; ok {
@@ -840,6 +857,9 @@ func main() {
 		ctx["refresh"] = writer.Header().Get("refresh")
 		ctx["pool"] = poolInfo
 		ctx["miner"] = miner
+		if raw != nil {
+			ctx["last_raw_share"] = raw
+		}
 		ctx["last_shares"] = lastShares
 		ctx["last_found"] = lastFound
 		ctx["last_payouts"] = payouts

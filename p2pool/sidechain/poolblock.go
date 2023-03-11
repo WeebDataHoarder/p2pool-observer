@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -30,6 +31,15 @@ const (
 )
 
 type ShareVersion int
+
+func (v ShareVersion) String() string {
+	switch v {
+	case ShareVersion_None:
+		return "none"
+	default:
+		return fmt.Sprintf("v%d", v)
+	}
+}
 
 const (
 	ShareVersion_None ShareVersion = 0
@@ -439,7 +449,13 @@ func (b *PoolBlock) GetPrivateKeySeed() types.Hash {
 	if b.ShareVersion() > ShareVersion_V1 {
 		return b.Side.CoinbasePrivateKeySeed
 	}
-	return types.Hash(b.Side.PublicSpendKey.AsBytes())
+
+	oldSeed := types.Hash(b.Side.PublicSpendKey.AsBytes())
+	if b.Main.MajorVersion < monero.HardForkViewTagsVersion && p2poolcrypto.GetDeterministicTransactionPrivateKey(oldSeed, b.Main.PreviousId).AsBytes() != b.Side.CoinbasePrivateKey {
+		return types.ZeroHash
+	}
+
+	return oldSeed
 }
 
 func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
