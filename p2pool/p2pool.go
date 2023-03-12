@@ -10,6 +10,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
@@ -27,6 +28,7 @@ type P2Pool struct {
 	consensus *sidechain.Consensus
 	sidechain *sidechain.SideChain
 	mainchain *mainchain.MainChain
+	archive   cache.AddressableCache
 	cache     cache.HeapCache
 	server    *p2p.Server
 
@@ -56,6 +58,13 @@ func (p *P2Pool) RemoveBlob(key []byte) (err error) {
 func (p *P2Pool) Close() {
 	p.ctxCancel()
 	_ = p.zmqClient.Close()
+
+	if p.cache != nil {
+		p.cache.Close()
+	}
+	if p.archive != nil {
+		p.archive.Close()
+	}
 }
 
 func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2Pool, error) {
@@ -81,6 +90,12 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 
 	if pool.mainchain == nil {
 		return nil, errors.New("could not create MainChain")
+	}
+
+	if archivePath, ok := settings["archive"]; ok {
+		if pool.archive, err = archive.NewCache(archivePath, pool.consensus); err != nil {
+			return nil, fmt.Errorf("could not create cache: %w", err)
+		}
 	}
 
 	if cachePath, ok := settings["cache"]; ok {
@@ -407,6 +422,9 @@ func (p *P2Pool) SubmitBlock(b *block.Block) {
 func (p *P2Pool) Store(block *sidechain.PoolBlock) {
 	if p.cache != nil {
 		p.cache.Store(block)
+	}
+	if p.archive != nil {
+		p.archive.Store(block)
 	}
 }
 

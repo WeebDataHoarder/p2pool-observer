@@ -27,6 +27,7 @@ func main() {
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
 	moneroZmqPort := flag.Uint("zmq-port", 18083, "monerod ZMQ pub port number")
 	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
+	createArchive := flag.String("archive", "", "If specified, create an archive store of sidechain blocks.")
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
 	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path")
 	consensusConfigFile := flag.String("config", "", "Name of the p2pool config file")
@@ -85,6 +86,10 @@ func main() {
 
 	if !*noCache {
 		settings["cache"] = "p2pool.cache"
+	}
+
+	if *createArchive != "" {
+		settings["archive"] = *createArchive
 	}
 
 	if p2pool, err := p2pool2.NewP2Pool(currentConsensus, settings); err != nil {

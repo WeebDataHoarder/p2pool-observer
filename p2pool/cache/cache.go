@@ -7,10 +7,11 @@ import (
 
 type Cache interface {
 	Store(block *sidechain.PoolBlock)
+	Close()
 }
 
 type Loadee interface {
-	Consensus() *sidechain.Consensus
+	sidechain.ConsensusProvider
 	AddCachedBlock(block *sidechain.PoolBlock)
 }
 
@@ -20,6 +21,18 @@ type HeapCache interface {
 }
 
 type AddressableCache interface {
-	Remove(hash types.Hash)
-	Load(hash types.Hash) *sidechain.PoolBlock
+	Cache
+
+	RemoveByMainId(id types.Hash)
+	RemoveByTemplateId(id types.Hash)
+
+	LoadByMainId(id types.Hash) *sidechain.PoolBlock
+	// LoadByTemplateId returns a slice of loaded blocks. If more than one, these might have colliding nonce / extra nonce values
+	LoadByTemplateId(id types.Hash) []*sidechain.PoolBlock
+	LoadBySideChainHeight(height uint64) []*sidechain.PoolBlock
+	LoadByMainChainHeight(height uint64) []*sidechain.PoolBlock
+}
+
+type IndexedCache interface {
+	AddressableCache
 }

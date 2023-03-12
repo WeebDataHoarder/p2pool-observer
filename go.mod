@@ -10,14 +10,15 @@ require (
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221027134633-11f5607e6752
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
-	github.com/go-faster/xor v0.3.0
+	github.com/go-faster/xor v1.0.0
 	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.1
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.7
-	github.com/stretchr/testify v1.7.0
+	github.com/stretchr/testify v1.8.1
 	github.com/tyler-sommer/stick v1.0.4
+	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.7.0
 	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
 	golang.org/x/net v0.8.0

@@ -2,12 +2,13 @@ package main
 
 import (
 	"flag"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
+	"math"
 	"os"
-	"path"
 )
 
 type loadee struct {
@@ -26,7 +27,7 @@ func (l *loadee) AddCachedBlock(block *sidechain.PoolBlock) {
 func main() {
 	inputConsensus := flag.String("consensus", "config.json", "Input config.json consensus file")
 	inputFile := flag.String("input", "p2pool.cache", "Input p2pool.cache path")
-	outputFolder := flag.String("output", "shares", "Output path for extracted shares")
+	outputArchive := flag.String("output", "", "Output path for archive database")
 
 	flag.Parse()
 
@@ -43,6 +44,14 @@ func main() {
 	}
 	defer cache.Close()
 
+	archiveCache, err := archive.NewCache(*outputArchive, consensus)
+	if err != nil {
+		log.Panic(err)
+	}
+	defer archiveCache.Close()
+
+	cachedBlocks := make(map[types.Hash]*sidechain.PoolBlock)
+
 	l := &loadee{
 		c: consensus,
 		cb: func(block *sidechain.PoolBlock) {
@@ -52,16 +61,26 @@ func main() {
 			if expectedBlockId != calculatedBlockId {
 				log.Printf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
 			} else {
-				blob, err := block.MarshalBinary()
-				if err != nil {
-					log.Panic(err)
-				}
-				log.Printf("block height %d, template id %s, version %d", block.Side.Height, calculatedBlockId, block.ShareVersion())
-
-				_ = os.WriteFile(path.Join(*outputFolder, expectedBlockId.String()+".raw"), blob, 0664)
+				cachedBlocks[expectedBlockId] = block
 			}
 		},
 	}
 
 	cache.LoadAll(l)
+
+	var storeBlock func(b *sidechain.PoolBlock)
+	storeBlock = func(b *sidechain.PoolBlock) {
+		if parent := cachedBlocks[b.Side.Parent]; parent != nil {
+			b.FillTransactionParentIndices(parent)
+			storeBlock(parent)
+		}
+		b.Depth.Store(math.MaxUint64)
+		archiveCache.Store(b)
+	}
+	for _, b := range cachedBlocks {
+		if b.Depth.Load() == math.MaxUint64 {
+			continue
+		}
+		storeBlock(b)
+	}
 }

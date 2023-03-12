@@ -12,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	"sync"
@@ -175,6 +176,48 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock,
 	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
 
 	return b, nil
+}
+
+func (b *PoolBlock) FillParentIndicesFromTransaction(parent *PoolBlock) error {
+	if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
+		if slices.Index(b.Main.Transactions, types.ZeroHash) != -1 { //only do this when zero hashes exist
+			if parent != nil && types.HashFromBytes(parent.CoinbaseExtra(SideTemplateId)) == b.Side.Parent {
+				for i, parentIndex := range b.Main.TransactionParentIndices {
+					if parentIndex != 0 {
+						// p2pool stores coinbase transaction hash as well, decrease
+						actualIndex := parentIndex - 1
+						if actualIndex > uint64(len(parent.Main.Transactions)) {
+							return errors.New("index of parent transaction out of bounds")
+
+						}
+						b.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (b *PoolBlock) FillTransactionParentIndices(parent *PoolBlock) bool {
+	if len(b.Main.Transactions) != len(b.Main.TransactionParentIndices) {
+		if parent != nil && types.HashFromBytes(parent.CoinbaseExtra(SideTemplateId)) == b.Side.Parent {
+			b.Main.TransactionParentIndices = make([]uint64, len(b.Main.Transactions))
+			//do not fail if not found
+			for i, txHash := range b.Main.Transactions {
+				if parentIndex := slices.Index(parent.Main.Transactions, txHash); parentIndex != -1 {
+					//increase as p2pool stores tx hash as well
+					b.Main.TransactionParentIndices[i] = uint64(parentIndex + 1)
+				}
+			}
+			return true
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func (b *PoolBlock) ShareVersion() ShareVersion {

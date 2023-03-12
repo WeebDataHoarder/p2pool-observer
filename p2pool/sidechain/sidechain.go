@@ -113,23 +113,13 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 	}
 
 	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
-		if slices.Index(block.Main.Transactions, types.ZeroHash) != -1 { //only do this when zero hashes exist
-			parent := c.getParent(block)
-			if parent == nil {
-				missingBlocks = append(missingBlocks, block.Side.Parent)
-				return missingBlocks, errors.New("parent does not exist in compact block")
-			}
-			for i, parentIndex := range block.Main.TransactionParentIndices {
-				if parentIndex != 0 {
-					// p2pool stores coinbase transaction hash as well, decrease
-					actualIndex := parentIndex - 1
-					if actualIndex > uint64(len(parent.Main.Transactions)) {
-						return nil, errors.New("index of parent transaction out of bounds")
-
-					}
-					block.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
-				}
-			}
+		parent := c.getParent(block)
+		if parent == nil {
+			missingBlocks = append(missingBlocks, block.Side.Parent)
+			return missingBlocks, errors.New("parent does not exist in compact block")
+		}
+		if err = block.FillParentIndicesFromTransaction(parent); err != nil {
+			return nil, err
 		}
 	} else {
 		// fill if not received from network
@@ -140,21 +130,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 }
 
 func (c *SideChain) fillPoolBlockTransactionParentIndices(block *PoolBlock) {
-	if len(block.Main.Transactions) != len(block.Main.TransactionParentIndices) {
-
-		parent := c.getParent(block)
-		if parent != nil {
-			block.Main.TransactionParentIndices = make([]uint64, len(block.Main.Transactions))
-			//do not fail if not found
-			for i, txHash := range block.Main.Transactions {
-				if parentIndex := slices.Index(parent.Main.Transactions, txHash); parentIndex != -1 {
-					//increase as p2pool stores tx hash as well
-					block.Main.TransactionParentIndices[i] = uint64(parentIndex + 1)
-				}
-			}
-		}
-	}
-
+	block.FillTransactionParentIndices(c.getParent(block))
 }
 
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
