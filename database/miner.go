@@ -56,6 +56,8 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 		outputs[i] = &o
 	}
 
+	//TODO: this sorting will be inefficient come the hard fork
+
 	for _, m := range miners {
 		addresses[*m.MoneroAddress().ToPackedAddress()] = m
 	}

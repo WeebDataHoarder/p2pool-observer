@@ -46,7 +46,7 @@ func main() {
 				log.Panic(err)
 			} else {
 				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType); err != nil {
-					log.Panic(err)
+					log.Printf("error decoding block %s, %s", id.String(), err)
 				} else {
 					return block
 				}

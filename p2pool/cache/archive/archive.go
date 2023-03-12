@@ -1,7 +1,9 @@
 package archive
 
 import (
+	"bytes"
 	"encoding/binary"
+	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	bolt "go.etcd.io/bbolt"
@@ -75,8 +77,8 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	sideId := block.SideTemplateId(c.consensus)
 	mainId := block.MainId()
 	var sideHeight, mainHeight [8]byte
-	binary.LittleEndian.PutUint64(sideHeight[:], block.Side.Height)
-	binary.LittleEndian.PutUint64(mainHeight[:], block.Main.Coinbase.GenHeight)
+	binary.BigEndian.PutUint64(sideHeight[:], block.Side.Height)
+	binary.BigEndian.PutUint64(mainHeight[:], block.Main.Coinbase.GenHeight)
 
 	if c.existsByMainId(mainId) {
 		return
@@ -88,7 +90,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 
 	// store full blocks on epoch
 	if block.Side.Height != fullBlockTemplateHeight {
-		if len(block.Main.Transactions) == len(block.Main.TransactionParentIndices) && c.existsByTemplateId(block.Side.Parent) {
+		if len(block.Main.Transactions) == len(block.Main.TransactionParentIndices) && c.loadByTemplateId(block.Side.Parent) != nil {
 			storeCompact = true
 		}
 
@@ -107,7 +109,17 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 
 		if err = c.db.Update(func(tx *bolt.Tx) error {
 			b1 := tx.Bucket(blocksByMainId)
-			if err = b1.Put(mainId[:], blob); err != nil {
+
+			var flags uint64
+			if storePruned {
+				flags |= 0b1
+			}
+			if storeCompact {
+				flags |= 0b10
+			}
+			buf := make([]byte, 0, len(blob)+8)
+			binary.LittleEndian.AppendUint64(buf, flags)
+			if err = b1.Put(mainId[:], append(buf, blob...)); err != nil {
 				return err
 			}
 			b2 := tx.Bucket(refByTemplateId)
@@ -156,36 +168,107 @@ func (c *Cache) existsByMainId(id types.Hash) (result bool) {
 	return result
 }
 
-func (c *Cache) LoadByMainId(id types.Hash) *sidechain.PoolBlock {
-	//TODO
-	return nil
+func (c *Cache) loadByMainId(tx *bolt.Tx, id types.Hash) []byte {
+	b := tx.Bucket(blocksByMainId)
+	return b.Get(id[:])
 }
 
-func (c *Cache) existsByTemplateId(id types.Hash) (result bool) {
-	_ = c.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket(refByTemplateId)
-		if b.Get(id[:]) != nil {
-			result = true
+func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {
+	if blob == nil {
+		return nil
+	}
+
+	flags := binary.LittleEndian.Uint64(blob)
+
+	b := &sidechain.PoolBlock{
+		NetworkType: c.consensus.NetworkType,
+	}
+	reader := bytes.NewReader(blob[8:])
+	if (flags & 0b10) > 0 {
+		if err := b.FromCompactReader(reader); err != nil {
+			log.Printf("[Archive Cache] error decoding block: %s", err)
+			return nil
 		}
+	} else {
+		if err := b.FromReader(reader); err != nil {
+			log.Printf("[Archive Cache] error decoding block: %s", err)
+			return nil
+		}
+	}
+
+	return b
+}
+
+func (c *Cache) LoadByMainId(id types.Hash) *sidechain.PoolBlock {
+	var blob []byte
+	_ = c.db.View(func(tx *bolt.Tx) error {
+		blob = c.loadByMainId(tx, id)
 		return nil
 	})
-	return result
+	return c.decodeBlock(blob)
 }
 
-func (c *Cache) LoadByTemplateId(id types.Hash) []*sidechain.PoolBlock {
-	//TODO
-	return nil
+func (c *Cache) loadByTemplateId(id types.Hash) (r multiRecord) {
+	_ = c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(refByTemplateId)
+		r = multiRecordFromBytes(b.Get(id[:]))
+		return nil
+	})
+	return r
+}
+
+func (c *Cache) LoadByTemplateId(id types.Hash) (result []*sidechain.PoolBlock) {
+	blocks := make([][]byte, 0, 1)
+	if err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(refByTemplateId)
+		r := multiRecordFromBytes(b.Get(id[:]))
+		for _, h := range r {
+			if e := c.loadByMainId(tx, h); e != nil {
+				blocks = append(blocks, e)
+			} else {
+				return fmt.Errorf("could not find block %s", h.String())
+			}
+		}
+		return nil
+	}); err != nil {
+		log.Printf("[Archive Cache] error fetching blocks with template id %s, %s", id.String(), err)
+		return nil
+	}
+	for _, buf := range blocks {
+		if b := c.decodeBlock(buf); b != nil {
+			result = append(result, b)
+		}
+	}
+	return result
 }
 
 func (c *Cache) existsBySideChainHeightRange(startHeight, endHeight uint64) (result bool) {
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(refBySideHeight)
-		var sideHeight [8]byte
-		for h := startHeight; h <= endHeight; h++ {
-			binary.LittleEndian.PutUint64(sideHeight[:], h)
-			if b.Get(sideHeight[:]) == nil {
+		var startHeightBytes, endHeightBytes [8]byte
+
+		cursor := b.Cursor()
+		binary.BigEndian.PutUint64(startHeightBytes[:], startHeight)
+		binary.BigEndian.PutUint64(endHeightBytes[:], endHeight)
+
+		expectedHeight := startHeight
+		k, v := cursor.Seek(startHeightBytes[:])
+		for {
+			if k == nil {
 				return nil
 			}
+			h := binary.BigEndian.Uint64(k)
+			//log.Printf("height check for %d -> %d: %d, expected %d, len %d", startHeight, endHeight, h, expectedHeight, len(v))
+			if v == nil || h != expectedHeight {
+				return nil
+			}
+			if bytes.Compare(k, endHeightBytes[:]) > 0 {
+				return nil
+			} else if bytes.Compare(k, endHeightBytes[:]) == 0 {
+				break
+			}
+			expectedHeight++
+			k, v = cursor.Next()
 		}
 		result = true
 		return nil
@@ -193,13 +276,60 @@ func (c *Cache) existsBySideChainHeightRange(startHeight, endHeight uint64) (res
 	return result
 }
 
-func (c *Cache) LoadBySideChainHeight(height uint64) []*sidechain.PoolBlock {
-	//TODO
-	return nil
+func (c *Cache) LoadBySideChainHeight(height uint64) (result []*sidechain.PoolBlock) {
+
+	var sideHeight [8]byte
+	binary.BigEndian.PutUint64(sideHeight[:], height)
+
+	blocks := make([][]byte, 0, 1)
+	if err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(refBySideHeight)
+		r := multiRecordFromBytes(b.Get(sideHeight[:]))
+		for _, h := range r {
+			if e := c.loadByMainId(tx, h); e != nil {
+				blocks = append(blocks, e)
+			} else {
+				return fmt.Errorf("could not find block %s", h.String())
+			}
+		}
+		return nil
+	}); err != nil {
+		log.Printf("[Archive Cache] error fetching blocks with sidechain height %d, %s", height, err)
+		return nil
+	}
+	for _, buf := range blocks {
+		if b := c.decodeBlock(buf); b != nil {
+			result = append(result, b)
+		}
+	}
+	return result
 }
-func (c *Cache) LoadByMainChainHeight(height uint64) []*sidechain.PoolBlock {
-	//TODO
-	return nil
+func (c *Cache) LoadByMainChainHeight(height uint64) (result []*sidechain.PoolBlock) {
+	var mainHeight [8]byte
+	binary.BigEndian.PutUint64(mainHeight[:], height)
+
+	blocks := make([][]byte, 0, 1)
+	if err := c.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(refByMainHeight)
+		r := multiRecordFromBytes(b.Get(mainHeight[:]))
+		for _, h := range r {
+			if e := c.loadByMainId(tx, h); e != nil {
+				blocks = append(blocks, e)
+			} else {
+				return fmt.Errorf("could not find block %s", h.String())
+			}
+		}
+		return nil
+	}); err != nil {
+		log.Printf("[Archive Cache] error fetching blocks with sidechain height %d, %s", height, err)
+		return nil
+	}
+	for _, buf := range blocks {
+		if b := c.decodeBlock(buf); b != nil {
+			result = append(result, b)
+		}
+	}
+	return result
 }
 
 func (c *Cache) Close() {
