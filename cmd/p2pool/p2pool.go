@@ -9,6 +9,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2pool2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/gorilla/mux"
 	"log"
@@ -20,41 +21,6 @@ import (
 	"strings"
 	"time"
 )
-
-type binaryBlockResult struct {
-	Version sidechain.ShareVersion `json:"version"`
-	Blob    string                 `json:"blob"`
-	Error   string                 `json:"error,omitempty"`
-}
-
-type sidechainStatusResult struct {
-	Synchronized          bool             `json:"synchronized"`
-	Height                uint64           `json:"tip_height"`
-	Id                    types.Hash       `json:"tip_id"`
-	Difficulty            types.Difficulty `json:"difficulty"`
-	CummulativeDifficulty types.Difficulty `json:"cummulative_difficulty"`
-	Blocks                int              `json:"blocks"`
-}
-
-type serverStatusResult struct {
-	PeerId          uint64 `json:"peer_id"`
-	SoftwareId      string `json:"software_id"`
-	SoftwareVersion string `json:"software_version"`
-	ProtocolVersion string `json:"protocol_version"`
-	ListenPort      uint16 `json:"listen_port"`
-}
-
-type peerResult struct {
-	PeerId          uint64 `json:"peer_id"`
-	Incoming        bool   `json:"incoming"`
-	Address         string `json:"address"`
-	SoftwareId      string `json:"software_id"`
-	SoftwareVersion string `json:"software_version"`
-	ProtocolVersion string `json:"protocol_version"`
-	ConnectionTime  uint64 `json:"connection_time"`
-	ListenPort      uint32 `json:"listen_port"`
-	Latency         uint64 `json:"latency"`
-}
 
 func encodeJson(r *http.Request, d any) ([]byte, error) {
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
@@ -153,12 +119,12 @@ func main() {
 			// ================================= Peering section =================================
 			serveMux.HandleFunc("/server/peers", func(writer http.ResponseWriter, request *http.Request) {
 				clients := instance.Server().Clients()
-				result := make([]peerResult, 0, len(clients))
+				result := make([]types2.P2PoolServerPeerResult, 0, len(clients))
 				for _, c := range clients {
 					if !c.IsGood() {
 						continue
 					}
-					result = append(result, peerResult{
+					result = append(result, types2.P2PoolServerPeerResult{
 						Incoming:        c.IsIncomingConnection,
 						Address:         c.AddressPort.Addr().String(),
 						SoftwareId:      c.VersionInformation.SoftwareId.String(),
@@ -188,7 +154,7 @@ func main() {
 			})
 
 			serveMux.HandleFunc("/server/status", func(writer http.ResponseWriter, request *http.Request) {
-				result := serverStatusResult{
+				result := types2.P2PoolServerStatusResult{
 					PeerId:          instance.Server().PeerId(),
 					SoftwareId:      instance.Server().VersionInformation().SoftwareId.String(),
 					SoftwareVersion: instance.Server().VersionInformation().SoftwareVersion.String(),
@@ -212,16 +178,16 @@ func main() {
 
 			serveMux.HandleFunc("/sidechain/blocks_by_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 				if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
-					result := make([]binaryBlockResult, 0, 1)
+					result := make([]types2.P2PoolBinaryBlockResult, 0, 1)
 					for _, b := range instance.SideChain().GetPoolBlocksByHeight(height) {
 						if blob, err := b.MarshalBinary(); err != nil {
-							result = append(result, binaryBlockResult{
-								Version: b.ShareVersion(),
+							result = append(result, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
 								Error:   err.Error(),
 							})
 						} else {
-							result = append(result, binaryBlockResult{
-								Version: b.ShareVersion(),
+							result = append(result, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
 								Blob:    hex.EncodeToString(blob),
 							})
 						}
@@ -238,12 +204,12 @@ func main() {
 			})
 			serveMux.HandleFunc("/sidechain/block_by_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 				if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-					result := binaryBlockResult{
+					result := types2.P2PoolBinaryBlockResult{
 						Blob:  "",
 						Error: "",
 					}
 					if b := instance.SideChain().GetPoolBlockByTemplateId(templateId); b != nil {
-						result.Version = b.ShareVersion()
+						result.Version = int(b.ShareVersion())
 						if blob, err := b.MarshalBinary(); err != nil {
 							result.Error = err.Error()
 						} else {
@@ -261,31 +227,25 @@ func main() {
 				}
 			})
 			serveMux.HandleFunc("/sidechain/tip", func(writer http.ResponseWriter, request *http.Request) {
-				if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-					result := binaryBlockResult{
-						Blob:  "",
-						Error: "",
-					}
-					if b := instance.SideChain().GetPoolBlockByTemplateId(templateId); b != nil {
-						result.Version = b.ShareVersion()
-						if blob, err := b.MarshalBinary(); err != nil {
-							result.Error = err.Error()
-						} else {
-							result.Blob = hex.EncodeToString(blob)
-						}
-					}
-					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-					writer.WriteHeader(http.StatusOK)
-					buf, _ := encodeJson(request, result)
-					_, _ = writer.Write(buf)
-				} else {
-					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-					writer.WriteHeader(http.StatusOK)
-					_, _ = writer.Write([]byte("[]"))
+				result := types2.P2PoolBinaryBlockResult{
+					Blob:  "",
+					Error: "",
 				}
+				if b := instance.SideChain().GetChainTip(); b != nil {
+					result.Version = int(b.ShareVersion())
+					if blob, err := b.MarshalBinary(); err != nil {
+						result.Error = err.Error()
+					} else {
+						result.Blob = hex.EncodeToString(blob)
+					}
+				}
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusOK)
+				buf, _ := encodeJson(request, result)
+				_, _ = writer.Write(buf)
 			})
 			serveMux.HandleFunc("/sidechain/status", func(writer http.ResponseWriter, request *http.Request) {
-				result := sidechainStatusResult{
+				result := types2.P2PoolSideChainStatusResult{
 					Synchronized: instance.SideChain().PreCalcFinished(),
 					Blocks:       instance.SideChain().GetPoolBlockCount(),
 				}
@@ -307,21 +267,21 @@ func main() {
 			if *createArchive != "" && archiveCache != nil {
 				serveMux.HandleFunc("/archive/blocks_by_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 					if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-						result := make([]binaryBlockResult, 0, 1)
+						result := make([]types2.P2PoolBinaryBlockResult, 0, 1)
 						for _, b := range archiveCache.LoadByTemplateId(templateId) {
 							if err := archiveCache.ProcessBlock(b); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else if blob, err := b.MarshalBinary(); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Blob:    hex.EncodeToString(blob),
 								})
 							}
@@ -338,21 +298,21 @@ func main() {
 				})
 				serveMux.HandleFunc("/archive/blocks_by_side_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 					if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
-						result := make([]binaryBlockResult, 0, 1)
+						result := make([]types2.P2PoolBinaryBlockResult, 0, 1)
 						for _, b := range archiveCache.LoadBySideChainHeight(height) {
 							if err := archiveCache.ProcessBlock(b); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else if blob, err := b.MarshalBinary(); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Blob:    hex.EncodeToString(blob),
 								})
 							}
@@ -370,12 +330,12 @@ func main() {
 
 				serveMux.HandleFunc("/archive/block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 					if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-						result := binaryBlockResult{
+						result := types2.P2PoolBinaryBlockResult{
 							Blob:  "",
 							Error: "",
 						}
 						if b := archiveCache.LoadByMainId(mainId); b != nil {
-							result.Version = b.ShareVersion()
+							result.Version = int(b.ShareVersion())
 							if err := archiveCache.ProcessBlock(b); err != nil {
 								result.Error = err.Error()
 							} else {
@@ -398,21 +358,21 @@ func main() {
 				})
 				serveMux.HandleFunc("/archive/blocks_by_main_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 					if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
-						result := make([]binaryBlockResult, 0, 1)
+						result := make([]types2.P2PoolBinaryBlockResult, 0, 1)
 						for _, b := range archiveCache.LoadByMainChainHeight(height) {
 							if err := archiveCache.ProcessBlock(b); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else if blob, err := b.MarshalBinary(); err != nil {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Error:   err.Error(),
 								})
 							} else {
-								result = append(result, binaryBlockResult{
-									Version: b.ShareVersion(),
+								result = append(result, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
 									Blob:    hex.EncodeToString(blob),
 								})
 							}
