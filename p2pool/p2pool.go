@@ -55,6 +55,14 @@ func (p *P2Pool) RemoveBlob(key []byte) (err error) {
 	return nil
 }
 
+func (p *P2Pool) AddressableCache() cache.AddressableCache {
+	return p.archive
+}
+
+func (p *P2Pool) Cache() cache.Cache {
+	return p.cache
+}
+
 func (p *P2Pool) Close() {
 	p.ctxCancel()
 	_ = p.zmqClient.Close()
@@ -93,7 +101,7 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 	}
 
 	if archivePath, ok := settings["archive"]; ok {
-		if pool.archive, err = archive.NewCache(archivePath, pool.consensus); err != nil {
+		if pool.archive, err = archive.NewCache(archivePath, pool.consensus, pool.GetDifficultyByHeight); err != nil {
 			return nil, fmt.Errorf("could not create cache: %w", err)
 		}
 	}

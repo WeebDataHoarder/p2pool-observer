@@ -31,6 +31,9 @@ type AddressableCache interface {
 	LoadByTemplateId(id types.Hash) []*sidechain.PoolBlock
 	LoadBySideChainHeight(height uint64) []*sidechain.PoolBlock
 	LoadByMainChainHeight(height uint64) []*sidechain.PoolBlock
+
+	// ProcessBlock blocks returned on other Load methods may return pruned/compact blocks. Use this to process them
+	ProcessBlock(block *sidechain.PoolBlock) error
 }
 
 type IndexedCache interface {

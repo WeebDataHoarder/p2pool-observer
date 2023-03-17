@@ -105,6 +105,10 @@ func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
 	s.peerList = append(s.peerList, addressPort)
 }
 
+func (s *Server) ListenPort() uint16 {
+	return s.externalListenPort
+}
+
 func (s *Server) PeerList() []netip.AddrPort {
 	s.peerListLock.RLock()
 	defer s.peerListLock.RUnlock()

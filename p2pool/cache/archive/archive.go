@@ -3,7 +3,9 @@ package archive
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	bolt "go.etcd.io/bbolt"
@@ -15,11 +17,13 @@ import (
 )
 
 // EpochSize Maximum amount of blocks without a full one
-const EpochSize = 256
+const EpochSize = 32
 
 type Cache struct {
-	db        *bolt.DB
-	consensus *sidechain.Consensus
+	db                 *bolt.DB
+	consensus          *sidechain.Consensus
+	difficultyByHeight block.GetDifficultyByHeightFunc
+	derivationCache    sidechain.DerivationCacheInterface
 }
 
 var blocksByMainId = []byte("blocksByMainId")
@@ -27,7 +31,7 @@ var refByTemplateId = []byte("refByTemplateId")
 var refBySideHeight = []byte("refBySideHeight")
 var refByMainHeight = []byte("refByMainHeight")
 
-func NewCache(path string, consensus *sidechain.Consensus) (*Cache, error) {
+func NewCache(path string, consensus *sidechain.Consensus, difficultyByHeight block.GetDifficultyByHeightFunc) (*Cache, error) {
 	if db, err := bolt.Open(path, 0666, &bolt.Options{Timeout: time.Second * 5}); err != nil {
 		return nil, err
 	} else {
@@ -46,8 +50,10 @@ func NewCache(path string, consensus *sidechain.Consensus) (*Cache, error) {
 			return nil, err
 		}
 		return &Cache{
-			db:        db,
-			consensus: consensus,
+			db:                 db,
+			consensus:          consensus,
+			difficultyByHeight: difficultyByHeight,
+			derivationCache:    &sidechain.NilDerivationCache{},
 		}, nil
 	}
 }
@@ -118,8 +124,9 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 				flags |= 0b10
 			}
 			buf := make([]byte, 0, len(blob)+8)
-			binary.LittleEndian.AppendUint64(buf, flags)
-			if err = b1.Put(mainId[:], append(buf, blob...)); err != nil {
+			buf = binary.LittleEndian.AppendUint64(buf, flags)
+			buf = append(buf, blob...)
+			if err = b1.Put(mainId[:], buf); err != nil {
 				return err
 			}
 			b2 := tx.Bucket(refByTemplateId)
@@ -171,6 +178,59 @@ func (c *Cache) existsByMainId(id types.Hash) (result bool) {
 func (c *Cache) loadByMainId(tx *bolt.Tx, id types.Hash) []byte {
 	b := tx.Bucket(blocksByMainId)
 	return b.Get(id[:])
+}
+
+func (c *Cache) ProcessBlock(b *sidechain.PoolBlock) error {
+	var getTemplateById func(h types.Hash) *sidechain.PoolBlock
+
+	getTemplateById = func(h types.Hash) *sidechain.PoolBlock {
+		if bs := c.LoadByTemplateId(h); len(bs) > 0 {
+			return bs[0]
+		}
+		return nil
+	}
+	var getTemplateByIdFillingTx func(h types.Hash) *sidechain.PoolBlock
+
+	getTemplateByIdFillingTx = func(h types.Hash) *sidechain.PoolBlock {
+		if bs := c.LoadByTemplateId(h); len(bs) > 0 {
+			if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
+				if err := b.FillTransactionsFromTransactionParentIndices(getTemplateByIdFillingTx(b.Side.Parent)); err != nil {
+					return nil
+				}
+			}
+			return bs[0]
+		}
+		return nil
+	}
+
+	//TODO: this should not recurse fully, just enough to fill
+	parent := getTemplateByIdFillingTx(b.Side.Parent)
+
+	if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
+		if err := b.FillTransactionsFromTransactionParentIndices(parent); err != nil {
+			return fmt.Errorf("error filling transactions for block: %w", err)
+		}
+	}
+
+	b.FillTransactionParentIndices(parent)
+
+	if len(b.Main.Coinbase.Outputs) == 0 {
+		//TODO: make this optional
+		preAllocatedShares := make(sidechain.Shares, 0, c.consensus.ChainWindowSize*2)
+		if outputs := sidechain.CalculateOutputs(b, c.consensus, c.difficultyByHeight, getTemplateById, c.derivationCache, preAllocatedShares); outputs == nil {
+			return errors.New("error filling outputs for block: nil outputs")
+		} else {
+			b.Main.Coinbase.Outputs = outputs
+		}
+
+		if outputBlob, err := b.Main.Coinbase.OutputsBlob(); err != nil {
+			return fmt.Errorf("error filling outputs for block: %s", err)
+		} else if uint64(len(outputBlob)) != b.Main.Coinbase.OutputsBlobSize {
+			return fmt.Errorf("error filling outputs for block: invalid output blob size, got %d, expected %d", b.Main.Coinbase.OutputsBlobSize, len(outputBlob))
+		}
+	}
+
+	return nil
 }
 
 func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {

@@ -178,7 +178,7 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock,
 	return b, nil
 }
 
-func (b *PoolBlock) FillParentIndicesFromTransaction(parent *PoolBlock) error {
+func (b *PoolBlock) FillTransactionsFromTransactionParentIndices(parent *PoolBlock) error {
 	if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
 		if slices.Index(b.Main.Transactions, types.ZeroHash) != -1 { //only do this when zero hashes exist
 			if parent != nil && types.HashFromBytes(parent.CoinbaseExtra(SideTemplateId)) == b.Side.Parent {
@@ -193,6 +193,8 @@ func (b *PoolBlock) FillParentIndicesFromTransaction(parent *PoolBlock) error {
 						b.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
 					}
 				}
+			} else if parent == nil {
+				return errors.New("parent is nil")
 			}
 		}
 	}
@@ -517,6 +519,17 @@ func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
 func (b *PoolBlock) GetAddress() *address.PackedAddress {
 	a := address.NewPackedAddressFromBytes(b.Side.PublicSpendKey, b.Side.PublicViewKey)
 	return &a
+}
+
+func (b *PoolBlock) GetTransactionOutputType() uint8 {
+	// Both tx types are allowed by Monero consensus during v15 because it needs to process pre-fork mempool transactions,
+	// but P2Pool can switch to using only TXOUT_TO_TAGGED_KEY for miner payouts starting from v15
+	expectedTxType := uint8(transaction.TxOutToKey)
+	if b.Main.MajorVersion >= monero.HardForkViewTagsVersion {
+		expectedTxType = transaction.TxOutToTaggedKey
+	}
+
+	return expectedTxType
 }
 
 type poolBlockCache struct {

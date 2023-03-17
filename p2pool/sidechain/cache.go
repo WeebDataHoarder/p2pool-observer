@@ -17,6 +17,11 @@ type ephemeralPublicKeyWithViewTag struct {
 	ViewTag   uint8
 }
 
+type DerivationCacheInterface interface {
+	GetEphemeralPublicKey(a address.Interface, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64) (crypto.PublicKeyBytes, uint8)
+	GetDeterministicTransactionKey(seed types.Hash, prevId types.Hash) *crypto.KeyPair
+}
+
 type DerivationCache struct {
 	deterministicKeyCache   atomic.Pointer[lru.LRU[deterministicTransactionCacheKey, *crypto.KeyPair]]
 	ephemeralPublicKeyCache atomic.Pointer[lru.LRU[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]]
