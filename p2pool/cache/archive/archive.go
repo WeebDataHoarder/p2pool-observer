@@ -214,6 +214,12 @@ func (c *Cache) ProcessBlock(b *sidechain.PoolBlock) error {
 
 	b.FillTransactionParentIndices(parent)
 
+	if b.ShareVersion() > sidechain.ShareVersion_V1 && bytes.Compare(b.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
+		//Fill Private Key
+		kP := c.derivationCache.GetDeterministicTransactionKey(b.GetPrivateKeySeed(), b.Main.PreviousId)
+		b.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
+	}
+
 	if len(b.Main.Coinbase.Outputs) == 0 {
 		//TODO: make this optional
 		preAllocatedShares := make(sidechain.Shares, 0, c.consensus.ChainWindowSize*2)
