@@ -179,9 +179,13 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		h := crypto.PooledKeccak256(tip.Side.CoinbasePrivateKeySeed[:])
 		seed := binary.LittleEndian.Uint64(h[:])
 
+		if seed == 0 {
+			seed = 1
+		}
+
 		for i := 0; i < (n - 1); i++ {
 			seed = utils.XorShift64Star(seed)
-			k := int(uint128.From64(seed).Mul64(uint64(n - 1)).Hi)
+			k := int(uint128.From64(seed).Mul64(uint64(n - i)).Hi)
 			//swap
 			shares[i], shares[i+k] = shares[i+k], shares[i]
 		}
