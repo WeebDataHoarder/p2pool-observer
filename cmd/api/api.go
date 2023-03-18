@@ -34,6 +34,7 @@ func encodeJson(r *http.Request, d any) ([]byte, error) {
 }
 
 func main() {
+	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 	db, err := database.NewDatabase(os.Args[1])
 	if err != nil {
@@ -462,10 +463,24 @@ func main() {
 	})
 
 	serveMux.HandleFunc("/api/redirect/block/{main_height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+		if request.Header.Get("host") == torHost {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+		}
 	})
 	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", utils.DecodeHexBinaryNumber(mux.Vars(request)["tx_id"])), http.StatusFound)
+		txId := utils.DecodeHexBinaryNumber(mux.Vars(request)["tx_id"])
+		if len(txId) != types.HashSize*2 {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		if request.Header.Get("host") == torHost {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", txId), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", txId), http.StatusFound)
+		}
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		c := api.GetDatabase().GetBlocksByQuery("WHERE height = $1 AND main_found IS TRUE", utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
@@ -486,7 +501,12 @@ func main() {
 			_, _ = writer.Write(buf)
 			return
 		}
-		http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+
+		if request.Header.Get("host") == torHost {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+		}
 	})
 	serveMux.HandleFunc("/api/redirect/share/{height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		c := utils.DecodeBinaryNumber(mux.Vars(request)["height"])
