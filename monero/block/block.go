@@ -198,10 +198,10 @@ func (b *Block) HeaderBlob() []byte {
 }
 
 // SideChainHashingBlob Same as MarshalBinary but with nonce set to 0
-func (b *Block) SideChainHashingBlob() (buf []byte, err error) {
+func (b *Block) SideChainHashingBlob(zeroTemplateId bool) (buf []byte, err error) {
 
 	var txBuf []byte
-	if txBuf, err = b.Coinbase.SideChainHashingBlob(); err != nil {
+	if txBuf, err = b.Coinbase.SideChainHashingBlob(zeroTemplateId); err != nil {
 		return nil, err
 	}
 	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))

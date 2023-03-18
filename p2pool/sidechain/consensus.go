@@ -153,7 +153,7 @@ func (c *Consensus) verify() bool {
 
 func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) types.Hash {
 
-	mainData, _ := share.Main.SideChainHashingBlob()
+	mainData, _ := share.Main.SideChainHashingBlob(true)
 	sideData, _ := share.Side.MarshalBinary(share.ShareVersion())
 
 	return c.CalculateSideChainIdFromBlobs(mainData, sideData)

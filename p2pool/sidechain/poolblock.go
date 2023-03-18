@@ -525,7 +525,7 @@ func (b *PoolBlock) GetPrivateKeySeed() types.Hash {
 
 func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
 	if b.ShareVersion() > ShareVersion_V1 {
-		mainData, _ := b.Main.SideChainHashingBlob()
+		mainData, _ := b.Main.SideChainHashingBlob(false)
 		sideData, _ := b.Side.MarshalBinary(b.ShareVersion())
 		return p2poolcrypto.CalculateTransactionPrivateKeySeed(
 			mainData,

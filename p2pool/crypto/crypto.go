@@ -9,7 +9,7 @@ import (
 func CalculateTransactionPrivateKeySeed(main, side []byte) types.Hash {
 	return crypto.PooledKeccak256(
 		// domain
-		[]byte("tx_key_seed"), //TODO: check for null termination
+		[]byte("tx_key_seed"), []byte{0},
 		main,
 		side,
 	)

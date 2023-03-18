@@ -93,6 +93,12 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
 
+	if block.ShareVersion() > ShareVersion_V1 && bytes.Compare(block.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
+		//Fill Private Key
+		kP := c.derivationCache.GetDeterministicTransactionKey(block.GetPrivateKeySeed(), block.Main.PreviousId)
+		block.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
+	}
+
 	if len(block.Main.Coinbase.Outputs) == 0 {
 		if outputs := c.getOutputs(block); outputs == nil {
 			return nil, errors.New("nil transaction outputs")
@@ -235,7 +241,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.getSeedByHeightFunc()); err != nil {
 			return nil, err
 		} else if !isHigher {
-			return nil, fmt.Errorf("not enough PoW for height = %d, mainchain height %d", block.Side.Height, block.Main.Coinbase.GenHeight)
+			return nil, fmt.Errorf("not enough PoW for id %s, height = %d, mainchain height %d", templateId.String(), block.Side.Height, block.Main.Coinbase.GenHeight)
 		}
 	}
 
@@ -543,6 +549,15 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			//prevent multiple allocations
 			txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 			txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
+
+			blob1, _ := block.Main.Coinbase.Outputs.MarshalBinary()
+
+			bouts := c.calculateOutputs(block)
+			blob2, _ := bouts.MarshalBinary()
+
+			if bytes.Compare(blob1, blob2) != 0 {
+				return nil, fmt.Errorf("invalid")
+			}
 
 			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]

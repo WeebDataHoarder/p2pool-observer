@@ -168,7 +168,7 @@ func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
 	return c.Outputs.MarshalBinary()
 }
 
-func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
+func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 	buf := new(bytes.Buffer)
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
@@ -182,7 +182,7 @@ func (c *CoinbaseTransaction) SideChainHashingBlob() ([]byte, error) {
 	outputs, _ := c.Outputs.MarshalBinary()
 	_, _ = buf.Write(outputs)
 
-	txExtra, _ := c.Extra.SideChainHashingBlob()
+	txExtra, _ := c.Extra.SideChainHashingBlob(zeroTemplateId)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
 	_, _ = buf.Write(txExtra)
 	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)

@@ -40,6 +40,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 	go func() {
 		c.server.Store(block)
 
+		return
+
 		//TODO: make this a worker with a queue?
 
 		if !block.Verified.Load() || block.Invalid.Load() {

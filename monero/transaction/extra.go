@@ -52,13 +52,13 @@ func (t *ExtraTags) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *ExtraTags) SideChainHashingBlob() ([]byte, error) {
+func (t *ExtraTags) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 	if t == nil {
 		return nil, nil
 	}
 	buf := make([]byte, 0, types.HashSize*4)
 	for _, tag := range *t {
-		if b, err := tag.SideChainHashingBlob(); err != nil {
+		if b, err := tag.SideChainHashingBlob(zeroTemplateId); err != nil {
 			return nil, err
 		} else {
 			buf = append(buf, b...)
@@ -109,13 +109,13 @@ func (t *ExtraTag) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *ExtraTag) SideChainHashingBlob() ([]byte, error) {
+func (t *ExtraTag) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 	buf := make([]byte, 0, len(t.Data)+1+binary.MaxVarintLen64)
 	buf = append(buf, t.Tag)
 	if t.VarIntLength > 0 {
 		buf = binary.AppendUvarint(buf, t.VarIntLength)
 	}
-	if t.Tag == TxExtraTagMergeMining {
+	if zeroTemplateId && t.Tag == TxExtraTagMergeMining {
 		buf = append(buf, make([]byte, len(t.Data))...)
 	} else if t.Tag == TxExtraTagNonce {
 		b := make([]byte, len(t.Data))
