@@ -2,18 +2,15 @@ package database
 
 import (
 	"bytes"
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/exp/slices"
 	"sync"
 )
 
@@ -114,28 +111,10 @@ type Block struct {
 	Invalid *bool `json:"invalid,omitempty"`
 }
 
-func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles []*sidechain.PoolBlock, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
+func NewBlockFromBinaryBlock(getSeedByHeight mainblock.GetSeedByHeightFunc, getDifficultyByHeight mainblock.GetDifficultyByHeightFunc, db *Database, b *sidechain.PoolBlock, knownUncles sidechain.UniquePoolBlockSlice, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
 	miner := db.GetOrCreateMinerByAddress(b.GetAddress().ToBase58())
 	if miner == nil {
 		return nil, nil, errors.New("could not get or create miner")
-	}
-
-	getSeedByHeight := func(height uint64) (hash types.Hash) {
-		seedHeight := randomx.SeedHeight(height)
-		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(seedHeight, context.Background()); err != nil {
-			return types.ZeroHash
-		} else {
-			hash, _ := types.HashFromString(h.BlockHeader.Hash)
-			return hash
-		}
-	}
-
-	getDifficultyByHeight := func(height uint64) types.Difficulty {
-		if h, err := client.GetDefaultClient().GetBlockHeaderByHeight(height, context.Background()); err != nil {
-			return types.ZeroDifficulty
-		} else {
-			return types.DifficultyFrom64(h.BlockHeader.Difficulty)
-		}
 	}
 
 	block = &Block{
@@ -171,10 +150,7 @@ func NewBlockFromBinaryBlock(db *Database, b *sidechain.PoolBlock, knownUncles [
 	}
 
 	for _, u := range b.Side.Uncles {
-		if i := slices.IndexFunc(knownUncles, func(uncle *sidechain.PoolBlock) bool {
-			return types.HashFromBytes(uncle.CoinbaseExtra(sidechain.SideTemplateId)) == u
-		}); i != -1 {
-			uncle := knownUncles[i]
+		if uncle := knownUncles.Get(u); uncle != nil {
 			uncleMiner := db.GetOrCreateMinerByAddress(uncle.GetAddress().ToBase58())
 			if uncleMiner == nil {
 				return nil, nil, errors.New("could not get or create miner")

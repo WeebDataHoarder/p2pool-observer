@@ -3,14 +3,17 @@ package main
 import (
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
+	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
@@ -36,14 +39,50 @@ func encodeJson(r *http.Request, d any) ([]byte, error) {
 func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
-	db, err := database.NewDatabase(os.Args[1])
+	dbString := flag.String("db", "", "")
+	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
+	flag.Parse()
+	db, err := database.NewDatabase(*dbString)
 	if err != nil {
 		log.Panic(err)
 	}
 	defer db.Close()
-	api, err := api.New(db, os.Getenv("API_FOLDER"))
+	api, err := p2poolapi.New(db, os.Getenv("API_FOLDER"))
 	if err != nil {
 		log.Panic(err)
+	}
+
+	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
+
+	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
+		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
+		time.Sleep(time.Second * 5)
+	}
+
+	log.Printf("[CHAIN] Consensus id = %s\n", p2api.Consensus().Id())
+
+	getSeedByHeight := func(height uint64) (hash types.Hash) {
+		seedHeight := randomx.SeedHeight(height)
+		if h := p2api.MainHeaderByHeight(seedHeight); h == nil {
+			return types.ZeroHash
+		} else {
+			return h.Id
+		}
+	}
+
+	getBlockWithUncles := func(id types.Hash) (block *sidechain.PoolBlock, uncles []*sidechain.PoolBlock) {
+		block = p2api.ByTemplateId(id)
+		if block == nil {
+			return nil, nil
+		}
+		for _, uncleId := range block.Side.Uncles {
+			if u := p2api.ByTemplateId(uncleId); u == nil {
+				return nil, nil
+			} else {
+				uncles = append(uncles, u)
+			}
+		}
+		return block, uncles
 	}
 
 	serveMux := mux.NewRouter()
@@ -67,7 +106,7 @@ func main() {
 			windowDifficulty = windowDifficulty.Add(b.Difficulty)
 			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
 				//TODO: check this check is correct :)
-				if (tip.Height - u.Block.Height) > p2pool.PPLNSWindow {
+				if (tip.Height - u.Block.Height) > p2api.Consensus().ChainWindowSize {
 					continue
 				}
 
@@ -143,9 +182,9 @@ func main() {
 					Uncles: uncleCount,
 					Weight: windowDifficulty,
 				},
-				WindowSize:   p2pool.PPLNSWindow,
-				BlockTime:    p2pool.BlockTime,
-				UnclePenalty: p2pool.UnclePenalty,
+				WindowSize:   int(p2api.Consensus().ChainWindowSize),
+				BlockTime:    int(p2api.Consensus().TargetBlockTime),
+				UnclePenalty: int(p2api.Consensus().UnclePenalty),
 				Found:        totalKnown.blocksFound,
 				Miners:       totalKnown.minersKnown,
 			},
@@ -352,10 +391,10 @@ func main() {
 
 		params := request.URL.Query()
 
-		window := uint64(p2pool.PPLNSWindow)
+		window := p2api.Consensus().ChainWindowSize
 		if params.Has("window") {
 			if i, err := strconv.Atoi(params.Get("window")); err == nil {
-				if i <= p2pool.PPLNSWindow*4 {
+				if i <= int(p2api.Consensus().ChainWindowSize*4) {
 					window = uint64(i)
 				}
 			}
@@ -542,7 +581,7 @@ func main() {
 
 	serveMux.HandleFunc("/api/redirect/prove/{height_index:[0-9]+|.[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
 		i := utils.DecodeBinaryNumber(mux.Vars(request)["height_index"])
-		n := uint64(math.Ceil(math.Log2(p2pool.PPLNSWindow * 4)))
+		n := uint64(math.Ceil(math.Log2(float64(p2api.Consensus().ChainWindowSize * 4))))
 
 		height := i >> n
 		index := i & ((1 << n) - 1)
@@ -699,8 +738,8 @@ func main() {
 			}
 		}
 
-		if limit > p2pool.PPLNSWindow*4*7 {
-			limit = p2pool.PPLNSWindow * 4 * 7
+		if limit > p2api.Consensus().ChainWindowSize*4*7 {
+			limit = p2api.Consensus().ChainWindowSize * 4 * 7
 		}
 		if limit == 0 {
 			limit = 50
@@ -781,13 +820,15 @@ func main() {
 				} else {
 					isOrphan = true
 
-					if b, _, _ := api.GetShareFromRawEntry(id, false); b != nil {
+					bblock, uncles := getBlockWithUncles(id)
+
+					if b, _, _ := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, bblock, uncles, false); b != nil {
 						block = b
 					} else {
 						isInvalid = true
-						if b, _ = api.GetShareFromFailedRawEntry(id); b != nil {
+						/*if b, _ = api.GetShareFromFailedRawEntry(id); b != nil {
 							block = b
-						}
+						}*/
 					}
 				}
 			}
@@ -807,11 +848,7 @@ func main() {
 
 		switch mux.Vars(request)["kind"] {
 		case "/raw":
-			raw, _ := api.GetRawBlockBytes(block.GetBlock().Id)
-
-			if raw == nil {
-				raw, _ = api.GetFailedRawBlockBytes(block.GetBlock().Id)
-			}
+			raw := p2api.ByTemplateId(block.GetBlock().Id)
 
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -827,7 +864,8 @@ func main() {
 
 			writer.Header().Set("Content-Type", "text/plain")
 			writer.WriteHeader(http.StatusOK)
-			_, _ = writer.Write(raw)
+			buf, _ := raw.MarshalBinary()
+			_, _ = writer.Write(buf)
 		case "/payouts":
 			result := make([]*database.Payout, 0)
 			if !isOrphan && !isInvalid {
@@ -862,7 +900,7 @@ func main() {
 						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
 					})
 					return nil
-				}, block.GetBlock().MinerId, blockHeight, blockHeight+p2pool.PPLNSWindow); err != nil {
+				}, block.GetBlock().MinerId, blockHeight, blockHeight+p2api.Consensus().ChainWindowSize); err != nil {
 					return
 				}
 			}
@@ -918,7 +956,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, 3600/p2pool.BlockTime)
+			}, 3600/p2api.Consensus().TargetBlockTime)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -937,7 +975,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, (3600*24)/p2pool.BlockTime, (3600*24*7)/p2pool.BlockTime)
+			}, (3600*24)/p2api.Consensus().TargetBlockTime, (3600*24*7)/p2api.Consensus().TargetBlockTime)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -956,7 +994,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, p2pool.PPLNSWindow, p2pool.PPLNSWindow)
+			}, p2api.Consensus().ChainWindowSize, p2api.Consensus().ChainWindowSize)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)

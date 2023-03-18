@@ -1,21 +1,16 @@
 package api
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"os"
 	"path"
-	"strconv"
 )
 
-// Api
-// Deprecated
 type Api struct {
 	db   *database.Database
 	path string
@@ -36,110 +31,12 @@ func New(db *database.Database, p string) (*Api, error) {
 	return api, nil
 }
 
-func (a *Api) getBlockPath(height uint64) string {
-	index := strconv.FormatInt(int64(height), 10)
-	return fmt.Sprintf("%s/share/%s/%s", a.path, index[len(index)-1:], index)
-}
-
-func (a *Api) getRawBlockPath(id types.Hash) string {
-	index := id.String()
-	return fmt.Sprintf("%s/blocks/%s/%s", a.path, index[:1], index)
-}
-
-func (a *Api) getFailedRawBlockPath(id types.Hash) string {
-	index := id.String()
-	return fmt.Sprintf("%s/failed_blocks/%s/%s", a.path, index[:1], index)
-}
-
-func (a *Api) BlockExists(height uint64) bool {
-	_, err := os.Stat(a.getBlockPath(height))
-	return err == nil
-}
-
-func (a *Api) GetShareEntry(height uint64) (*database.Block, []*database.UncleBlock, error) {
-	if f, err := os.Open(a.getBlockPath(height)); err != nil {
-		return nil, nil, err
-	} else {
-		defer f.Close()
-		if buf, err := io.ReadAll(f); err != nil {
-			return nil, nil, err
-		} else {
-			return database.NewBlockFromJSONBlock(a.db, buf)
-		}
-	}
-}
-
-func (a *Api) GetShareFromFailedRawEntry(id types.Hash) (*database.Block, error) {
-
-	if b, err := a.GetFailedRawBlock(id); err != nil {
-		return nil, err
-	} else {
-		b, _, err := database.NewBlockFromBinaryBlock(a.db, b, nil, false)
-		return b, err
-	}
-}
-
-func (a *Api) GetFailedRawBlockBytes(id types.Hash) (buf []byte, err error) {
-	if f, err := os.Open(a.getFailedRawBlockPath(id)); err != nil {
-		return nil, err
-	} else {
-		defer f.Close()
-		return io.ReadAll(f)
-	}
-}
-
-func (a *Api) GetFailedRawBlock(id types.Hash) (b *sidechain.PoolBlock, err error) {
-	if buf, err := a.GetFailedRawBlockBytes(id); err != nil {
-		return nil, err
-	} else {
-		data := make([]byte, len(buf)/2)
-		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromExportedBytes(data, sidechain.NetworkMainnet)
-	}
-}
-
-func (a *Api) GetRawBlockBytes(id types.Hash) (buf []byte, err error) {
-	if f, err := os.Open(a.getRawBlockPath(id)); err != nil {
-		return nil, err
-	} else {
-		defer f.Close()
-		return io.ReadAll(f)
-	}
-}
-
-func (a *Api) GetRawBlock(id types.Hash) (b *sidechain.PoolBlock, err error) {
-	if buf, err := a.GetRawBlockBytes(id); err != nil {
-		return nil, err
-	} else {
-		data := make([]byte, len(buf)/2)
-		_, _ = hex.Decode(data, buf)
-		return sidechain.NewShareFromExportedBytes(data, sidechain.NetworkMainnet)
-	}
-}
-
 func (a *Api) GetDatabase() *database.Database {
 	return a.db
 }
 
-func (a *Api) GetShareFromRawEntry(id types.Hash, errOnUncles bool) (b *database.Block, uncles []*database.UncleBlock, err error) {
-	var raw *sidechain.PoolBlock
-	if raw, err = a.GetRawBlock(id); err != nil {
-		return
-	} else {
-		u := make([]*sidechain.PoolBlock, 0, len(raw.Side.Uncles))
-		for _, uncleId := range raw.Side.Uncles {
-			if uncle, err := a.GetRawBlock(uncleId); err != nil {
-				return nil, nil, err
-			} else {
-				u = append(u, uncle)
-			}
-		}
-
-		return database.NewBlockFromBinaryBlock(a.db, raw, u, errOnUncles)
-	}
-}
-
 func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]types.Difficulty) {
+	//TODO: adjust for fork
 	shares = make(map[uint64]types.Difficulty)
 
 	blockCount := 0
@@ -273,6 +170,8 @@ func (a *Api) GetWindowPayouts(height, totalReward *uint64) (shares map[uint64]t
 	return shares
 }
 
+// GetPoolBlocks
+// Deprecated
 func (a *Api) GetPoolBlocks() (result []struct {
 	Height      uint64     `json:"height"`
 	Hash        types.Hash `json:"hash"`
@@ -293,6 +192,8 @@ func (a *Api) GetPoolBlocks() (result []struct {
 	}
 }
 
+// GetPoolStats
+// Deprecated
 func (a *Api) GetPoolStats() (result struct {
 	PoolList       []string `json:"pool_list"`
 	PoolStatistics struct {

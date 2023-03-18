@@ -737,18 +737,24 @@ func main() {
 			return
 		}
 
+		poolInfo := getFromAPI("pool_info", 5)
+
 		var raw *sidechain.PoolBlock
 		if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
 
 			if buf, err := hex.DecodeString(string(s)); err == nil {
 
-				raw, _ = sidechain.NewShareFromExportedBytes(buf, sidechain.NetworkMainnet)
+				b := &sidechain.PoolBlock{
+					NetworkType: sidechain.NetworkMainnet,
+				}
+
+				if b.UnmarshalBinary(buf) == nil {
+					raw = b
+				}
 			}
 		}
 
 		payouts := getFromAPI(fmt.Sprintf("block_by_id/%s/payouts", block.(map[string]any)["id"].(string)))
-
-		poolInfo := getFromAPI("pool_info", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
@@ -825,7 +831,12 @@ func main() {
 			rawBlock := getFromAPI(fmt.Sprintf("block_by_id/%s/raw", lastShares[0].(map[string]any)["id"]))
 			if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
 				if buf, err := hex.DecodeString(string(s)); err == nil {
-					raw, _ = sidechain.NewShareFromExportedBytes(buf, sidechain.NetworkMainnet)
+					b := &sidechain.PoolBlock{
+						NetworkType: sidechain.NetworkMainnet,
+					}
+					if b.UnmarshalBinary(buf) == nil {
+						raw = b
+					}
 				}
 			}
 		}

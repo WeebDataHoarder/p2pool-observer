@@ -51,6 +51,26 @@ const (
 const ShareVersion_V2MainNetTimestamp uint64 = 1679173200 // 2023-03-18 21:00 UTC
 const ShareVersion_V2TestNetTimestamp uint64 = 1674507600 // 2023-01-23 21:00 UTC
 
+type UniquePoolBlockSlice []*PoolBlock
+
+func (s UniquePoolBlockSlice) Get(id types.Hash) *PoolBlock {
+	if i := slices.IndexFunc(s, func(p *PoolBlock) bool {
+		return bytes.Compare(p.CoinbaseExtra(SideTemplateId), id[:]) == 0
+	}); i != -1 {
+		return s[i]
+	}
+	return nil
+}
+
+func (s UniquePoolBlockSlice) GetHeight(height uint64) (result UniquePoolBlockSlice) {
+	for _, b := range s {
+		if b.Side.Height == height {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
 type PoolBlock struct {
 	Main mainblock.Block
 

@@ -158,12 +158,24 @@ func (p *P2Pool) GetMinerDataTip() *p2pooltypes.MinerData {
 func (p *P2Pool) GetMinimalBlockHeaderByHeight(height uint64) *block.Header {
 	lowerThanTip := height <= p.mainchain.GetChainMainTip().Height
 	if chainMain := p.mainchain.GetChainMainByHeight(height); chainMain != nil && chainMain.Id != types.ZeroHash {
-		return &block.Header{
-			Timestamp:  chainMain.Timestamp,
-			Height:     chainMain.Height,
-			Reward:     chainMain.Reward,
-			Difficulty: chainMain.Difficulty,
-			Id:         chainMain.Id,
+		prev := p.mainchain.GetChainMainByHeight(height - 1)
+		if prev != nil {
+			return &block.Header{
+				Timestamp:  chainMain.Timestamp,
+				Height:     chainMain.Height,
+				Reward:     chainMain.Reward,
+				Difficulty: chainMain.Difficulty,
+				Id:         chainMain.Id,
+				PreviousId: prev.Id,
+			}
+		} else {
+			return &block.Header{
+				Timestamp:  chainMain.Timestamp,
+				Height:     chainMain.Height,
+				Reward:     chainMain.Reward,
+				Difficulty: chainMain.Difficulty,
+				Id:         chainMain.Id,
+			}
 		}
 	} else if lowerThanTip {
 		if header, err := p.ClientRPC().GetBlockHeaderByHeight(height, p.ctx); err != nil {

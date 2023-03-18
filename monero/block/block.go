@@ -27,15 +27,15 @@ type Block struct {
 }
 
 type Header struct {
-	MajorVersion uint8
-	MinorVersion uint8
-	Timestamp    uint64
-	PreviousId   types.Hash
-	Height       uint64
-	Nonce        uint32
-	Reward       uint64
-	Difficulty   types.Difficulty
-	Id           types.Hash
+	MajorVersion uint8            `json:"major_version"`
+	MinorVersion uint8            `json:"minor_version"`
+	Timestamp    uint64           `json:"timestamp"`
+	PreviousId   types.Hash       `json:"previous_id"`
+	Height       uint64           `json:"height"`
+	Nonce        uint32           `json:"nonce"`
+	Reward       uint64           `json:"reward"`
+	Difficulty   types.Difficulty `json:"difficulty"`
+	Id           types.Hash       `json:"id"`
 }
 
 type readerAndByteReader interface {

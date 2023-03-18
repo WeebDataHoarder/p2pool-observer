@@ -51,7 +51,7 @@ func NewDatabase(connStr string) (db *Database, err error) {
 	if db.statements.GetMinerByAddressBounds, err = db.handle.Prepare("SELECT id, alias, address FROM miners WHERE address LIKE $1 AND address LIKE $2;"); err != nil {
 		return nil, err
 	}
-	if db.statements.InsertMiner, err = db.handle.Prepare("INSERT INTO miners (address) VALUES ($1) RETURNING id, address;"); err != nil {
+	if db.statements.InsertMiner, err = db.handle.Prepare("INSERT INTO miners (address) VALUES ($1) RETURNING id, alias, address;"); err != nil {
 		return nil, err
 	}
 	if db.statements.GetUnclesByParentId, err = db.PrepareUncleBlocksByQueryStatement("WHERE parent_id = encode($1, 'hex');"); err != nil {
@@ -824,10 +824,10 @@ type Payout struct {
 	Timestamp uint64 `json:"timestamp"`
 	Uncle     bool   `json:"uncle,omitempty"`
 	Coinbase  struct {
-		Id         types.Hash `json:"id"`
-		Reward     uint64     `json:"reward"`
+		Id         types.Hash             `json:"id"`
+		Reward     uint64                 `json:"reward"`
 		PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-		Index      uint64     `json:"index"`
+		Index      uint64                 `json:"index"`
 	} `json:"coinbase"`
 }
 
@@ -862,10 +862,10 @@ func (db *Database) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payo
 				}{Id: types.HashFromBytes(mainId), Height: mainHeight},
 				Uncle: uncle,
 				Coinbase: struct {
-					Id         types.Hash `json:"id"`
-					Reward     uint64     `json:"reward"`
+					Id         types.Hash             `json:"id"`
+					Reward     uint64                 `json:"reward"`
 					PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-					Index      uint64     `json:"index"`
+					Index      uint64                 `json:"index"`
 				}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
 			}
 			return nil
@@ -918,7 +918,7 @@ func (db *Database) InsertBlock(b *Block, fallbackDifficulty *types.Difficulty) 
 	}
 
 	if block != nil { //Update found status if existent
-		if b.Id == block.Id {
+		if b.Id != block.Id {
 			return errors.New("block exists but has different id")
 		}
 		if block.Template.Difficulty != mainDiff && mainDiff != UndefinedDifficulty {
@@ -971,7 +971,7 @@ func (db *Database) InsertUncleBlock(u *UncleBlock, fallbackDifficulty *types.Di
 	}
 
 	if uncle != nil { //Update found status if existent
-		if u.Block.Id == uncle.Block.Id {
+		if u.Block.Id != uncle.Block.Id {
 			return errors.New("block exists but has different id")
 		}
 		if uncle.Block.Template.Difficulty != mainDiff && mainDiff != UndefinedDifficulty {

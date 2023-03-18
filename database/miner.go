@@ -89,7 +89,7 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 					Output: o,
 				})
 				outputs[i] = nil
-				outputs = slices.Compact(outputs)
+				//outputs = slices.Compact(outputs)
 				break
 			}
 		}
