@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -188,7 +187,7 @@ func main() {
 						} else {
 							result = append(result, types2.P2PoolBinaryBlockResult{
 								Version: int(b.ShareVersion()),
-								Blob:    hex.EncodeToString(blob),
+								Blob:    blob,
 							})
 						}
 					}
@@ -204,16 +203,13 @@ func main() {
 			})
 			serveMux.HandleFunc("/sidechain/block_by_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 				if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-					result := types2.P2PoolBinaryBlockResult{
-						Blob:  "",
-						Error: "",
-					}
+					var result types2.P2PoolBinaryBlockResult
 					if b := instance.SideChain().GetPoolBlockByTemplateId(templateId); b != nil {
 						result.Version = int(b.ShareVersion())
 						if blob, err := b.MarshalBinary(); err != nil {
 							result.Error = err.Error()
 						} else {
-							result.Blob = hex.EncodeToString(blob)
+							result.Blob = blob
 						}
 					}
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -226,17 +222,114 @@ func main() {
 					_, _ = writer.Write([]byte("[]"))
 				}
 			})
-			serveMux.HandleFunc("/sidechain/tip", func(writer http.ResponseWriter, request *http.Request) {
-				result := types2.P2PoolBinaryBlockResult{
-					Blob:  "",
-					Error: "",
+			serveMux.HandleFunc("/sidechain/state/tip", func(writer http.ResponseWriter, request *http.Request) {
+				tip := instance.SideChain().GetChainTip()
+				if tip != nil {
+					tipId := instance.SideChain().GetChainTip().SideTemplateId(instance.Consensus())
+					chain, uncles := instance.SideChain().GetPoolBlocksFromTip(tipId)
+					result := types2.P2PoolSideChainStateResult{
+						TipHeight: tip.Side.Height,
+						TipId:     tipId,
+						Chain:     make([]types2.P2PoolBinaryBlockResult, 0, len(chain)),
+						Uncles:    make([]types2.P2PoolBinaryBlockResult, 0, len(uncles)),
+					}
+					for _, b := range chain {
+						if blob, err := b.MarshalBinary(); err != nil {
+							result.Chain = append(result.Chain, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
+								Error:   err.Error(),
+							})
+						} else {
+							result.Chain = append(result.Chain, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
+								Blob:    blob,
+							})
+						}
+					}
+					for _, b := range uncles {
+						if blob, err := b.MarshalBinary(); err != nil {
+							result.Uncles = append(result.Uncles, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
+								Error:   err.Error(),
+							})
+						} else {
+							result.Uncles = append(result.Uncles, types2.P2PoolBinaryBlockResult{
+								Version: int(b.ShareVersion()),
+								Blob:    blob,
+							})
+						}
+					}
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					buf, _ := encodeJson(request, result)
+					_, _ = writer.Write(buf)
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					_, _ = writer.Write([]byte("{}"))
 				}
+			})
+			serveMux.HandleFunc("/sidechain/state/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+				if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
+					tip := instance.SideChain().GetPoolBlockByTemplateId(templateId)
+					if tip != nil {
+						tipId := tip.SideTemplateId(instance.Consensus())
+						chain, uncles := instance.SideChain().GetPoolBlocksFromTip(tipId)
+						result := types2.P2PoolSideChainStateResult{
+							TipHeight: tip.Side.Height,
+							TipId:     tipId,
+							Chain:     make([]types2.P2PoolBinaryBlockResult, 0, len(chain)),
+							Uncles:    make([]types2.P2PoolBinaryBlockResult, 0, len(uncles)),
+						}
+						for _, b := range chain {
+							if blob, err := b.MarshalBinary(); err != nil {
+								result.Chain = append(result.Chain, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
+									Error:   err.Error(),
+								})
+							} else {
+								result.Chain = append(result.Chain, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
+									Blob:    blob,
+								})
+							}
+						}
+						for _, b := range uncles {
+							if blob, err := b.MarshalBinary(); err != nil {
+								result.Uncles = append(result.Uncles, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
+									Error:   err.Error(),
+								})
+							} else {
+								result.Uncles = append(result.Uncles, types2.P2PoolBinaryBlockResult{
+									Version: int(b.ShareVersion()),
+									Blob:    blob,
+								})
+							}
+						}
+						writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+						writer.WriteHeader(http.StatusOK)
+						buf, _ := encodeJson(request, result)
+						_, _ = writer.Write(buf)
+					} else {
+						writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+						writer.WriteHeader(http.StatusOK)
+						_, _ = writer.Write([]byte("{}"))
+					}
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					_, _ = writer.Write([]byte("{}"))
+				}
+			})
+			serveMux.HandleFunc("/sidechain/tip", func(writer http.ResponseWriter, request *http.Request) {
+				var result types2.P2PoolBinaryBlockResult
 				if b := instance.SideChain().GetChainTip(); b != nil {
 					result.Version = int(b.ShareVersion())
 					if blob, err := b.MarshalBinary(); err != nil {
 						result.Error = err.Error()
 					} else {
-						result.Blob = hex.EncodeToString(blob)
+						result.Blob = blob
 					}
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -255,7 +348,7 @@ func main() {
 					result.Height = tip.Side.Height
 					result.Id = tip.SideTemplateId(instance.Consensus())
 					result.Difficulty = tip.Side.Difficulty
-					result.CummulativeDifficulty = tip.Side.CumulativeDifficulty
+					result.CumulativeDifficulty = tip.Side.CumulativeDifficulty
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
@@ -282,7 +375,7 @@ func main() {
 							} else {
 								result = append(result, types2.P2PoolBinaryBlockResult{
 									Version: int(b.ShareVersion()),
-									Blob:    hex.EncodeToString(blob),
+									Blob:    blob,
 								})
 							}
 						}
@@ -313,7 +406,7 @@ func main() {
 							} else {
 								result = append(result, types2.P2PoolBinaryBlockResult{
 									Version: int(b.ShareVersion()),
-									Blob:    hex.EncodeToString(blob),
+									Blob:    blob,
 								})
 							}
 						}
@@ -330,10 +423,7 @@ func main() {
 
 				serveMux.HandleFunc("/archive/block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 					if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-						result := types2.P2PoolBinaryBlockResult{
-							Blob:  "",
-							Error: "",
-						}
+						var result types2.P2PoolBinaryBlockResult
 						if b := archiveCache.LoadByMainId(mainId); b != nil {
 							result.Version = int(b.ShareVersion())
 							if err := archiveCache.ProcessBlock(b); err != nil {
@@ -342,7 +432,7 @@ func main() {
 								if blob, err := b.MarshalBinary(); err != nil {
 									result.Error = err.Error()
 								} else {
-									result.Blob = hex.EncodeToString(blob)
+									result.Blob = blob
 								}
 							}
 						}
@@ -373,7 +463,7 @@ func main() {
 							} else {
 								result = append(result, types2.P2PoolBinaryBlockResult{
 									Version: int(b.ShareVersion()),
-									Blob:    hex.EncodeToString(blob),
+									Blob:    blob,
 								})
 							}
 						}

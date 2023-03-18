@@ -4,19 +4,26 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
+type P2PoolSideChainStateResult struct {
+	TipHeight uint64                    `json:"tip_height"`
+	TipId     types.Hash                `json:"tip_id"`
+	Chain     []P2PoolBinaryBlockResult `json:"chain"`
+	Uncles    []P2PoolBinaryBlockResult `json:"uncles"`
+}
+
 type P2PoolBinaryBlockResult struct {
-	Version int    `json:"version"`
-	Blob    string `json:"blob"`
-	Error   string `json:"error,omitempty"`
+	Version int         `json:"version"`
+	Blob    types.Bytes `json:"blob"`
+	Error   string      `json:"error,omitempty"`
 }
 
 type P2PoolSideChainStatusResult struct {
-	Synchronized          bool             `json:"synchronized"`
-	Height                uint64           `json:"tip_height"`
-	Id                    types.Hash       `json:"tip_id"`
-	Difficulty            types.Difficulty `json:"difficulty"`
-	CummulativeDifficulty types.Difficulty `json:"cummulative_difficulty"`
-	Blocks                int              `json:"blocks"`
+	Synchronized         bool             `json:"synchronized"`
+	Height               uint64           `json:"tip_height"`
+	Id                   types.Hash       `json:"tip_id"`
+	Difficulty           types.Difficulty `json:"difficulty"`
+	CumulativeDifficulty types.Difficulty `json:"cumulative_difficulty"`
+	Blocks               int              `json:"blocks"`
 }
 
 type P2PoolServerStatusResult struct {

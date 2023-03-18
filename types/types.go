@@ -104,3 +104,25 @@ func (h *Hash) UnmarshalJSON(b []byte) error {
 		return nil
 	}
 }
+
+type Bytes []byte
+
+func (b Bytes) MarshalJSON() ([]byte, error) {
+	return json.Marshal(b.String())
+}
+func (b Bytes) String() string {
+	return hex.EncodeToString(b)
+}
+func (b *Bytes) UnmarshalJSON(buf []byte) error {
+	var s string
+	if err := json.Unmarshal(buf, &s); err != nil {
+		return err
+	}
+
+	if buf2, err := hex.DecodeString(s); err != nil {
+		return err
+	} else {
+		*b = append(*b, buf2...)
+		return nil
+	}
+}

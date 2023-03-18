@@ -825,6 +825,27 @@ func (c *SideChain) getPoolBlocksByHeight(height uint64) []*PoolBlock {
 	return c.blocksByHeight[height]
 }
 
+func (c *SideChain) GetPoolBlocksFromTip(id types.Hash) (chain []*PoolBlock, uncles []*PoolBlock) {
+	chain = make([]*PoolBlock, 0, c.Consensus().ChainWindowSize*2+monero.BlockTime/c.Consensus().TargetBlockTime)
+	uncles = make([]*PoolBlock, 0, len(chain)/20)
+
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+	for cur := c.getPoolBlockByTemplateId(id); cur != nil; cur = c.getPoolBlockByTemplateId(cur.Side.Parent) {
+		for i, uncleId := range cur.Side.Uncles {
+			if u := c.getPoolBlockByTemplateId(uncleId); u == nil {
+				//return few uncles than necessary
+				return chain, uncles[:len(uncles)-i]
+			} else {
+				uncles = append(uncles, u)
+			}
+		}
+		chain = append(chain, cur)
+	}
+
+	return chain, uncles
+}
+
 func (c *SideChain) GetPoolBlockCount() int {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
