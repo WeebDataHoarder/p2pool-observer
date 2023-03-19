@@ -136,27 +136,36 @@ func main() {
 			return result
 		}).(*totalKnownResult)
 
-		poolBlocks, _ := api.GetPoolBlocks()
+		/*
+			poolBlocks, _ := api.GetPoolBlocks()
 
-		poolStats, _ := api.GetPoolStats()
+			poolStats, _ := api.GetPoolStats()
 
-		globalDiff := tip.Template.Difficulty
+			globalDiff := tip.Template.Difficulty
 
-		currentEffort := float64(types.DifficultyFrom64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff).Lo) / 1000
+			currentEffort := float64(types.DifficultyFrom64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff).Lo) / 1000
 
-		if currentEffort <= 0 || poolBlocks[0].TotalHashes == 0 {
-			currentEffort = 0
-		}
-
-		var blockEfforts mapslice.MapSlice
-		for i, b := range poolBlocks {
-			if i < (len(poolBlocks)-1) && b.TotalHashes > 0 && poolBlocks[i+1].TotalHashes > 0 {
-				blockEfforts = append(blockEfforts, mapslice.MapItem{
-					Key:   b.Hash.String(),
-					Value: float64((b.TotalHashes-poolBlocks[i+1].TotalHashes)*100) / float64(b.Difficulty),
-				})
+			if currentEffort <= 0 || poolBlocks[0].TotalHashes == 0 {
+				currentEffort = 0
 			}
-		}
+
+			var blockEfforts mapslice.MapSlice
+			for i, b := range poolBlocks {
+				if i < (len(poolBlocks)-1) && b.TotalHashes > 0 && poolBlocks[i+1].TotalHashes > 0 {
+					blockEfforts = append(blockEfforts, mapslice.MapItem{
+						Key:   b.Hash.String(),
+						Value: float64((b.TotalHashes-poolBlocks[i+1].TotalHashes)*100) / float64(b.Difficulty),
+					})
+				}
+			}
+
+		*/
+		currentEffort := float64(1)
+		var blockEfforts mapslice.MapSlice
+		blockEfforts = append(blockEfforts, mapslice.MapItem{
+			Key:   types.ZeroHash.String(),
+			Value: float64(1),
+		})
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
