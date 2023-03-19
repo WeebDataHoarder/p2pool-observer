@@ -112,6 +112,9 @@ type Block struct {
 }
 
 func NewBlockFromBinaryBlock(getSeedByHeight mainblock.GetSeedByHeightFunc, getDifficultyByHeight mainblock.GetDifficultyByHeightFunc, db *Database, b *sidechain.PoolBlock, knownUncles sidechain.UniquePoolBlockSlice, errOnUncles bool) (block *Block, uncles []*UncleBlock, err error) {
+	if b == nil {
+		return nil, nil, errors.New("nil block")
+	}
 	miner := db.GetOrCreateMinerByAddress(b.GetAddress().ToBase58())
 	if miner == nil {
 		return nil, nil, errors.New("could not get or create miner")

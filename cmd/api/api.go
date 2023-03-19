@@ -84,6 +84,7 @@ func main() {
 		}
 		return block, uncles
 	}
+	_ = getBlockWithUncles
 
 	serveMux := mux.NewRouter()
 	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
@@ -829,9 +830,9 @@ func main() {
 				} else {
 					isOrphan = true
 
-					bblock, uncles := getBlockWithUncles(id)
+					bblock := p2api.ByTemplateId(id)
 
-					if b, _, _ := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, bblock, uncles, false); b != nil {
+					if b, _, _ := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, bblock, nil, false); b != nil {
 						block = b
 					} else {
 						isInvalid = true
