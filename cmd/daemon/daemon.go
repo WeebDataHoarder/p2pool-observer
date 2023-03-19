@@ -40,6 +40,13 @@ func main() {
 
 	tip := db.GetChainTip()
 
+	/*bId, _ := types.HashFromString("f36ae9e2ed3e1e2ab7b79c9ac2767692f02c41b2aaf78e16fcc123730354ce86")
+	b := db.GetBlockById(bId)
+	if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(b.Coinbase.Id); tx != nil {
+		_ = db.SetBlockFound(b.Id, true)
+		processFoundBlockWithTransaction(api, b, tx)
+	}*/
+
 	isFresh := tip == nil
 
 	var tipHeight uint64
@@ -90,7 +97,7 @@ func main() {
 			startFrom = p2poolTip
 		}
 
-		currentIndex := int(p2poolTip - startFrom)
+		/*currentIndex := int(p2poolTip - startFrom)
 		if currentIndex > (len(tipChain) - 1) {
 			currentIndex = len(tipChain) - 1
 		}
@@ -114,7 +121,7 @@ func main() {
 			}
 
 			startFrom = b.Side.Height
-		}
+		}*/
 	}
 
 	//TODO: handle jumps in blocks (missing data)
@@ -204,7 +211,7 @@ func main() {
 			for h := knownTip; h > 0; h-- {
 				dbBlock := db.GetBlockByHeight(h)
 				diskBlock = p2api.ByTemplateId(diskBlock.Side.Parent)
-				if dbBlock.PreviousId == blockId(diskBlock) {
+				if dbBlock.Id == blockId(diskBlock) {
 					log.Printf("[REORG] Found matching head %s at height %d\n", dbBlock.PreviousId.String(), dbBlock.Height-1)
 					deleted, err := db.DeleteBlockById(dbBlock.Id)
 					if err != nil {

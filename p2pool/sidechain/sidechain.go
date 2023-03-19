@@ -550,15 +550,6 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 			txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
 
-			blob1, _ := block.Main.Coinbase.Outputs.MarshalBinary()
-
-			bouts := c.calculateOutputs(block)
-			blob2, _ := bouts.MarshalBinary()
-
-			if bytes.Compare(blob1, blob2) != 0 {
-				return nil, fmt.Errorf("invalid")
-			}
-
 			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]
 				if rewards[workIndex] != out.Reward {
