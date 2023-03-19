@@ -97,31 +97,34 @@ func main() {
 			startFrom = p2poolTip
 		}
 
-		/*currentIndex := int(p2poolTip - startFrom)
-		if currentIndex > (len(tipChain) - 1) {
-			currentIndex = len(tipChain) - 1
-		}
 
-		for ; currentIndex >= 0; currentIndex-- {
-			b := tipChain[currentIndex]
-
-			if block, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, b, tipUncles, true); err != nil {
-				log.Panicf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles: %s\n", blockId(b).String(), b.Side.Height, err)
-			} else {
-				log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
-				if err = db.InsertBlock(block, nil); err != nil {
-					log.Panic(err)
-				}
-				for _, uncle := range uncles {
-					log.Printf("[CHAIN] Inserting uncle share %s at height %d\n", uncle.Block.Id.String(), b.Side.Height)
-					if err = db.InsertUncleBlock(uncle, nil); err != nil {
-						log.Panic(err)
-					}
-				}
+		if isFresh {
+			currentIndex := int(p2poolTip - startFrom)
+			if currentIndex > (len(tipChain) - 1) {
+				currentIndex = len(tipChain) - 1
 			}
 
-			startFrom = b.Side.Height
-		}*/
+			for ; currentIndex >= 0; currentIndex-- {
+				b := tipChain[currentIndex]
+
+				if block, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, b, tipUncles, true); err != nil {
+					log.Panicf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles: %s\n", blockId(b).String(), b.Side.Height, err)
+				} else {
+					log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
+					if err = db.InsertBlock(block, nil); err != nil {
+						log.Panic(err)
+					}
+					for _, uncle := range uncles {
+						log.Printf("[CHAIN] Inserting uncle share %s at height %d\n", uncle.Block.Id.String(), b.Side.Height)
+						if err = db.InsertUncleBlock(uncle, nil); err != nil {
+							log.Panic(err)
+						}
+					}
+				}
+
+				startFrom = b.Side.Height
+			}
+		}
 	}
 
 	//TODO: handle jumps in blocks (missing data)
