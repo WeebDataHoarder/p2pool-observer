@@ -542,7 +542,7 @@ func main() {
 			blocksFound.Add(int(tip-toInt64(b.(map[string]any)["height"])), 1)
 		}
 
-		if len(blocks) > 0 {
+		if len(blocks) > 20 {
 			blocks = blocks[:20]
 		}
 
