@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550
-	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230305004001-d8d87587c8a8
+	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230320202621-f9cc428f9e16
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20221007140323-a2daa2d5fc48
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221027134633-11f5607e6752

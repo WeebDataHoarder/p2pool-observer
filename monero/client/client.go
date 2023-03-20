@@ -7,12 +7,16 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/go-monero/pkg/levin"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
+	"io"
 	"log"
+	"net/http"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,8 +59,9 @@ func GetDefaultClient() *Client {
 
 // Client
 type Client struct {
-	c *rpc.Client
-	d *daemon.Client
+	c       *rpc.Client
+	d       *daemon.Client
+	address string
 
 	coinbaseTransactionCache *lru.LRU[types.Hash, *transaction.CoinbaseTransaction]
 
@@ -69,6 +74,7 @@ func NewClient(address string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
+		address:                  address,
 		c:                        c,
 		d:                        daemon.NewClient(c),
 		coinbaseTransactionCache: lru.New[types.Hash, *transaction.CoinbaseTransaction](1024),
@@ -213,6 +219,70 @@ type Output struct {
 	Mask          types.Hash
 	TransactionId types.Hash
 	Unlocked      bool
+}
+
+// GetOutputIndexes Get global output indexes
+func (c *Client) GetOutputIndexes(id types.Hash) (indexes []uint64, finalError error) {
+	<-c.throttler
+
+	uri, _ := url.Parse(c.address)
+	uri.Path = "/get_o_indexes.bin"
+
+	storage := levin.PortableStorage{Entries: levin.Entries{
+		levin.Entry{
+			Name:         "txid",
+			Serializable: levin.BoostString(id[:]),
+		},
+	}}
+
+	data := storage.Bytes()
+
+	body := io.NopCloser(bytes.NewReader(data))
+	response, err := http.DefaultClient.Do(&http.Request{
+		Method: "POST",
+		URL:    uri,
+		Header: http.Header{
+			"content-type": []string{"application/octet-stream"},
+		},
+		Body:          body,
+		ContentLength: int64(len(data)),
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		return nil, fmt.Errorf("non-2xx status code: %d", response.StatusCode)
+	}
+
+	if buf, err := io.ReadAll(response.Body); err != nil {
+		return nil, err
+	} else {
+		defer func() {
+			if r := recover(); r != nil {
+				indexes = nil
+				finalError = errors.New("error decoding")
+			}
+		}()
+		responseStorage, err := levin.NewPortableStorageFromBytes(buf)
+		if err != nil {
+			return nil, err
+		}
+		for _, e := range responseStorage.Entries {
+			if e.Name == "o_indexes" {
+				if entries, ok := e.Value.(levin.Entries); ok {
+					indexes = make([]uint64, 0, len(entries))
+					for _, e2 := range entries {
+						if v, ok := e2.Value.(uint64); ok {
+							indexes = append(indexes, v)
+						}
+					}
+					return indexes, nil
+				}
+			}
+		}
+	}
+	return nil, errors.New("could not get outputs")
 }
 
 func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {

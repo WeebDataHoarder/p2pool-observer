@@ -1,7 +1,7 @@
 filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550 h1:Mqu6Q2e//30TWeP5bM9Th5KEzWdFAFd80Y2ZXN9fmeE=
 filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550/go.mod h1:N1IkdkCkiLB6tki+MYJoSx2JTY9NUlxZE7eHn5EwJns=
-git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230305004001-d8d87587c8a8 h1:FFhYIN01+QhQ53VH1RA08nH318kFYEkBmEdz0iMm0kA=
-git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230305004001-d8d87587c8a8/go.mod h1:E6nns07xjNbnF+3LKZAjQ9zwpJGLivti8WCKfm+/OII=
+git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230320202621-f9cc428f9e16 h1:e7n5xJd0otigqyVVfU5nHeWvBSHqQLic7YPinbna2sg=
+git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230320202621-f9cc428f9e16/go.mod h1:E6nns07xjNbnF+3LKZAjQ9zwpJGLivti8WCKfm+/OII=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823 h1:HxIuImZsB15Ix59K5VznoHzZ1ut5hW0AAqiDJpOd2+g=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221025112134-5190471ef823/go.mod h1:3kT0v4AMwT/OdorfH2gRWPwoOrUX/LV03HEeBsaXG1c=
 git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20221007140323-a2daa2d5fc48 h1:ExrYG0RSrx/I4McPWgUF4B8R2OkblMrMki2ia8vG6Bw=
