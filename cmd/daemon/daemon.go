@@ -235,16 +235,16 @@ func main() {
 			continue
 		}
 
-		tipUncles = tipUncles[:0]
+		var uncleList sidechain.UniquePoolBlockSlice
 		for _, uncleId := range p2tip.Side.Uncles {
 			if u := p2api.ByTemplateId(uncleId); u == nil {
 				goto toStart
 			} else {
-				tipUncles = append(tipUncles, u)
+				uncleList = append(uncleList, u)
 			}
 		}
 
-		diskBlock, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, p2tip, tipUncles, true)
+		diskBlock, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, p2tip, uncleList, true)
 
 		if err != nil {
 			log.Printf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles\n", blockId(p2tip), p2tip.Side.Height)
@@ -284,7 +284,7 @@ func main() {
 				if uncle.Block.Main.Found {
 					log.Printf("[CHAIN] BLOCK FOUND! (uncle) Main height %d, main id %s", uncle.Block.Main.Height, uncle.Block.Main.Id.String())
 
-					if b := tipUncles.Get(uncle.Block.Id); b != nil {
+					if b := uncleList.Get(uncle.Block.Id); b != nil {
 						processFoundBlockWithTransaction(api, uncle, b.Main.Coinbase)
 					}
 				}

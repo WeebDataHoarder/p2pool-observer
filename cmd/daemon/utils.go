@@ -13,7 +13,7 @@ func processFoundBlockWithTransaction(api *api.Api, b database.BlockInterface, t
 	}
 	log.Printf("[OUTPUT] Trying to insert transaction %s\n", b.GetBlock().Coinbase.Id.String())
 
-	payoutHint := api.GetBlockWindowPayouts(b.GetBlock())
+	payoutHint, _ := api.GetBlockWindowPayouts(b.GetBlock())
 
 	miners := make([]*database.Miner, 0, len(payoutHint))
 	for minerId, _ := range payoutHint {
