@@ -47,12 +47,12 @@ func main() {
 		log.Panic(err)
 	}
 	defer db.Close()
-	api, err := p2poolapi.New(db, os.Getenv("API_FOLDER"))
+
+	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
+	api, err := p2poolapi.New(db, p2api)
 	if err != nil {
 		log.Panic(err)
 	}
-
-	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
 	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
 		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)

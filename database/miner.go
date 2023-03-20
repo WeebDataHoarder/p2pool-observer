@@ -52,8 +52,8 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 	addresses := make(map[address.PackedAddress]*Miner, len(miners))
 
 	outputs := make([]*transaction.Output, len(c.Outputs))
-	for i, o := range c.Outputs {
-		outputs[i] = &o
+	for i := range c.Outputs {
+		outputs[i] = &c.Outputs[i]
 	}
 
 	//TODO: this sorting will be inefficient come the hard fork
@@ -89,7 +89,7 @@ func MatchOutputs(c *transaction.CoinbaseTransaction, miners []*Miner, privateKe
 					Output: o,
 				})
 				outputs[i] = nil
-				//outputs = slices.Compact(outputs)
+				outputs = slices.Compact(outputs)
 				break
 			}
 		}

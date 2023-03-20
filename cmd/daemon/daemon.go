@@ -29,23 +29,16 @@ func main() {
 		log.Panic(err)
 	}
 	defer db.Close()
-	api, err := p2poolapi.New(db, os.Getenv("API_FOLDER"))
+
+	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
+	api, err := p2poolapi.New(db, p2api)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
-
 	//TODO: force-insert section
 
 	tip := db.GetChainTip()
-
-	/*bId, _ := types.HashFromString("f36ae9e2ed3e1e2ab7b79c9ac2767692f02c41b2aaf78e16fcc123730354ce86")
-	b := db.GetBlockById(bId)
-	if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(b.Coinbase.Id); tx != nil {
-		_ = db.SetBlockFound(b.Id, true)
-		processFoundBlockWithTransaction(api, b, tx)
-	}*/
 
 	isFresh := tip == nil
 
