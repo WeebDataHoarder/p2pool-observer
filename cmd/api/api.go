@@ -513,9 +513,9 @@ func main() {
 
 	serveMux.HandleFunc("/api/redirect/block/{main_height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("host") == torHost {
-			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
-		} else {
 			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/block/%d", utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
 		}
 	})
 	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -526,9 +526,9 @@ func main() {
 		}
 
 		if request.Header.Get("host") == torHost {
-			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", txId), http.StatusFound)
-		} else {
 			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", txId), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", txId), http.StatusFound)
 		}
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -552,9 +552,9 @@ func main() {
 		}
 
 		if request.Header.Get("host") == torHost {
-			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
-		} else {
 			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+		} else {
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
 		}
 	})
 	serveMux.HandleFunc("/api/redirect/share/{height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
