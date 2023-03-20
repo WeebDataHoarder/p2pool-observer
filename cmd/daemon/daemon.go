@@ -97,7 +97,6 @@ func main() {
 			startFrom = p2poolTip
 		}
 
-
 		if isFresh {
 			currentIndex := int(p2poolTip - startFrom)
 			if currentIndex > (len(tipChain) - 1) {
@@ -177,14 +176,24 @@ func main() {
 
 	}
 
+	var chain sidechain.UniquePoolBlockSlice
+
 	for {
 
 	toStart:
 
-		time.Sleep(time.Second * 1)
+		if len(chain) == 0 {
+			time.Sleep(time.Second * 1)
+		}
 		runs++
 
-		p2tip := p2api.Tip()
+		var p2tip *sidechain.PoolBlock
+		if len(chain) > 0 {
+			p2tip = chain[len(chain)-1]
+			chain = chain[:len(chain)-1]
+		} else {
+			p2tip = p2api.Tip()
+		}
 		if p2tip == nil {
 			log.Panicf("[CHAIN] could not find tip, at %d", knownTip)
 		}
@@ -194,6 +203,7 @@ func main() {
 		} else if p2tip.Side.Height > (knownTip + 1) {
 			log.Printf("[CHAIN] tip went forwards! Rolling back %d -> %d", knownTip, p2tip.Side.Height)
 			for i := p2tip.Side.Height - (knownTip + 1); i > 0 && p2tip != nil; i-- {
+				chain = append(chain, p2tip)
 				p2tip = p2api.ByTemplateId(p2tip.Side.Parent)
 			}
 		}
@@ -203,11 +213,11 @@ func main() {
 
 		dbTip := db.GetBlockByHeight(knownTip)
 
-		if dbTip.Id == blockId(p2tip) { // no changes
+		if dbTip != nil && dbTip.Id == blockId(p2tip) { // no changes
 			continue
 		}
 
-		if dbTip.Id != p2tip.Side.Parent { //Reorg has happened, delete old values
+		if dbTip != nil && dbTip.Id != p2tip.Side.Parent { //Reorg has happened, delete old values
 			log.Printf("[REORG] Reorg happened, deleting blocks to match from height %d.\n", dbTip.Height)
 
 			diskBlock := p2tip
@@ -246,7 +256,7 @@ func main() {
 		}
 
 		prevBlock := db.GetBlockByHeight(p2tip.Side.Height - 1)
-		if diskBlock.PreviousId != prevBlock.Id {
+		if prevBlock != nil && diskBlock.PreviousId != prevBlock.Id {
 			log.Printf("[CHAIN] Possible reorg occurred, aborting insertion at height %d: prev id %s != id %s\n", p2tip.Side.Height, diskBlock.PreviousId.String(), prevBlock.Id.String())
 			continue
 		}
