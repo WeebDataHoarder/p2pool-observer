@@ -84,6 +84,8 @@ func main() {
 		startFrom = *startFromHeight
 	}
 
+	var chain sidechain.UniquePoolBlockSlice
+
 	if isFresh || startFrom != p2poolTip {
 
 		if startFrom > p2poolTip {
@@ -93,7 +95,12 @@ func main() {
 		if isFresh {
 			lowerTip := tipChain[len(tipChain)-1]
 			for low := lowerTip; low != nil; low = p2api.ByTemplateId(low.Side.Parent) {
+				chain = append(chain, low)
 				lowerTip = low
+			}
+
+			if len(chain) > 0 {
+				chain = chain[:len(chain)-1]
 			}
 
 			b := lowerTip
@@ -166,8 +173,6 @@ func main() {
 		}
 
 	}
-
-	var chain sidechain.UniquePoolBlockSlice
 
 	for {
 
