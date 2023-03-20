@@ -14,6 +14,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"log"
+	"math"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -47,8 +48,8 @@ const (
 	ShareVersion_V2   ShareVersion = 2
 )
 
-const ShareVersion_V2MainNetTimestamp uint64 = 1679173200 // 2023-03-18 21:00 UTC
-const ShareVersion_V2TestNetTimestamp uint64 = 1674507600 // 2023-01-23 21:00 UTC
+const ShareVersion_V2MainNetTimestamp uint64 = math.MaxUint64
+const ShareVersion_V2TestNetTimestamp uint64 = math.MaxUint64
 
 type PoolBlock struct {
 	Main mainblock.Block
