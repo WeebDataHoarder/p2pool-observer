@@ -20,9 +20,9 @@ require (
 	github.com/tyler-sommer/stick v1.0.4
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.7.0
-	golang.org/x/exp v0.0.0-20230310171629-522b1b587ee0
+	golang.org/x/exp v0.0.0-20230315142452-642cacee5cc0
 	golang.org/x/net v0.8.0
-	lukechampine.com/uint128 v1.2.0
+	lukechampine.com/uint128 v1.3.0
 )
 
 require (

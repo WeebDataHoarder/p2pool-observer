@@ -181,6 +181,10 @@ func (d Difficulty) PutBytes(b []byte) {
 	uint128.Uint128(d).PutBytes(b)
 }
 
+func (d Difficulty) PutBytesBE(b []byte) {
+	uint128.Uint128(d).PutBytesBE(b)
+}
+
 // Big returns u as a *big.Int.
 func (d Difficulty) Big() *big.Int {
 	return uint128.Uint128(d).Big()
@@ -214,7 +218,7 @@ func DifficultyFromString(s string) (Difficulty, error) {
 }
 
 func DifficultyFromBytes(buf []byte) Difficulty {
-	return Difficulty(uint128.FromBytes(buf).ReverseBytes())
+	return Difficulty(uint128.FromBytesBE(buf))
 }
 
 func NewDifficulty(lo, hi uint64) Difficulty {
@@ -242,7 +246,7 @@ func (d *Difficulty) UnmarshalJSON(b []byte) error {
 
 func (d Difficulty) Bytes() []byte {
 	buf := make([]byte, DifficultySize)
-	d.ReverseBytes().PutBytes(buf)
+	d.PutBytesBE(buf)
 	return buf
 }
 
