@@ -13,7 +13,7 @@ type SideData struct {
 	PublicSpendKey         crypto.PublicKeyBytes
 	PublicViewKey          crypto.PublicKeyBytes
 	CoinbasePrivateKeySeed types.Hash
-	// CoinbasePrivateKey filled either on decoding, or side chain filling
+	// CoinbasePrivateKey filled or calculated on decoding
 	CoinbasePrivateKey   crypto.PrivateKeyBytes
 	Parent               types.Hash
 	Uncles               []types.Hash
@@ -23,9 +23,9 @@ type SideData struct {
 
 	// ExtraBuffer available in ShareVersion ShareVersion_2 and above
 	ExtraBuffer struct {
-		SoftwareId      p2pooltypes.SoftwareId
-		SoftwareVersion p2pooltypes.SoftwareVersion
-		RandomNumber    uint32
+		SoftwareId          p2pooltypes.SoftwareId
+		SoftwareVersion     p2pooltypes.SoftwareVersion
+		RandomNumber        uint32
 		SideChainExtraNonce uint32
 	}
 }
@@ -71,13 +71,15 @@ func (b *SideData) FromReader(reader readerAndByteReader, version ShareVersion) 
 	if _, err = io.ReadFull(reader, b.PublicViewKey[:]); err != nil {
 		return err
 	}
-	if _, err = io.ReadFull(reader, b.CoinbasePrivateKeySeed[:]); err != nil {
-		return err
-	}
 	if version > ShareVersion_V1 {
 		//needs preprocessing
+		if _, err = io.ReadFull(reader, b.CoinbasePrivateKeySeed[:]); err != nil {
+			return err
+		}
 	} else {
-		b.CoinbasePrivateKey = crypto.PrivateKeyBytes(b.CoinbasePrivateKeySeed)
+		if _, err = io.ReadFull(reader, b.CoinbasePrivateKey[:]); err != nil {
+			return err
+		}
 	}
 	if _, err = io.ReadFull(reader, b.Parent[:]); err != nil {
 		return err

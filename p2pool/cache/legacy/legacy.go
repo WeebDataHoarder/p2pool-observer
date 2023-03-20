@@ -91,7 +91,7 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 				LocalTimestamp: uint64(time.Now().Unix()),
 			}
 
-			if err := block.UnmarshalBinary(buf[:blobLength]); err != nil {
+			if err := block.UnmarshalBinary(&sidechain.NilDerivationCache{}, buf[:blobLength]); err != nil {
 				continue
 			}
 

@@ -34,19 +34,8 @@ func NewDerivationCache() *DerivationCache {
 }
 
 func (d *DerivationCache) Clear() {
-	//keep a few recent blocks from the past few for uncles, and reused window miners
-	//~10s per share, keys change every Monero block (2m). around 2160 max shares per 6h (window), plus uncles. 6 shares per minute.
-	//each share can have up to 2160 outputs, plus uncles. each miner has its own private key per Monero block
-
-	const pplnsSize = 2160
-	const pplnsDurationInMinutes = 60 * 6
-	const sharesPerMinute = pplnsSize / pplnsDurationInMinutes
-	const cacheForNMinutesOfShares = sharesPerMinute * 5
-	const knownMinersPerPplns = pplnsSize / 4
-	const outputIdsPerMiner = 2
-
-	d.deterministicKeyCache.Store(lru.New[deterministicTransactionCacheKey, *crypto.KeyPair](cacheForNMinutesOfShares))
-	d.ephemeralPublicKeyCache.Store(lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](pplnsSize * knownMinersPerPplns * outputIdsPerMiner))
+	d.deterministicKeyCache.Store(lru.New[deterministicTransactionCacheKey, *crypto.KeyPair](50))
+	d.ephemeralPublicKeyCache.Store(lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000))
 }
 
 func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {

@@ -397,7 +397,7 @@ func (c *Client) OnConnection() {
 				//NOT found
 				//TODO log
 			} else {
-				if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
@@ -453,13 +453,13 @@ func (c *Client) OnConnection() {
 				//NOT found
 				//TODO log
 			} else if messageId == MessageBlockBroadcastCompact {
-				if err = block.FromCompactReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromCompactReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
 				}
 			} else {
-				if err = block.FromReader(bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return

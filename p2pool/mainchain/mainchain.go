@@ -66,8 +66,8 @@ func (c *MainChain) Listen() error {
 
 	for {
 		select {
-		case <-s.ErrC:
-			return ctx.Err()
+		case err := <-s.ErrC:
+			return err
 		case fullChainMain := <-s.FullChainMainC:
 			if len(fullChainMain.MinerTx.Inputs) < 1 {
 				continue

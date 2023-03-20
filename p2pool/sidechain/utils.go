@@ -15,7 +15,9 @@ import (
 	"math"
 )
 
-func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId func(h types.Hash) *PoolBlock, derivationCache DerivationCacheInterface, preAllocatedShares Shares) transaction.Outputs {
+type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
+
+func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) transaction.Outputs {
 	tmpShares, _ := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)
 	tmpRewards := SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
 
@@ -48,7 +50,7 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 	return outputs
 }
 
-func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId func(h types.Hash) *PoolBlock, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
+func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
 
 	var blockDepth uint64
 
@@ -79,22 +81,33 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 
 	sharesSet := make(map[address.PackedAddress]*Share, consensus.ChainWindowSize*2)
 
+	index := 0
+	indexGet := 0
+	l := len(preAllocatedShares)
+	getPreAllocated := func() (s *Share) {
+		if indexGet < l {
+			s = preAllocatedShares[indexGet]
+		} else {
+			s = &Share{}
+		}
+		indexGet++
+		return s
+	}
+
 	insertSet := func(weight types.Difficulty, a *address.PackedAddress) {
 		if _, ok := sharesSet[*a]; ok {
 			sharesSet[*a].Weight = sharesSet[*a].Weight.Add(weight)
 		} else {
-			sharesSet[*a] = &Share{
-				Weight:  weight,
-				Address: *a,
-			}
+			s := getPreAllocated()
+			s.Weight = weight
+			s.Address = *a
+			sharesSet[*a] = s
 		}
 	}
 
-	index := 0
-	l := len(preAllocatedShares)
 	insertPreAllocated := func(share *Share) {
 		if index < l {
-			preAllocatedShares[index].Weight, preAllocatedShares[index].Address = share.Weight, share.Address
+			preAllocatedShares[index] = share
 		} else {
 			preAllocatedShares = append(preAllocatedShares, share)
 		}
@@ -194,7 +207,7 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 	return shares, bottomHeight
 }
 
-func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId func(h types.Hash) *PoolBlock) types.Difficulty {
+func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc) types.Difficulty {
 	difficultyData := make([]DifficultyData, 0, consensus.ChainWindowSize*2)
 	cur := tip
 	var blockDepth uint64

@@ -745,7 +745,7 @@ func main() {
 				NetworkType: sidechain.NetworkMainnet,
 			}
 
-			if b.UnmarshalBinary(s) == nil {
+			if b.UnmarshalBinary(&sidechain.NilDerivationCache{}, s) == nil {
 				raw = b
 			}
 		}
@@ -829,7 +829,7 @@ func main() {
 				b := &sidechain.PoolBlock{
 					NetworkType: sidechain.NetworkMainnet,
 				}
-				if b.UnmarshalBinary(s) == nil {
+				if b.UnmarshalBinary(&sidechain.NilDerivationCache{}, s) == nil {
 					raw = b
 				}
 			}

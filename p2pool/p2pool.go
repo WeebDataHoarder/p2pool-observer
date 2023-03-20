@@ -63,15 +63,26 @@ func (p *P2Pool) Cache() cache.Cache {
 	return p.cache
 }
 
-func (p *P2Pool) Close() {
+func (p *P2Pool) Close(err error) {
+	started := p.started.Swap(false)
+
 	p.ctxCancel()
 	_ = p.zmqClient.Close()
 
+	if p.server != nil {
+		p.server.Close()
+	}
 	if p.cache != nil {
 		p.cache.Close()
 	}
 	if p.archive != nil {
 		p.archive.Close()
+	}
+
+	if started && err != nil {
+		log.Panicf("[P2Pool] Closed due to error %s", err)
+	} else if started {
+		log.Printf("[P2Pool] Closed")
 	}
 }
 
@@ -308,8 +319,9 @@ func (p *P2Pool) Run() (err error) {
 	}
 
 	go func() {
-		if p.mainchain.Listen() != nil {
-			p.Close()
+		//TODO: redo listen
+		if err := p.mainchain.Listen(); err != nil {
+			p.Close(err)
 		}
 	}()
 

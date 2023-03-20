@@ -193,29 +193,32 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock,
 		return nil, err
 	}
 
+	b.FillPrivateKeys(&NilDerivationCache{}) //TODO
+
 	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
 
 	return b, nil
 }
 
-func (b *PoolBlock) FillTransactionsFromTransactionParentIndices(parent *PoolBlock) error {
-	if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
-		if slices.Index(b.Main.Transactions, types.ZeroHash) != -1 { //only do this when zero hashes exist
-			if parent != nil && types.HashFromBytes(parent.CoinbaseExtra(SideTemplateId)) == b.Side.Parent {
-				for i, parentIndex := range b.Main.TransactionParentIndices {
-					if parentIndex != 0 {
-						// p2pool stores coinbase transaction hash as well, decrease
-						actualIndex := parentIndex - 1
-						if actualIndex > uint64(len(parent.Main.Transactions)) {
-							return errors.New("index of parent transaction out of bounds")
+func (b *PoolBlock) NeedsCompactTransactionFilling() bool {
+	return len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) && slices.Index(b.Main.Transactions, types.ZeroHash) != -1
+}
 
-						}
-						b.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
+func (b *PoolBlock) FillTransactionsFromTransactionParentIndices(parent *PoolBlock) error {
+	if b.NeedsCompactTransactionFilling() {
+		if parent != nil && types.HashFromBytes(parent.CoinbaseExtra(SideTemplateId)) == b.Side.Parent {
+			for i, parentIndex := range b.Main.TransactionParentIndices {
+				if parentIndex != 0 {
+					// p2pool stores coinbase transaction hash as well, decrease
+					actualIndex := parentIndex - 1
+					if actualIndex > uint64(len(parent.Main.Transactions)) {
+						return errors.New("index of parent transaction out of bounds")
 					}
+					b.Main.Transactions[i] = parent.Main.Transactions[actualIndex]
 				}
-			} else if parent == nil {
-				return errors.New("parent is nil")
 			}
+		} else if parent == nil {
+			return errors.New("parent is nil")
 		}
 	}
 
@@ -426,9 +429,9 @@ func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash t
 	}
 }
 
-func (b *PoolBlock) UnmarshalBinary(data []byte) error {
+func (b *PoolBlock) UnmarshalBinary(derivationCache DerivationCacheInterface, data []byte) error {
 	reader := bytes.NewReader(data)
-	return b.FromReader(reader)
+	return b.FromReader(derivationCache, reader)
 }
 
 func (b *PoolBlock) MarshalBinary() ([]byte, error) {
@@ -457,7 +460,7 @@ func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
 	}
 }
 
-func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromReader(derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
 	if err = b.Main.FromReader(reader); err != nil {
 		return err
 	}
@@ -466,11 +469,13 @@ func (b *PoolBlock) FromReader(reader readerAndByteReader) (err error) {
 		return err
 	}
 
+	b.FillPrivateKeys(derivationCache)
+
 	return nil
 }
 
 // FromCompactReader used in Protocol 1.1 and above
-func (b *PoolBlock) FromCompactReader(reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromCompactReader(derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
 	if err = b.Main.FromCompactReader(reader); err != nil {
 		return err
 	}
@@ -479,7 +484,21 @@ func (b *PoolBlock) FromCompactReader(reader readerAndByteReader) (err error) {
 		return err
 	}
 
+	b.FillPrivateKeys(derivationCache)
+
 	return nil
+}
+
+func (b *PoolBlock) FillPrivateKeys(derivationCache DerivationCacheInterface) {
+	if b.ShareVersion() > ShareVersion_V1 {
+		if bytes.Compare(b.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
+			//Fill Private Key
+			kP := derivationCache.GetDeterministicTransactionKey(b.GetPrivateKeySeed(), b.Main.PreviousId)
+			b.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
+		}
+	} else {
+		b.Side.CoinbasePrivateKeySeed = b.GetPrivateKeySeed()
+	}
 }
 
 func (b *PoolBlock) IsProofHigherThanMainDifficulty(difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) bool {

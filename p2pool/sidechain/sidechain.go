@@ -85,6 +85,10 @@ func (c *SideChain) Consensus() *Consensus {
 	return c.server.Consensus()
 }
 
+func (c *SideChain) DerivationCache() *DerivationCache {
+	return c.derivationCache
+}
+
 func (c *SideChain) PreCalcFinished() bool {
 	return c.precalcFinished.Load()
 }
@@ -92,12 +96,6 @@ func (c *SideChain) PreCalcFinished() bool {
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
-
-	if block.ShareVersion() > ShareVersion_V1 && bytes.Compare(block.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
-		//Fill Private Key
-		kP := c.derivationCache.GetDeterministicTransactionKey(block.GetPrivateKeySeed(), block.Main.PreviousId)
-		block.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
-	}
 
 	if len(block.Main.Coinbase.Outputs) == 0 {
 		if outputs := c.getOutputs(block); outputs == nil {
@@ -113,7 +111,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 		}
 	}
 
-	if len(block.Main.TransactionParentIndices) > 0 && len(block.Main.TransactionParentIndices) == len(block.Main.Transactions) {
+	if block.NeedsCompactTransactionFilling() {
 		parent := c.getParent(block)
 		if parent == nil {
 			missingBlocks = append(missingBlocks, block.Side.Parent)
@@ -136,9 +134,6 @@ func (c *SideChain) fillPoolBlockTransactionParentIndices(block *PoolBlock) {
 
 func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) bool {
 	kP := c.derivationCache.GetDeterministicTransactionKey(block.GetPrivateKeySeed(), block.Main.PreviousId)
-	if block.ShareVersion() > ShareVersion_V1 {
-		block.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
-	}
 	return bytes.Compare(block.CoinbaseExtra(SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(kP.PrivateKey.AsSlice(), block.Side.CoinbasePrivateKey[:]) == 0
 }
 

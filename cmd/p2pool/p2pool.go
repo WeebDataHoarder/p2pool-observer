@@ -108,7 +108,7 @@ func main() {
 	if instance, err := p2pool2.NewP2Pool(currentConsensus, settings); err != nil {
 		log.Fatalf("Could not start p2pool: %s", err)
 	} else {
-		defer instance.Close()
+		defer instance.Close(nil)
 
 		if *apiBind != "" {
 			serveMux := mux.NewRouter()

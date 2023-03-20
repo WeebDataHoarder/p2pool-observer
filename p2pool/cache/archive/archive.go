@@ -53,7 +53,7 @@ func NewCache(path string, consensus *sidechain.Consensus, difficultyByHeight bl
 			db:                 db,
 			consensus:          consensus,
 			difficultyByHeight: difficultyByHeight,
-			derivationCache:    &sidechain.NilDerivationCache{},
+			derivationCache:    sidechain.NewDerivationCache(),
 		}, nil
 	}
 }
@@ -192,32 +192,42 @@ func (c *Cache) ProcessBlock(b *sidechain.PoolBlock) error {
 	var getTemplateByIdFillingTx func(h types.Hash) *sidechain.PoolBlock
 
 	getTemplateByIdFillingTx = func(h types.Hash) *sidechain.PoolBlock {
-		if bs := c.LoadByTemplateId(h); len(bs) > 0 {
-			if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
-				if err := b.FillTransactionsFromTransactionParentIndices(getTemplateByIdFillingTx(b.Side.Parent)); err != nil {
-					return nil
+		chain := make(sidechain.UniquePoolBlockSlice, 0, EpochSize)
+
+		cur := getTemplateById(h)
+		for ; cur != nil; cur = getTemplateById(cur.Side.Parent) {
+			chain = append(chain, cur)
+			if !cur.NeedsCompactTransactionFilling() {
+				break
+			}
+			if len(chain) > 1 {
+				if chain[len(chain)-2].FillTransactionsFromTransactionParentIndices(chain[len(chain)-1]) == nil {
+					if !chain[len(chain)-2].NeedsCompactTransactionFilling() {
+						//early abort if it can all be filled
+						chain = chain[:len(chain)-1]
+						break
+					}
 				}
 			}
-			return bs[0]
 		}
-		return nil
+		if len(chain) == 0 {
+			return nil
+		}
+		//skips last entry
+		for i := len(chain) - 2; i >= 0; i-- {
+			if err := chain[i].FillTransactionsFromTransactionParentIndices(chain[i+1]); err != nil {
+				return nil
+			}
+		}
+		return chain[0]
 	}
 
-	//TODO: this should not recurse fully, just enough to fill
-	parent := getTemplateByIdFillingTx(b.Side.Parent)
-
-	if len(b.Main.TransactionParentIndices) > 0 && len(b.Main.TransactionParentIndices) == len(b.Main.Transactions) {
+	if b.NeedsCompactTransactionFilling() {
+		parent := getTemplateByIdFillingTx(b.Side.Parent)
 		if err := b.FillTransactionsFromTransactionParentIndices(parent); err != nil {
 			return fmt.Errorf("error filling transactions for block: %w", err)
 		}
-	}
-
-	b.FillTransactionParentIndices(parent)
-
-	if b.ShareVersion() > sidechain.ShareVersion_V1 && bytes.Compare(b.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
-		//Fill Private Key
-		kP := c.derivationCache.GetDeterministicTransactionKey(b.GetPrivateKeySeed(), b.Main.PreviousId)
-		b.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()
+		b.FillTransactionParentIndices(parent)
 	}
 
 	if len(b.Main.Coinbase.Outputs) == 0 {
@@ -251,12 +261,12 @@ func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {
 	}
 	reader := bytes.NewReader(blob[8:])
 	if (flags & 0b10) > 0 {
-		if err := b.FromCompactReader(reader); err != nil {
+		if err := b.FromCompactReader(c.derivationCache, reader); err != nil {
 			log.Printf("[Archive Cache] error decoding block: %s", err)
 			return nil
 		}
 	} else {
-		if err := b.FromReader(reader); err != nil {
+		if err := b.FromReader(c.derivationCache, reader); err != nil {
 			log.Printf("[Archive Cache] error decoding block: %s", err)
 			return nil
 		}
