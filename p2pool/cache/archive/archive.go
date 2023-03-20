@@ -87,8 +87,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	binary.BigEndian.PutUint64(mainHeight[:], block.Main.Coinbase.GenHeight)
 
 	if c.existsByMainId(mainId) {
-		//return
-		//TODO: remove this next day
+		return
 	}
 
 	var storePruned, storeCompact bool

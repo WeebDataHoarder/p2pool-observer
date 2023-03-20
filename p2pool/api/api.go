@@ -32,11 +32,8 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 	//TODO: adjust for fork
 	shares = make(map[uint64]types.Difficulty)
 
-	var blockDepth uint64
-
-	block := tip
-
 	blockCache := make(map[uint64]*database.Block, a.p2api.Consensus().ChainWindowSize)
+
 	for b := range a.db.GetBlocksInWindow(&tip.Height, a.p2api.Consensus().ChainWindowSize) {
 		blockCache[b.Height] = b
 	}
@@ -59,6 +56,9 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 	}
 	var pplnsWeight types.Difficulty
 
+	var blockDepth uint64
+	block := tip
+
 	for {
 
 		curWeight := block.Difficulty
@@ -76,12 +76,14 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 				continue
 			}
 
-			curWeight = curWeight.Add(uncleWeight)
+			curWeight = curWeight.Add(unclePenalty)
 
 			if _, ok := shares[uncle.Block.MinerId]; !ok {
 				shares[uncle.Block.MinerId] = types.DifficultyFrom64(0)
 			}
 			shares[uncle.Block.MinerId] = shares[uncle.Block.MinerId].Add(uncleWeight)
+
+			pplnsWeight = newPplnsWeight
 		}
 
 		if _, ok := shares[block.MinerId]; !ok {
