@@ -39,7 +39,11 @@ func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
 	buf = make([]byte, 0, types.HashSize+types.HashSize+types.HashSize+types.HashSize+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+4*4)
 	buf = append(buf, b.PublicSpendKey[:]...)
 	buf = append(buf, b.PublicViewKey[:]...)
-	buf = append(buf, b.CoinbasePrivateKeySeed[:]...)
+	if version > ShareVersion_V1 {
+		buf = append(buf, b.CoinbasePrivateKeySeed[:]...)
+	} else {
+		buf = append(buf, b.CoinbasePrivateKey[:]...)
+	}
 	buf = append(buf, b.Parent[:]...)
 	buf = binary.AppendUvarint(buf, uint64(len(b.Uncles)))
 	for _, uId := range b.Uncles {
