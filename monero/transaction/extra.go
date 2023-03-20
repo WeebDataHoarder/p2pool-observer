@@ -26,9 +26,9 @@ const TxExtraTemplateNonceSize = 4
 type ExtraTags []ExtraTag
 
 type ExtraTag struct {
-	Tag          uint8
-	VarIntLength uint64
-	Data         []byte
+	Tag          uint8       `json:"tag"`
+	VarIntLength uint64      `json:"var_int_length"`
+	Data         types.Bytes `json:"data"`
 }
 
 func (t *ExtraTags) UnmarshalBinary(data []byte) (err error) {

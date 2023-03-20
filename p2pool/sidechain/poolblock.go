@@ -72,21 +72,21 @@ func (s UniquePoolBlockSlice) GetHeight(height uint64) (result UniquePoolBlockSl
 }
 
 type PoolBlock struct {
-	Main mainblock.Block
+	Main mainblock.Block `json:"main"`
 
-	Side SideData
+	Side SideData `json:"side"`
 
 	//Temporary data structures
 	cache    poolBlockCache
-	Depth    atomic.Uint64
-	Verified atomic.Bool
-	Invalid  atomic.Bool
+	Depth    atomic.Uint64 `json:"-"`
+	Verified atomic.Bool   `json:"-"`
+	Invalid  atomic.Bool   `json:"-"`
 
-	WantBroadcast atomic.Bool
-	Broadcasted   atomic.Bool
+	WantBroadcast atomic.Bool `json:"-"`
+	Broadcasted   atomic.Bool `json:"-"`
 
-	NetworkType    NetworkType
-	LocalTimestamp uint64
+	NetworkType    NetworkType `json:"-"`
+	LocalTimestamp uint64      `json:"-"`
 }
 
 // NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares

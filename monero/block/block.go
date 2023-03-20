@@ -13,17 +13,17 @@ import (
 )
 
 type Block struct {
-	MajorVersion uint8
-	MinorVersion uint8
-	Timestamp    uint64
-	PreviousId   types.Hash
-	Nonce        uint32
+	MajorVersion uint8      `json:"major_version"`
+	MinorVersion uint8      `json:"minor_version"`
+	Timestamp    uint64     `json:"timestamp"`
+	PreviousId   types.Hash `json:"previous_id"`
+	Nonce        uint32     `json:"nonce"`
 
-	Coinbase *transaction.CoinbaseTransaction
+	Coinbase *transaction.CoinbaseTransaction `json:"coinbase"`
 
-	Transactions []types.Hash
+	Transactions []types.Hash `json:"transactions"`
 	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks or by pre-processing.
-	TransactionParentIndices []uint64
+	TransactionParentIndices []uint64 `json:"-"`
 }
 
 type Header struct {

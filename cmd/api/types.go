@@ -16,17 +16,18 @@ type poolInfoResult struct {
 }
 
 type poolInfoResultSideChain struct {
-	Id           types.Hash                    `json:"id"`
-	Height       uint64                        `json:"height"`
-	Difficulty   types.Difficulty              `json:"difficulty"`
-	Timestamp    uint64                        `json:"timestamp"`
-	Effort       poolInfoResultSideChainEffort `json:"effort"`
-	Window       poolInfoResultSideChainWindow `json:"window"`
-	WindowSize   int                           `json:"window_size"`
-	BlockTime    int                           `json:"block_time"`
-	UnclePenalty int                           `json:"uncle_penalty"`
-	Found        uint64                        `json:"found"`
-	Miners       uint64                        `json:"miners"`
+	Id            types.Hash                    `json:"id"`
+	Height        uint64                        `json:"height"`
+	Difficulty    types.Difficulty              `json:"difficulty"`
+	Timestamp     uint64                        `json:"timestamp"`
+	Effort        poolInfoResultSideChainEffort `json:"effort"`
+	Window        poolInfoResultSideChainWindow `json:"window"`
+	WindowSize    int                           `json:"window_size"`
+	MaxWindowSize int                           `json:"max_window_size"`
+	BlockTime     int                           `json:"block_time"`
+	UnclePenalty  int                           `json:"uncle_penalty"`
+	Found         uint64                        `json:"found"`
+	Miners        uint64                        `json:"miners"`
 }
 
 type poolInfoResultSideChainEffort struct {

@@ -25,28 +25,28 @@ func (a *Api) GetDatabase() *database.Database {
 	return a.db
 }
 
-func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]types.Difficulty) {
+func (a *Api) GetBlockWindowPayouts(tip database.BlockInterface) (shares map[uint64]types.Difficulty, bottomHeight uint64) {
 	if tip == nil {
-		return nil
+		return nil, 0
 	}
 	//TODO: adjust for fork
 	shares = make(map[uint64]types.Difficulty)
 
 	blockCache := make(map[uint64]*database.Block, a.p2api.Consensus().ChainWindowSize)
 
-	for b := range a.db.GetBlocksInWindow(&tip.Height, a.p2api.Consensus().ChainWindowSize) {
+	for b := range a.db.GetBlocksInWindow(&tip.GetBlock().Height, a.p2api.Consensus().ChainWindowSize) {
 		blockCache[b.Height] = b
 	}
 
-	mainchainDiff := a.p2api.MainDifficultyByHeight(randomx.SeedHeight(tip.Main.Height))
+	mainchainDiff := a.p2api.MainDifficultyByHeight(randomx.SeedHeight(tip.GetBlock().Main.Height))
 
 	if mainchainDiff == types.ZeroDifficulty {
-		return nil
+		return nil, 0
 	}
 
 	//TODO: remove this hack
 	sidechainVersion := sidechain.ShareVersion_V1
-	if tip.Timestamp >= sidechain.ShareVersion_V2MainNetTimestamp {
+	if tip.GetBlock().Timestamp >= sidechain.ShareVersion_V2MainNetTimestamp {
 		sidechainVersion = sidechain.ShareVersion_V2
 	}
 	maxPplnsWeight := types.MaxDifficulty
@@ -57,14 +57,14 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 	var pplnsWeight types.Difficulty
 
 	var blockDepth uint64
-	block := tip
+	block := tip.GetBlock()
 
 	for {
 
 		curWeight := block.Difficulty
 
 		for uncle := range a.db.GetUnclesByParentId(block.Id) {
-			if (tip.Height - uncle.Block.Height) >= a.p2api.Consensus().ChainWindowSize {
+			if (tip.GetBlock().Height - uncle.Block.Height) >= a.p2api.Consensus().ChainWindowSize {
 				continue
 			}
 
@@ -117,7 +117,7 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 		}
 	}
 
-	totalReward := tip.Coinbase.Reward
+	totalReward := tip.GetBlock().Coinbase.Reward
 
 	if totalReward > 0 {
 		totalWeight := types.DifficultyFrom64(0)
@@ -139,8 +139,8 @@ func (a *Api) GetBlockWindowPayouts(tip *database.Block) (shares map[uint64]type
 	if (block == nil || block.Height != 0) &&
 		((sidechainVersion == sidechain.ShareVersion_V1 && blockDepth != a.p2api.Consensus().ChainWindowSize) ||
 			(sidechainVersion > sidechain.ShareVersion_V1 && (blockDepth != a.p2api.Consensus().ChainWindowSize) && pplnsWeight.Cmp(maxPplnsWeight) <= 0)) {
-		return nil
+		return nil, blockDepth
 	}
 
-	return shares
+	return shares, blockDepth
 }

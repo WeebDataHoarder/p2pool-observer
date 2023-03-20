@@ -15,21 +15,21 @@ import (
 type CoinbaseTransaction struct {
 	id         types.Hash
 	idLock     sync.Mutex
-	Version    uint8
-	UnlockTime uint64
-	InputCount uint8
-	InputType  uint8
-	GenHeight  uint64
-	Outputs    Outputs
+	Version    uint8   `json:"version"`
+	UnlockTime uint64  `json:"unlock_time"`
+	InputCount uint8   `json:"input_count"`
+	InputType  uint8   `json:"input_type"`
+	GenHeight  uint64  `json:"gen_height"`
+	Outputs    Outputs `json:"outputs"`
 
 	// OutputsBlobSize length of serialized Outputs. Used by p2pool serialized pruned blocks, filled regardless
-	OutputsBlobSize uint64
+	OutputsBlobSize uint64 `json:"-"`
 	// TotalReward amount of reward existing Outputs. Used by p2pool serialized pruned blocks, filled regardless
-	TotalReward uint64
+	TotalReward uint64 `json:"total_reward"`
 
-	Extra ExtraTags
+	Extra ExtraTags `json:"extra"`
 
-	ExtraBaseRCT uint8
+	ExtraBaseRCT uint8 `json:"extra_base_rct"`
 }
 
 type readerAndByteReader interface {

@@ -10,7 +10,6 @@ import (
 
 type Outputs []Output
 
-
 func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 	var outputCount uint64
 
@@ -59,7 +58,7 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 }
 
 func (s *Outputs) MarshalBinary() (data []byte, err error) {
-	data = make([]byte, 0, binary.MaxVarintLen64 + len(*s) * (binary.MaxVarintLen64 + 1 + crypto.PublicKeySize + 1))
+	data = make([]byte, 0, binary.MaxVarintLen64+len(*s)*(binary.MaxVarintLen64+1+crypto.PublicKeySize+1))
 
 	data = binary.AppendUvarint(data, uint64(len(*s)))
 
@@ -82,9 +81,9 @@ func (s *Outputs) MarshalBinary() (data []byte, err error) {
 }
 
 type Output struct {
-	Index              uint64
-	Reward             uint64
-	Type               uint8
-	EphemeralPublicKey crypto.PublicKeyBytes
-	ViewTag            uint8
+	Index              uint64                `json:"index"`
+	Reward             uint64                `json:"reward"`
+	Type               uint8                 `json:"type"`
+	EphemeralPublicKey crypto.PublicKeyBytes `json:"ephemeral_public_key"`
+	ViewTag            uint8                 `json:"view_tag"`
 }

@@ -35,10 +35,9 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 				}
 			}
 		} else {
-			payoutHint := api.GetBlockWindowPayouts(b)
+			payoutHint, _ := api.GetBlockWindowPayouts(b)
 
 			addresses := make(map[address.PackedAddress]*database.JSONCoinbaseOutput, len(payoutHint))
-
 
 			for minerId, amount := range payoutHint {
 				miner := api.GetDatabase().GetMiner(minerId)

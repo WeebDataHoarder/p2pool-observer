@@ -93,32 +93,62 @@ func main() {
 		blockCount := 0
 		uncleCount := 0
 
-		var windowDifficulty types.Difficulty
+		mainchainDiff := p2api.MainDifficultyByHeight(randomx.SeedHeight(tip.GetBlock().Main.Height))
+
+		sidechainVersion := sidechain.ShareVersion_V1
+		if tip.GetBlock().Timestamp >= sidechain.ShareVersion_V2MainNetTimestamp {
+			sidechainVersion = sidechain.ShareVersion_V2
+		}
+		maxPplnsWeight := types.MaxDifficulty
+
+		if sidechainVersion > sidechain.ShareVersion_V1 {
+			maxPplnsWeight = mainchainDiff.Mul64(2)
+		}
+		var pplnsWeight types.Difficulty
 
 		miners := make(map[uint64]uint64)
 
 		for b := range api.GetDatabase().GetBlocksInWindow(&tip.Height, 0) {
-			blockCount++
-			if _, ok := miners[b.MinerId]; !ok {
-				miners[b.MinerId] = 0
+			if uint64(blockCount) >= p2api.Consensus().ChainWindowSize || pplnsWeight.Cmp(maxPplnsWeight) > 0 {
+				continue
 			}
-			miners[b.MinerId]++
 
-			windowDifficulty = windowDifficulty.Add(b.Difficulty)
+			curWeight := b.Difficulty
 			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
-				//TODO: check this check is correct :)
-				if (tip.Height - u.Block.Height) > p2api.Consensus().ChainWindowSize {
+				if (tip.Height - u.Block.Height) >= p2api.Consensus().ChainWindowSize {
 					continue
 				}
+
+				unclePenalty := u.Block.Difficulty.Mul64(p2api.Consensus().UnclePenalty).Div64(100)
+				uncleWeight := u.Block.Difficulty.Sub(unclePenalty)
+				newPplnsWeight := pplnsWeight.Add(uncleWeight)
+
+				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
+					continue
+				}
+				curWeight = curWeight.Add(unclePenalty)
+
+				pplnsWeight = newPplnsWeight
 
 				uncleCount++
 				if _, ok := miners[u.Block.MinerId]; !ok {
 					miners[u.Block.MinerId] = 0
 				}
 				miners[u.Block.MinerId]++
-
-				windowDifficulty = windowDifficulty.Add(u.Block.Difficulty)
 			}
+
+			pplnsWeight = pplnsWeight.Add(curWeight)
+
+			if pplnsWeight.Cmp(maxPplnsWeight) > 0 {
+				continue
+			}
+
+			blockCount++
+
+			if _, ok := miners[b.MinerId]; !ok {
+				miners[b.MinerId] = 0
+			}
+			miners[b.MinerId]++
 		}
 
 		type totalKnownResult struct {
@@ -190,13 +220,14 @@ func main() {
 					Miners: len(miners),
 					Blocks: blockCount,
 					Uncles: uncleCount,
-					Weight: windowDifficulty,
+					Weight: pplnsWeight,
 				},
-				WindowSize:   int(p2api.Consensus().ChainWindowSize),
-				BlockTime:    int(p2api.Consensus().TargetBlockTime),
-				UnclePenalty: int(p2api.Consensus().UnclePenalty),
-				Found:        totalKnown.blocksFound,
-				Miners:       totalKnown.minersKnown,
+				WindowSize:    blockCount,
+				MaxWindowSize: int(p2api.Consensus().ChainWindowSize),
+				BlockTime:     int(p2api.Consensus().TargetBlockTime),
+				UnclePenalty:  int(p2api.Consensus().UnclePenalty),
+				Found:         totalKnown.blocksFound,
+				Miners:        totalKnown.minersKnown,
 			},
 			MainChain: poolInfoResultMainChain{
 				Id:         tip.Template.Id,
