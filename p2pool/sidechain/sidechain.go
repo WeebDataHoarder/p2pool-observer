@@ -94,38 +94,15 @@ func (c *SideChain) PreCalcFinished() bool {
 }
 
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
-	c.sidechainLock.RLock()
-	defer c.sidechainLock.RUnlock()
-
 	if len(block.Main.Coinbase.Outputs) == 0 {
-		if outputs := c.getOutputs(block); outputs == nil {
-			return nil, errors.New("nil transaction outputs")
-		} else {
-			block.Main.Coinbase.Outputs = outputs
-		}
-
-		if outputBlob, err := block.Main.Coinbase.OutputsBlob(); err != nil {
-			return nil, err
-		} else if uint64(len(outputBlob)) != block.Main.Coinbase.OutputsBlobSize {
-			return nil, fmt.Errorf("invalid output blob size, got %d, expected %d", block.Main.Coinbase.OutputsBlobSize, len(outputBlob))
+		//cannot use SideTemplateId() as it might not be proper to calculate yet. fetch from coinbase only here
+		if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
+			block.Main.Coinbase.Outputs = b.Main.Coinbase.Outputs
 		}
 	}
 
-	if block.NeedsCompactTransactionFilling() {
-		parent := c.getParent(block)
-		if parent == nil {
-			missingBlocks = append(missingBlocks, block.Side.Parent)
-			return missingBlocks, errors.New("parent does not exist in compact block")
-		}
-		if err = block.FillTransactionsFromTransactionParentIndices(parent); err != nil {
-			return nil, err
-		}
-	} else {
-		// fill if not received from network
-		c.fillPoolBlockTransactionParentIndices(block)
-	}
-
-	return nil, nil
+	preAllocatedShares := make(Shares, 0, c.Consensus().ChainWindowSize*2)
+	return block.PreProcessBlock(c.Consensus(), c.derivationCache, preAllocatedShares, c.server.GetDifficultyByHeight, c.GetPoolBlockByTemplateId)
 }
 
 func (c *SideChain) fillPoolBlockTransactionParentIndices(block *PoolBlock) {
@@ -762,16 +739,7 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 	return missingBlocks
 }
 
-func (c *SideChain) getOutputs(block *PoolBlock) transaction.Outputs {
-	//cannot use SideTemplateId() as it might not be proper to calculate yet. fetch from coinbase only here
-	if b := c.getPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
-		return b.Main.Coinbase.Outputs
-	}
-
-	return c.calculateOutputs(block)
-}
-
-func (c *SideChain) calculateOutputs(block *PoolBlock) transaction.Outputs {
+func (c *SideChain) calculateOutputs(block *PoolBlock) (outputs transaction.Outputs, bottomHeight uint64) {
 	//TODO: buffer
 	preAllocatedShares := make(Shares, 0, c.Consensus().ChainWindowSize*2)
 	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares)

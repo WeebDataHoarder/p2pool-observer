@@ -3,7 +3,6 @@ package archive
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -181,72 +180,15 @@ func (c *Cache) loadByMainId(tx *bolt.Tx, id types.Hash) []byte {
 }
 
 func (c *Cache) ProcessBlock(b *sidechain.PoolBlock) error {
-	var getTemplateById func(h types.Hash) *sidechain.PoolBlock
-
-	getTemplateById = func(h types.Hash) *sidechain.PoolBlock {
+	getTemplateById := func(h types.Hash) *sidechain.PoolBlock {
 		if bs := c.LoadByTemplateId(h); len(bs) > 0 {
 			return bs[0]
 		}
 		return nil
 	}
-	var getTemplateByIdFillingTx func(h types.Hash) *sidechain.PoolBlock
-
-	getTemplateByIdFillingTx = func(h types.Hash) *sidechain.PoolBlock {
-		chain := make(sidechain.UniquePoolBlockSlice, 0, EpochSize)
-
-		cur := getTemplateById(h)
-		for ; cur != nil; cur = getTemplateById(cur.Side.Parent) {
-			chain = append(chain, cur)
-			if !cur.NeedsCompactTransactionFilling() {
-				break
-			}
-			if len(chain) > 1 {
-				if chain[len(chain)-2].FillTransactionsFromTransactionParentIndices(chain[len(chain)-1]) == nil {
-					if !chain[len(chain)-2].NeedsCompactTransactionFilling() {
-						//early abort if it can all be filled
-						chain = chain[:len(chain)-1]
-						break
-					}
-				}
-			}
-		}
-		if len(chain) == 0 {
-			return nil
-		}
-		//skips last entry
-		for i := len(chain) - 2; i >= 0; i-- {
-			if err := chain[i].FillTransactionsFromTransactionParentIndices(chain[i+1]); err != nil {
-				return nil
-			}
-		}
-		return chain[0]
-	}
-
-	if b.NeedsCompactTransactionFilling() {
-		parent := getTemplateByIdFillingTx(b.Side.Parent)
-		if err := b.FillTransactionsFromTransactionParentIndices(parent); err != nil {
-			return fmt.Errorf("error filling transactions for block: %w", err)
-		}
-		b.FillTransactionParentIndices(parent)
-	}
-
-	if len(b.Main.Coinbase.Outputs) == 0 {
-		//TODO: make this optional
-		preAllocatedShares := make(sidechain.Shares, 0, c.consensus.ChainWindowSize*2)
-		if outputs := sidechain.CalculateOutputs(b, c.consensus, c.difficultyByHeight, getTemplateById, c.derivationCache, preAllocatedShares); outputs == nil {
-			return errors.New("error filling outputs for block: nil outputs")
-		} else {
-			b.Main.Coinbase.Outputs = outputs
-		}
-
-		if outputBlob, err := b.Main.Coinbase.OutputsBlob(); err != nil {
-			return fmt.Errorf("error filling outputs for block: %s", err)
-		} else if uint64(len(outputBlob)) != b.Main.Coinbase.OutputsBlobSize {
-			return fmt.Errorf("error filling outputs for block: invalid output blob size, got %d, expected %d", b.Main.Coinbase.OutputsBlobSize, len(outputBlob))
-		}
-	}
-
-	return nil
+	preAllocatedShares := make(sidechain.Shares, 0, c.consensus.ChainWindowSize*2)
+	_, err := b.PreProcessBlock(c.consensus, c.derivationCache, preAllocatedShares, c.difficultyByHeight, getTemplateById)
+	return err
 }
 
 func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {

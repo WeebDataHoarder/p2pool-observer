@@ -489,6 +489,76 @@ func (b *PoolBlock) FromCompactReader(derivationCache DerivationCacheInterface, 
 	return nil
 }
 
+// PreProcessBlock processes and fills the block data from either pruned or compact modes
+func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache DerivationCacheInterface, preAllocatedShares Shares, difficultyByHeight mainblock.GetDifficultyByHeightFunc, getTemplateById GetByTemplateIdFunc) (missingBlocks []types.Hash, err error) {
+
+	getTemplateByIdFillingTx := func(h types.Hash) *PoolBlock {
+		chain := make(UniquePoolBlockSlice, 0, 1)
+
+		cur := getTemplateById(h)
+		for ; cur != nil; cur = getTemplateById(cur.Side.Parent) {
+			chain = append(chain, cur)
+			if !cur.NeedsCompactTransactionFilling() {
+				break
+			}
+			if len(chain) > 1 {
+				if chain[len(chain)-2].FillTransactionsFromTransactionParentIndices(chain[len(chain)-1]) == nil {
+					if !chain[len(chain)-2].NeedsCompactTransactionFilling() {
+						//early abort if it can all be filled
+						chain = chain[:len(chain)-1]
+						break
+					}
+				}
+			}
+		}
+		if len(chain) == 0 {
+			return nil
+		}
+		//skips last entry
+		for i := len(chain) - 2; i >= 0; i-- {
+			if err := chain[i].FillTransactionsFromTransactionParentIndices(chain[i+1]); err != nil {
+				return nil
+			}
+		}
+		return chain[0]
+	}
+
+	var parent *PoolBlock
+	if b.NeedsCompactTransactionFilling() {
+		parent = getTemplateByIdFillingTx(b.Side.Parent)
+		if parent == nil {
+			missingBlocks = append(missingBlocks, b.Side.Parent)
+			return missingBlocks, errors.New("parent does not exist in compact block")
+		}
+		if err := b.FillTransactionsFromTransactionParentIndices(parent); err != nil {
+			return nil, fmt.Errorf("error filling transactions for block: %w", err)
+		}
+	}
+
+	if len(b.Main.Transactions) != len(b.Main.TransactionParentIndices) {
+		if parent == nil {
+			parent = getTemplateByIdFillingTx(b.Side.Parent)
+		}
+		b.FillTransactionParentIndices(parent)
+	}
+
+	if len(b.Main.Coinbase.Outputs) == 0 {
+		if outputs, _ := CalculateOutputs(b, consensus, difficultyByHeight, getTemplateById, derivationCache, preAllocatedShares); outputs == nil {
+			return nil, errors.New("error filling outputs for block: nil outputs")
+		} else {
+			b.Main.Coinbase.Outputs = outputs
+		}
+
+		if outputBlob, err := b.Main.Coinbase.OutputsBlob(); err != nil {
+			return nil, fmt.Errorf("error filling outputs for block: %s", err)
+		} else if uint64(len(outputBlob)) != b.Main.Coinbase.OutputsBlobSize {
+			return nil, fmt.Errorf("error filling outputs for block: invalid output blob size, got %d, expected %d", b.Main.Coinbase.OutputsBlobSize, len(outputBlob))
+		}
+	}
+
+	return nil, nil
+}
+
 func (b *PoolBlock) FillPrivateKeys(derivationCache DerivationCacheInterface) {
 	if b.ShareVersion() > ShareVersion_V1 {
 		if bytes.Compare(b.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {

@@ -64,7 +64,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		c.sidechainLock.RLock()
 		defer c.sidechainLock.RUnlock()
 
-		calculatedOutputs := c.calculateOutputs(block)
+		calculatedOutputs, _ := c.calculateOutputs(block)
 		calcBlob, _ := calculatedOutputs.MarshalBinary()
 		blockBlob, _ := block.Main.Coinbase.Outputs.MarshalBinary()
 		storeBlob := bytes.Compare(calcBlob, blockBlob) != 0

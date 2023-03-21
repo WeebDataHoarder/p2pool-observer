@@ -17,17 +17,17 @@ import (
 
 type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
 
-func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) transaction.Outputs {
-	tmpShares, _ := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)
+func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) (outputs transaction.Outputs, bottomHeight uint64) {
+	tmpShares, bottomHeight := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)
 	tmpRewards := SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
 
 	if tmpShares == nil || tmpRewards == nil || len(tmpRewards) != len(tmpShares) {
-		return nil
+		return nil, 0
 	}
 
 	n := uint64(len(tmpShares))
 
-	outputs := make(transaction.Outputs, n)
+	outputs = make(transaction.Outputs, n)
 
 	txType := block.GetTransactionOutputType()
 
@@ -47,7 +47,7 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 		return nil
 	})
 
-	return outputs
+	return outputs, bottomHeight
 }
 
 func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
