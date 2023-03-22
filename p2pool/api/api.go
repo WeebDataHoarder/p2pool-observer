@@ -21,6 +21,10 @@ func New(db *database.Database, p2api *P2PoolApi) (*Api, error) {
 	return api, nil
 }
 
+func (a *Api) GetP2PoolAPI() *P2PoolApi {
+	return a.p2api
+}
+
 func (a *Api) GetDatabase() *database.Database {
 	return a.db
 }

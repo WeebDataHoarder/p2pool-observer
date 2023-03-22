@@ -11,7 +11,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -462,7 +461,7 @@ func main() {
 			}
 
 			for u := range api.GetDatabase().GetUnclesByParentId(block.Id) {
-				uncleWeight := u.Block.Difficulty.Mul64(p2pool.UnclePenalty).Div64(100)
+				uncleWeight := u.Block.Difficulty.Mul64(p2api.Consensus().UnclePenalty).Div64(100)
 				s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
 					Id:     u.Block.Id,
 					Height: u.Block.Height,
@@ -483,7 +482,7 @@ func main() {
 				Id:        uncle.Block.Id,
 				Height:    uncle.Block.Height,
 				Timestamp: uncle.Block.Timestamp,
-				Weight:    uncle.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
+				Weight:    uncle.Block.Difficulty.Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo,
 			}
 			result = append(result, s)
 		}

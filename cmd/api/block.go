@@ -3,7 +3,6 @@ package main
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -72,17 +71,17 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 			Height: uncle.ParentHeight,
 		}
 
-		weight = weight.Mul64(100 - p2pool.UnclePenalty).Div64(100)
+		weight = weight.Mul64(100 - api.GetP2PoolAPI().Consensus().UnclePenalty).Div64(100)
 	} else {
 		for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
-			uncleWeight := u.Block.Difficulty.Mul64(p2pool.UnclePenalty).Div64(100)
+			uncleWeight := u.Block.Difficulty.Mul64(api.GetP2PoolAPI().Consensus().UnclePenalty).Div64(100)
 			weight = weight.Add(uncleWeight)
 
 			if !extraUncleData {
 				b.Uncles = append(b.Uncles, &database.JSONUncleBlockSimple{
 					Id:     u.Block.Id,
 					Height: u.Block.Height,
-					Weight: u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
+					Weight: u.Block.Difficulty.Mul64(100 - api.GetP2PoolAPI().Consensus().UnclePenalty).Div64(100).Lo,
 				})
 			} else {
 				uncleMiner := api.GetDatabase().GetMiner(u.Block.MinerId)
@@ -94,7 +93,7 @@ func MapJSONBlock(api *api.Api, block database.BlockInterface, extraUncleData, e
 					Miner:      uncleMiner.Address(),
 					MinerAlias: uncleMiner.Alias(),
 					PowHash:    u.Block.PowHash,
-					Weight:     u.Block.Difficulty.Mul64(100 - p2pool.UnclePenalty).Div64(100).Lo,
+					Weight:     u.Block.Difficulty.Mul64(100 - api.GetP2PoolAPI().Consensus().UnclePenalty).Div64(100).Lo,
 				})
 			}
 		}
