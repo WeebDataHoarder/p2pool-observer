@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"encoding/binary"
+	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -10,9 +11,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
-	"log"
 	"lukechampine.com/uint128"
 	"math"
+	"sync/atomic"
 )
 
 type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
@@ -50,34 +51,127 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 	return outputs, bottomHeight
 }
 
-func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
+type PoolBlockWindowSlot struct {
+	Block *PoolBlock
+	// Uncles that count for the window weight
+	Uncles UniquePoolBlockSlice
+}
 
-	var blockDepth uint64
+type PoolBlockWindowAddWeightFunc func(b *PoolBlock, weight types.Difficulty)
 
-	cur := tip
+func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, addWeightFunc PoolBlockWindowAddWeightFunc, errorPointer *atomic.Value) (results chan PoolBlockWindowSlot) {
+	results = make(chan PoolBlockWindowSlot)
 
-	var mainchainDiff types.Difficulty
+	go func() {
+		defer close(results)
 
-	if tip.Side.Parent != types.ZeroHash {
-		seedHeight := randomx.SeedHeight(tip.Main.Coinbase.GenHeight)
-		mainchainDiff = difficultyByHeight(seedHeight)
-		if mainchainDiff == types.ZeroDifficulty {
-			log.Printf("[SideChain] get_shares: couldn't get mainchain difficulty for height = %d", seedHeight)
-			return nil, 0
+		cur := tip
+
+		var blockDepth uint64
+
+		var mainchainDiff types.Difficulty
+
+		if tip.Side.Parent != types.ZeroHash {
+			seedHeight := randomx.SeedHeight(tip.Main.Coinbase.GenHeight)
+			mainchainDiff = difficultyByHeight(seedHeight)
+			if mainchainDiff == types.ZeroDifficulty {
+				if errorPointer != nil {
+					errorPointer.Store(fmt.Errorf("couldn't get mainchain difficulty for height = %d", seedHeight))
+				}
+				return
+			}
 		}
-	}
 
-	// Dynamic PPLNS window starting from v2
-	// Limit PPLNS weight to 2x of the Monero difficulty (max 2 blocks per PPLNS window on average)
-	sidechainVersion := tip.ShareVersion()
+		// Dynamic PPLNS window starting from v2
+		// Limit PPLNS weight to 2x of the Monero difficulty (max 2 blocks per PPLNS window on average)
+		sidechainVersion := tip.ShareVersion()
 
-	maxPplnsWeight := types.MaxDifficulty
+		maxPplnsWeight := types.MaxDifficulty
 
-	if sidechainVersion > ShareVersion_V1 {
-		maxPplnsWeight = mainchainDiff.Mul64(2)
-	}
+		if sidechainVersion > ShareVersion_V1 {
+			maxPplnsWeight = mainchainDiff.Mul64(2)
+		}
 
-	var pplnsWeight types.Difficulty
+		var pplnsWeight types.Difficulty
+
+		for {
+			curEntry := PoolBlockWindowSlot{
+				Block: cur,
+			}
+			curWeight := cur.Side.Difficulty
+
+			for _, uncleId := range cur.Side.Uncles {
+				if uncle := getByTemplateId(uncleId); uncle == nil {
+					//cannot find uncles
+					if errorPointer != nil {
+						errorPointer.Store(fmt.Errorf("could not find uncle %s", uncleId.String()))
+					}
+					return
+				} else {
+					// Skip uncles which are already out of PPLNS window
+					if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
+						continue
+					}
+
+					// Take some % of uncle's weight into this share
+					unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
+					uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+					newPplnsWeight := pplnsWeight.Add(uncleWeight)
+
+					// Skip uncles that push PPLNS weight above the limit
+					if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
+						continue
+					}
+					curWeight = curWeight.Add(unclePenalty)
+
+					if addWeightFunc != nil {
+						addWeightFunc(uncle, uncleWeight)
+					}
+					curEntry.Uncles = append(curEntry.Uncles, uncle)
+
+					pplnsWeight = newPplnsWeight
+				}
+			}
+
+			// Always add non-uncle shares even if PPLNS weight goes above the limit
+			results <- curEntry
+
+			if addWeightFunc != nil {
+				addWeightFunc(cur, curWeight)
+			}
+
+			pplnsWeight = pplnsWeight.Add(curWeight)
+
+			// One non-uncle share can go above the limit, but it will also guarantee that "shares" is never empty
+			if pplnsWeight.Cmp(maxPplnsWeight) > 0 {
+				break
+			}
+
+			blockDepth++
+
+			if blockDepth >= consensus.ChainWindowSize {
+				break
+			}
+
+			// Reached the genesis block so we're done
+			if cur.Side.Height == 0 {
+				break
+			}
+
+			parentId := cur.Side.Parent
+			cur = getByTemplateId(parentId)
+
+			if cur == nil {
+				errorPointer.Store(fmt.Errorf("could not find parent %s", parentId.String()))
+				return
+			}
+		}
+	}()
+
+	return results
+}
+
+func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
 
 	sharesSet := make(map[address.PackedAddress]*Share, consensus.ChainWindowSize*2)
 
@@ -114,65 +208,16 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		index++
 	}
 
-	for {
-		curWeight := cur.Side.Difficulty
-
-		for _, uncleId := range cur.Side.Uncles {
-			if uncle := getByTemplateId(uncleId); uncle == nil {
-				//cannot find uncles
-				return nil, 0
-			} else {
-				// Skip uncles which are already out of PPLNS window
-				if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
-					continue
-				}
-
-				// Take some % of uncle's weight into this share
-				unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
-				newPplnsWeight := pplnsWeight.Add(uncleWeight)
-
-				// Skip uncles that push PPLNS weight above the limit
-				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-					continue
-				}
-				curWeight = curWeight.Add(unclePenalty)
-
-				insertSet(uncleWeight, uncle.GetAddress())
-
-				pplnsWeight = newPplnsWeight
-			}
-		}
-
-		// Always add non-uncle shares even if PPLNS weight goes above the limit
-		insertSet(curWeight, cur.GetAddress())
-
-		pplnsWeight = pplnsWeight.Add(curWeight)
-
-		// One non-uncle share can go above the limit, but it will also guarantee that "shares" is never empty
-		if pplnsWeight.Cmp(maxPplnsWeight) > 0 {
-			break
-		}
-
-		blockDepth++
-
-		if blockDepth >= consensus.ChainWindowSize {
-			break
-		}
-
-		// Reached the genesis block so we're done
-		if cur.Side.Height == 0 {
-			break
-		}
-
-		cur = getByTemplateId(cur.Side.Parent)
-
-		if cur == nil {
-			return nil, 0
-		}
+	var errValue atomic.Value
+	for e := range IterateBlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
+		insertSet(weight, b.GetAddress())
+	}, &errValue) {
+		bottomHeight = e.Block.Side.Height
 	}
 
-	bottomHeight = cur.Side.Height
+	if errValue.Load() != nil {
+		return nil, 0
+	}
 
 	for _, share := range sharesSet {
 		insertPreAllocated(share)
@@ -180,7 +225,7 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 
 	shares = preAllocatedShares[:index]
 
-	// Combine shares with the same wallet addresses
+	// Sort shares based on address
 	slices.SortFunc(shares, func(a *Share, b *Share) bool {
 		return a.Address.Compare(&b.Address) < 0
 	})
@@ -188,7 +233,7 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 	n := len(shares)
 
 	//Shuffle shares
-	if sidechainVersion > ShareVersion_V1 && n > 1 {
+	if tip.ShareVersion() > ShareVersion_V1 && n > 1 {
 		h := crypto.PooledKeccak256(tip.Side.CoinbasePrivateKeySeed[:])
 		seed := binary.LittleEndian.Uint64(h[:])
 
