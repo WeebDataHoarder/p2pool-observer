@@ -1,12 +1,16 @@
 package main
 
 import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/gorilla/mux"
 	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -356,6 +360,113 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 
 	// ================================= Archive section =================================
 	if archiveCache != nil {
+		serveMux.HandleFunc("/archive/window_from_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+			if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
+				tpls := archiveCache.LoadByTemplateId(templateId)
+				if len(tpls) > 0 {
+					tip := tpls[0]
+
+					mainDifficulty := instance.GetDifficultyByHeight(randomx.SeedHeight(tip.Main.Coinbase.GenHeight))
+
+					expectedBlocks := int(mainDifficulty.Mul64(2).Div(tip.Side.Difficulty).Lo) + 20
+					if expectedBlocks < 100 {
+						expectedBlocks = 100
+					}
+					if tip.ShareVersion() == sidechain.ShareVersion_V1 {
+						expectedBlocks = int(instance.Consensus().ChainWindowSize)
+					}
+
+					var windowLock sync.RWMutex
+					window := make(sidechain.UniquePoolBlockSlice, 0, expectedBlocks)
+					window = append(window, tip)
+
+					getByTemplateId := func(id types.Hash) *sidechain.PoolBlock {
+						if b := func() *sidechain.PoolBlock {
+							windowLock.RLock()
+							defer windowLock.RUnlock()
+							if b := window.Get(id); b != nil {
+								return b
+							}
+							return nil
+						}(); b != nil {
+							return b
+						}
+						windowLock.Lock()
+						defer windowLock.Unlock()
+						if bs := archiveCache.LoadByTemplateId(id); len(bs) > 0 {
+							window = append(window, bs[0])
+							return bs[0]
+						}
+						return nil
+					}
+
+					if _, err = tip.PreProcessBlock(instance.Consensus(), instance.SideChain().DerivationCache(), nil, instance.GetDifficultyByHeight, getByTemplateId); err == nil {
+						result := p2pooltypes.P2PoolSideChainStateResult{
+							TipHeight: tip.Side.Height,
+							TipId:     tip.SideTemplateId(instance.Consensus()),
+							Chain:     make([]p2pooltypes.P2PoolBinaryBlockResult, 0, expectedBlocks),
+							Uncles:    make([]p2pooltypes.P2PoolBinaryBlockResult, 0, expectedBlocks/5),
+						}
+
+						var errValue atomic.Value
+
+						for e := range sidechain.IterateBlocksInPPLNSWindow(tip, instance.Consensus(), instance.GetDifficultyByHeight, getByTemplateId, nil, &errValue) {
+							if _, err = e.Block.PreProcessBlock(instance.Consensus(), instance.SideChain().DerivationCache(), nil, instance.GetDifficultyByHeight, getByTemplateId); err != nil {
+								errValue.Store(errValue)
+								result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
+									Version: int(e.Block.ShareVersion()),
+									Error:   err.Error(),
+								})
+							} else if blob, err := e.Block.MarshalBinary(); err != nil {
+								errValue.Store(errValue)
+								result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
+									Version: int(e.Block.ShareVersion()),
+									Error:   err.Error(),
+								})
+							} else {
+								result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
+									Version: int(e.Block.ShareVersion()),
+									Blob:    blob,
+								})
+							}
+
+							for _, u := range e.Uncles {
+								if _, err = u.PreProcessBlock(instance.Consensus(), instance.SideChain().DerivationCache(), nil, instance.GetDifficultyByHeight, getByTemplateId); err != nil {
+									errValue.Store(errValue)
+									result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
+										Version: int(u.ShareVersion()),
+										Error:   err.Error(),
+									})
+								} else if blob, err := u.MarshalBinary(); err != nil {
+									errValue.Store(errValue)
+									result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
+										Version: int(u.ShareVersion()),
+										Error:   err.Error(),
+									})
+								} else {
+									result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
+										Version: int(u.ShareVersion()),
+										Blob:    blob,
+									})
+								}
+							}
+						}
+
+						if errValue.Load() == nil {
+							writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+							writer.WriteHeader(http.StatusOK)
+							buf, _ := encodeJson(request, result)
+							_, _ = writer.Write(buf)
+							return
+						}
+					}
+				}
+			}
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			_, _ = writer.Write([]byte("{}"))
+		})
 		serveMux.HandleFunc("/archive/blocks_by_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 			if templateId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
 				result := make([]p2pooltypes.P2PoolBinaryBlockResult, 0, 1)
