@@ -32,7 +32,7 @@ func TestPoolBlockDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	block, err := NewShareFromExportedBytes(contents, NetworkMainnet)
+	block, err := NewShareFromExportedBytes(contents, NetworkMainnet, &NilDerivationCache{})
 	if err != nil {
 		t.Fatal(err)
 	}

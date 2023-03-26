@@ -80,12 +80,16 @@ func (r multiRecord) Bytes() []byte {
 
 func (c *Cache) Store(block *sidechain.PoolBlock) {
 	sideId := block.SideTemplateId(c.consensus)
+	if bytes.Compare(sideId[:], block.CoinbaseExtra(sidechain.SideTemplateId)) != 0 {
+		//wrong calculated template id
+		return
+	}
 	mainId := block.MainId()
 	var sideHeight, mainHeight [8]byte
 	binary.BigEndian.PutUint64(sideHeight[:], block.Side.Height)
 	binary.BigEndian.PutUint64(mainHeight[:], block.Main.Coinbase.GenHeight)
 
-	if c.existsByMainId(mainId) {
+	if c.ExistsByMainId(mainId) {
 		return
 	}
 
@@ -103,6 +107,11 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 			//fallback
 			if c.existsBySideChainHeightRange(block.Side.Height-c.consensus.ChainWindowSize-1, block.Side.Height-1) {
 				storePruned = true
+			}
+
+			//fallback for parent-less blocks
+			if len(c.LoadByTemplateId(block.Side.Parent)) == 0 {
+				storePruned, storeCompact = false, false
 			}
 		} else if block.Depth.Load() < c.consensus.ChainWindowSize {
 			storePruned = true
@@ -163,7 +172,7 @@ func (c *Cache) RemoveByTemplateId(id types.Hash) {
 	//TODO
 }
 
-func (c *Cache) existsByMainId(id types.Hash) (result bool) {
+func (c *Cache) ExistsByMainId(id types.Hash) (result bool) {
 	_ = c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(blocksByMainId)
 		if b.Get(id[:]) != nil {
@@ -257,6 +266,48 @@ func (c *Cache) LoadByTemplateId(id types.Hash) (result []*sidechain.PoolBlock) 
 			result = append(result, b)
 		}
 	}
+	return result
+}
+
+func (c *Cache) ScanHeights(startHeight, endHeight uint64) chan []*sidechain.PoolBlock {
+	result := make(chan []*sidechain.PoolBlock)
+	go func() {
+		defer close(result)
+		_ = c.db.View(func(tx *bolt.Tx) error {
+			b := tx.Bucket(refBySideHeight)
+			var startHeightBytes, endHeightBytes [8]byte
+
+			cursor := b.Cursor()
+			binary.BigEndian.PutUint64(startHeightBytes[:], startHeight)
+			binary.BigEndian.PutUint64(endHeightBytes[:], endHeight)
+
+			k, v := cursor.Seek(startHeightBytes[:])
+			for {
+				if k == nil {
+					return nil
+				}
+				r := multiRecordFromBytes(v)
+				blocks := make([]*sidechain.PoolBlock, 0, len(r))
+				for _, h := range r {
+					if e := c.loadByMainId(tx, h); e != nil {
+						if bl := c.decodeBlock(e); bl != nil {
+							blocks = append(blocks, bl)
+						} else {
+							return fmt.Errorf("could not decode block %s", h.String())
+						}
+					} else {
+						return fmt.Errorf("could not find block %s", h.String())
+					}
+				}
+				result <- blocks
+				if bytes.Compare(k, endHeightBytes[:]) >= 0 {
+					break
+				}
+				k, v = cursor.Next()
+			}
+			return nil
+		})
+	}()
 	return result
 }
 

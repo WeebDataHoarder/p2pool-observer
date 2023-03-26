@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"github.com/floatdrop/lru"
 	"log"
 	"math"
 	"os"
@@ -44,7 +47,22 @@ func main() {
 	}
 	defer cache.Close()
 
-	archiveCache, err := archive.NewCache(*outputArchive, consensus)
+	difficultyCache := lru.New[uint64, types.Difficulty](1024)
+
+	getDifficultyByHeight := func(height uint64) types.Difficulty {
+		if v := difficultyCache.Get(height); v == nil {
+			if r, err := client.GetDefaultClient().GetBlockHeaderByHeight(height, context.Background()); err == nil {
+				d := types.DifficultyFrom64(r.BlockHeader.Difficulty)
+				difficultyCache.Set(height, d)
+				return d
+			}
+			return types.ZeroDifficulty
+		} else {
+			return *v
+		}
+	}
+
+	archiveCache, err := archive.NewCache(*outputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
 		log.Panic(err)
 	}

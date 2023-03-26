@@ -3,6 +3,7 @@ package sidechain
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -125,16 +126,16 @@ func (b *SideData) FromReader(reader readerAndByteReader, version ShareVersion) 
 	}
 	if version > ShareVersion_V1 {
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SoftwareId); err != nil {
-			return err
+			return fmt.Errorf("within extra buffer: %w", err)
 		}
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SoftwareVersion); err != nil {
-			return err
+			return fmt.Errorf("within extra buffer: %w", err)
 		}
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.RandomNumber); err != nil {
-			return err
+			return fmt.Errorf("within extra buffer: %w", err)
 		}
 		if err = binary.Read(reader, binary.LittleEndian, &b.ExtraBuffer.SideChainExtraNonce); err != nil {
-			return err
+			return fmt.Errorf("within extra buffer: %w", err)
 		}
 	}
 

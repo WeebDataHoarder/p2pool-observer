@@ -16,7 +16,9 @@ import (
 	"sync/atomic"
 )
 
+type GetByMainIdFunc func(h types.Hash) *PoolBlock
 type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
+type GetBySideHeightIdFunc func(height uint64) UniquePoolBlockSlice
 
 func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) (outputs transaction.Outputs, bottomHeight uint64) {
 	tmpShares, bottomHeight := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)

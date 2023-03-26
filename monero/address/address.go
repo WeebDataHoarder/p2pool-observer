@@ -93,6 +93,15 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 }
 
 func (a *Address) ToBase58() string {
+	if a.checksum == nil {
+		var nice [69]byte
+		nice[0] = a.Network
+		copy(nice[1:], a.SpendPub.AsSlice())
+		copy(nice[1+crypto.PublicKeySize:], a.ViewPub.AsSlice())
+		sum := moneroutil.GetChecksum(nice[:65])
+		//this race is ok
+		a.checksum = sum[:]
+	}
 	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 }
 

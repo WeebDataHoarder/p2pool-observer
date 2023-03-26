@@ -91,7 +91,7 @@ type PoolBlock struct {
 
 // NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares
 // Deprecated
-func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock, error) {
+func NewShareFromExportedBytes(buf []byte, networkType NetworkType, cacheInterface DerivationCacheInterface) (*PoolBlock, error) {
 	b := &PoolBlock{
 		NetworkType: networkType,
 	}
@@ -193,7 +193,7 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType) (*PoolBlock,
 		return nil, err
 	}
 
-	b.FillPrivateKeys(&NilDerivationCache{}) //TODO
+	b.FillPrivateKeys(cacheInterface)
 
 	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
 

@@ -26,7 +26,9 @@ func main() {
 		log.Panic(err)
 	}
 
-	archiveCache, err := archive.NewCache(*outputArchive, consensus)
+	archiveCache, err := archive.NewCache(*outputArchive, consensus, func(height uint64) types.Difficulty {
+		return types.ZeroDifficulty
+	})
 	if err != nil {
 		log.Panic(err)
 	}
@@ -35,6 +37,8 @@ func main() {
 	processed := make(map[types.Hash]bool)
 
 	totalStored := 0
+
+	derivationCache := sidechain.NewDerivationCache()
 
 	loadBlock := func(id types.Hash) *sidechain.PoolBlock {
 		n := id.String()
@@ -45,7 +49,7 @@ func main() {
 			if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
 				log.Panic(err)
 			} else {
-				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType); err != nil {
+				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType, derivationCache); err != nil {
 					log.Printf("error decoding block %s, %s", id.String(), err)
 				} else {
 					return block
@@ -55,14 +59,17 @@ func main() {
 		return nil
 	}
 
-	var storeBlock func(k types.Hash, b *sidechain.PoolBlock)
-	storeBlock = func(k types.Hash, b *sidechain.PoolBlock) {
+	var storeBlock func(k types.Hash, b *sidechain.PoolBlock, depth uint64)
+	storeBlock = func(k types.Hash, b *sidechain.PoolBlock, depth uint64) {
 		if b == nil || processed[k] {
+			return
+		}
+		if depth >= consensus.ChainWindowSize*4*30 { //avoid infinite memory growth
 			return
 		}
 		if parent := loadBlock(b.Side.Parent); parent != nil {
 			b.FillTransactionParentIndices(parent)
-			storeBlock(b.Side.Parent, parent)
+			storeBlock(b.Side.Parent, parent, depth+1)
 		}
 		b.Depth.Store(math.MaxUint64)
 		archiveCache.Store(b)
@@ -73,14 +80,17 @@ func main() {
 	for i := 0; i <= 0xf; i++ {
 		n := hex.EncodeToString([]byte{byte(i)})
 		dPath := path.Join(*inputFolder, "blocks", n[1:])
+		log.Printf("Reading directory %s", dPath)
 		if dir, err := os.ReadDir(dPath); err != nil {
 			log.Panic(err)
 		} else {
 			for _, e := range dir {
 				h, _ := hex.DecodeString(e.Name())
 				id := types.HashFromBytes(h)
-
-				storeBlock(id, loadBlock(id))
+				bb := loadBlock(id)
+				if bb != nil && !archiveCache.ExistsByMainId(bb.MainId()) {
+					storeBlock(id, bb, 0)
+				}
 			}
 		}
 	}
@@ -100,7 +110,7 @@ func main() {
 					if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
 						log.Panic(err)
 					} else {
-						if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType); err != nil {
+						if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType, derivationCache); err != nil {
 							log.Panic(err)
 						} else {
 							block.Depth.Store(math.MaxUint64)
