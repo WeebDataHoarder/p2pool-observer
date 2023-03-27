@@ -317,8 +317,15 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	timestamp1 := oldestTimestamp + uint64(tmpTimestamps[index1])
 	timestamp2 := oldestTimestamp + uint64(tmpTimestamps[index2])
 
-	deltaT := uint64(1)
-	if timestamp2 > timestamp1 {
+	// Make a reasonable assumption that each block has higher timestamp, so deltaT can't be less than deltaIndex
+	// Because if it is, someone is trying to mess with timestamps
+	// In reality, deltaT ~ deltaIndex*10 (sidechain block time)
+	deltaIndex := uint64(1)
+	if index2 > index2 {
+		deltaIndex = uint64(index2 - index1)
+	}
+	deltaT := deltaIndex
+	if timestamp2 > (timestamp1 + deltaIndex) {
 		deltaT = timestamp2 - timestamp1
 	}
 
