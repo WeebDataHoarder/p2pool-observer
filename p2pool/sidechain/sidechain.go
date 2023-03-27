@@ -72,13 +72,16 @@ type SideChain struct {
 }
 
 func NewSideChain(server P2PoolInterface) *SideChain {
-	return &SideChain{
+	s := &SideChain{
 		derivationCache:    NewDerivationCache(),
 		server:             server,
 		blocksByTemplateId: make(map[types.Hash]*PoolBlock),
 		blocksByHeight:     make(map[uint64][]*PoolBlock),
 		sharesCache:        make(Shares, 0, server.Consensus().ChainWindowSize*2),
 	}
+	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
+	s.currentDifficulty.Store(&minDiff)
+	return s
 }
 
 func (c *SideChain) Consensus() *Consensus {
@@ -87,6 +90,10 @@ func (c *SideChain) Consensus() *Consensus {
 
 func (c *SideChain) DerivationCache() *DerivationCache {
 	return c.derivationCache
+}
+
+func (c *SideChain) Difficulty() types.Difficulty {
+	return *c.currentDifficulty.Load()
 }
 
 func (c *SideChain) PreCalcFinished() bool {
@@ -162,10 +169,8 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	}
 
 	//TODO: cache?
-	//expectedDifficulty := c.GetDifficulty(block)
-	//tooLowDiff := block.Side.Difficulty.Cmp(expectedDifficulty) < 0
-	tooLowDiff := false
-	var expectedDifficulty types.Difficulty
+	expectedDifficulty := c.Difficulty()
+	tooLowDiff := block.Side.Difficulty.Cmp(expectedDifficulty) < 0
 
 	if otherBlock := c.GetPoolBlockByTemplateId(templateId); otherBlock != nil {
 		//already added
@@ -185,8 +190,6 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 			}
 		}
 	}
-
-	//TODO log
 
 	if tooLowDiff {
 		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric())
@@ -501,7 +504,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 
 		if parent == c.GetChainTip() {
 			// built on top of the current chain tip, using current difficulty for verification
-			diff = *c.currentDifficulty.Load()
+			diff = c.Difficulty()
 		} else if diff = c.getDifficulty(parent); diff == types.ZeroDifficulty {
 			return nil, errors.New("could not get difficulty")
 		}
