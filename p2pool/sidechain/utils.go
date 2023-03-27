@@ -12,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
+	"log"
 	"lukechampine.com/uint128"
 	"math"
 	"sync/atomic"
@@ -423,11 +424,21 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 	newChain := candidate
 
 	var candidateMainchainHeight, candidateMainchainMinHeight uint64
-	var mainchainPrevId types.Hash
+
+	var moneroBlocksReserve = consensus.ChainWindowSize * consensus.TargetBlockTime * 2 / monero.BlockTime
+	currentChainMoneroBlocks, candidateChainMoneroBlocks := make([]types.Hash, 0, moneroBlocksReserve), make([]types.Hash, 0, moneroBlocksReserve)
 
 	for i := uint64(0); i < consensus.ChainWindowSize && (oldChain != nil || newChain != nil); i++ {
 		if oldChain != nil {
 			blockTotalDiff = blockTotalDiff.Add(oldChain.Side.Difficulty)
+			for _, uncle := range oldChain.Side.Uncles {
+				if u := getByTemplateId(uncle); u != nil {
+					blockTotalDiff = blockTotalDiff.Add(u.Side.Difficulty)
+				}
+			}
+			if !slices.Contains(currentChainMoneroBlocks, oldChain.Main.PreviousId) && getChainMainByHash(oldChain.Main.PreviousId) != nil {
+				currentChainMoneroBlocks = append(currentChainMoneroBlocks, oldChain.Main.PreviousId)
+			}
 			oldChain = getByTemplateId(oldChain.Side.Parent)
 		}
 
@@ -438,10 +449,14 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 				candidateMainchainMinHeight = newChain.Main.Coinbase.GenHeight
 			}
 			candidateTotalDiff = candidateTotalDiff.Add(newChain.Side.Difficulty)
-
-			if !newChain.Main.PreviousId.Equals(mainchainPrevId) {
+			for _, uncle := range newChain.Side.Uncles {
+				if u := getByTemplateId(uncle); u != nil {
+					candidateTotalDiff = candidateTotalDiff.Add(u.Side.Difficulty)
+				}
+			}
+			if !slices.Contains(candidateChainMoneroBlocks, newChain.Main.PreviousId) {
 				if data := getChainMainByHash(newChain.Main.PreviousId); data != nil {
-					mainchainPrevId = data.Id
+					candidateChainMoneroBlocks = append(candidateChainMoneroBlocks, newChain.Main.PreviousId)
 					candidateMainchainHeight = utils.Max(candidateMainchainHeight, data.Height)
 				}
 			}
@@ -454,16 +469,22 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 		return false, true
 	}
 
-	// Final check: candidate chain must be built on top of recent mainchain blocks
+	// Candidate chain must be built on top of recent mainchain blocks
 	if headerTip := getChainMainByHash(types.ZeroHash); headerTip != nil {
 		if candidateMainchainHeight+10 < headerTip.Height {
-			//TODO: warn received a longer alternative chain but it's stale: height
+			log.Printf("[SideChain] Received a longer alternative chain but it's stale: height %d, current height %d", candidateMainchainHeight, headerTip.Height)
 			return false, true
 		}
 
 		limit := consensus.ChainWindowSize * 4 * consensus.TargetBlockTime / monero.BlockTime
 		if candidateMainchainMinHeight+limit < headerTip.Height {
-			//TODO: warn received a longer alternative chain but it's stale: min height
+			log.Printf("[SideChain] Received a longer alternative chain but it's stale: min height %d, must be >= %d", candidateMainchainMinHeight, headerTip.Height-limit)
+			return false, true
+		}
+
+		// Candidate chain must have been mined on top of at least half as many known Monero blocks, compared to the current chain
+		if len(candidateChainMoneroBlocks)*2 < len(currentChainMoneroBlocks) {
+			log.Printf("[SideChain] Received a longer alternative chain but it wasn't mined on current Monero blockchain: only %d / %d blocks found", len(candidateChainMoneroBlocks), len(currentChainMoneroBlocks))
 			return false, true
 		}
 
