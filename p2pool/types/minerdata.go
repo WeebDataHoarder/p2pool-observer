@@ -6,14 +6,14 @@ import (
 )
 
 type MinerData struct {
-	MajorVersion          uint8
-	Height                uint64
-	PrevId                types.Hash
-	SeedHash              types.Hash
-	Difficulty            types.Difficulty
-	MedianWeight          uint64
-	AlreadyGeneratedCoins uint64
-	MedianTimestamp       uint64
+	MajorVersion          uint8            `json:"major_version"`
+	Height                uint64           `json:"height"`
+	PrevId                types.Hash       `json:"prev_id"`
+	SeedHash              types.Hash       `json:"seed_hash"`
+	Difficulty            types.Difficulty `json:"difficulty"`
+	MedianWeight          uint64           `json:"median_weight"`
+	AlreadyGeneratedCoins uint64           `json:"already_generated_coins"`
+	MedianTimestamp       uint64           `json:"median_timestamp"`
 	//TxBacklog any
-	TimeReceived time.Time
+	TimeReceived time.Time `json:"time_received"`
 }

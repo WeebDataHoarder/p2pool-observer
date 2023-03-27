@@ -126,6 +126,8 @@ func (b *Block) FromReaderFlags(reader readerAndByteReader, compact bool) (err e
 		}
 	}
 
+	//TODO: verify hardfork major versions
+
 	if txCount, err = binary.ReadUvarint(reader); err != nil {
 		return err
 	}

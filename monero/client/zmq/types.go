@@ -113,6 +113,7 @@ type FullTxPoolAdd struct {
 		} `json:"prunable"`
 	} `json:"ringct"`
 }
+
 type TxMempoolData struct {
 	Id       types.Hash `json:"id"`
 	BlobSize uint64     `json:"blob_size"`

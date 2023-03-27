@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -105,6 +107,31 @@ func (k *PublicKeyBytes) String() string {
 	return hex.EncodeToString(k.AsSlice())
 }
 
+func (k *PublicKeyBytes) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+		if len(buf) != PublicKeySize {
+			return errors.New("invalid key size")
+		}
+		copy((*k)[:], buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (k *PublicKeyBytes) Value() (driver.Value, error) {
+	var zeroPubKey PublicKeyBytes
+	if *k == zeroPubKey {
+		return nil, nil
+	}
+	return []byte((*k)[:]), nil
+}
+
 func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 	var s string
 	if err := json.Unmarshal(b, &s); err != nil {
@@ -144,6 +171,31 @@ func (k *PublicKeySlice) AsPoint() *PublicKeyPoint {
 
 func (k *PublicKeySlice) String() string {
 	return hex.EncodeToString(*k)
+}
+
+func (k *PublicKeySlice) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+		if len(buf) != PublicKeySize {
+			return errors.New("invalid key size")
+		}
+		copy(*k, buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (k *PublicKeySlice) Value() (driver.Value, error) {
+	var zeroPubKey PublicKeyBytes
+	if bytes.Compare(*k, zeroPubKey[:]) == 0 {
+		return nil, nil
+	}
+	return []byte(*k), nil
 }
 
 func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {

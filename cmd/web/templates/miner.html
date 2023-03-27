@@ -17,9 +17,9 @@
 <div style="text-align: center">
     {% if miner.last_share_timestamp == 0 %}
     <div style="border: #d1d1d1 1px dashed;">
-        <h3 style="color:#FF4433">No shares have been reported to the P2Pool network in the past for this miner.</h3>
+        <h3 style="color:#FF4433">No shares have been reported to this P2Pool network in the past for this miner.</h3>
 
-        <p>Finding shares is a random process based on your hashrate vs P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
+        <p>Finding shares is a random process based on your hashrate vs this P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
         <p>Please use the calculator below to find your average share time (with average luck).</p>
         <br/>
 
@@ -44,11 +44,11 @@
     <div style="border: #d1d1d1 1px dashed;">
         <h3 style="color:#FF4433" title="Share version {{ last_raw_share.ShareVersion() }}, signaling {{ last_raw_share.ShareVersionSignaling() }}">Recent shares indicate you are running an outdated version of P2Pool</h3>
 
-        <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.1">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
-        <p>P2Pool (not Monero!) will hardfork to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.1 is recommended.</p>
+        <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.2">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
+        <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.2 is recommended.</p>
         <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
         <p>{% if getenv('NET_SERVICE_ADDRESS') == "p2pool.observer" %}After the fork, you can check on <a href="https://old.p2pool.observer/miner/{{ miner.address }}">OLD.P2Pool.Observer</a>.{% elseif getenv('NET_SERVICE_ADDRESS') == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://old-mini.p2pool.observer/miner/{{ miner.address }}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
-        <p>After upgrading to a supported P2Pool version and mine a share, this message will be dismissed.</p>
+        <p>After upgrading to a supported P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
     </div>
 
@@ -85,10 +85,10 @@
             <th>Day Share %</th>
         </tr>
         <tr>
-            <td>{{ miner.shares.blocks }} blocks (+{{ miner.shares.uncles }} uncles)</td>
+            <td>{% if miner.shares is defined %}{{ miner.shares[1].shares }} blocks (+{{ miner.shares[1].uncles }} uncles{% if miner.shares[0].shares > 0 %}, +{{ miner.shares[0].shares }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{{ count_blocks }} blocks (+{{ count_uncles }} uncles)</td>
-            <td>{{ ((weight / (pool.sidechain.window.weight|diff_int * 4)) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
-            <td>{{ (((weight / (pool.sidechain.window.weight|diff_int * 4)))*100)|round(3) }}%</td>
+            <td>{{ ((weight / ((pool.sidechain.window.weight|diff_int * 4) * (pool.sidechain.max_window_size / pool.sidechain.window_size))) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
+            <td>{{ (((weight / ((pool.sidechain.window.weight|diff_int * 4) * (pool.sidechain.max_window_size / pool.sidechain.window_size))))*100)|round(3) }}%</td>
         </tr>
     </table>
 </div>

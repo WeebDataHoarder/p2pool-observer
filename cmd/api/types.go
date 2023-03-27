@@ -1,7 +1,9 @@
 package main
 
 import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/ake-persson/mapslice-json"
 )
@@ -16,18 +18,20 @@ type poolInfoResult struct {
 }
 
 type poolInfoResultSideChain struct {
-	Id            types.Hash                    `json:"id"`
-	Height        uint64                        `json:"height"`
-	Difficulty    types.Difficulty              `json:"difficulty"`
-	Timestamp     uint64                        `json:"timestamp"`
-	Effort        poolInfoResultSideChainEffort `json:"effort"`
-	Window        poolInfoResultSideChainWindow `json:"window"`
-	WindowSize    int                           `json:"window_size"`
-	MaxWindowSize int                           `json:"max_window_size"`
-	BlockTime     int                           `json:"block_time"`
-	UnclePenalty  int                           `json:"uncle_penalty"`
-	Found         uint64                        `json:"found"`
-	Miners        uint64                        `json:"miners"`
+	Consensus            *sidechain.Consensus          `json:"consensus"`
+	Id                   types.Hash                    `json:"id"`
+	Height               uint64                        `json:"height"`
+	Difficulty           types.Difficulty              `json:"difficulty"`
+	CumulativeDifficulty types.Difficulty              `json:"cumulative_difficulty"`
+	Timestamp            uint64                        `json:"timestamp"`
+	Effort               poolInfoResultSideChainEffort `json:"effort"`
+	Window               poolInfoResultSideChainWindow `json:"window"`
+	WindowSize           int                           `json:"window_size"`
+	MaxWindowSize        int                           `json:"max_window_size"`
+	BlockTime            int                           `json:"block_time"`
+	UnclePenalty         int                           `json:"uncle_penalty"`
+	Found                uint64                        `json:"found"`
+	Miners               uint64                        `json:"miners"`
 }
 
 type poolInfoResultSideChainEffort struct {
@@ -49,16 +53,19 @@ type poolInfoResultMainChain struct {
 	BlockTime  int              `json:"block_time"`
 }
 
+type minerInfoBlockData struct {
+	ShareCount      uint64 `json:"shares"`
+	UncleCount      uint64 `json:"uncles"`
+	LastShareHeight uint64 `json:"last_height"`
+}
+
 type minerInfoResult struct {
-	Id      uint64           `json:"id"`
-	Address *address.Address `json:"address"`
-	Alias   string           `json:"alias,omitempty"`
-	Shares  struct {
-		Blocks uint64 `json:"blocks"`
-		Uncles uint64 `json:"uncles"`
-	} `json:"shares"`
-	LastShareHeight    uint64 `json:"last_share_height"`
-	LastShareTimestamp uint64 `json:"last_share_timestamp"`
+	Id                 uint64                                                          `json:"id"`
+	Address            *address.Address                                                `json:"address"`
+	Alias              string                                                          `json:"alias,omitempty"`
+	Shares             [index.InclusionAlternateInVerifiedChain + 1]minerInfoBlockData `json:"shares"`
+	LastShareHeight    uint64                                                          `json:"last_share_height"`
+	LastShareTimestamp uint64                                                          `json:"last_share_timestamp"`
 }
 
 type sharesInWindowResult struct {

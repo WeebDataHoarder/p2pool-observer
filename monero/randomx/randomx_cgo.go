@@ -13,6 +13,7 @@ import (
 	"log"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -100,6 +101,8 @@ func ConsensusHash(buf []byte) types.Hash {
 	return crypto.Keccak256(scratchpadTopPtr)
 }
 
+var UseFullMemory atomic.Bool
+
 func NewRandomX() Hasher {
 	collection := &hasherCollection{
 		cache: make([]*hasherState, 4),
@@ -141,8 +144,14 @@ func (h *hasherState) Init(key []byte) (err error) {
 		h.vm.Close()
 	}
 
-	if h.vm, err = randomx.NewRxVM(h.dataset /*randomx.FlagFullMEM,*/, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
-		return err
+	if UseFullMemory.Load() {
+		if h.vm, err = randomx.NewRxVM(h.dataset, randomx.FlagFullMEM, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
+			return err
+		}
+	} else {
+		if h.vm, err = randomx.NewRxVM(h.dataset, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
+			return err
+		}
 	}
 	log.Printf("[RandomX] Initialized to seed %s", hex.EncodeToString(h.key))
 

@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 )
 
-func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineIndex int) error) []error {
-	if routines < 0 {
+func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineIndex int) error, init func(routines, routineIndex int) error) []error {
+	if routines <= 0 {
 		routines = Max(runtime.NumCPU()-routines, 4)
 	}
 
@@ -21,6 +21,12 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 
 	var wg sync.WaitGroup
 	for routineIndex := 0; routineIndex < routines; routineIndex++ {
+		if init != nil {
+			if err := init(routines, routineIndex); err != nil {
+				results[routineIndex] = err
+				continue
+			}
+		}
 		wg.Add(1)
 		go func(routineIndex int) {
 			defer wg.Done()

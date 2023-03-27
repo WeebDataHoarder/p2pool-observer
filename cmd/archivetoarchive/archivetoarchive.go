@@ -61,14 +61,16 @@ func main() {
 
 	derivationCache := sidechain.NewDerivationCache()
 
-	blockCache := lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 2))
+	blockCache := lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4))
 
 	getByTemplateId := func(h types.Hash) *sidechain.PoolBlock {
 		if v := blockCache.Get(h); v == nil {
 			if bs := inputCache.LoadByTemplateId(h); len(bs) != 0 {
+				bs[0].Depth.Store(math.MaxUint64)
 				blockCache.Set(h, bs[0])
 				return bs[0]
 			} else if bs = outputCache.LoadByTemplateId(h); len(bs) != 0 {
+				bs[0].Depth.Store(math.MaxUint64)
 				blockCache.Set(h, bs[0])
 				return bs[0]
 			} else {
@@ -79,15 +81,27 @@ func main() {
 		}
 	}
 
-	preAllocatedShares := make(sidechain.Shares, consensus.ChainWindowSize*2)
-	for i := range preAllocatedShares {
-		preAllocatedShares[i] = &sidechain.Share{}
-	}
+	preAllocatedShares := sidechain.PreAllocateShares(consensus.ChainWindowSize * 4)
+	blocksProcessed := 0
 	for blocksAtHeight := range inputCache.ScanHeights(0, math.MaxUint64) {
 		for i, b := range blocksAtHeight {
+			blocksProcessed++
 			if _, err := b.PreProcessBlock(consensus, derivationCache, preAllocatedShares, getDifficultyByHeight, getByTemplateId); err != nil {
 				log.Printf("error processing block %s at %d, %s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height, err)
 			} else {
+				if parent := getByTemplateId(b.Side.Parent); parent != nil {
+					topDepth := parent.Depth.Load()
+					if topDepth == math.MaxUint64 {
+						b.Depth.Store(consensus.ChainWindowSize * 2)
+					} else if topDepth == 0 {
+						b.Depth.Store(0)
+					} else {
+						b.Depth.Store(topDepth - 1)
+					}
+				} else {
+					log.Printf("block %s at %d, could not get parent, fallback", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height)
+					b.Depth.Store(math.MaxUint64)
+				}
 				outputCache.Store(b)
 				if i == 0 {
 					blockCache.Set(types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b)
@@ -95,4 +109,6 @@ func main() {
 			}
 		}
 	}
+
+	log.Printf("blocks processed %d", blocksProcessed)
 }

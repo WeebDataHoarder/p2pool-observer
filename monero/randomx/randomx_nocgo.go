@@ -10,6 +10,7 @@ import (
 	"github.com/go-faster/xor"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"unsafe"
 )
 
@@ -51,6 +52,8 @@ func ConsensusHash(buf []byte) types.Hash {
 
 	return crypto.Keccak256(scratchpadTopPtr)
 }
+
+var UseFullMemory atomic.Bool
 
 func NewRandomX() Hasher {
 	return &hasher{

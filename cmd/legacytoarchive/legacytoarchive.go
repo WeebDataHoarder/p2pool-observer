@@ -6,6 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"github.com/floatdrop/lru"
 	"log"
 	"math"
 	"os"
@@ -40,6 +41,8 @@ func main() {
 
 	derivationCache := sidechain.NewDerivationCache()
 
+	blockCache := lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4 * 60))
+
 	loadBlock := func(id types.Hash) *sidechain.PoolBlock {
 		n := id.String()
 		fPath := path.Join(*inputFolder, "blocks", n[:1], n)
@@ -52,11 +55,25 @@ func main() {
 				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType, derivationCache); err != nil {
 					log.Printf("error decoding block %s, %s", id.String(), err)
 				} else {
+					block.Depth.Store(math.MaxUint64)
 					return block
 				}
 			}
 		}
 		return nil
+	}
+
+	getByTemplateId := func(h types.Hash) *sidechain.PoolBlock {
+		if v := blockCache.Get(h); v == nil {
+			if b := loadBlock(h); b != nil {
+				b.Depth.Store(math.MaxUint64)
+				blockCache.Set(h, b)
+				return b
+			}
+			return nil
+		} else {
+			return *v
+		}
 	}
 
 	var storeBlock func(k types.Hash, b *sidechain.PoolBlock, depth uint64)
@@ -67,11 +84,20 @@ func main() {
 		if depth >= consensus.ChainWindowSize*4*30 { //avoid infinite memory growth
 			return
 		}
-		if parent := loadBlock(b.Side.Parent); parent != nil {
+		if parent := getByTemplateId(b.Side.Parent); parent != nil {
+			topDepth := parent.Depth.Load()
+			if topDepth == math.MaxUint64 {
+				b.Depth.Store(consensus.ChainWindowSize * 2)
+			} else if topDepth == 0 {
+				b.Depth.Store(0)
+			} else {
+				b.Depth.Store(topDepth - 1)
+			}
 			b.FillTransactionParentIndices(parent)
 			storeBlock(b.Side.Parent, parent, depth+1)
+		} else {
+			b.Depth.Store(math.MaxUint64)
 		}
-		b.Depth.Store(math.MaxUint64)
 		archiveCache.Store(b)
 		totalStored++
 		processed[k] = true
@@ -87,7 +113,7 @@ func main() {
 			for _, e := range dir {
 				h, _ := hex.DecodeString(e.Name())
 				id := types.HashFromBytes(h)
-				bb := loadBlock(id)
+				bb := getByTemplateId(id)
 				if bb != nil && !archiveCache.ExistsByMainId(bb.MainId()) {
 					storeBlock(id, bb, 0)
 				}

@@ -64,14 +64,14 @@ type JSONCoinbaseOutput struct {
 }
 
 type JSONUncleBlockExtra struct {
-	Id         types.Hash       `json:"id"`
-	Height     uint64           `json:"height"`
-	Difficulty types.Difficulty `json:"difficulty"`
-	Timestamp  uint64           `json:"timestamp"`
-	Miner      string           `json:"miner"`
-	MinerAlias string           `json:"miner_alias,omitempty"`
-	PowHash    types.Hash       `json:"pow"`
-	Weight     uint64           `json:"weight"`
+	Id         types.Hash `json:"id"`
+	Height     uint64     `json:"height"`
+	Difficulty uint64     `json:"difficulty"`
+	Timestamp  uint64     `json:"timestamp"`
+	Miner      string     `json:"miner"`
+	MinerAlias string     `json:"miner_alias,omitempty"`
+	PowHash    types.Hash `json:"pow"`
+	Weight     uint64     `json:"weight"`
 }
 
 type Block struct {

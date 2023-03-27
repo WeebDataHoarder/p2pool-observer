@@ -627,11 +627,14 @@ func main() {
 			writer.Header().Set("refresh", "600")
 		}
 
-		windowCount := uint64(1)
+		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+
+		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
+		shareCount := uint64(currentWindowSize)
 		size := uint64(30)
 		cacheTime := 30
 		if params.Has("weekly") {
-			windowCount = 4 * 7
+			shareCount = sidechain.PPLNSWindow * 4 * 7
 			size *= 2
 			if params.Has("refresh") {
 				writer.Header().Set("refresh", "3600")
@@ -639,13 +642,12 @@ func main() {
 			cacheTime = 60
 		}
 
-		poolInfo := getFromAPI("pool_info", 5)
-		shares := getFromAPI(fmt.Sprintf("shares?limit=%d&onlyBlocks", p2pool.PPLNSWindow*windowCount), cacheTime).([]any)
+		shares := getFromAPI(fmt.Sprintf("shares?limit=%d&onlyBlocks", shareCount), cacheTime).([]any)
 
 		miners := make(map[string]map[string]any, 0)
 
-		tipHeight := toUint64(poolInfo.(map[string]any)["sidechain"].(map[string]any)["height"])
-		wend := tipHeight - p2pool.PPLNSWindow*windowCount
+		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
+		wend := tipHeight - shareCount
 
 		tip := shares[0].(map[string]any)
 		for _, s := range shares {
@@ -654,8 +656,8 @@ func main() {
 			if _, ok := miners[miner]; !ok {
 				miners[miner] = make(map[string]any)
 				miners[miner]["weight"] = types.ZeroDifficulty
-				miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
-				miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
+				miners[miner]["shares"] = NewPositionChart(size, shareCount)
+				miners[miner]["uncles"] = NewPositionChart(size, shareCount)
 				if a, ok := share["miner_alias"]; ok {
 					miners[miner]["alias"] = a
 				}
@@ -675,8 +677,8 @@ func main() {
 					if _, ok := miners[miner]; !ok {
 						miners[miner] = make(map[string]any)
 						miners[miner]["weight"] = types.ZeroDifficulty
-						miners[miner]["shares"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
-						miners[miner]["uncles"] = NewPositionChart(size, p2pool.PPLNSWindow*windowCount)
+						miners[miner]["shares"] = NewPositionChart(size, shareCount)
+						miners[miner]["uncles"] = NewPositionChart(size, shareCount)
 						if a, ok := uncle["miner_alias"]; ok {
 							miners[miner]["alias"] = a
 						}
@@ -774,10 +776,6 @@ func main() {
 				m = miner
 				miner["id"] = uint64(0)
 				miner["address"] = addr.ToBase58()
-				shares := make(map[string]any)
-				miner["shares"] = shares
-				shares["blocks"] = uint64(0)
-				shares["uncles"] = uint64(0)
 				miner["last_share_height"] = uint64(0)
 				miner["last_share_timestamp"] = uint64(0)
 			} else {
@@ -798,6 +796,8 @@ func main() {
 		const totalWindows = 4
 		wsize := uint64(p2pool.PPLNSWindow * totalWindows)
 
+		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
+
 		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
 
 		var shares, payouts, lastShares, lastFound []any
@@ -814,7 +814,7 @@ func main() {
 		var sharesInWindow, unclesInWindow uint64
 		var longDiff, windowDiff types.Difficulty
 
-		wend := tipHeight - p2pool.PPLNSWindow
+		wend := tipHeight - currentWindowSize
 
 		foundPayout := NewPositionChart(30*totalWindows, p2pool.PPLNSWindow*totalWindows)
 		for _, p := range payouts {
@@ -876,9 +876,9 @@ func main() {
 		ctx["count_uncles"] = unclesFound.Total()
 		ctx["count_payouts"] = foundPayout.Total()
 		ctx["position_resolution"] = foundPayout.Resolution()
-		ctx["position_blocks"] = sharesFound.StringWithSeparator(p2pool.PPLNSWindow * (totalWindows - 1))
-		ctx["position_uncles"] = unclesFound.StringWithSeparator(p2pool.PPLNSWindow * (totalWindows - 1))
-		ctx["position_payouts"] = foundPayout.StringWithSeparator(p2pool.PPLNSWindow * (totalWindows - 1))
+		ctx["position_blocks"] = sharesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
+		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
+		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
 		render(writer, "miner.html", ctx)
 	})
 

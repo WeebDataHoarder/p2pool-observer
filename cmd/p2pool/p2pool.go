@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"log"
@@ -39,6 +40,7 @@ func main() {
 	createArchive := flag.String("archive", "", "If specified, create an archive store of sidechain blocks on this path.")
 	apiBind := flag.String("api-bind", "", "Bind to this address to serve blocks, and other utility methods. If -archive is specified, serve archived blocks.")
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
+	lightMode := flag.Bool("light-mode", false, "Don't allocate RandomX dataset, saves 2GB of RAM")
 	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path")
 	consensusConfigFile := flag.String("config", "", "Name of the p2pool config file")
 	useMiniSidechain := flag.Bool("mini", false, "Connect to p2pool-mini sidechain. Note that it will also change default p2p port.")
@@ -50,12 +52,13 @@ func main() {
 	noCache := flag.Bool("no-cache", false, "Disable p2pool.cache")
 	debugLog := flag.Bool("debug", false, "Log more details")
 	//TODO extend verbosity to debug flag
-
 	flag.Parse()
 
 	if *debugLog {
 		log.SetFlags(log.Flags() | log.Lshortfile)
 	}
+
+	randomx.UseFullMemory.Store(!*lightMode)
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 

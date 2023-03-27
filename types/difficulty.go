@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -256,6 +257,29 @@ func (d Difficulty) String() string {
 
 func (d Difficulty) StringNumeric() string {
 	return uint128.Uint128(d).String()
+}
+
+func (d *Difficulty) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+
+		if len(buf) != DifficultySize {
+			return errors.New("invalid difficulty size")
+		}
+
+		*d = DifficultyFromBytes(buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (d *Difficulty) Value() (driver.Value, error) {
+	return d.Bytes(), nil
 }
 
 // TODO: remove uint256 dependency as it's unique to this section

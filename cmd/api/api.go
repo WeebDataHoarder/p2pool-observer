@@ -1,16 +1,14 @@
 package main
 
 import (
-	"encoding/hex"
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -37,21 +35,13 @@ func encodeJson(r *http.Request, d any) ([]byte, error) {
 
 func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
-	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 	dbString := flag.String("db", "", "")
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
 	flag.Parse()
-	db, err := database.NewDatabase(*dbString)
-	if err != nil {
-		log.Panic(err)
-	}
-	defer db.Close()
+
+	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
-	api, err := p2poolapi.New(db, p2api)
-	if err != nil {
-		log.Panic(err)
-	}
 
 	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
 		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
@@ -60,14 +50,11 @@ func main() {
 
 	log.Printf("[CHAIN] Consensus id = %s\n", p2api.Consensus().Id())
 
-	getSeedByHeight := func(height uint64) (hash types.Hash) {
-		seedHeight := randomx.SeedHeight(height)
-		if h := p2api.MainHeaderByHeight(seedHeight); h == nil {
-			return types.ZeroHash
-		} else {
-			return h.Id
-		}
+	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
+	if err != nil {
+		log.Panic(err)
 	}
+	defer indexDb.Close()
 
 	getBlockWithUncles := func(id types.Hash) (block *sidechain.PoolBlock, uncles []*sidechain.PoolBlock) {
 		block = p2api.ByTemplateId(id)
@@ -87,67 +74,40 @@ func main() {
 
 	serveMux := mux.NewRouter()
 	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
-		tip := api.GetDatabase().GetChainTip()
+		tip := p2api.Tip()
 
 		blockCount := 0
 		uncleCount := 0
 
-		mainchainDiff := p2api.MainDifficultyByHeight(randomx.SeedHeight(tip.GetBlock().Main.Height))
-
-		sidechainVersion := sidechain.ShareVersion_V1
-		if tip.GetBlock().Timestamp >= sidechain.ShareVersion_V2MainNetTimestamp {
-			sidechainVersion = sidechain.ShareVersion_V2
-		}
-		maxPplnsWeight := types.MaxDifficulty
-
-		if sidechainVersion > sidechain.ShareVersion_V1 {
-			maxPplnsWeight = mainchainDiff.Mul64(2)
-		}
-		var pplnsWeight types.Difficulty
-
 		miners := make(map[uint64]uint64)
 
-		for b := range api.GetDatabase().GetBlocksInWindow(&tip.Height, 0) {
-			if uint64(blockCount) >= p2api.Consensus().ChainWindowSize || pplnsWeight.Cmp(maxPplnsWeight) > 0 {
-				continue
-			}
+		window, windowUncles := p2api.WindowFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
 
-			curWeight := b.Difficulty
-			for u := range api.GetDatabase().GetUnclesByParentId(b.Id) {
-				if (tip.Height - u.Block.Height) >= p2api.Consensus().ChainWindowSize {
-					continue
+		if len(window) == 0 {
+			//err
+			log.Panic("empty window")
+		}
+
+		var pplnsWeight types.Difficulty
+
+		for ps := range sidechain.IterateBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
+			if b := window.Get(h); b == nil {
+				if b = windowUncles.Get(h); b == nil {
+					return p2api.ByTemplateId(h)
+				} else {
+					return b
 				}
-
-				unclePenalty := u.Block.Difficulty.Mul64(p2api.Consensus().UnclePenalty).Div64(100)
-				uncleWeight := u.Block.Difficulty.Sub(unclePenalty)
-				newPplnsWeight := pplnsWeight.Add(uncleWeight)
-
-				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-					continue
-				}
-				curWeight = curWeight.Add(unclePenalty)
-
-				pplnsWeight = newPplnsWeight
-
-				uncleCount++
-				if _, ok := miners[u.Block.MinerId]; !ok {
-					miners[u.Block.MinerId] = 0
-				}
-				miners[u.Block.MinerId]++
+			} else {
+				return b
 			}
-
-			pplnsWeight = pplnsWeight.Add(curWeight)
-
-			if pplnsWeight.Cmp(maxPplnsWeight) > 0 {
-				continue
-			}
-
+		}, func(b *sidechain.PoolBlock, weight types.Difficulty) {
+			miners[indexDb.GetOrCreateMinerPackedAddress(*b.GetAddress()).Id()]++
+			pplnsWeight = pplnsWeight.Add(weight)
+		}, func(err error) {
+			log.Panicf("error scanning PPLNS window: %s", err)
+		}) {
 			blockCount++
-
-			if _, ok := miners[b.MinerId]; !ok {
-				miners[b.MinerId] = 0
-			}
-			miners[b.MinerId]++
+			uncleCount += len(ps.Uncles)
 		}
 
 		type totalKnownResult struct {
@@ -157,7 +117,7 @@ func main() {
 
 		totalKnown := cacheResult(CacheTotalKnownBlocksAndMiners, time.Second*15, func() any {
 			result := &totalKnownResult{}
-			if err := api.GetDatabase().Query("SELECT (SELECT COUNT(*) FROM blocks WHERE main_found IS TRUE ) + (SELECT COUNT(*) FROM uncles WHERE main_found IS TRUE) as found, COUNT(*) as miners FROM (SELECT miner FROM blocks GROUP BY miner UNION DISTINCT SELECT miner FROM uncles GROUP BY miner) all_known_miners;", func(row database.RowScanInterface) error {
+			if err := indexDb.Query("SELECT (SELECT COUNT(*) FROM main_blocks WHERE side_template_id IS NOT NULL) as found, COUNT(*) as miners FROM (SELECT miner FROM side_blocks GROUP BY miner) all_known_miners;", func(row index.RowScanInterface) error {
 				return row.Scan(&result.blocksFound, &result.minersKnown)
 			}); err != nil {
 				return nil
@@ -166,45 +126,41 @@ func main() {
 			return result
 		}).(*totalKnownResult)
 
-		/*
-			poolBlocks, _ := api.GetPoolBlocks()
+		lastBlocksFound := indexDb.GetBlocksFound("", 150)
 
-			poolStats, _ := api.GetPoolStats()
+		globalDiff := p2api.MainDifficultyByHeight(tip.Main.Coinbase.GenHeight)
 
-			globalDiff := tip.Template.Difficulty
+		var lastDiff types.Difficulty
+		if len(lastBlocksFound) > 0 {
+			lastDiff = lastBlocksFound[0].CumulativeDifficulty
+		}
 
-			currentEffort := float64(types.DifficultyFrom64(poolStats.PoolStatistics.TotalHashes-poolBlocks[0].TotalHashes).Mul64(100000).Div(globalDiff).Lo) / 1000
+		currentEffort := float64(tip.Side.CumulativeDifficulty.Sub(lastDiff).Mul64(100000).Div(globalDiff).Lo) / 1000
 
-			if currentEffort <= 0 || poolBlocks[0].TotalHashes == 0 {
-				currentEffort = 0
-			}
+		if currentEffort <= 0 || lastDiff.Cmp64(0) == 0 {
+			currentEffort = 0
+		}
 
-			var blockEfforts mapslice.MapSlice
-			for i, b := range poolBlocks {
-				if i < (len(poolBlocks)-1) && b.TotalHashes > 0 && poolBlocks[i+1].TotalHashes > 0 {
-					blockEfforts = append(blockEfforts, mapslice.MapItem{
-						Key:   b.Hash.String(),
-						Value: float64((b.TotalHashes-poolBlocks[i+1].TotalHashes)*100) / float64(b.Difficulty),
-					})
-				}
-			}
-
-		*/
-		currentEffort := float64(1)
 		var blockEfforts mapslice.MapSlice
-		blockEfforts = append(blockEfforts, mapslice.MapItem{
-			Key:   types.ZeroHash.String(),
-			Value: float64(1),
-		})
+		for i, b := range lastBlocksFound {
+			if i < (len(lastBlocksFound)-1) && b.CumulativeDifficulty.Cmp64(0) > 0 && lastBlocksFound[i+1].CumulativeDifficulty.Cmp64(0) > 0 {
+				blockEfforts = append(blockEfforts, mapslice.MapItem{
+					Key:   b.MainBlock.Id.String(),
+					Value: float64(b.CumulativeDifficulty.Sub(lastBlocksFound[i+1].CumulativeDifficulty).Mul64(100000).Div(globalDiff).Lo) / 1000,
+				})
+			}
+		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		if buf, err := encodeJson(request, poolInfoResult{
 			SideChain: poolInfoResultSideChain{
-				Id:         tip.Id,
-				Height:     tip.Height,
-				Difficulty: tip.Difficulty,
-				Timestamp:  tip.Timestamp,
+				Consensus:            p2api.Consensus(),
+				Id:                   tip.SideTemplateId(p2api.Consensus()),
+				Height:               tip.Side.Height,
+				Difficulty:           tip.Side.Difficulty,
+				CumulativeDifficulty: tip.Side.CumulativeDifficulty,
+				Timestamp:            tip.Main.Timestamp,
 				Effort: poolInfoResultSideChainEffort{
 					Current: currentEffort,
 					Average: func() (result float64) {
@@ -229,9 +185,9 @@ func main() {
 				Miners:        totalKnown.minersKnown,
 			},
 			MainChain: poolInfoResultMainChain{
-				Id:         tip.Template.Id,
-				Height:     tip.Main.Height - 1,
-				Difficulty: tip.Template.Difficulty,
+				Id:         tip.Main.PreviousId,
+				Height:     tip.Main.Coinbase.GenHeight - 1,
+				Difficulty: globalDiff,
 				BlockTime:  monero.BlockTime,
 			},
 			Versions: struct {
@@ -248,18 +204,18 @@ func main() {
 
 	serveMux.HandleFunc("/api/miner_info/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
-		var miner *database.Miner
+		var miner *index.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
-			miner = api.GetDatabase().GetMinerByAddress(minerId)
+			miner = indexDb.GetMinerByStringAddress(minerId)
 		}
 
 		if miner == nil {
-			miner = api.GetDatabase().GetMinerByAlias(minerId)
+			miner = indexDb.GetMinerByAlias(minerId)
 		}
 
 		if miner == nil {
 			if i, err := strconv.Atoi(minerId); err == nil {
-				miner = api.GetDatabase().GetMiner(uint64(i))
+				miner = indexDb.GetMiner(uint64(i))
 			}
 		}
 
@@ -275,44 +231,49 @@ func main() {
 			return
 		}
 
-		var blockData struct {
-			Count      uint64
-			LastHeight uint64
-		}
-		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, coalesce(MAX(height), 0) as last_height FROM blocks WHERE blocks.miner = $1;", func(row database.RowScanInterface) error {
-			return row.Scan(&blockData.Count, &blockData.LastHeight)
+		var foundBlocksData [index.InclusionAlternateInVerifiedChain + 1]minerInfoBlockData
+		_ = indexDb.Query("SELECT COUNT(*) as count, coalesce(MAX(side_height), 0) as last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
+			var d minerInfoBlockData
+			var inclusion index.BlockInclusion
+			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
+				return err
+			}
+			if inclusion < 3 {
+				foundBlocksData[inclusion] = d
+			}
+			return nil
 		}, miner.Id())
-		var uncleData struct {
-			Count      uint64
-			LastHeight uint64
-		}
-		_ = api.GetDatabase().Query("SELECT COUNT(*) as count, coalesce(MAX(parent_height), 0) as last_height FROM uncles WHERE uncles.miner = $1;", func(row database.RowScanInterface) error {
-			return row.Scan(&uncleData.Count, &uncleData.LastHeight)
+
+		_ = indexDb.Query("SELECT COUNT(*) as count, coalesce(MAX(side_height), 0) as last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 AND side_blocks.uncle_of IS NOT NULL GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
+			var d minerInfoBlockData
+			var inclusion index.BlockInclusion
+			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
+				return err
+			}
+			if inclusion <= index.InclusionAlternateInVerifiedChain {
+				foundBlocksData[inclusion].ShareCount -= d.ShareCount
+				foundBlocksData[inclusion].UncleCount = d.ShareCount
+			}
+			return nil
 		}, miner.Id())
 
 		var lastShareHeight uint64
 		var lastShareTimestamp uint64
-		if blockData.Count > 0 && blockData.LastHeight > lastShareHeight {
-			lastShareHeight = blockData.LastHeight
-		}
-		if uncleData.Count > 0 && uncleData.LastHeight > lastShareHeight {
-			lastShareHeight = uncleData.LastHeight
+		if foundBlocksData[index.InclusionInVerifiedChain].ShareCount > 0 && foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight > lastShareHeight {
+			lastShareHeight = foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight
 		}
 
 		if lastShareHeight > 0 {
-			lastShareTimestamp = api.GetDatabase().GetBlockByHeight(lastShareHeight).Timestamp
+			lastShareTimestamp = indexDb.GetTipSideBlockByHeight(lastShareHeight).Timestamp
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, minerInfoResult{
-			Id:      miner.Id(),
-			Address: miner.MoneroAddress(),
-			Alias:   miner.Alias(),
-			Shares: struct {
-				Blocks uint64 `json:"blocks"`
-				Uncles uint64 `json:"uncles"`
-			}{Blocks: blockData.Count, Uncles: uncleData.Count},
+			Id:                 miner.Id(),
+			Address:            miner.Address(),
+			Alias:              miner.Alias(),
+			Shares:             foundBlocksData,
 			LastShareHeight:    lastShareHeight,
 			LastShareTimestamp: lastShareTimestamp,
 		})
@@ -321,7 +282,7 @@ func main() {
 
 	serveMux.HandleFunc("/api/miner_alias/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
-		miner := api.GetDatabase().GetMinerByAddress(minerId)
+		miner := indexDb.GetMinerByStringAddress(minerId)
 
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -361,12 +322,12 @@ func main() {
 			return
 		}
 
-		result := address.VerifyMessage(miner.MoneroAddress(), []byte(message), sig)
+		result := address.VerifyMessage(miner.Address(), []byte(message), sig)
 		if result == address.ResultSuccessSpend {
 			if message == "REMOVE_MINER_ALIAS" {
 				message = ""
 			}
-			if api.GetDatabase().SetMinerAlias(miner.Id(), message) != nil {
+			if indexDb.SetMinerAlias(miner.Id(), message) != nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusBadRequest)
 				buf, _ := json.Marshal(struct {
@@ -406,14 +367,14 @@ func main() {
 
 	serveMux.HandleFunc("/api/shares_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
-		var miner *database.Miner
+		var miner *index.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
-			miner = api.GetDatabase().GetMinerByAddress(minerId)
+			miner = indexDb.GetMinerByStringAddress(minerId)
 		}
 
 		if miner == nil {
 			if i, err := strconv.Atoi(minerId); err == nil {
-				miner = api.GetDatabase().GetMiner(uint64(i))
+				miner = indexDb.GetMiner(uint64(i))
 			}
 		}
 
@@ -440,50 +401,43 @@ func main() {
 			}
 		}
 
-		var from *uint64
+		var from uint64
 		if params.Has("from") {
 			if i, err := strconv.Atoi(params.Get("from")); err == nil {
 				if i >= 0 {
-					i := uint64(i)
-					from = &i
+					from = uint64(i)
 				}
 			}
 		}
 
 		result := make([]*sharesInWindowResult, 0)
 
-		for block := range api.GetDatabase().GetBlocksByMinerIdInWindow(miner.Id(), from, window) {
+		for sideBlock := range indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window) {
 			s := &sharesInWindowResult{
-				Id:        block.Id,
-				Height:    block.Height,
-				Timestamp: block.Timestamp,
-				Weight:    block.Difficulty.Lo,
+				Id:        sideBlock.TemplateId,
+				Height:    sideBlock.SideHeight,
+				Timestamp: sideBlock.Timestamp,
+				Weight:    sideBlock.Difficulty,
 			}
 
-			for u := range api.GetDatabase().GetUnclesByParentId(block.Id) {
-				uncleWeight := u.Block.Difficulty.Mul64(p2api.Consensus().UnclePenalty).Div64(100)
-				s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
-					Id:     u.Block.Id,
-					Height: u.Block.Height,
-					Weight: uncleWeight.Lo,
-				})
-				s.Weight += uncleWeight.Lo
+			if sideBlock.IsUncle() {
+				s.Parent = &sharesInWindowResultParent{
+					Id:     sideBlock.UncleOf,
+					Height: sideBlock.EffectiveHeight,
+				}
+				s.Weight = types.DifficultyFrom64(s.Weight).Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo
+			} else {
+				for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
+					uncleWeight := types.DifficultyFrom64(u.Difficulty).Mul64(p2api.Consensus().UnclePenalty).Div64(100)
+					s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
+						Id:     u.TemplateId,
+						Height: u.SideHeight,
+						Weight: uncleWeight.Lo,
+					})
+					s.Weight += uncleWeight.Lo
+				}
 			}
 
-			result = append(result, s)
-		}
-
-		for uncle := range api.GetDatabase().GetUnclesByMinerIdInWindow(miner.Id(), from, window) {
-			s := &sharesInWindowResult{
-				Parent: &sharesInWindowResultParent{
-					Id:     uncle.ParentId,
-					Height: uncle.ParentHeight,
-				},
-				Id:        uncle.Block.Id,
-				Height:    uncle.Block.Height,
-				Timestamp: uncle.Block.Timestamp,
-				Weight:    uncle.Block.Difficulty.Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo,
-			}
 			result = append(result, s)
 		}
 
@@ -495,14 +449,14 @@ func main() {
 
 	serveMux.HandleFunc("/api/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
-		var miner *database.Miner
+		var miner *index.Miner
 		if len(minerId) > 10 && minerId[0] == '4' {
-			miner = api.GetDatabase().GetMinerByAddress(minerId)
+			miner = indexDb.GetMinerByStringAddress(minerId)
 		}
 
 		if miner == nil {
 			if i, err := strconv.Atoi(minerId); err == nil {
-				miner = api.GetDatabase().GetMiner(uint64(i))
+				miner = indexDb.GetMiner(uint64(i))
 			}
 		}
 
@@ -528,9 +482,9 @@ func main() {
 			}
 		}
 
-		payouts := make([]*database.Payout, 0)
+		payouts := make([]*index.Payout, 0)
 
-		for payout := range api.GetDatabase().GetPayoutsByMinerId(miner.Id(), limit) {
+		for payout := range indexDb.GetPayoutsByMinerId(miner.Id(), limit) {
 			payouts = append(payouts, payout)
 		}
 
@@ -562,14 +516,8 @@ func main() {
 		}
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
-		c := api.GetDatabase().GetBlocksByQuery("WHERE height = $1 AND main_found IS TRUE", utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
-		defer func() {
-			for range c {
-
-			}
-		}()
-		b := <-c
-		if b == nil {
+		foundTargets := indexDb.GetBlocksFound("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
+		if len(foundTargets) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
 			buf, _ := json.Marshal(struct {
@@ -582,9 +530,9 @@ func main() {
 		}
 
 		if request.Header.Get("host") == torHost {
-			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+			http.Redirect(writer, request, fmt.Sprintf("http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion/explorer/tx/%s", foundTargets[0].MainBlock.Id.String()), http.StatusFound)
 		} else {
-			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", b.Coinbase.Id.String()), http.StatusFound)
+			http.Redirect(writer, request, fmt.Sprintf("https://p2pool.io/explorer/tx/%s", foundTargets[0].MainBlock.Id.String()), http.StatusFound)
 		}
 	})
 	serveMux.HandleFunc("/api/redirect/share/{height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -593,15 +541,13 @@ func main() {
 		blockHeight := c >> 16
 		blockIdStart := c & 0xFFFF
 
-		var b database.BlockInterface
-		var b1 = <-api.GetDatabase().GetBlocksByQuery("WHERE height = $1 AND id ILIKE $2 LIMIT 1;", blockHeight, hex.EncodeToString([]byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)})+"%")
-		if b1 == nil {
-			b2 := <-api.GetDatabase().GetUncleBlocksByQuery("WHERE height = $1 AND id ILIKE $2 LIMIT 1;", blockHeight, hex.EncodeToString([]byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)})+"%")
-			if b2 != nil {
-				b = b2
+		blockStart := []byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)}
+		shares := index.ChanToSlice(indexDb.GetSideBlocksByQuery("WHERE side_height = $1;", 1, blockHeight))
+		var b *index.SideBlock
+		for _, s := range shares {
+			if bytes.Compare(s.TemplateId[:2], blockStart) == 0 {
+				b = s
 			}
-		} else {
-			b = b1
 		}
 
 		if b == nil {
@@ -616,7 +562,7 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("/share/%s", b.GetBlock().Id.String()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/share/%s", b.TemplateId.String()), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/redirect/prove/{height_index:[0-9]+|.[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -624,15 +570,15 @@ func main() {
 		n := uint64(math.Ceil(math.Log2(float64(p2api.Consensus().ChainWindowSize * 4))))
 
 		height := i >> n
-		index := i & ((1 << n) - 1)
+		outputIndex := i & ((1 << n) - 1)
 
-		b := api.GetDatabase().GetBlockByHeight(height)
-		var tx *database.CoinbaseTransactionOutput
-		if b != nil {
-			tx = api.GetDatabase().GetCoinbaseTransactionOutputByIndex(b.Coinbase.Id, index)
+		b := indexDb.GetBlocksFound("WHERE side_height = $1", 1, height)
+		var tx *index.MainCoinbaseOutput
+		if len(b) != 0 {
+			tx = indexDb.GetMainCoinbaseOutputByIndex(b[0].MainBlock.CoinbaseId, outputIndex)
 		}
 
-		if b == nil || tx == nil {
+		if len(b) == 0 || tx == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
 			buf, _ := json.Marshal(struct {
@@ -644,13 +590,13 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b.Id.String(), tx.Index()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b[0].MainBlock.Id.String(), tx.Index), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/redirect/prove/{height:[0-9]+|.[0-9A-Za-z]+}/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
-		b := api.GetDatabase().GetBlockByHeight(utils.DecodeBinaryNumber(mux.Vars(request)["height"]))
-		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
-		if b == nil || miner == nil {
+		b := indexDb.GetBlocksFound("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["height"]))
+		miner := indexDb.GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
+		if len(b) == 0 || miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
 			buf, _ := json.Marshal(struct {
@@ -662,7 +608,7 @@ func main() {
 			return
 		}
 
-		tx := api.GetDatabase().GetCoinbaseTransactionOutputByMinerId(b.Coinbase.Id, miner.Id())
+		tx := indexDb.GetMainCoinbaseOutputByMinerId(b[0].MainBlock.Id, miner.Id())
 
 		if tx == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -676,11 +622,11 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b.Id.String(), tx.Index()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/proof/%s/%d", b[0].MainBlock.Id.String(), tx.Index), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/redirect/miner/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
-		miner := api.GetDatabase().GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
+		miner := indexDb.GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
@@ -693,15 +639,19 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", miner.Address()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/miner/%s", miner.Address().ToBase58()), http.StatusFound)
 	})
 
 	//other redirects
 	serveMux.HandleFunc("/api/redirect/last_found{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", api.GetDatabase().GetLastFound().GetBlock().Id.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+		var lastFoundHash types.Hash
+		for _, b := range indexDb.GetBlocksFound("", 1) {
+			lastFoundHash = b.MainBlock.SideTemplateId
+		}
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", lastFoundHash.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/tip{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", api.GetDatabase().GetChainTip().Id.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", indexDb.GetSideBlockTip().TemplateId.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/found_blocks", func(writer http.ResponseWriter, request *http.Request) {
@@ -719,15 +669,15 @@ func main() {
 
 		if params.Has("miner") {
 			id := params.Get("miner")
-			var miner *database.Miner
+			var miner *index.Miner
 
 			if len(id) > 10 && id[0] == '4' {
-				miner = api.GetDatabase().GetMinerByAddress(id)
+				miner = indexDb.GetMinerByStringAddress(id)
 			}
 
 			if miner == nil {
 				if i, err := strconv.Atoi(id); err == nil {
-					miner = api.GetDatabase().GetMiner(uint64(i))
+					miner = indexDb.GetMiner(uint64(i))
 				}
 			}
 
@@ -754,11 +704,24 @@ func main() {
 			limit = 50
 		}
 
-		result := make([]*database.Block, 0, limit)
+		result := make([]*JSONBlock, 0, limit)
 
-		for block := range api.GetDatabase().GetAllFound(limit, minerId) {
-			MapJSONBlock(api, block, false, params.Has("coinbase"))
-			result = append(result, block.GetBlock())
+		if minerId != 0 {
+			for _, foundBlock := range indexDb.GetBlocksFound("WHERE miner = $1", limit, minerId) {
+				dbBlock := indexDb.GetSideBlockByMainId(foundBlock.MainBlock.Id)
+				if dbBlock == nil {
+					continue
+				}
+				result = append(result, MapJSONBlock(p2api, indexDb, dbBlock, foundBlock, false, params.Has("coinbase")))
+			}
+		} else {
+			for _, foundBlock := range indexDb.GetBlocksFound("", limit) {
+				dbBlock := indexDb.GetSideBlockByMainId(foundBlock.MainBlock.Id)
+				if dbBlock == nil {
+					continue
+				}
+				result = append(result, MapJSONBlock(p2api, indexDb, dbBlock, foundBlock, false, params.Has("coinbase")))
+			}
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -791,15 +754,15 @@ func main() {
 
 		if params.Has("miner") {
 			id := params.Get("miner")
-			var miner *database.Miner
+			var miner *index.Miner
 
 			if len(id) > 10 && id[0] == '4' {
-				miner = api.GetDatabase().GetMinerByAddress(id)
+				miner = indexDb.GetMinerByStringAddress(id)
 			}
 
 			if miner == nil {
 				if i, err := strconv.Atoi(id); err == nil {
-					miner = api.GetDatabase().GetMiner(uint64(i))
+					miner = indexDb.GetMiner(uint64(i))
 				}
 			}
 
@@ -818,11 +781,10 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		result := make([]*database.Block, 0, limit)
+		result := make([]*JSONBlock, 0, limit)
 
-		for b := range api.GetDatabase().GetShares(limit, minerId, onlyBlocks) {
-			MapJSONBlock(api, b, true, params.Has("coinbase"))
-			result = append(result, b.GetBlock())
+		for b := range indexDb.GetShares(limit, minerId, onlyBlocks) {
+			result = append(result, MapJSONBlock(p2api, indexDb, b, nil, true, params.Has("coinbase")))
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -835,41 +797,19 @@ func main() {
 
 		params := request.URL.Query()
 
-		var block database.BlockInterface
+		var block *index.SideBlock
 		if mux.Vars(request)["by"] == "id" {
 			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
-				if b := api.GetDatabase().GetBlockById(id); b != nil {
+				if b := indexDb.GetTipSideBlockByTemplateId(id); b != nil {
+					block = b
+				} else if b = indexDb.GetSideBlockByMainId(id); b != nil {
 					block = b
 				}
 			}
 		} else if mux.Vars(request)["by"] == "height" {
 			if height, err := strconv.ParseUint(mux.Vars(request)["block"], 10, 0); err == nil {
-				if b := api.GetDatabase().GetBlockByHeight(height); b != nil {
+				if b := indexDb.GetTipSideBlockByHeight(height); b != nil {
 					block = b
-				}
-			}
-		}
-
-		isOrphan := false
-		isInvalid := false
-
-		if block == nil && mux.Vars(request)["by"] == "id" {
-			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
-				if b := api.GetDatabase().GetUncleById(id); b != nil {
-					block = b
-				} else {
-					isOrphan = true
-
-					bblock := p2api.ByTemplateId(id)
-
-					if b, _, _ := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, bblock, nil, false); b != nil {
-						block = b
-					} else {
-						isInvalid = true
-						/*if b, _ = api.GetShareFromFailedRawEntry(id); b != nil {
-							block = b
-						}*/
-					}
 				}
 			}
 		}
@@ -886,9 +826,12 @@ func main() {
 			return
 		}
 
+		isOrphan := block.Inclusion == index.InclusionOrphan
+		isInvalid := false
+
 		switch mux.Vars(request)["kind"] {
 		case "/raw":
-			raw := p2api.ByTemplateId(block.GetBlock().Id)
+			raw := p2api.ByMainId(block.MainId)
 
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -907,41 +850,10 @@ func main() {
 			buf, _ := raw.MarshalBinary()
 			_, _ = writer.Write(buf)
 		case "/payouts":
-			result := make([]*database.Payout, 0)
+			result := make([]*index.Payout, 0)
 			if !isOrphan && !isInvalid {
-				blockHeight := block.GetBlock().Height
-				if uncle, ok := block.(*database.UncleBlock); ok {
-					blockHeight = uncle.ParentHeight
-				}
-
-				if err := db.Query("SELECT decode(b.id, 'hex') AS id, decode(b.main_id, 'hex') AS main_id, b.height AS height, b.main_height AS main_height, b.timestamp AS timestamp, decode(b.coinbase_privkey, 'hex') AS coinbase_privkey, b.uncle AS uncle, decode(o.id, 'hex') AS coinbase_id, o.amount AS amount, o.index AS index FROM (SELECT id, amount, index FROM coinbase_outputs WHERE miner = $1 ) o LEFT JOIN LATERAL (SELECT id, coinbase_id, coinbase_privkey, height, main_height, main_id, timestamp, FALSE AS uncle FROM blocks WHERE coinbase_id = o.id UNION SELECT id, coinbase_id, coinbase_privkey, height, main_height, main_id, timestamp, TRUE AS uncle FROM uncles WHERE coinbase_id = o.id) b ON b.coinbase_id = o.id WHERE height >= $2 AND height < $3 ORDER BY main_height ASC;", func(row database.RowScanInterface) error {
-					var blockId, mainId, privKey, coinbaseId []byte
-					var height, mainHeight, timestamp, amount, index uint64
-					var uncle bool
-
-					if err := row.Scan(&blockId, &mainId, &height, &mainHeight, &timestamp, &privKey, &uncle, &coinbaseId, &amount, &index); err != nil {
-						return err
-					}
-
-					result = append(result, &database.Payout{
-						Id:        types.HashFromBytes(blockId),
-						Height:    height,
-						Timestamp: timestamp,
-						Main: struct {
-							Id     types.Hash `json:"id"`
-							Height uint64     `json:"height"`
-						}{Id: types.HashFromBytes(mainId), Height: mainHeight},
-						Uncle: uncle,
-						Coinbase: struct {
-							Id         types.Hash             `json:"id"`
-							Reward     uint64                 `json:"reward"`
-							PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-							Index      uint64                 `json:"index"`
-						}{Id: types.HashFromBytes(coinbaseId), Reward: amount, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
-					})
-					return nil
-				}, block.GetBlock().MinerId, blockHeight, blockHeight+p2api.Consensus().ChainWindowSize); err != nil {
-					return
+				for payout := range indexDb.GetPayoutsBySideBlock(block) {
+					result = append(result, payout)
 				}
 			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -949,28 +861,19 @@ func main() {
 			buf, _ := encodeJson(request, result)
 			_, _ = writer.Write(buf)
 		default:
-			MapJSONBlock(api, block, true, params.Has("coinbase"))
-
-			func() {
-				block.GetBlock().Lock.Lock()
-				defer block.GetBlock().Lock.Unlock()
-				block.GetBlock().Orphan = isOrphan
-				if isInvalid {
-					block.GetBlock().Invalid = &isInvalid
-				}
-			}()
-
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, block.GetBlock())
+			buf, _ := encodeJson(request, MapJSONBlock(p2api, indexDb, block, nil, true, params.Has("coinbase")))
 			_, _ = writer.Write(buf)
 		}
 	})
 
 	type difficultyStatResult struct {
-		Height     uint64 `json:"height"`
-		Timestamp  uint64 `json:"timestamp"`
-		Difficulty uint64 `json:"difficulty"`
+		Height                    uint64 `json:"height"`
+		Timestamp                 uint64 `json:"timestamp"`
+		Difficulty                uint64 `json:"difficulty"`
+		CumulativeDifficultyTop64 uint64 `json:"cumulative_difficulty_top64"`
+		CumulativeDifficulty      uint64 `json:"cumulative_difficulty"`
 	}
 
 	type minerSeenResult struct {
@@ -984,15 +887,15 @@ func main() {
 		case "difficulty":
 			result := make([]*difficultyStatResult, 0)
 
-			_ = api.GetDatabase().Query("SELECT height,timestamp,difficulty FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+			_ = indexDb.Query("SELECT side_height,timestamp,difficulty,cumulative_difficulty FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
 				r := &difficultyStatResult{}
 
-				var difficultyHex string
-				if err := row.Scan(&r.Height, &r.Timestamp, &difficultyHex); err != nil {
+				var cumDiff types.Difficulty
+				if err := row.Scan(&r.Height, &r.Timestamp, &r.Difficulty, &cumDiff); err != nil {
 					return err
 				}
-				d, _ := types.DifficultyFromString(difficultyHex)
-				r.Difficulty = d.Lo
+				r.CumulativeDifficulty = cumDiff.Lo
+				r.CumulativeDifficultyTop64 = cumDiff.Hi
 
 				result = append(result, r)
 				return nil
@@ -1006,7 +909,7 @@ func main() {
 		case "miner_seen":
 			result := make([]*minerSeenResult, 0)
 
-			_ = api.GetDatabase().Query("SELECT height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM blocks b WHERE b.height <= blocks.height AND b.height > (blocks.height - $2)) as count FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+			_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
 				r := &minerSeenResult{}
 
 				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
@@ -1025,7 +928,7 @@ func main() {
 		case "miner_seen_window":
 			result := make([]*minerSeenResult, 0)
 
-			_ = api.GetDatabase().Query("SELECT height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM blocks b WHERE b.height <= blocks.height AND b.height > (blocks.height - $2)) as count FROM blocks WHERE height % $1 = 0 ORDER BY height DESC;", func(row database.RowScanInterface) error {
+			_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
 				r := &minerSeenResult{}
 
 				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {

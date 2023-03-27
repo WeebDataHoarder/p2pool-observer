@@ -6,5 +6,7 @@ const (
 	HardForkViewTagsVersion  = 15
 	HardForkSupportedVersion = 16
 
+	MinerRewardUnlockTime = 60
+
 	TailEmissionReward = 600000000000
 )

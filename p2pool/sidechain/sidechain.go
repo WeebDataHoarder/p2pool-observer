@@ -101,14 +101,16 @@ func (c *SideChain) PreCalcFinished() bool {
 }
 
 func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Hash, err error) {
+	var preAllocatedShares Shares
 	if len(block.Main.Coinbase.Outputs) == 0 {
 		//cannot use SideTemplateId() as it might not be proper to calculate yet. fetch from coinbase only here
 		if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
 			block.Main.Coinbase.Outputs = b.Main.Coinbase.Outputs
+		} else {
+			preAllocatedShares = make(Shares, 0, c.Consensus().ChainWindowSize*2)
 		}
 	}
 
-	preAllocatedShares := make(Shares, 0, c.Consensus().ChainWindowSize*2)
 	return block.PreProcessBlock(c.Consensus(), c.derivationCache, preAllocatedShares, c.server.GetDifficultyByHeight, c.GetPoolBlockByTemplateId)
 }
 
@@ -122,6 +124,7 @@ func (c *SideChain) isPoolBlockTransactionKeyIsDeterministic(block *PoolBlock) b
 }
 
 func (c *SideChain) getSeedByHeightFunc() mainblock.GetSeedByHeightFunc {
+	//TODO: do not make this return a function
 	return func(height uint64) (hash types.Hash) {
 		seedHeight := randomx.SeedHeight(height)
 		if h := c.server.GetMinimalBlockHeaderByHeight(seedHeight); h != nil {
@@ -543,7 +546,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
 				}
 				return nil
-			})
+			}, nil)
 
 			for i := range results {
 				if results[i] != nil {

@@ -2,6 +2,7 @@ package types
 
 import (
 	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -85,6 +86,30 @@ func (h Hash) Equals(o Hash) bool {
 
 func (h Hash) String() string {
 	return hex.EncodeToString(h[:])
+}
+
+func (h *Hash) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+		if len(buf) != HashSize {
+			return errors.New("invalid hash size")
+		}
+		copy((*h)[:], buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (h *Hash) Value() (driver.Value, error) {
+	if *h == ZeroHash {
+		return nil, nil
+	}
+	return (*h)[:], nil
 }
 
 func (h *Hash) UnmarshalJSON(b []byte) error {

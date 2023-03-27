@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
+	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
+	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
@@ -22,33 +25,12 @@ func main() {
 	startFromHeight := flag.Uint64("from", 0, "Start sync from this height")
 	dbString := flag.String("db", "", "")
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
+	fullMode := flag.Bool("full-mode", false, "Allocate RandomX dataset, uses 2GB of RAM")
 	flag.Parse()
+	randomx.UseFullMemory.Store(*fullMode)
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
-	db, err := database.NewDatabase(*dbString)
-	if err != nil {
-		log.Panic(err)
-	}
-	defer db.Close()
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
-	api, err := p2poolapi.New(db, p2api)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	//TODO: force-insert section
-
-	tip := db.GetChainTip()
-
-	isFresh := tip == nil
-
-	var tipHeight uint64
-
-	if tip != nil {
-		tipHeight = tip.Height
-	}
-
-	log.Printf("[CHAIN] Last known database tip is %d\n", tipHeight)
 
 	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
 		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
@@ -57,271 +39,186 @@ func main() {
 
 	log.Printf("[CHAIN] Consensus id = %s\n", p2api.Consensus().Id())
 
-	getSeedByHeight := func(height uint64) (hash types.Hash) {
-		seedHeight := randomx.SeedHeight(height)
-		if h := p2api.MainHeaderByHeight(seedHeight); h == nil {
-			return types.ZeroHash
-		} else {
-			return h.Id
-		}
+	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
+	if err != nil {
+		log.Panic(err)
 	}
+	defer indexDb.Close()
 
-	tipChain, tipUncles := p2api.StateFromTip()
+	dbTip := indexDb.GetSideBlockTip()
 
-	if len(tipChain) == 0 || len(tipChain) < int(p2api.Consensus().ChainWindowSize*2) {
-		log.Panicf("[CHAIN] Too small length %d", len(tipChain))
+	var tipHeight uint64
+	if dbTip != nil {
+		tipHeight = dbTip.SideHeight
 	}
+	log.Printf("[CHAIN] Last known database tip is %d\n", tipHeight)
 
-	p2poolTip := tipChain[0].Side.Height
-
-	log.Printf("[CHAIN] Last known p2pool tip is %d\n", p2poolTip)
-
-	startFrom := utils.Max(tipHeight, tipChain[len(tipChain)-1].Side.Height)
-	//TODO: archive
-
+	window, uncles := p2api.StateFromTip()
 	if *startFromHeight != 0 {
-		log.Printf("[CHAIN] Forcing start tip to %d\n", *startFromHeight)
-		startFrom = *startFromHeight
-	}
-
-	var chain sidechain.UniquePoolBlockSlice
-
-	if isFresh || startFrom != p2poolTip {
-
-		if startFrom > p2poolTip {
-			startFrom = p2poolTip
-		}
-
-		if isFresh {
-			lowerTip := tipChain[len(tipChain)-1]
-			for low := lowerTip; low != nil; low = p2api.ByTemplateId(low.Side.Parent) {
-				chain = append(chain, low)
-				lowerTip = low
-			}
-
-			if len(chain) > 0 {
-				chain = chain[:len(chain)-1]
-			}
-
-			b := lowerTip
-
-			if block, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, b, tipUncles, true); err != nil {
-				log.Panicf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles: %s\n", blockId(b).String(), b.Side.Height, err)
-			} else {
-				log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
-				if err = db.InsertBlock(block, nil); err != nil {
-					log.Panic(err)
-				}
-				for _, uncle := range uncles {
-					log.Printf("[CHAIN] Inserting uncle share %s at height %d\n", uncle.Block.Id.String(), b.Side.Height)
-					if err = db.InsertUncleBlock(uncle, nil); err != nil {
-						log.Panic(err)
-					}
-				}
-			}
-
-			startFrom = b.Side.Height
-		}
-	}
-
-	//TODO: handle jumps in blocks (missing data)
-
-	knownTip := startFrom
-
-	log.Printf("[CHAIN] Starting tip from height %d\n", knownTip)
-
-	runs := 0
-
-	//Fix blocks without height
-	for b := range db.GetBlocksByQuery("WHERE miner_main_difficulty = 'ffffffffffffffffffffffffffffffff' ORDER BY main_height ASC;") {
-		cacheHeightDifficulty(b.Main.Height)
-
-		if diff, ok := getHeightDifficulty(b.Main.Height); ok {
-			log.Printf("[CHAIN] Filling main difficulty for share %d, main height %d\n", b.Height, b.Main.Height)
-			_ = db.SetBlockMainDifficulty(b.Id, diff)
-			b = db.GetBlockById(b.Id)
-
-			if !b.Main.Found && b.IsProofHigherThanDifficulty() {
-				log.Printf("[CHAIN] BLOCK FOUND! Main height %d, main id %s\n", b.Main.Height, b.Main.Id.String())
-
-				if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(b.Coinbase.Id); tx != nil {
-					_ = db.SetBlockFound(b.Id, true)
-					processFoundBlockWithTransaction(api, b, tx)
-				}
-			}
-		}
-
-	}
-
-	//Fix uncle without height
-	for u := range db.GetUncleBlocksByQuery("WHERE miner_main_difficulty = 'ffffffffffffffffffffffffffffffff' ORDER BY main_height ASC;") {
-		cacheHeightDifficulty(u.Block.Main.Height)
-
-		if diff, ok := getHeightDifficulty(u.Block.Main.Height); ok {
-			log.Printf("[CHAIN] Filling main difficulty for uncle share %d, main height %d\n", u.Block.Height, u.Block.Main.Height)
-			_ = db.SetBlockMainDifficulty(u.Block.Id, diff)
-			u = db.GetUncleById(u.Block.Id)
-
-			if !u.Block.Main.Found && u.Block.IsProofHigherThanDifficulty() {
-				log.Printf("[CHAIN] BLOCK FOUND! Main height %d, main id %s\n", u.Block.Main.Height, u.Block.Main.Id.String())
-
-				if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(u.Block.Coinbase.Id); tx != nil {
-					_ = db.SetBlockFound(u.Block.Id, true)
-					processFoundBlockWithTransaction(api, u, tx)
-				}
-			}
-		}
-
-	}
-
-	for {
-
-	toStart:
-
-		if len(chain) == 0 {
-			time.Sleep(time.Second * 1)
-		}
-		runs++
-
-		var p2tip *sidechain.PoolBlock
-		if len(chain) > 0 {
-			p2tip = chain[len(chain)-1]
-			chain = chain[:len(chain)-1]
+		tip := p2api.BySideHeight(*startFromHeight)
+		if len(tip) != 0 {
+			window, uncles = p2api.WindowFromTemplateId(blockId(tip[0]))
 		} else {
-			p2tip = p2api.Tip()
-		}
-		if p2tip == nil {
-			log.Panicf("[CHAIN] could not find tip, at %d", knownTip)
-		}
-
-		if p2tip.Side.Height < knownTip {
-			log.Panicf("[CHAIN] tip went backwards! %d -> %d", knownTip, p2tip.Side.Height)
-		} else if p2tip.Side.Height > (knownTip + 1) {
-			log.Printf("[CHAIN] tip went forwards! Rolling back %d -> %d", knownTip, p2tip.Side.Height)
-			for i := p2tip.Side.Height - (knownTip + 1); i > 0 && p2tip != nil; i-- {
-				chain = append(chain, p2tip)
-				p2tip = p2api.ByTemplateId(p2tip.Side.Parent)
+			tip = p2api.BySideHeight(*startFromHeight + p2api.Consensus().ChainWindowSize)
+			if len(tip) != 0 {
+				window, uncles = p2api.WindowFromTemplateId(blockId(tip[0]))
 			}
 		}
-		if p2tip == nil {
-			log.Panicf("[CHAIN] could not find tip after depth, at %d", knownTip)
+	}
+
+	insertFromTip := func(tip *sidechain.PoolBlock) {
+		if indexDb.GetTipSideBlockByTemplateId(blockId(tip)) != nil {
+			//reached old tip
+			return
+		}
+		for cur := tip; cur != nil; cur = p2api.ByTemplateId(cur.Side.Parent) {
+			log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(cur).String(), cur.Side.Height)
+			for _, u := range cur.Side.Uncles {
+				log.Printf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), cur.Side.Height)
+			}
+			if err := indexDb.InsertOrUpdatePoolBlock(cur, index.InclusionInVerifiedChain); err != nil {
+				log.Panic(err)
+			}
+			if indexDb.GetTipSideBlockByTemplateId(cur.Side.Parent) != nil {
+				//reached old tip
+				break
+			}
+		}
+	}
+
+	for len(window) > 0 {
+		log.Printf("[CHAIN] Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
+		for _, b := range window {
+			indexDb.CachePoolBlock(b)
+		}
+		for _, u := range uncles {
+			indexDb.CachePoolBlock(u)
+		}
+		for _, b := range window {
+			if indexDb.GetTipSideBlockByTemplateId(b.SideTemplateId(p2api.Consensus())) != nil {
+				//reached old tip
+				window = nil
+				break
+			}
+			log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
+			if err := indexDb.InsertOrUpdatePoolBlock(b, index.InclusionInVerifiedChain); err != nil {
+				log.Panic(err)
+			}
 		}
 
-		dbTip := db.GetBlockByHeight(knownTip)
-
-		if dbTip != nil && dbTip.Id == blockId(p2tip) { // no changes
-			continue
+		if len(window) == 0 {
+			break
 		}
 
-		if dbTip != nil && dbTip.Id != p2tip.Side.Parent { //Reorg has happened, delete old values
-			log.Printf("[REORG] Reorg happened, deleting blocks to match from height %d.\n", dbTip.Height)
+		parent := p2api.ByTemplateId(window[len(window)-1].Side.Parent)
+		if parent == nil {
+			break
+		}
+		window, uncles = p2api.WindowFromTemplateId(blockId(parent))
+		if len(window) == 0 {
+			insertFromTip(parent)
+			break
+		}
+	}
 
-			diskBlock := p2tip
-			for h := knownTip; h > 0; h-- {
-				dbBlock := db.GetBlockByHeight(h)
-				diskBlock = p2api.ByTemplateId(diskBlock.Side.Parent)
-				if dbBlock.Id == blockId(diskBlock) {
-					log.Printf("[REORG] Found matching head %s at height %d\n", dbBlock.PreviousId.String(), dbBlock.Height-1)
-					deleted, err := db.DeleteBlockById(dbBlock.Id)
-					if err != nil {
-						log.Panic(err)
-					}
-					log.Printf("[REORG] Deleted %d shares(s).\n", deleted)
-					log.Printf("[REORG] Next tip %s : %d.\n", blockId(diskBlock), diskBlock.Side.Height)
-					knownTip = dbBlock.Height - 1
+	var maxHeight, currentHeight uint64
+	if err = indexDb.Query("SELECT (SELECT MAX(main_height) FROM side_blocks) AS max_height, (SELECT MAX(height) FROM main_blocks) AS current_height;", func(row index.RowScanInterface) error {
+		return row.Scan(&maxHeight, &currentHeight)
+	}); err != nil {
+		log.Panic(err)
+	}
+
+	heightCount := maxHeight - 1 - currentHeight + 1
+
+	const strideSize = 1000
+	strides := heightCount / strideSize
+
+	ctx := context.Background()
+
+	scanHeader := func(h daemon.BlockHeader) error {
+		if err := utils2.FindAndInsertMainHeader(h, indexDb, func(b *sidechain.PoolBlock) {
+			p2api.InsertAlternate(b)
+		}, client.GetDefaultClient(), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId, p2api.ByMainId, p2api.ByMainHeight, func(b *sidechain.PoolBlock) error {
+			_, err := b.PreProcessBlock(p2api.Consensus(), &sidechain.NilDerivationCache{}, sidechain.PreAllocateShares(p2api.Consensus().ChainWindowSize*2), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId)
+			return err
+		}); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	//backfill headers
+	for stride := uint64(0); stride <= strides; stride++ {
+		start := currentHeight + stride*strideSize
+		end := utils.Min(maxHeight-1, currentHeight+stride*strideSize+strideSize)
+		log.Printf("checking %d to %d", start, end)
+		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
+			log.Panic(err)
+		} else {
+			for _, h := range headers.Headers {
+				if err := scanHeader(h); err != nil {
+					log.Panic(err)
+					continue
+				}
+			}
+		}
+	}
+
+	go func() {
+		//do deep scan for any missed main headers or deep reorgs every once in a while
+		for range time.NewTicker(time.Second * 60).C {
+			mainTip := indexDb.GetMainBlockTip()
+			for h := mainTip.Height; h >= 0 && h >= (mainTip.Height-10); h-- {
+				header := indexDb.GetMainBlockByHeight(h)
+				if header == nil {
 					break
 				}
+				cur, err := client.GetDefaultClient().GetBlockHeaderByHash(header.Id, ctx)
+				if err != nil {
+					break
+				}
+				if err := scanHeader(cur.BlockHeader); err != nil {
+					log.Panic(err)
+				}
 			}
-			continue
 		}
+	}()
 
-		var uncleList sidechain.UniquePoolBlockSlice
-		for _, uncleId := range p2tip.Side.Uncles {
-			if u := p2api.ByTemplateId(uncleId); u == nil {
-				goto toStart
+	for {
+		currentTip := indexDb.GetSideBlockTip()
+		currentMainTip := indexDb.GetMainBlockTip()
+
+		tip := p2api.Tip()
+		mainTip := p2api.MainTip()
+
+		if blockId(tip) != currentTip.TemplateId {
+			if tip.Side.Height < currentTip.SideHeight {
+				//wtf
+				log.Panicf("tip height less than ours, abort: %d < %d", tip.Side.Height, currentTip.SideHeight)
 			} else {
-				uncleList = append(uncleList, u)
+				insertFromTip(tip)
 			}
 		}
 
-		diskBlock, uncles, err := database.NewBlockFromBinaryBlock(getSeedByHeight, p2api.MainDifficultyByHeight, db, p2tip, uncleList, true)
-
-		if err != nil {
-			log.Printf("[CHAIN] Could not find share %s to insert at height %d. Check disk or uncles\n", blockId(p2tip), p2tip.Side.Height)
-			continue
-		}
-
-		prevBlock := db.GetBlockByHeight(p2tip.Side.Height - 1)
-		if prevBlock != nil && diskBlock.PreviousId != prevBlock.Id {
-			log.Printf("[CHAIN] Possible reorg occurred, aborting insertion at height %d: prev id %s != id %s\n", p2tip.Side.Height, diskBlock.PreviousId.String(), prevBlock.Id.String())
-			continue
-		}
-
-		log.Printf("[CHAIN] Inserting share %s at height %d\n", diskBlock.Id.String(), diskBlock.Height)
-
-		cacheHeightDifficulty(diskBlock.Main.Height)
-
-		diff, ok := getHeightDifficulty(diskBlock.Main.Height)
-
-		if ok {
-			err = db.InsertBlock(diskBlock, &diff)
-		} else {
-			err = db.InsertBlock(diskBlock, nil)
-		}
-
-		if err == nil {
-			for _, uncle := range uncles {
-				log.Printf("[CHAIN] Inserting uncle %s @ %s at %d", uncle.Block.Main.Id.String(), diskBlock.Id.String(), diskBlock.Height)
-
-				diff, ok := getHeightDifficulty(uncle.Block.Main.Height)
-
-				if ok {
-					err = db.InsertUncleBlock(uncle, &diff)
-				} else {
-					err = db.InsertUncleBlock(uncle, nil)
-				}
-
-				if uncle.Block.Main.Found {
-					log.Printf("[CHAIN] BLOCK FOUND! (uncle) Main height %d, main id %s", uncle.Block.Main.Height, uncle.Block.Main.Id.String())
-
-					if b := uncleList.Get(uncle.Block.Id); b != nil {
-						processFoundBlockWithTransaction(api, uncle, b.Main.Coinbase)
+		if mainTip.Id != currentMainTip.Id {
+			if mainTip.Height < currentMainTip.Height {
+				//wtf
+				log.Panicf("main tip height less than ours, abort: %d < %d", mainTip.Height, currentMainTip.Height)
+			} else {
+				var prevHash types.Hash
+				for cur, err := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); err != nil; cur, err = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
+					curHash, _ := types.HashFromString(cur.BlockHeader.Hash)
+					if indexDb.GetMainBlockByHeight(cur.BlockHeader.Height).Id == curHash {
+						break
 					}
-				}
-
-			}
-
-			knownTip = diskBlock.Height
-		}
-
-		if diskBlock.Main.Found {
-			log.Printf("[CHAIN] BLOCK FOUND! Main height %d, main id %s", diskBlock.Main.Height, diskBlock.Main.Id.String())
-
-			if b := p2api.ByTemplateId(diskBlock.Id); b != nil {
-				processFoundBlockWithTransaction(api, diskBlock, b.Main.Coinbase)
-			}
-		}
-
-		if runs%10 == 0 { //Every 10 seconds or so
-			for foundBlock := range db.GetAllFound(10, 0) {
-				//Scan last 10 found blocks and set status accordingly if found/not found
-
-				// Look between +1 block and +4 blocks
-				if (p2tip.Main.Coinbase.GenHeight-1) > foundBlock.GetBlock().Main.Height && (p2tip.Main.Coinbase.GenHeight-5) < foundBlock.GetBlock().Main.Height || db.GetCoinbaseTransaction(foundBlock.GetBlock()) == nil {
-					if tx, _ := client.GetDefaultClient().GetCoinbaseTransaction(foundBlock.GetBlock().Coinbase.Id); tx == nil {
-						// If more than two minutes have passed before we get utxo, remove from found
-						log.Printf("[CHAIN] Block that was found at main height %d, cannot find output, marking not found\n", foundBlock.GetBlock().Main.Height)
-						_ = db.SetBlockFound(foundBlock.GetBlock().Id, false)
-					} else {
-						processFoundBlockWithTransaction(api, foundBlock, tx)
+					if err := scanHeader(cur.BlockHeader); err != nil {
+						log.Panic(err)
 					}
+					prevHash, _ = types.HashFromString(cur.BlockHeader.PrevHash)
 				}
 			}
 		}
 
-		if isFresh {
-			//TODO: Do migration tasks
-			isFresh = false
-		}
+		time.Sleep(time.Second * 1)
 	}
 }

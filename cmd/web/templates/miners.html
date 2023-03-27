@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %} - Maximum Window Miners{% endblock %}
+{% block title %} - Current Window Miners{% endblock %}
 
 {% block content %}
 
@@ -14,8 +14,8 @@
 
 
 <div style="text-align: center">
-    <h2>Maximum Window Miners</h2>
-    <p>This is a list of the miners that have shares in the maximum window, and would be rewarded when a Monero block is found within the smaller reward window (to be added).</p>
+    <h2>Current Window Miners</h2>
+    <p>This is a list of the miners that have shares in the current window, and would be rewarded when a Monero block is found within the window.</p>
     <p class="small">Entries are sorted by current window "weight". There are more total miners currently active, but without a share to show at the moment.</p>
     <p class="small">Pool share % is relative to whole pool hashrate. Miners can join or leave anytime and there is no ceiling limit. </p>
     <table class="center datatable" style="border-collapse: collapse; max-width: calc(4em + 12em + 8em + 8em + 12em + 24em)">

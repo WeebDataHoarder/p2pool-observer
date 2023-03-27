@@ -5,9 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
 	"io"
 	"sync"
 )
@@ -66,6 +66,10 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		return err
 	}
 
+	if c.InputCount != 1 {
+		return errors.New("invalid input count")
+	}
+
 	if c.InputType, err = reader.ReadByte(); err != nil {
 		return err
 	}
@@ -76,6 +80,10 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 
 	if c.GenHeight, err = binary.ReadUvarint(reader); err != nil {
 		return err
+	}
+
+	if c.UnlockTime != (c.GenHeight + monero.MinerRewardUnlockTime) {
+		return errors.New("invalid unlock time")
 	}
 
 	if err = c.Outputs.FromReader(reader); err != nil {
@@ -201,7 +209,14 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 		return c.id
 	}
 
-	idHasher := sha3.NewLegacyKeccak256()
+	c.id = c.CalculateId()
+
+	return c.id
+}
+
+func (c *CoinbaseTransaction) CalculateId() (hash types.Hash) {
+	idHasher := crypto.GetKeccak256Hasher()
+	defer crypto.PutKeccak256Hasher(idHasher)
 
 	txBytes, _ := c.MarshalBinary()
 	// remove base RCT
@@ -209,11 +224,9 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 	// Base RCT, single 0 byte in miner tx
 	idHasher.Write(hashKeccak([]byte{c.ExtraBaseRCT}))
 	// Prunable RCT, empty in miner tx
-	idHasher.Write(make([]byte, types.HashSize))
-
-	copy(c.id[:], idHasher.Sum(nil))
-
-	return c.id
+	idHasher.Write(types.ZeroHash[:])
+	crypto.HashFastSum(idHasher, hash[:])
+	return hash
 }
 
 func hashKeccak(data ...[]byte) []byte {

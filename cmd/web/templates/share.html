@@ -79,6 +79,7 @@
             <th>Coinbase Reward</th>
             <th>Coinbase Private Key</th>
         </tr>
+        {% if raw is defined %}
         <tr>
             <td>
                 {% if (block.orphan is defined) and block.orphan %}
@@ -95,18 +96,17 @@
             {% if block.main.found %}
             <td class="mono smaller"><a href="/t/{{ block.coinbase.id|henc }}">{{ block.coinbase.id }}</a></td>
             {% else %}
-            <td class="mono smaller">{{ block.coinbase.id }}</td>
+            <td class="mono smaller">{{ raw.Main.Coinbase.Id() }}</td>
             {% endif %}
-            <td class="small">{{ monero_to_xmr(block.coinbase.reward) }} XMR</td>
-            <td class="mono smaller">{{ block.coinbase.private_key }}</td>
+            <td class="small">{{ monero_to_xmr(raw.Main.Coinbase.TotalReward) }} XMR</td>
+            <td class="mono smaller">{{ raw.Side.CoinbasePrivateKey|hex }}</td>
         </tr>
-{% if raw is defined %}
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
             <th>Nonce</th>
             <th>Cumulative Difficulty</th>
             <th>Extra Nonce</th>
-            <th>Monero Miner Difficulty</th>
+            <th>Monero Target Difficulty</th>
         </tr>
         <tr>
             <td class="mono">{{ raw.Main.Nonce|hex }}</td>

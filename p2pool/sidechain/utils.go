@@ -15,12 +15,12 @@ import (
 	"log"
 	"lukechampine.com/uint128"
 	"math"
-	"sync/atomic"
 )
 
 type GetByMainIdFunc func(h types.Hash) *PoolBlock
+type GetByMainHeightFunc func(height uint64) UniquePoolBlockSlice
 type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
-type GetBySideHeightIdFunc func(height uint64) UniquePoolBlockSlice
+type GetBySideHeightFunc func(height uint64) UniquePoolBlockSlice
 
 // GetChainMainByHashFunc if h = types.ZeroHash, return tip
 type GetChainMainByHashFunc func(h types.Hash) *ChainMain
@@ -53,7 +53,7 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 		outputs[output.Index] = output
 
 		return nil
-	})
+	}, nil)
 
 	return outputs, bottomHeight
 }
@@ -66,7 +66,7 @@ type PoolBlockWindowSlot struct {
 
 type PoolBlockWindowAddWeightFunc func(b *PoolBlock, weight types.Difficulty)
 
-func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, addWeightFunc PoolBlockWindowAddWeightFunc, errorPointer *atomic.Value) (results chan PoolBlockWindowSlot) {
+func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, addWeightFunc PoolBlockWindowAddWeightFunc, errorFunc func(err error)) (results chan PoolBlockWindowSlot) {
 	results = make(chan PoolBlockWindowSlot)
 
 	go func() {
@@ -82,8 +82,8 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 			seedHeight := randomx.SeedHeight(tip.Main.Coinbase.GenHeight)
 			mainchainDiff = difficultyByHeight(seedHeight)
 			if mainchainDiff == types.ZeroDifficulty {
-				if errorPointer != nil {
-					errorPointer.Store(fmt.Errorf("couldn't get mainchain difficulty for height = %d", seedHeight))
+				if errorFunc != nil {
+					errorFunc(fmt.Errorf("couldn't get mainchain difficulty for height = %d", seedHeight))
 				}
 				return
 			}
@@ -110,8 +110,8 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 			for _, uncleId := range cur.Side.Uncles {
 				if uncle := getByTemplateId(uncleId); uncle == nil {
 					//cannot find uncles
-					if errorPointer != nil {
-						errorPointer.Store(fmt.Errorf("could not find uncle %s", uncleId.String()))
+					if errorFunc != nil {
+						errorFunc(fmt.Errorf("could not find uncle %s", uncleId.String()))
 					}
 					return
 				} else {
@@ -169,7 +169,9 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 			cur = getByTemplateId(parentId)
 
 			if cur == nil {
-				errorPointer.Store(fmt.Errorf("could not find parent %s", parentId.String()))
+				if errorFunc != nil {
+					errorFunc(fmt.Errorf("could not find parent %s", parentId.String()))
+				}
 				return
 			}
 		}
@@ -215,14 +217,16 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		index++
 	}
 
-	var errValue atomic.Value
+	var errorValue error
 	for e := range IterateBlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
 		insertSet(weight, b.GetAddress())
-	}, &errValue) {
+	}, func(err error) {
+		errorValue = err
+	}) {
 		bottomHeight = e.Block.Side.Height
 	}
 
-	if errValue.Load() != nil {
+	if errorValue != nil {
 		return nil, 0
 	}
 

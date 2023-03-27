@@ -82,6 +82,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	sideId := block.SideTemplateId(c.consensus)
 	if bytes.Compare(sideId[:], block.CoinbaseExtra(sidechain.SideTemplateId)) != 0 {
 		//wrong calculated template id
+		log.Panicf("wrong template id, expected %s, got %s", types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), sideId)
 		return
 	}
 	mainId := block.MainId()
@@ -119,7 +120,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	}
 
 	if blob, err := block.MarshalBinaryFlags(storePruned, storeCompact); err == nil {
-		log.Printf("[Archive Cache] Store block id = %s, template id = %s, height = %d, sidechain height %d, pruned = %t, compact = %t, blob size = %d bytes", mainId.String(), sideId.String(), block.Main.Coinbase.GenHeight, block.Side.Height, storePruned, storeCompact, len(blob))
+		log.Printf("[Archive Cache] Store block id = %s, template id = %s, height = %d, sidechain height = %d, depth = %d, pruned = %t, compact = %t, blob size = %d bytes", mainId.String(), sideId.String(), block.Main.Coinbase.GenHeight, block.Side.Height, block.Depth.Load(), storePruned, storeCompact, len(blob))
 
 		if err = c.db.Update(func(tx *bolt.Tx) error {
 			b1 := tx.Bucket(blocksByMainId)

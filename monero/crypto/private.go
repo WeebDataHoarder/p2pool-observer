@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"bytes"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -90,7 +92,6 @@ func (p *PrivateKeyScalar) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.String())
 }
 
-
 type PrivateKeyBytes [PrivateKeySize]byte
 
 func (k *PrivateKeyBytes) AsSlice() PrivateKeySlice {
@@ -120,6 +121,31 @@ func (k *PrivateKeyBytes) GetDerivationCofactor(public PublicKey) PublicKey {
 
 func (k *PrivateKeyBytes) String() string {
 	return hex.EncodeToString(k.AsSlice())
+}
+
+func (k *PrivateKeyBytes) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+		if len(buf) != PrivateKeySize {
+			return errors.New("invalid key size")
+		}
+		copy((*k)[:], buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (k *PrivateKeyBytes) Value() (driver.Value, error) {
+	var zeroPrivKey PrivateKeyBytes
+	if *k == zeroPrivKey {
+		return nil, nil
+	}
+	return []byte((*k)[:]), nil
 }
 
 func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
@@ -174,6 +200,31 @@ func (k *PrivateKeySlice) GetDerivationCofactor(public PublicKey) PublicKey {
 
 func (k *PrivateKeySlice) String() string {
 	return hex.EncodeToString(*k)
+}
+
+func (k *PrivateKeySlice) Scan(src any) error {
+	if src == nil {
+		return nil
+	} else if buf, ok := src.([]byte); ok {
+		if len(buf) == 0 {
+			return nil
+		}
+		if len(buf) != PrivateKeySize {
+			return errors.New("invalid key size")
+		}
+		copy(*k, buf)
+
+		return nil
+	}
+	return errors.New("invalid type")
+}
+
+func (k *PrivateKeySlice) Value() (driver.Value, error) {
+	var zeroPrivKey PublicKeyBytes
+	if bytes.Compare(*k, zeroPrivKey[:]) == 0 {
+		return nil, nil
+	}
+	return []byte(*k), nil
 }
 
 func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {

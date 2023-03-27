@@ -7,16 +7,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/go-monero/pkg/levin"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
-	"io"
 	"log"
-	"net/http"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -59,9 +55,8 @@ func GetDefaultClient() *Client {
 
 // Client
 type Client struct {
-	c       *rpc.Client
-	d       *daemon.Client
-	address string
+	c *rpc.Client
+	d *daemon.Client
 
 	coinbaseTransactionCache *lru.LRU[types.Hash, *transaction.CoinbaseTransaction]
 
@@ -74,12 +69,71 @@ func NewClient(address string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		address:                  address,
 		c:                        c,
 		d:                        daemon.NewClient(c),
 		coinbaseTransactionCache: lru.New[types.Hash, *transaction.CoinbaseTransaction](1024),
 		throttler:                time.Tick(time.Second / 8),
 	}, nil
+}
+
+func (c *Client) SetThrottle(timesPerSecond uint64) {
+	c.throttler = time.Tick(time.Second / time.Duration(timesPerSecond))
+}
+
+func (c *Client) GetTransactions(txIds ...types.Hash) (data [][]byte, jsonTx []*daemon.TransactionJSON, err error) {
+	const restrictedTxCount = 100
+	if len(txIds) > restrictedTxCount {
+		i := txIds
+		for {
+			if len(i) > restrictedTxCount {
+				d, j, err := c.GetTransactions(i[:restrictedTxCount]...)
+				if err != nil {
+					return nil, nil, err
+				}
+				data = append(data, d...)
+				jsonTx = append(jsonTx, j...)
+				i = i[restrictedTxCount:]
+			} else {
+				d, j, err := c.GetTransactions(i...)
+				if err != nil {
+					return nil, nil, err
+				}
+				data = append(data, d...)
+				jsonTx = append(jsonTx, j...)
+				i = i[:0]
+				break
+			}
+		}
+		return data, jsonTx, nil
+	}
+	<-c.throttler
+	hs := make([]string, 0, len(txIds))
+	for _, h := range txIds {
+		hs = append(hs, h.String())
+	}
+	if result, err := c.d.GetTransactions(context.Background(), hs); err != nil {
+		return nil, nil, err
+	} else {
+		if len(result.Txs) != len(hs) {
+			return nil, nil, errors.New("invalid transaction count")
+		}
+
+		if jsonTxs, err := result.GetTransactions(); err != nil {
+			return nil, nil, err
+		} else {
+			jsonTx = jsonTxs
+		}
+
+		for _, tx := range result.Txs {
+			if buf, err := hex.DecodeString(tx.PrunedAsHex); err != nil {
+				return nil, nil, err
+			} else {
+				data = append(data, buf)
+			}
+		}
+	}
+
+	return data, jsonTx, nil
 }
 
 func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseTransaction, error) {
@@ -127,10 +181,11 @@ type TransactionInput struct {
 	KeyImage   types.Hash
 }
 
-func (c *Client) GetTransactionInputs(hashes ...types.Hash) ([]TransactionInputResult, error) {
+// GetTransactionInputs get transaction input information for several transactions, including key images and global key offsets
+func (c *Client) GetTransactionInputs(ctx context.Context, hashes ...types.Hash) ([]TransactionInputResult, error) {
 	<-c.throttler
 
-	if result, err := c.d.GetTransactions(context.Background(), func() []string {
+	if result, err := c.d.GetTransactions(ctx, func() []string {
 		result := make([]string, 0, len(hashes))
 		for _, h := range hashes {
 			result = append(result, h.String())
@@ -221,68 +276,11 @@ type Output struct {
 	Unlocked      bool
 }
 
-// GetOutputIndexes Get global output indexes
-func (c *Client) GetOutputIndexes(id types.Hash) (indexes []uint64, finalError error) {
+// GetOutputIndexes Get global output indexes for a given transaction
+func (c *Client) GetOutputIndexes(id types.Hash) (indexes []uint64, err error) {
 	<-c.throttler
 
-	uri, _ := url.Parse(c.address)
-	uri.Path = "/get_o_indexes.bin"
-
-	storage := levin.PortableStorage{Entries: levin.Entries{
-		levin.Entry{
-			Name:         "txid",
-			Serializable: levin.BoostString(id[:]),
-		},
-	}}
-
-	data := storage.Bytes()
-
-	body := io.NopCloser(bytes.NewReader(data))
-	response, err := http.DefaultClient.Do(&http.Request{
-		Method: "POST",
-		URL:    uri,
-		Header: http.Header{
-			"content-type": []string{"application/octet-stream"},
-		},
-		Body:          body,
-		ContentLength: int64(len(data)),
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return nil, fmt.Errorf("non-2xx status code: %d", response.StatusCode)
-	}
-
-	if buf, err := io.ReadAll(response.Body); err != nil {
-		return nil, err
-	} else {
-		defer func() {
-			if r := recover(); r != nil {
-				indexes = nil
-				finalError = errors.New("error decoding")
-			}
-		}()
-		responseStorage, err := levin.NewPortableStorageFromBytes(buf)
-		if err != nil {
-			return nil, err
-		}
-		for _, e := range responseStorage.Entries {
-			if e.Name == "o_indexes" {
-				if entries, ok := e.Value.(levin.Entries); ok {
-					indexes = make([]uint64, 0, len(entries))
-					for _, e2 := range entries {
-						if v, ok := e2.Value.(uint64); ok {
-							indexes = append(indexes, v)
-						}
-					}
-					return indexes, nil
-				}
-			}
-		}
-	}
-	return nil, errors.New("could not get outputs")
+	return c.d.GetOIndexes(context.Background(), id.String())
 }
 
 func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
@@ -336,6 +334,28 @@ func (c *Client) GetInfo() (*daemon.GetInfoResult, error) {
 func (c *Client) GetBlockHeaderByHash(hash types.Hash, ctx context.Context) (*daemon.GetBlockHeaderByHashResult, error) {
 	<-c.throttler
 	if result, err := c.d.GetBlockHeaderByHash(ctx, []string{hash.String()}); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetBlock(hash types.Hash, ctx context.Context) (*daemon.GetBlockResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetBlock(ctx, daemon.GetBlockRequestParameters{
+		Hash: hash.String(),
+	}); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
+func (c *Client) GetBlockByHeight(height uint64, ctx context.Context) (*daemon.GetBlockResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetBlock(ctx, daemon.GetBlockRequestParameters{
+		Height: height,
+	}); err != nil {
 		return nil, err
 	} else {
 		return result, nil

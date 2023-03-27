@@ -195,7 +195,11 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType, cacheInterfa
 
 	b.FillPrivateKeys(cacheInterface)
 
-	b.cache.templateId = types.HashFromBytes(b.CoinbaseExtra(SideTemplateId))
+	//zero cache as it can be wrong
+	b.cache.mainDifficulty = types.ZeroDifficulty
+	b.cache.mainId = types.ZeroHash
+	b.cache.templateId = types.ZeroHash
+	b.cache.powHash = types.ZeroHash
 
 	return b, nil
 }
@@ -545,6 +549,10 @@ func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache Deriva
 	}
 
 	return nil, nil
+}
+
+func (b *PoolBlock) NeedsPreProcess() bool {
+	return b.NeedsCompactTransactionFilling() || len(b.Main.Transactions) != len(b.Main.TransactionParentIndices) || len(b.Main.Coinbase.Outputs) == 0
 }
 
 func (b *PoolBlock) FillPrivateKeys(derivationCache DerivationCacheInterface) {

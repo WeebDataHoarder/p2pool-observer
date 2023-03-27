@@ -17,6 +17,12 @@ type P2PoolBinaryBlockResult struct {
 	Error   string      `json:"error,omitempty"`
 }
 
+type P2PoolSpecialBinaryBlockResult struct {
+	Version int         `json:"version"`
+	Blob    types.Bytes `json:"blob"`
+	Error   string      `json:"error,omitempty"`
+}
+
 type P2PoolSideChainStatusResult struct {
 	Synchronized         bool             `json:"synchronized"`
 	Height               uint64           `json:"tip_height"`
