@@ -244,7 +244,7 @@ func (c *Cache) loadByTemplateId(id types.Hash) (r multiRecord) {
 	return r
 }
 
-func (c *Cache) LoadByTemplateId(id types.Hash) (result []*sidechain.PoolBlock) {
+func (c *Cache) LoadByTemplateId(id types.Hash) (result sidechain.UniquePoolBlockSlice) {
 	blocks := make([][]byte, 0, 1)
 	if err := c.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(refByTemplateId)
@@ -269,8 +269,8 @@ func (c *Cache) LoadByTemplateId(id types.Hash) (result []*sidechain.PoolBlock) 
 	return result
 }
 
-func (c *Cache) ScanHeights(startHeight, endHeight uint64) chan []*sidechain.PoolBlock {
-	result := make(chan []*sidechain.PoolBlock)
+func (c *Cache) ScanHeights(startHeight, endHeight uint64) chan sidechain.UniquePoolBlockSlice {
+	result := make(chan sidechain.UniquePoolBlockSlice)
 	go func() {
 		defer close(result)
 		_ = c.db.View(func(tx *bolt.Tx) error {
@@ -287,7 +287,7 @@ func (c *Cache) ScanHeights(startHeight, endHeight uint64) chan []*sidechain.Poo
 					return nil
 				}
 				r := multiRecordFromBytes(v)
-				blocks := make([]*sidechain.PoolBlock, 0, len(r))
+				blocks := make(sidechain.UniquePoolBlockSlice, 0, len(r))
 				for _, h := range r {
 					if e := c.loadByMainId(tx, h); e != nil {
 						if bl := c.decodeBlock(e); bl != nil {
@@ -345,7 +345,7 @@ func (c *Cache) existsBySideChainHeightRange(startHeight, endHeight uint64) (res
 	return result
 }
 
-func (c *Cache) LoadBySideChainHeight(height uint64) (result []*sidechain.PoolBlock) {
+func (c *Cache) LoadBySideChainHeight(height uint64) (result sidechain.UniquePoolBlockSlice) {
 
 	var sideHeight [8]byte
 	binary.BigEndian.PutUint64(sideHeight[:], height)
@@ -373,7 +373,7 @@ func (c *Cache) LoadBySideChainHeight(height uint64) (result []*sidechain.PoolBl
 	}
 	return result
 }
-func (c *Cache) LoadByMainChainHeight(height uint64) (result []*sidechain.PoolBlock) {
+func (c *Cache) LoadByMainChainHeight(height uint64) (result sidechain.UniquePoolBlockSlice) {
 	var mainHeight [8]byte
 	binary.BigEndian.PutUint64(mainHeight[:], height)
 

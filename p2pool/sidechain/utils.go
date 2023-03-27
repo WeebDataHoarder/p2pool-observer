@@ -3,6 +3,7 @@ package sidechain
 import (
 	"encoding/binary"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -19,6 +20,9 @@ import (
 type GetByMainIdFunc func(h types.Hash) *PoolBlock
 type GetByTemplateIdFunc func(h types.Hash) *PoolBlock
 type GetBySideHeightIdFunc func(height uint64) UniquePoolBlockSlice
+
+// GetChainMainByHashFunc if h = types.ZeroHash, return tip
+type GetChainMainByHashFunc func(h types.Hash) *ChainMain
 
 func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) (outputs transaction.Outputs, bottomHeight uint64) {
 	tmpShares, bottomHeight := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)
@@ -375,4 +379,96 @@ func SplitReward(reward uint64, shares Shares) (rewards []uint64) {
 	}
 
 	return rewards
+}
+
+func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, getChainMainByHash GetChainMainByHashFunc) (isLonger, isAlternative bool) {
+	if candidate == nil || !candidate.Verified.Load() || candidate.Invalid.Load() {
+		return false, false
+	}
+
+	// Switching from an empty to a non-empty chain
+	if block == nil {
+		return true, true
+	}
+
+	// If these two blocks are on the same chain, they must have a common ancestor
+
+	blockAncestor := block
+	for blockAncestor != nil && blockAncestor.Side.Height > candidate.Side.Height {
+		blockAncestor = getByTemplateId(blockAncestor.Side.Parent)
+		//TODO: err on blockAncestor nil
+	}
+
+	if blockAncestor != nil {
+		candidateAncestor := candidate
+		for candidateAncestor != nil && candidateAncestor.Side.Height > blockAncestor.Side.Height {
+			candidateAncestor = getByTemplateId(candidateAncestor.Side.Parent)
+			//TODO: err on candidateAncestor nil
+		}
+
+		for blockAncestor != nil && candidateAncestor != nil {
+			if blockAncestor.Side.Parent.Equals(candidateAncestor.Side.Parent) {
+				return block.Side.CumulativeDifficulty.Cmp(candidate.Side.CumulativeDifficulty) < 0, false
+			}
+			blockAncestor = getByTemplateId(blockAncestor.Side.Parent)
+			candidateAncestor = getByTemplateId(candidateAncestor.Side.Parent)
+		}
+	}
+
+	// They're on totally different chains. Compare total difficulties over the last m_chainWindowSize blocks
+
+	var blockTotalDiff, candidateTotalDiff types.Difficulty
+
+	oldChain := block
+	newChain := candidate
+
+	var candidateMainchainHeight, candidateMainchainMinHeight uint64
+	var mainchainPrevId types.Hash
+
+	for i := uint64(0); i < consensus.ChainWindowSize && (oldChain != nil || newChain != nil); i++ {
+		if oldChain != nil {
+			blockTotalDiff = blockTotalDiff.Add(oldChain.Side.Difficulty)
+			oldChain = getByTemplateId(oldChain.Side.Parent)
+		}
+
+		if newChain != nil {
+			if candidateMainchainMinHeight != 0 {
+				candidateMainchainMinHeight = utils.Min(candidateMainchainMinHeight, newChain.Main.Coinbase.GenHeight)
+			} else {
+				candidateMainchainMinHeight = newChain.Main.Coinbase.GenHeight
+			}
+			candidateTotalDiff = candidateTotalDiff.Add(newChain.Side.Difficulty)
+
+			if !newChain.Main.PreviousId.Equals(mainchainPrevId) {
+				if data := getChainMainByHash(newChain.Main.PreviousId); data != nil {
+					mainchainPrevId = data.Id
+					candidateMainchainHeight = utils.Max(candidateMainchainHeight, data.Height)
+				}
+			}
+
+			newChain = getByTemplateId(newChain.Side.Parent)
+		}
+	}
+
+	if blockTotalDiff.Cmp(candidateTotalDiff) >= 0 {
+		return false, true
+	}
+
+	// Final check: candidate chain must be built on top of recent mainchain blocks
+	if headerTip := getChainMainByHash(types.ZeroHash); headerTip != nil {
+		if candidateMainchainHeight+10 < headerTip.Height {
+			//TODO: warn received a longer alternative chain but it's stale: height
+			return false, true
+		}
+
+		limit := consensus.ChainWindowSize * 4 * consensus.TargetBlockTime / monero.BlockTime
+		if candidateMainchainMinHeight+limit < headerTip.Height {
+			//TODO: warn received a longer alternative chain but it's stale: min height
+			return false, true
+		}
+
+		return true, true
+	} else {
+		return false, true
+	}
 }

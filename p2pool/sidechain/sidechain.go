@@ -861,93 +861,10 @@ func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 }
 
 func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlternative bool) {
-	if candidate == nil || !candidate.Verified.Load() || candidate.Invalid.Load() {
-		return false, false
-	}
-
-	// Switching from an empty to a non-empty chain
-	if block == nil {
-		return true, true
-	}
-
-	// If these two blocks are on the same chain, they must have a common ancestor
-
-	blockAncestor := block
-	for blockAncestor != nil && blockAncestor.Side.Height > candidate.Side.Height {
-		blockAncestor = c.getParent(blockAncestor)
-		//TODO: err on blockAncestor nil
-	}
-
-	if blockAncestor != nil {
-		candidateAncestor := candidate
-		for candidateAncestor != nil && candidateAncestor.Side.Height > blockAncestor.Side.Height {
-			candidateAncestor = c.getParent(candidateAncestor)
-			//TODO: err on candidateAncestor nil
+	return IsLongerChain(block, candidate, c.Consensus(), c.getPoolBlockByTemplateId, func(h types.Hash) *ChainMain {
+		if h == types.ZeroHash {
+			return c.server.GetChainMainTip()
 		}
-
-		for blockAncestor != nil && candidateAncestor != nil {
-			if blockAncestor.Side.Parent.Equals(candidateAncestor.Side.Parent) {
-				return block.Side.CumulativeDifficulty.Cmp(candidate.Side.CumulativeDifficulty) < 0, false
-			}
-			blockAncestor = c.getParent(blockAncestor)
-			candidateAncestor = c.getParent(candidateAncestor)
-		}
-	}
-
-	// They're on totally different chains. Compare total difficulties over the last m_chainWindowSize blocks
-
-	var blockTotalDiff, candidateTotalDiff types.Difficulty
-
-	oldChain := block
-	newChain := candidate
-
-	var candidateMainchainHeight, candidateMainchainMinHeight uint64
-	var mainchainPrevId types.Hash
-
-	for i := uint64(0); i < c.Consensus().ChainWindowSize && (oldChain != nil || newChain != nil); i++ {
-		if oldChain != nil {
-			blockTotalDiff = blockTotalDiff.Add(oldChain.Side.Difficulty)
-			oldChain = c.getParent(oldChain)
-		}
-
-		if newChain != nil {
-			if candidateMainchainMinHeight != 0 {
-				candidateMainchainMinHeight = utils.Min(candidateMainchainMinHeight, newChain.Main.Coinbase.GenHeight)
-			} else {
-				candidateMainchainMinHeight = newChain.Main.Coinbase.GenHeight
-			}
-			candidateTotalDiff = candidateTotalDiff.Add(newChain.Side.Difficulty)
-
-			if !newChain.Main.PreviousId.Equals(mainchainPrevId) {
-				if data := c.server.GetMinimalBlockHeaderByHash(newChain.Main.PreviousId); data != nil {
-					mainchainPrevId = data.Id
-					candidateMainchainHeight = utils.Max(candidateMainchainHeight, data.Height)
-				}
-			}
-
-			newChain = c.getParent(newChain)
-		}
-	}
-
-	if blockTotalDiff.Cmp(candidateTotalDiff) >= 0 {
-		return false, true
-	}
-
-	// Final check: candidate chain must be built on top of recent mainchain blocks
-	if headerTip := c.server.GetChainMainTip(); headerTip != nil {
-		if candidateMainchainHeight+10 < headerTip.Height {
-			//TODO: warn received a longer alternative chain but it's stale: height
-			return false, true
-		}
-
-		limit := c.Consensus().ChainWindowSize * 4 * c.Consensus().TargetBlockTime / monero.BlockTime
-		if candidateMainchainMinHeight+limit < headerTip.Height {
-			//TODO: warn received a longer alternative chain but it's stale: min height
-			return false, true
-		}
-
-		return true, true
-	} else {
-		return false, true
-	}
+		return c.server.GetChainMainByHash(h)
+	})
 }
