@@ -60,7 +60,6 @@ type Client struct {
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
 
 	blockPendingRequests chan types.Hash
-	chainTipBlockRequest atomic.Bool
 
 	expectedMessage MessageId
 
@@ -177,9 +176,6 @@ func (c *Client) SendBlockRequest(id types.Hash) {
 	})
 
 	c.blockPendingRequests <- id
-	if id == types.ZeroHash {
-		c.chainTipBlockRequest.Store(true)
-	}
 }
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
@@ -402,17 +398,9 @@ func (c *Client) OnConnection() {
 					c.Ban(DefaultBanTime, err)
 					return
 				} else {
-					isChainTipBlockRequest := false
-					if c.chainTipBlockRequest.Swap(false) {
-						isChainTipBlockRequest = true
-						//TODO: stale block
-
+					isChainTipBlockRequest := expectedBlockId == types.ZeroHash
+					if isChainTipBlockRequest {
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
-
-						if expectedBlockId != types.ZeroHash {
-							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId, types.ZeroHash.String()))
-							return
-						}
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
 
