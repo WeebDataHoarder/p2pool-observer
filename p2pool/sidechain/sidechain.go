@@ -497,9 +497,15 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return
 		}
 
-		if diff := c.getDifficulty(parent); diff == types.ZeroDifficulty {
+		var diff types.Difficulty
+
+		if parent == c.GetChainTip() {
+			// built on top of the current chain tip, using current difficulty for verification
+			diff = *c.currentDifficulty.Load()
+		} else if diff = c.getDifficulty(parent); diff == types.ZeroDifficulty {
 			return nil, errors.New("could not get difficulty")
-		} else if diff != block.Side.Difficulty {
+		}
+		if diff != block.Side.Difficulty {
 			return nil, fmt.Errorf("wrong difficulty, got %s, expected %s", block.Side.Difficulty.StringNumeric(), diff.StringNumeric())
 		}
 
