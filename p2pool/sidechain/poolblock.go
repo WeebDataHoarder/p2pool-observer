@@ -325,25 +325,13 @@ func (b *PoolBlock) MainId() types.Hash {
 	}
 }
 
-func (b *PoolBlock) FullId(consensus *Consensus) FullId {
-	if fullId, ok := func() (FullId, bool) {
-		b.cache.lock.RLock()
-		defer b.cache.lock.RUnlock()
-
-		if b.cache.fullId != zeroFullId {
-			return b.cache.fullId, true
-		}
-		return zeroFullId, false
-	}(); ok {
-		return fullId
-	} else {
-		b.cache.lock.Lock()
-		defer b.cache.lock.Unlock()
-		if b.cache.fullId == zeroFullId { //check again for race
-			b.cache.fullId = b.CalculateFullId(consensus)
-		}
-		return b.cache.fullId
-	}
+func (b *PoolBlock) FullId() FullId {
+	var buf FullId
+	sidechainId := b.CoinbaseExtra(SideTemplateId)
+	copy(buf[:], sidechainId[:])
+	binary.LittleEndian.PutUint32(buf[types.HashSize:], b.Main.Nonce)
+	copy(buf[types.HashSize+unsafe.Sizeof(b.Main.Nonce):], b.CoinbaseExtra(SideExtraNonce)[:SideExtraNonceSize])
+	return buf
 }
 
 const FullIdSize = int(types.HashSize + unsafe.Sizeof(uint32(0)) + SideExtraNonceSize)
