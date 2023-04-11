@@ -205,8 +205,6 @@ func (p *P2Pool) GetMinimalBlockHeaderByHeight(height uint64) *block.Header {
 				Id:           h,
 				Difficulty:   types.DifficultyFrom64(header.BlockHeader.Difficulty),
 			}
-			//cache it. next block found will clean it up
-			p.mainchain.HandleMainHeader(blockHeader)
 			return blockHeader
 		}
 	}
@@ -235,8 +233,6 @@ func (p *P2Pool) GetDifficultyByHeight(height uint64) types.Difficulty {
 				Id:           h,
 				Difficulty:   types.DifficultyFrom64(header.BlockHeader.Difficulty),
 			}
-			//cache it. next block found will clean it up
-			p.mainchain.HandleMainHeader(blockHeader)
 			return blockHeader.Difficulty
 		}
 	}
@@ -255,24 +251,22 @@ func (p *P2Pool) GetMinimalBlockHeaderByHash(hash types.Hash) *block.Header {
 			Id:         chainMain.Id,
 		}
 	} else {
-		if header, err := p.ClientRPC().GetBlockHeaderByHash(hash, p.ctx); err != nil {
+		if header, err := p.ClientRPC().GetBlockHeaderByHash(hash, p.ctx); err != nil || header == nil {
 			return nil
 		} else {
-			prevHash, _ := types.HashFromString(header.BlockHeader.PrevHash)
-			h, _ := types.HashFromString(header.BlockHeader.Hash)
+			prevHash, _ := types.HashFromString(header.PrevHash)
+			h, _ := types.HashFromString(header.Hash)
 			blockHeader := &block.Header{
-				MajorVersion: uint8(header.BlockHeader.MajorVersion),
-				MinorVersion: uint8(header.BlockHeader.MinorVersion),
-				Timestamp:    uint64(header.BlockHeader.Timestamp),
+				MajorVersion: uint8(header.MajorVersion),
+				MinorVersion: uint8(header.MinorVersion),
+				Timestamp:    uint64(header.Timestamp),
 				PreviousId:   prevHash,
-				Height:       header.BlockHeader.Height,
-				Nonce:        uint32(header.BlockHeader.Nonce),
-				Reward:       header.BlockHeader.Reward,
+				Height:       header.Height,
+				Nonce:        uint32(header.Nonce),
+				Reward:       header.Reward,
 				Id:           h,
-				Difficulty:   types.DifficultyFrom64(header.BlockHeader.Difficulty),
+				Difficulty:   types.DifficultyFrom64(header.Difficulty),
 			}
-			//cache it. next block found will clean it up
-			p.mainchain.HandleMainHeader(blockHeader)
 			return blockHeader
 		}
 	}

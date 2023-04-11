@@ -331,12 +331,14 @@ func (c *Client) GetInfo() (*daemon.GetInfoResult, error) {
 	}
 }
 
-func (c *Client) GetBlockHeaderByHash(hash types.Hash, ctx context.Context) (*daemon.GetBlockHeaderByHashResult, error) {
+func (c *Client) GetBlockHeaderByHash(hash types.Hash, ctx context.Context) (*daemon.BlockHeader, error) {
 	<-c.throttler
 	if result, err := c.d.GetBlockHeaderByHash(ctx, []string{hash.String()}); err != nil {
 		return nil, err
+	} else if result != nil && len(result.BlockHeaders) > 0 {
+		return &result.BlockHeaders[0], nil
 	} else {
-		return result, nil
+		return nil, errors.New("not found")
 	}
 }
 

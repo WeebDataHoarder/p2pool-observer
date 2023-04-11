@@ -104,6 +104,9 @@ func main() {
 				break
 			}
 			log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
+			for _, u := range b.Side.Uncles {
+				log.Printf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), b.Side.Height)
+			}
 			if err := indexDb.InsertOrUpdatePoolBlock(b, index.InclusionInVerifiedChain); err != nil {
 				log.Panic(err)
 			}
@@ -180,7 +183,7 @@ func main() {
 				if cur == nil {
 					break
 				}
-				if err := scanHeader(cur.BlockHeader); err != nil {
+				if err := scanHeader(*cur); err != nil {
 					log.Panic(err)
 				}
 			}
@@ -210,14 +213,15 @@ func main() {
 			} else {
 				var prevHash types.Hash
 				for cur, _ := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); cur != nil; cur, _ = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
-					curHash, _ := types.HashFromString(cur.BlockHeader.Hash)
-					if indexDb.GetMainBlockByHeight(cur.BlockHeader.Height).Id == curHash {
+					curHash, _ := types.HashFromString(cur.Hash)
+					if curDb := indexDb.GetMainBlockByHeight(cur.Height); curDb != nil && curDb.Id == curHash {
 						break
 					}
-					if err := scanHeader(cur.BlockHeader); err != nil {
+					log.Printf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
+					if err := scanHeader(*cur); err != nil {
 						log.Panic(err)
 					}
-					prevHash, _ = types.HashFromString(cur.BlockHeader.PrevHash)
+					prevHash, _ = types.HashFromString(cur.PrevHash)
 				}
 			}
 		}

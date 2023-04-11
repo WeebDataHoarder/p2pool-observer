@@ -56,9 +56,6 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 	indexMain = indexDb.GetMainBlockByHeight(h.Height)
 	if indexMain == nil {
 		indexMain = &index.MainBlock{}
-	} else if indexMain.SideTemplateId == types.ZeroHash || getByMainId(indexMain.Id) != nil {
-		//TODO: remove this
-		return nil
 	}
 	if indexMain.Id != mainId {
 		//Zero data if they don't match to insert new height
