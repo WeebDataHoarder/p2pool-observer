@@ -673,6 +673,8 @@ func main() {
 		wend := tipHeight - shareCount
 
 		tip := shares[0].(map[string]any)
+
+		var totalWeight types.Difficulty
 		for _, s := range shares {
 			share := s.(map[string]any)
 			miner := share["miner"].(string)
@@ -691,6 +693,7 @@ func main() {
 			miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(share["height"])), 1)
 			diff := toUint64(share["weight"])
 			miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
+			totalWeight = totalWeight.Add64(diff)
 
 			if _, ok := share["uncles"]; ok {
 				for _, u := range share["uncles"].([]any) {
@@ -714,6 +717,7 @@ func main() {
 					miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(uncle["height"])), 1)
 					diff := toUint64(uncle["weight"])
 					miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
+					totalWeight = totalWeight.Add64(diff)
 				}
 			}
 		}
@@ -735,6 +739,7 @@ func main() {
 		ctx["miners"] = sortedMiners
 		ctx["tip"] = tip
 		ctx["pool"] = poolInfo
+		ctx["window_weight"] = totalWeight
 
 		if params.Has("weekly") {
 			render(writer, "miners_week.html", ctx)
