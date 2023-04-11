@@ -83,11 +83,14 @@ func main() {
 
 		miners := make(map[uint64]uint64)
 
-		window, windowUncles := p2api.WindowFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
+		window, windowUncles := p2api.StateFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
 
 		if len(window) == 0 {
-			//err
-			log.Panic("empty window")
+			window, windowUncles = p2api.WindowFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
+			if len(window) == 0 {
+				//err
+				log.Panic("empty window")
+			}
 		}
 
 		var pplnsWeight types.Difficulty

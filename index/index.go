@@ -566,10 +566,16 @@ func (i *Index) GetSideBlocksInPPLNSWindow(tip *SideBlock) chan *SideBlock {
 }
 
 func (i *Index) GetSideBlocksInWindow(startHeight, windowSize uint64) chan *SideBlock {
+	if startHeight < windowSize {
+		windowSize = startHeight
+	}
 	return i.GetSideBlocksByQuery("WHERE effective_height <= $1 AND effective_height > $2 AND inclusion = $3 ORDER BY effective_height DESC, side_height DESC;", startHeight, startHeight-windowSize, InclusionInVerifiedChain)
 }
 
 func (i *Index) GetSideBlocksByMinerIdInWindow(minerId, startHeight, windowSize uint64) chan *SideBlock {
+	if startHeight < windowSize {
+		windowSize = startHeight
+	}
 	return i.GetSideBlocksByQuery("WHERE miner = $1 AND effective_height <= $2 AND effective_height > $3 AND inclusion = $4 ORDER BY effective_height DESC, side_height DESC;", minerId, startHeight, startHeight-windowSize, InclusionInVerifiedChain)
 }
 
