@@ -4,9 +4,19 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/ake-persson/mapslice-json"
 )
+
+type sideChainVersionEntry struct {
+	Weight          types.Difficulty       `json:"weight"`
+	Share           float64                `json:"share"`
+	Count           int                    `json:"count"`
+	SoftwareId      types2.SoftwareId      `json:"software_id"`
+	SoftwareVersion types2.SoftwareVersion `json:"software_version"`
+	SoftwareString  string                 `json:"software_string"`
+}
 
 type poolInfoResult struct {
 	SideChain poolInfoResultSideChain `json:"sidechain"`
@@ -42,10 +52,11 @@ type poolInfoResultSideChainEffort struct {
 	Last       mapslice.MapSlice `json:"last"`
 }
 type poolInfoResultSideChainWindow struct {
-	Miners int              `json:"miners"`
-	Blocks int              `json:"blocks"`
-	Uncles int              `json:"uncles"`
-	Weight types.Difficulty `json:"weight"`
+	Miners   int                     `json:"miners"`
+	Blocks   int                     `json:"blocks"`
+	Uncles   int                     `json:"uncles"`
+	Weight   types.Difficulty        `json:"weight"`
+	Versions []sideChainVersionEntry `json:"versions"`
 }
 
 type poolInfoResultMainChain struct {

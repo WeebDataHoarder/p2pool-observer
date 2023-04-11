@@ -15,6 +15,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
 	"github.com/gorilla/mux"
+	"golang.org/x/exp/slices"
 	"log"
 	"math"
 	"net/http"
@@ -93,6 +94,8 @@ func main() {
 			}
 		}
 
+		versions := make([]sideChainVersionEntry, 0)
+
 		var pplnsWeight types.Difficulty
 
 		for ps := range sidechain.IterateBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
@@ -108,11 +111,34 @@ func main() {
 		}, func(b *sidechain.PoolBlock, weight types.Difficulty) {
 			miners[indexDb.GetOrCreateMinerPackedAddress(*b.GetAddress()).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
+
+			if i := slices.IndexFunc(versions, func(entry sideChainVersionEntry) bool {
+				return entry.SoftwareId == b.Side.ExtraBuffer.SoftwareId && entry.SoftwareVersion == b.Side.ExtraBuffer.SoftwareVersion
+			}); i != -1 {
+				versions[i].Weight = versions[i].Weight.Add(weight)
+				versions[i].Count++
+			} else {
+				versions = append(versions, sideChainVersionEntry{
+					Weight:          weight,
+					Count:           1,
+					SoftwareId:      b.Side.ExtraBuffer.SoftwareId,
+					SoftwareVersion: b.Side.ExtraBuffer.SoftwareVersion,
+					SoftwareString:  fmt.Sprintf("%s %s", b.Side.ExtraBuffer.SoftwareId, b.Side.ExtraBuffer.SoftwareVersion),
+				})
+			}
 		}, func(err error) {
 			log.Panicf("error scanning PPLNS window: %s", err)
 		}) {
 			blockCount++
 			uncleCount += len(ps.Uncles)
+		}
+
+		slices.SortFunc(versions, func(a, b sideChainVersionEntry) bool {
+			return a.Weight.Cmp(b.Weight) > 0
+		})
+
+		for i := range versions {
+			versions[i].Share = float64(versions[i].Weight.Mul64(100).Lo) / float64(pplnsWeight.Lo)
 		}
 
 		type totalKnownResult struct {
@@ -133,7 +159,8 @@ func main() {
 
 		lastBlocksFound := indexDb.GetBlocksFound("", 201)
 
-		networkDifficulty := p2api.MainTip().Difficulty
+		mainTip := p2api.MainTip()
+		networkDifficulty := mainTip.Difficulty
 
 		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
 			return float64(blockCumulativeDifficulty.Sub(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
@@ -190,10 +217,11 @@ func main() {
 					Last:       blockEfforts,
 				},
 				Window: poolInfoResultSideChainWindow{
-					Miners: len(miners),
-					Blocks: blockCount,
-					Uncles: uncleCount,
-					Weight: pplnsWeight,
+					Miners:   len(miners),
+					Blocks:   blockCount,
+					Uncles:   uncleCount,
+					Weight:   pplnsWeight,
+					Versions: versions,
 				},
 				WindowSize:    blockCount,
 				MaxWindowSize: int(p2api.Consensus().ChainWindowSize),
@@ -203,8 +231,8 @@ func main() {
 				Miners:        totalKnown.minersKnown,
 			},
 			MainChain: poolInfoResultMainChain{
-				Id:         tip.Main.PreviousId,
-				Height:     tip.Main.Coinbase.GenHeight - 1,
+				Id:         mainTip.Id,
+				Height:     mainTip.Height,
 				Difficulty: networkDifficulty,
 				BlockTime:  monero.BlockTime,
 			},
