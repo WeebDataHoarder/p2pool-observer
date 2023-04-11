@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
@@ -13,7 +14,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
-	"os"
 	"time"
 )
 
@@ -22,13 +22,16 @@ func blockId(b *sidechain.PoolBlock) types.Hash {
 }
 
 func main() {
+	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
+	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
 	startFromHeight := flag.Uint64("from", 0, "Start sync from this height")
 	dbString := flag.String("db", "", "")
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
 	fullMode := flag.Bool("full-mode", false, "Allocate RandomX dataset, uses 2GB of RAM")
 	flag.Parse()
 	randomx.UseFullMemory.Store(*fullMode)
-	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
+
+	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
@@ -128,11 +131,6 @@ func main() {
 		log.Panic(err)
 	}
 
-	heightCount := maxHeight - 1 - currentHeight + 1
-
-	const strideSize = 1000
-	strides := heightCount / strideSize
-
 	ctx := context.Background()
 
 	scanHeader := func(h daemon.BlockHeader) error {
@@ -146,6 +144,11 @@ func main() {
 		}
 		return nil
 	}
+
+	heightCount := maxHeight - 1 - currentHeight + 1
+
+	const strideSize = 1000
+	strides := heightCount / strideSize
 
 	//backfill headers
 	for stride := uint64(0); stride <= strides; stride++ {
@@ -173,8 +176,8 @@ func main() {
 				if header == nil {
 					break
 				}
-				cur, err := client.GetDefaultClient().GetBlockHeaderByHash(header.Id, ctx)
-				if err != nil {
+				cur, _ := client.GetDefaultClient().GetBlockHeaderByHash(header.Id, ctx)
+				if cur == nil {
 					break
 				}
 				if err := scanHeader(cur.BlockHeader); err != nil {
@@ -206,7 +209,7 @@ func main() {
 				log.Panicf("main tip height less than ours, abort: %d < %d", mainTip.Height, currentMainTip.Height)
 			} else {
 				var prevHash types.Hash
-				for cur, err := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); err != nil; cur, err = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
+				for cur, _ := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); cur != nil; cur, _ = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
 					curHash, _ := types.HashFromString(cur.BlockHeader.Hash)
 					if indexDb.GetMainBlockByHeight(cur.BlockHeader.Height).Id == curHash {
 						break

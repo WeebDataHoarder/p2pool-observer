@@ -1,0 +1,5 @@
+.git/
+.env
+docker-compose.override.yml
+p2pool.cache
+p2pool_peers.txt

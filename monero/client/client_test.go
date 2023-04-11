@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"os"
 	"testing"
@@ -22,7 +23,7 @@ func TestOutputIndexes(t *testing.T) {
 }
 
 func TestInputs(t *testing.T) {
-	if result, err := GetDefaultClient().GetTransactionInputs(txHash); err != nil {
+	if result, err := GetDefaultClient().GetTransactionInputs(context.Background(), txHash); err != nil {
 		t.Fatal(err)
 	} else {
 		t.Log(result)

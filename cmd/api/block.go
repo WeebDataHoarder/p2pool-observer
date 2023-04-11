@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/database"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -354,15 +353,32 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 			uncleWeight := types.DifficultyFrom64(u.Difficulty).Mul64(p2api.Consensus().UnclePenalty).Div64(100)
 			weight = weight.Add(uncleWeight)
 
+			type JSONUncleBlockSimple struct {
+				Id     types.Hash `json:"id"`
+				Height uint64     `json:"height"`
+				Weight uint64     `json:"weight"`
+			}
+
+			type JSONUncleBlockExtra struct {
+				Id         types.Hash `json:"id"`
+				Height     uint64     `json:"height"`
+				Difficulty uint64     `json:"difficulty"`
+				Timestamp  uint64     `json:"timestamp"`
+				Miner      string     `json:"miner"`
+				MinerAlias string     `json:"miner_alias,omitempty"`
+				PowHash    types.Hash `json:"pow"`
+				Weight     uint64     `json:"weight"`
+			}
+
 			if !extraUncleData {
-				b.Uncles = append(b.Uncles, &database.JSONUncleBlockSimple{
+				b.Uncles = append(b.Uncles, &JSONUncleBlockSimple{
 					Id:     u.TemplateId,
 					Height: u.SideHeight,
 					Weight: types.DifficultyFrom64(u.Difficulty).Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo,
 				})
 			} else {
 				uncleMiner := indexDb.GetMiner(u.Miner)
-				b.Uncles = append(b.Uncles, &database.JSONUncleBlockExtra{
+				b.Uncles = append(b.Uncles, &JSONUncleBlockExtra{
 					Id:         u.TemplateId,
 					Height:     u.SideHeight,
 					Difficulty: u.Difficulty,

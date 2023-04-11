@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -113,6 +114,7 @@ func toFloat64(t any) float64 {
 }
 
 func main() {
+	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 	env := twig.New(&loader{})
 
 	render := func(writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
@@ -629,12 +631,13 @@ func main() {
 
 		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
+		windowSize := toUint64(poolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any)["pplns_window"])
 		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
 		shareCount := uint64(currentWindowSize)
 		size := uint64(30)
 		cacheTime := 30
 		if params.Has("weekly") {
-			shareCount = sidechain.PPLNSWindow * 4 * 7
+			shareCount = windowSize * 4 * 7
 			size *= 2
 			if params.Has("refresh") {
 				writer.Header().Set("refresh", "3600")
