@@ -48,8 +48,12 @@
         </tr>
         <tr>
             <td>{{ pool.sidechain.miners }}</td>
-            <td style="font-weight:bolder; color: {{ pool.sidechain.effort.average|effort_color }};">
-                {{ pool.sidechain.effort.average|round(2) }}%
+            <td >
+                <span class="small" style="color: {{ pool.sidechain.effort.average10|effort_color }};" title="Last 10 found blocks">{{ pool.sidechain.effort.average10|round(2) }}%</span>
+                /
+                <span style="font-weight:bolder; color: {{ pool.sidechain.effort.average|effort_color }};" title="Last 50 found blocks">{{ pool.sidechain.effort.average|round(2) }}%</span>
+                /
+                <span class="small" style="color: {{ pool.sidechain.effort.average200|effort_color }};" title="Last 200 found blocks">{{ pool.sidechain.effort.average200|round(2) }}%</span>
             </td>
             <td>{{ time_duration_long(diff_uint(pool.mainchain.difficulty) / diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time)) }}</td>
             <td title="{{ utc_date(blocks_found[0].timestamp) }}">{{ time_elapsed_short(blocks_found[0].timestamp) }}</td>

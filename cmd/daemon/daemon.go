@@ -7,6 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
@@ -14,6 +15,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
+	"sync/atomic"
 	"time"
 )
 
@@ -170,9 +172,14 @@ func main() {
 		}
 	}
 
+	var doCheckOfOldBlocks atomic.Bool
+
 	go func() {
 		//do deep scan for any missed main headers or deep reorgs every once in a while
-		for range time.NewTicker(time.Second * 60).C {
+		for range time.NewTicker(time.Second * monero.BlockTime).C {
+			if !doCheckOfOldBlocks.Load() {
+				continue
+			}
 			mainTip := indexDb.GetMainBlockTip()
 			for h := mainTip.Height; h >= 0 && h >= (mainTip.Height-10); h-- {
 				header := indexDb.GetMainBlockByHeight(h)
@@ -214,10 +221,17 @@ func main() {
 				var prevHash types.Hash
 				for cur, _ := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); cur != nil; cur, _ = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
 					curHash, _ := types.HashFromString(cur.Hash)
-					if curDb := indexDb.GetMainBlockByHeight(cur.Height); curDb != nil && curDb.Id == curHash {
-						break
+					curDb := indexDb.GetMainBlockByHeight(cur.Height)
+					if curDb != nil {
+						if curDb.Id == curHash {
+							break
+						} else { //there has been a swap
+							doCheckOfOldBlocks.Store(true)
+						}
 					}
 					log.Printf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
+					doCheckOfOldBlocks.Store(true)
+
 					if err := scanHeader(*cur); err != nil {
 						log.Panic(err)
 					}

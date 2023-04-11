@@ -131,16 +131,20 @@ func main() {
 			return result
 		}).(*totalKnownResult)
 
-		lastBlocksFound := indexDb.GetBlocksFound("", 150)
+		lastBlocksFound := indexDb.GetBlocksFound("", 201)
 
-		globalDiff := p2api.MainDifficultyByHeight(tip.Main.Coinbase.GenHeight)
+		networkDifficulty := p2api.MainTip().Difficulty
+
+		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
+			return float64(blockCumulativeDifficulty.Sub(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
+		}
 
 		var lastDiff types.Difficulty
 		if len(lastBlocksFound) > 0 {
 			lastDiff = lastBlocksFound[0].CumulativeDifficulty
 		}
 
-		currentEffort := float64(tip.Side.CumulativeDifficulty.Sub(lastDiff).Mul64(100000).Div(globalDiff).Lo) / 1000
+		currentEffort := getBlockEffort(tip.Side.CumulativeDifficulty, lastDiff, networkDifficulty)
 
 		if currentEffort <= 0 || lastDiff.Cmp64(0) == 0 {
 			currentEffort = 0
@@ -151,13 +155,25 @@ func main() {
 			if i < (len(lastBlocksFound)-1) && b.CumulativeDifficulty.Cmp64(0) > 0 && lastBlocksFound[i+1].CumulativeDifficulty.Cmp64(0) > 0 {
 				blockEfforts = append(blockEfforts, mapslice.MapItem{
 					Key:   b.MainBlock.Id.String(),
-					Value: float64(b.CumulativeDifficulty.Sub(lastBlocksFound[i+1].CumulativeDifficulty).Mul64(100000).Div(globalDiff).Lo) / 1000,
+					Value: getBlockEffort(b.CumulativeDifficulty, lastBlocksFound[i+1].CumulativeDifficulty, networkDifficulty),
 				})
 			}
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
+
+		averageEffort := func(limit int) (result float64) {
+			maxI := utils.Min(limit, len(blockEfforts))
+			for i, e := range blockEfforts {
+				result += e.Value.(float64)
+				if i+1 == maxI {
+					break
+				}
+			}
+			return result / float64(maxI)
+		}
+
 		if buf, err := encodeJson(request, poolInfoResult{
 			SideChain: poolInfoResultSideChain{
 				Consensus:            p2api.Consensus(),
@@ -167,14 +183,11 @@ func main() {
 				CumulativeDifficulty: tip.Side.CumulativeDifficulty,
 				Timestamp:            tip.Main.Timestamp,
 				Effort: poolInfoResultSideChainEffort{
-					Current: currentEffort,
-					Average: func() (result float64) {
-						for _, e := range blockEfforts {
-							result += e.Value.(float64)
-						}
-						return
-					}() / float64(len(blockEfforts)),
-					Last: blockEfforts,
+					Current:    currentEffort,
+					Average10:  averageEffort(10),
+					Average50:  averageEffort(50),
+					Average200: averageEffort(200),
+					Last:       blockEfforts,
 				},
 				Window: poolInfoResultSideChainWindow{
 					Miners: len(miners),
@@ -192,7 +205,7 @@ func main() {
 			MainChain: poolInfoResultMainChain{
 				Id:         tip.Main.PreviousId,
 				Height:     tip.Main.Coinbase.GenHeight - 1,
-				Difficulty: globalDiff,
+				Difficulty: networkDifficulty,
 				BlockTime:  monero.BlockTime,
 			},
 			Versions: struct {

@@ -35,9 +35,11 @@ type poolInfoResultSideChain struct {
 }
 
 type poolInfoResultSideChainEffort struct {
-	Current float64           `json:"current"`
-	Average float64           `json:"average"`
-	Last    mapslice.MapSlice `json:"last"`
+	Current    float64           `json:"current"`
+	Average10  float64           `json:"average10"`
+	Average50  float64           `json:"average"`
+	Average200 float64           `json:"average200"`
+	Last       mapslice.MapSlice `json:"last"`
 }
 type poolInfoResultSideChainWindow struct {
 	Miners int              `json:"miners"`
