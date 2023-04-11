@@ -597,6 +597,11 @@ func (i *Index) InsertOrUpdateSideBlock(b *SideBlock) error {
 		}
 	}
 
+	var parentId any = &b.ParentTemplateId
+	if b.SideHeight == 0 {
+		parentId = types.ZeroHash[:]
+	}
+
 	return i.QueryStatement(
 		i.statements.InsertOrUpdateSideBlock,
 		nil,
@@ -604,7 +609,7 @@ func (i *Index) InsertOrUpdateSideBlock(b *SideBlock) error {
 		b.MainHeight,
 		&b.TemplateId,
 		b.SideHeight,
-		&b.ParentTemplateId,
+		parentId,
 		b.Miner,
 		&b.UncleOf,
 		b.EffectiveHeight,
