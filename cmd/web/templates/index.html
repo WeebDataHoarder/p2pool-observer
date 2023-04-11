@@ -99,13 +99,14 @@
 <div style="text-align: center">
     <h2>Recent Monero blocks found by P2Pool miners</h2>
 
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 10em + 7em + 12em + 28em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 8em + 10em + 7em + 12em + 28em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
             <th style="width: 8em;">Effort</th>
             <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
+            <th style="width: 8em;">Transactions</th>
             <th style="width: 10em;">Total Reward</th>
             <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
             <th style="width: 12em;">Coinbase Transaction</th>
@@ -136,6 +137,7 @@
             {% else %}
             <td title="{{ b.miner }}" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner|shorten(10) }}</a></td>
             {% endif %}
+            <td>{{ b.transaction_count }}</td>
             <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
             <td>{{ b.coinbase.payouts|length }}</td>
             <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
@@ -156,13 +158,14 @@
 
 <div style="text-align: center">
     <h2>Recent P2Pool shares found</h2>
-    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 12em + 12em)">
+    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 12em + 10em + 12em)">
         <tr>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 12em;">P2Pool Id</th>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
             <th style="width: 12em;" title="The P2Pool miner who found this share">Found by</th>
+            <th style="width: 10em;" title="The consensus implementation name and version of the miner who found this share">Software</th>
             <th style="width: 12em;">Valuation</th>
         </tr>
         {% for s in shares %}
@@ -176,6 +179,7 @@
             {% else %}
             <td title="{{ s.miner }}" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner|shorten(10) }}</a></td>
             {% endif %}
+            <td>{{ software_info(s.software_id, s.software_version) }}</td>
             <td>
                 {% if s.parent is defined %}
                 {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)

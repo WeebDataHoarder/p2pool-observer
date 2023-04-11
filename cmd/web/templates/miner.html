@@ -53,9 +53,18 @@
     </div>
 
     <hr/>
-    {% endif %}
+    {% elseif (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v1") and (last_raw_share.Side.ExtraBuffer.SoftwareId == "P2Pool") and (software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) != pool.versions.p2pool.version) %}
+    <div style="border: #d1d1d1 1px dashed;">
+        <h3 style="color:#FF4433">Recent shares indicate you are running an outdated version of P2Pool</h3>
 
-    <h2>Miner statistics</h2>
+        <p><a href="https://github.com/SChernykh/p2pool/releases/tag/{{ pool.versions.p2pool.version }}">P2Pool {{ pool.versions.p2pool.version }}</a> has been released.</p>
+        <p>Your most recent share indicates are currently running P2Pool {{ software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) }}. It is recommended to upgrade.</p>
+        <p>After upgrading to this P2Pool version and mining a share, this message will be dismissed.</p>
+        <br/>
+    </div>
+
+    <hr/>
+    {% endif %}
 
     <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
 
@@ -125,12 +134,13 @@
 
 <div style="text-align: center">
     <h2>Most recent payouts</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 7em + 12em + 12em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 12em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
             <th style="width: 10em;">Reward</th>
+            <th style="width: 10em;">Global Output Index</th>
             <th style="width: 12em;">Coinbase Transaction</th>
             <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
         </tr>
@@ -140,6 +150,7 @@
             <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
             <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
             <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
+            <td class="small">{{ p.coinbase.global_output_index }}</td>
             <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
             <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
         </tr>
@@ -155,12 +166,13 @@
 
 <div style="text-align: center">
     <h2>Most recent shares</h2>
-    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 8em + 12em)">
+    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 10em + 8em + 12em)">
         <tr>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 12em;">P2Pool Id</th>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 10em;" title="The consensus implementation name and version">Software</th>
             <th style="width: 8em;" title="Weight is the difficulty of mined share, with any uncle adjustments. It is variable, and is used in reward calculations">Weight</th>
             <th style="width: 12em;">Valuation</th>
         </tr>
@@ -170,6 +182,7 @@
             <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
             <td title="{{ s.main.id }}">{{ s.main.height }}</td>
             <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+            <td>{{ software_info(s.software_id, s.software_version) }}</td>
             <td>{{ s.weight|si_units(1) }}</td>
             <td>
                 {% if s.parent is defined %}
@@ -190,11 +203,12 @@
 
 <div style="text-align: center">
     <h2>Most recent Monero blocks found</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 7em + 12em + 28em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 10em + 7em + 12em + 28em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 8em;">Transactions</th>
             <th style="width: 10em;">Total Reward</th>
             <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
             <th style="width: 12em;">Coinbase Transaction</th>
@@ -213,6 +227,7 @@
             </th>
             {% endif %}
             <td title="{{ utc_date(b.timestamp) }}">{{ date_diff_short(b.timestamp) }}</td>
+            <td>{{ b.transaction_count }}</td>
             <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
             <td>{{ b.coinbase.payouts|length }}</td>
             <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>

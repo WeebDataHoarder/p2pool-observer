@@ -674,10 +674,11 @@ type Payout struct {
 	Timestamp uint64 `json:"timestamp"`
 	Uncle     bool   `json:"uncle,omitempty"`
 	Coinbase  struct {
-		Id         types.Hash             `json:"id"`
-		Reward     uint64                 `json:"reward"`
-		PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-		Index      uint64                 `json:"index"`
+		Id                types.Hash             `json:"id"`
+		Reward            uint64                 `json:"reward"`
+		PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
+		Index             uint64                 `json:"index"`
+		GlobalOutputIndex uint64                 `json:"global_output_index"`
 	} `json:"coinbase"`
 }
 
@@ -689,10 +690,10 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 
 		resultFunc := func(row RowScanInterface) error {
 			var templateId, mainId, privKey, coinbaseId []byte
-			var height, mainHeight, timestamp, value, index uint64
+			var height, mainHeight, timestamp, value, index, globalOutputIndex uint64
 			var uncle []byte
 
-			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index); err != nil {
+			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index, &globalOutputIndex); err != nil {
 				return err
 			}
 
@@ -706,21 +707,22 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 				}{Id: types.HashFromBytes(mainId), Height: mainHeight},
 				Uncle: len(uncle) != 0,
 				Coinbase: struct {
-					Id         types.Hash             `json:"id"`
-					Reward     uint64                 `json:"reward"`
-					PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-					Index      uint64                 `json:"index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
+					Id                types.Hash             `json:"id"`
+					Reward            uint64                 `json:"reward"`
+					PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
+					Index             uint64                 `json:"index"`
+					GlobalOutputIndex uint64                 `json:"global_output_index"`
+				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index, GlobalOutputIndex: globalOutputIndex},
 			}
 			return nil
 		}
 
 		if limit == 0 {
-			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index FROM (SELECT id, value, index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
+			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
 				return
 			}
 		} else {
-			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index FROM (SELECT id, value, index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
+			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
 				return
 			}
 		}
@@ -737,10 +739,10 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 
 		resultFunc := func(row RowScanInterface) error {
 			var templateId, mainId, privKey, coinbaseId []byte
-			var height, mainHeight, timestamp, value, index uint64
+			var height, mainHeight, timestamp, value, index, globalOutputIndex uint64
 			var uncle []byte
 
-			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index); err != nil {
+			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index, &globalOutputIndex); err != nil {
 				return err
 			}
 
@@ -754,16 +756,17 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 				}{Id: types.HashFromBytes(mainId), Height: mainHeight},
 				Uncle: len(uncle) != 0,
 				Coinbase: struct {
-					Id         types.Hash             `json:"id"`
-					Reward     uint64                 `json:"reward"`
-					PrivateKey crypto.PrivateKeyBytes `json:"private_key"`
-					Index      uint64                 `json:"index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index},
+					Id                types.Hash             `json:"id"`
+					Reward            uint64                 `json:"reward"`
+					PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
+					Index             uint64                 `json:"index"`
+					GlobalOutputIndex uint64                 `json:"global_output_index"`
+				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index, GlobalOutputIndex: globalOutputIndex},
 			}
 			return nil
 		}
 
-		if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index FROM (SELECT id, value, index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of, (effective_height - window_depth) AS including_height FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id WHERE side_height >= $2 AND including_height <= $2 ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight); err != nil {
+		if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of, (effective_height - window_depth) AS including_height FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id WHERE side_height >= $2 AND including_height <= $2 ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight); err != nil {
 			return
 		}
 	}()

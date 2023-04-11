@@ -11,6 +11,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
@@ -44,6 +45,14 @@ func toUint64(t any) uint64 {
 		return uint64(x)
 	} else if x, ok := t.(int); ok {
 		return uint64(x)
+	} else if x, ok := t.(uint32); ok {
+		return uint64(x)
+	} else if x, ok := t.(types2.SoftwareId); ok {
+		return uint64(x)
+	} else if x, ok := t.(types2.SoftwareVersion); ok {
+		return uint64(x)
+	} else if x, ok := t.(int32); ok {
+		return uint64(x)
 	} else if x, ok := t.(float64); ok {
 		return uint64(x)
 	} else if x, ok := t.(float32); ok {
@@ -69,6 +78,10 @@ func toInt64(t any) int64 {
 	} else if x, ok := t.(int64); ok {
 		return x
 	} else if x, ok := t.(uint); ok {
+		return int64(x)
+	} else if x, ok := t.(uint32); ok {
+		return int64(x)
+	} else if x, ok := t.(int32); ok {
 		return int64(x)
 	} else if x, ok := t.(int); ok {
 		return int64(x)
@@ -358,6 +371,13 @@ func main() {
 		return args[0].(*sidechain.PoolBlock).CoinbaseExtra(sidechain.SideExtraNonce)
 	}
 
+	env.Functions["software_info"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 2 {
+			return nil
+		}
+		return fmt.Sprintf("%s %s", types2.SoftwareId(toUint64(args[0])).String(), types2.SoftwareVersion(toUint64(args[1])).String())
+	}
+
 	env.Functions["attribute"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 2 {
 			return nil
@@ -532,7 +552,7 @@ func main() {
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
 		blocks := getFromAPI(fmt.Sprintf("found_blocks?coinbase&limit=%d", blocksToFetch), 5).([]any)
-		shares := getFromAPI("shares?limit=20", 5).([]any)
+		shares := getFromAPI("shares?limit=50", 5).([]any)
 
 		ctx := make(map[string]stick.Value)
 		ctx["refresh"] = writer.Header().Get("refresh")
@@ -658,6 +678,8 @@ func main() {
 			miner := share["miner"].(string)
 			if _, ok := miners[miner]; !ok {
 				miners[miner] = make(map[string]any)
+				miners[miner]["software_id"] = share["software_id"]
+				miners[miner]["software_version"] = share["software_version"]
 				miners[miner]["weight"] = types.ZeroDifficulty
 				miners[miner]["shares"] = NewPositionChart(size, shareCount)
 				miners[miner]["uncles"] = NewPositionChart(size, shareCount)
@@ -679,6 +701,8 @@ func main() {
 					miner := uncle["miner"].(string)
 					if _, ok := miners[miner]; !ok {
 						miners[miner] = make(map[string]any)
+						miners[miner]["software_id"] = uncle["software_id"]
+						miners[miner]["software_version"] = uncle["software_version"]
 						miners[miner]["weight"] = types.ZeroDifficulty
 						miners[miner]["shares"] = NewPositionChart(size, shareCount)
 						miners[miner]["uncles"] = NewPositionChart(size, shareCount)

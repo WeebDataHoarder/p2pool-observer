@@ -44,10 +44,11 @@ type JSONUncleBlockSimple struct {
 }
 
 type JSONCoinbaseOutput struct {
-	Amount  uint64 `json:"amount"`
-	Index   uint64 `json:"index"`
-	Address string `json:"address"`
-	Alias   string `json:"alias,omitempty"`
+	Amount            uint64 `json:"amount"`
+	Index             uint64 `json:"index"`
+	Address           string `json:"address"`
+	Alias             string `json:"alias,omitempty"`
+	GlobalOutputIndex uint64 `json:"global_output_index"`
 }
 
 type JSONUncleBlockExtra struct {
@@ -78,6 +79,12 @@ type JSONBlock struct {
 	PowHash    types.Hash `json:"pow"`
 
 	Main BlockMainData `json:"main"`
+
+	Nonce            uint32 `json:"nonce"`
+	ExtraNonce       uint32 `json:"extra_nonce"`
+	TransactionCount uint32 `json:"transaction_count"`
+	SoftwareId       uint32 `json:"software_id"`
+	SoftwareVersion  uint32 `json:"software_version"`
 
 	Template struct {
 		Id         types.Hash       `json:"id"`
@@ -238,6 +245,11 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 		Address:              blockMiner.Address().ToBase58(),
 		MinerAlias:           blockMiner.Alias(),
 		PowHash:              block.PowHash,
+		Nonce:                block.Nonce,
+		ExtraNonce:           block.ExtraNonce,
+		TransactionCount:     block.TransactionCount,
+		SoftwareId:           uint32(block.SoftwareId),
+		SoftwareVersion:      uint32(block.SoftwareVersion),
 		Main: BlockMainData{
 			Id:     block.MainId,
 			Height: block.MainHeight,
@@ -281,10 +293,11 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 			for _, output := range tx {
 				miner := indexDb.GetMiner(output.Miner)
 				b.Coinbase.Payouts[output.Index] = &JSONCoinbaseOutput{
-					Amount:  output.Value,
-					Index:   uint64(output.Index),
-					Address: miner.Address().ToBase58(),
-					Alias:   miner.Alias(),
+					Amount:            output.Value,
+					Index:             uint64(output.Index),
+					Address:           miner.Address().ToBase58(),
+					Alias:             miner.Alias(),
+					GlobalOutputIndex: output.GlobalOutputIndex,
 				}
 			}
 		} else {
@@ -296,9 +309,10 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 					for minerId, amount := range PayoutAmountHint(shares, poolBlock.Main.Coinbase.TotalReward) {
 						miner := indexDb.GetMiner(minerId)
 						addresses[*miner.Address().ToPackedAddress()] = &JSONCoinbaseOutput{
-							Address: miner.Address().ToBase58(),
-							Alias:   miner.Alias(),
-							Amount:  amount,
+							Address:           miner.Address().ToBase58(),
+							Alias:             miner.Alias(),
+							Amount:            amount,
+							GlobalOutputIndex: 0,
 						}
 					}
 
@@ -360,14 +374,16 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 			}
 
 			type JSONUncleBlockExtra struct {
-				Id         types.Hash `json:"id"`
-				Height     uint64     `json:"height"`
-				Difficulty uint64     `json:"difficulty"`
-				Timestamp  uint64     `json:"timestamp"`
-				Miner      string     `json:"miner"`
-				MinerAlias string     `json:"miner_alias,omitempty"`
-				PowHash    types.Hash `json:"pow"`
-				Weight     uint64     `json:"weight"`
+				Id              types.Hash `json:"id"`
+				Height          uint64     `json:"height"`
+				Difficulty      uint64     `json:"difficulty"`
+				Timestamp       uint64     `json:"timestamp"`
+				Miner           string     `json:"miner"`
+				MinerAlias      string     `json:"miner_alias,omitempty"`
+				SoftwareId      uint32     `json:"software_id"`
+				SoftwareVersion uint32     `json:"software_version"`
+				PowHash         types.Hash `json:"pow"`
+				Weight          uint64     `json:"weight"`
 			}
 
 			if !extraUncleData {
@@ -379,14 +395,16 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 			} else {
 				uncleMiner := indexDb.GetMiner(u.Miner)
 				b.Uncles = append(b.Uncles, &JSONUncleBlockExtra{
-					Id:         u.TemplateId,
-					Height:     u.SideHeight,
-					Difficulty: u.Difficulty,
-					Timestamp:  u.Timestamp,
-					Miner:      uncleMiner.Address().ToBase58(),
-					MinerAlias: uncleMiner.Alias(),
-					PowHash:    u.PowHash,
-					Weight:     types.DifficultyFrom64(u.Difficulty).Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo,
+					Id:              u.TemplateId,
+					Height:          u.SideHeight,
+					Difficulty:      u.Difficulty,
+					Timestamp:       u.Timestamp,
+					Miner:           uncleMiner.Address().ToBase58(),
+					MinerAlias:      uncleMiner.Alias(),
+					SoftwareId:      uint32(u.SoftwareId),
+					SoftwareVersion: uint32(u.SoftwareVersion),
+					PowHash:         u.PowHash,
+					Weight:          types.DifficultyFrom64(u.Difficulty).Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo,
 				})
 			}
 		}

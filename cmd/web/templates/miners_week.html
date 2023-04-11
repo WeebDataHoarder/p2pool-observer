@@ -18,10 +18,11 @@
     <p>This is a list of the miners that have shares in the last 28 full windows, or about seven days.</p>
     <p class="small">Entries are sorted by current window "weight". There are more total miners currently active, but without a share to show at the moment.</p>
     <p class="small">Pool share % is relative to whole pool hashrate. Miners can join or leave anytime and there is no ceiling limit. </p>
-    <table class="center datatable" style="border-collapse: collapse; max-width: calc(4em + 12em + 8em + 8em + 12em + 32em)">
+    <table class="center datatable" style="border-collapse: collapse; max-width: calc(4em + 12em + 10em + 8em + 8em + 12em + 32em)">
         <tr>
             <th style="width: 4em;">#</th>
             <th style="width: 12em;">Miner</th>
+            <th style="width: 10em;">Software</th>
             <th style="width: 8em;">Pool share %</th>
             <th style="width: 8em;">Estimated Hashrate</th>
             <th style="width: 12em;">Shares found</th>
@@ -35,6 +36,7 @@
             {% else %}
             <th title="{{ m.Key }}" class="mono small" style="vertical-align: middle"><a href="/miner/{{ m.Key }}">{{ m.Key|shorten(10) }}</a></th>
             {% endif %}
+            <td style="vertical-align: middle">{{ software_info(m.Value.software_id, m.Value.software_version) }}</td>
             <td style="vertical-align: middle">{{ ((m.Value.weight|diff_int / (pool.sidechain.window.weight|diff_int*28))*100)|round(4) }}%</td>
             <td style="vertical-align: middle">{{ ((m.Value.weight|diff_int / (pool.sidechain.window.weight|diff_int*28)) * (pool.sidechain.difficulty|diff_int / pool.sidechain.block_time))|si_units(2) }}H/s</td>
             <td style="vertical-align: middle">{{ m.Value.shares.Total() }} block(s) +{{ m.Value.uncles.Total() }} uncle(s)</td>

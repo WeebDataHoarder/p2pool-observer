@@ -144,11 +144,13 @@
     {% endif %}
 
     <h2>Payouts share was weighted into</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 7em + 12em + 12em)">
+    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 12em + 12em)">
         <tr>
             <th style="width: 8em;">Monero Height</th>
             <th style="width: 8em;">P2Pool Height</th>
             <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+            <th style="width: 10em;">Reward</th>
+            <th style="width: 10em;">Global Output Index</th>
             <th style="width: 12em;">Coinbase Transaction</th>
             <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
         </tr>
@@ -157,6 +159,8 @@
             <th title="{{ p.main.id }}"><a href="/b/{{ p.main.height|benc }}">{{ p.main.height }}</a></th>
             <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
             <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
+            <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
+            <td class="small">{{ p.coinbase.global_output_index }}</td>
             <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
             <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
         </tr>
@@ -168,7 +172,7 @@
         </tr>
         {% else %}
         <tr>
-            <th colspan="5">Share is outside of the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</th>
+            <th colspan="5">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</th>
         </tr>
         {% endif %}
     </table>
@@ -176,9 +180,9 @@
     <h2>Coinbase Transaction</h2>
 
     {% if block.main.found %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 8em)">
-        <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
+    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
+        <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
+        <tr><td colspan="6">&nbsp;</td></tr>
     {% else %}
     <table class="center" style="max-width: calc(8em + 28em + 10em)">
         <tr><td colspan="3" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
@@ -192,6 +196,7 @@
             {% endif %}
             <th style="width: 10em">Reward</th>
             {% if block.main.found %}
+            <th style="width: 10em">Global Output Index</th>
             <th style="width: 8em">Proof</th>
             {% endif %}
         </tr>
@@ -208,7 +213,10 @@
             {% endif %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
-            {% if block.main.found %}<td class="small"><a href="/proof/{{ block.id }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>{% endif %}
+            {% if block.main.found %}
+            <td class="small">{{ payout.global_output_index }}</td>
+            <td class="small"><a href="/proof/{{ block.id }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>
+            {% endif %}
         </tr>
         {% endfor %}
     </table>
