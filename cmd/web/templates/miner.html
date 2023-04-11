@@ -53,12 +53,12 @@
     </div>
 
     <hr/>
-    {% elseif (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v1") and (last_raw_share.Side.ExtraBuffer.SoftwareId == "P2Pool") and (software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) != pool.versions.p2pool.version) %}
+    {% elseif (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v1") and (last_raw_share.Side.ExtraBuffer.SoftwareId == "P2Pool") and (last_raw_share.Side.ExtraBuffer.SoftwareVersion != pool.versions.p2pool.version) %}
     <div style="border: #d1d1d1 1px dashed;">
         <h3 style="color:#FF4433">Recent shares indicate you are running an older version of P2Pool</h3>
 
         <p><a href="https://github.com/SChernykh/p2pool/releases/tag/{{ pool.versions.p2pool.version }}">P2Pool {{ pool.versions.p2pool.version }}</a> has been released.</p>
-        <p>Your most recent share indicates are currently running P2Pool {{ software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) }}. It is recommended to upgrade.</p>
+        <p>Your most recent share indicates are currently running {{ software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) }}. It is recommended to upgrade.</p>
         <p>After upgrading to this P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
     </div>
