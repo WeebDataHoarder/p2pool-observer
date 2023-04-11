@@ -206,7 +206,7 @@ func main() {
 			bestTip = r.tipEntries[0]
 		} else {
 			for _, b := range r.tipEntries {
-				if b.Main.Timestamp > lastTime {
+				if (b.Main.Timestamp - 60*5) > lastTime { //2m offset of max time drift
 					continue
 				}
 
@@ -226,7 +226,7 @@ func main() {
 		} else if bestTip.Main.Coinbase.GenHeight > lastHeight {
 			log.Printf("skipped range %d to %d due to: main height %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Coinbase.GenHeight, lastHeight)
 			continue
-		} else if bestTip.Main.Timestamp > lastTime {
+		} else if (bestTip.Main.Timestamp - 60*5) > lastTime {
 			log.Printf("skipped range %d to %d due to: timestamp %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Timestamp, lastTime)
 			continue
 		}
