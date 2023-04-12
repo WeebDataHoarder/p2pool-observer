@@ -393,7 +393,7 @@ func main() {
 
 		if k, ok := args[0].(string); ok {
 			isOnion, _ := ctx.Scope().Get("is_onion")
-			return utils2.GetSiteUrlByHost(k, isOnion.(bool))
+			return utils2.GetSiteUrlByHost(k, isOnion != nil && isOnion.(bool))
 		}
 		return ""
 	}
