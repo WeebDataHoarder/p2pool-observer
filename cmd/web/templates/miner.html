@@ -47,7 +47,7 @@
         <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.2">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
         <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.2 is recommended.</p>
         <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
-        <p>{% if getenv('NET_SERVICE_ADDRESS') == "p2pool.observer" %}After the fork, you can check on <a href="https://old.p2pool.observer/miner/{{ miner.address }}">OLD.P2Pool.Observer</a>.{% elseif getenv('NET_SERVICE_ADDRESS') == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://old-mini.p2pool.observer/miner/{{ miner.address }}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
+        <p>{% if getenv('NET_SERVICE_ADDRESS') == "p2pool.observer" %}After the fork, you can check on <a href="{{ get_url("old.p2pool.observer") }}/miner/{{ miner.address }}">OLD.P2Pool.Observer</a>.{% elseif getenv('NET_SERVICE_ADDRESS') == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{{ get_url("old-mini.p2pool.observer") }}/miner/{{ miner.address }}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
         <p>After upgrading to a supported P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
     </div>
@@ -157,7 +157,7 @@
         {% endfor %}
 
         <tr>
-            <th colspan="9"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></th>
+            <th colspan="7"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></th>
         </tr>
     </table>
 </div>
@@ -235,7 +235,7 @@
         </tr>
         {% endfor %}
         <tr>
-            <th colspan="9"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></th>
+            <th colspan="8"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></th>
         </tr>
     </table>
 </div>

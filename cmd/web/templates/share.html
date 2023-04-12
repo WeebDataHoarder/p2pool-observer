@@ -168,11 +168,11 @@
 
         {% if block.height > (pool.sidechain.height - pool.sidechain.window_size) %}
         <tr>
-            <th colspan="5"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></th>
+            <th colspan="7"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></th>
         </tr>
         {% else %}
         <tr>
-            <th colspan="5">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</th>
+            <th colspan="7">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</th>
         </tr>
         {% endif %}
     </table>

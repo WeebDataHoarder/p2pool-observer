@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -128,9 +129,10 @@ func toFloat64(t any) float64 {
 
 func main() {
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
+	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
-	render := func(writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
+	render := func(request *http.Request, writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
 		w := bytes.NewBuffer(nil)
 		defer func() {
 			_, _ = writer.Write(w.Bytes())
@@ -152,6 +154,12 @@ func main() {
 				}
 			}
 		}()
+
+		if ctx == nil {
+			ctx = make(map[string]stick.Value)
+		}
+		ctx["is_onion"] = request.Header.Get("host") == torHost
+
 		if err := env.Execute(template, w, ctx); err != nil {
 			w = bytes.NewBuffer(nil)
 			writer.WriteHeader(http.StatusInternalServerError)
@@ -378,6 +386,18 @@ func main() {
 		return fmt.Sprintf("%s %s", types2.SoftwareId(toUint64(args[0])).String(), types2.SoftwareVersion(toUint64(args[1])).String())
 	}
 
+	env.Functions["get_url"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+
+		if k, ok := args[0].(string); ok {
+			isOnion, _ := ctx.Scope().Get("is_onion")
+			return utils2.GetSiteUrlByHost(k, isOnion.(bool))
+		}
+		return ""
+	}
+
 	env.Functions["attribute"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 2 {
 			return nil
@@ -573,11 +593,11 @@ func main() {
 		ctx["shares"] = shares
 		ctx["pool"] = poolInfo
 
-		render(writer, "index.html", ctx)
+		render(request, writer, "index.html", ctx)
 	})
 
 	serveMux.HandleFunc("/api", func(writer http.ResponseWriter, request *http.Request) {
-		render(writer, "api.html", nil)
+		render(request, writer, "api.html", nil)
 	})
 
 	serveMux.HandleFunc("/calculate-share-time", func(writer http.ResponseWriter, request *http.Request) {
@@ -598,7 +618,7 @@ func main() {
 		ctx["magnitude"] = magnitude
 		ctx["pool"] = poolInfo
 
-		render(writer, "calculate-share-time.html", ctx)
+		render(request, writer, "calculate-share-time.html", ctx)
 	})
 
 	serveMux.HandleFunc("/blocks", func(writer http.ResponseWriter, request *http.Request) {
@@ -617,7 +637,7 @@ func main() {
 				ctx["code"] = http.StatusNotFound
 				error["message"] = "Address Not Found"
 				error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past. Come back later :)</div>"
-				render(writer, "error.html", ctx)
+				render(request, writer, "error.html", ctx)
 				return
 			}
 			miner = m.(map[string]any)
@@ -634,12 +654,12 @@ func main() {
 			ctx["blocks_found"] = blocks
 			ctx["miner"] = miner
 
-			render(writer, "blocks_miner.html", ctx)
+			render(request, writer, "blocks_miner.html", ctx)
 		} else {
 			blocks := getFromAPI("found_blocks?limit=100&coinbase", 30)
 			ctx["blocks_found"] = blocks
 
-			render(writer, "blocks.html", ctx)
+			render(request, writer, "blocks.html", ctx)
 		}
 	})
 
@@ -742,9 +762,9 @@ func main() {
 		ctx["window_weight"] = totalWeight
 
 		if params.Has("weekly") {
-			render(writer, "miners_week.html", ctx)
+			render(request, writer, "miners_week.html", ctx)
 		} else {
-			render(writer, "miners.html", ctx)
+			render(request, writer, "miners.html", ctx)
 		}
 	})
 
@@ -767,7 +787,7 @@ func main() {
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
 			error["message"] = "Share Not Found"
-			render(writer, "error.html", ctx)
+			render(request, writer, "error.html", ctx)
 			return
 		}
 
@@ -792,7 +812,7 @@ func main() {
 		ctx["pool"] = poolInfo
 		ctx["payouts"] = payouts
 
-		render(writer, "share.html", ctx)
+		render(request, writer, "share.html", ctx)
 	})
 
 	serveMux.HandleFunc("/miner/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -816,7 +836,7 @@ func main() {
 				ctx["error"] = error
 				ctx["code"] = http.StatusNotFound
 				error["message"] = "Invalid Address"
-				render(writer, "error.html", ctx)
+				render(request, writer, "error.html", ctx)
 				return
 			}
 		}
@@ -911,7 +931,7 @@ func main() {
 		ctx["position_blocks"] = sharesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
 		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
 		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
-		render(writer, "miner.html", ctx)
+		render(request, writer, "miner.html", ctx)
 	})
 
 	serveMux.HandleFunc("/miner", func(writer http.ResponseWriter, request *http.Request) {
@@ -935,7 +955,7 @@ func main() {
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
 			error["message"] = "Share Was Not Found"
-			render(writer, "error.html", ctx)
+			render(request, writer, "error.html", ctx)
 			return
 		}
 
@@ -946,7 +966,7 @@ func main() {
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
 			error["message"] = "Output Not Found"
-			render(writer, "error.html", ctx)
+			render(request, writer, "error.html", ctx)
 			return
 		}
 
@@ -957,7 +977,7 @@ func main() {
 		ctx["payout"] = payouts[index]
 		ctx["pool"] = poolInfo
 
-		render(writer, "proof.html", ctx)
+		render(request, writer, "proof.html", ctx)
 	})
 
 	serveMux.HandleFunc("/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -979,7 +999,7 @@ func main() {
 			ctx["code"] = http.StatusNotFound
 			error["message"] = "Address Not Found"
 			error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past. Come back later :)</div>"
-			render(writer, "error.html", ctx)
+			render(request, writer, "error.html", ctx)
 			return
 		}
 
@@ -993,7 +1013,7 @@ func main() {
 			ctx["code"] = http.StatusNotFound
 			error["message"] = "No payout for address found"
 			error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past, and a main block found during that period. Come back later :)</div>"
-			render(writer, "error.html", ctx)
+			render(request, writer, "error.html", ctx)
 			return
 		}
 
@@ -1007,7 +1027,7 @@ func main() {
 			}
 			return
 		}()
-		render(writer, "payouts.html", ctx)
+		render(request, writer, "payouts.html", ctx)
 	})
 
 	server := &http.Server{

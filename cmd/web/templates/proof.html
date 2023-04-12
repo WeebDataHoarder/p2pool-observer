@@ -24,9 +24,9 @@
         <p><strong>Transaction Private Key:</strong> <span class="mono small">{{ block.coinbase.private_key }}</span></p>
         <p>Verify on Monero CLI: <span class="mono smaller">check_tx_proof {{ block.coinbase.id }} {{ payout.address }} {{ block.coinbase.private_key }}</span></p>
         <p>
-            <a href="https://localmonero.co/blocks/tx/{{ block.coinbase.id }}?xmraddress={{ payout.address }}&txprvkey={{ block.coinbase.private_key }}">Verify on LocalMonero</a><br/>
-            <a href="https://www.exploremonero.com/receipt/{{ block.coinbase.id }}/{{ payout.address }}/{{ block.coinbase.private_key }}">Verify on Explore Monero</a><br/>
-            <a href="https://monero.com/payment/{{ block.coinbase.id }}/{{ payout.address }}/{{ block.coinbase.private_key }}/">Verify on Monero.com</a><br/>
+            <a href="{{ get_url("localmonero.co") }}/blocks/tx/{{ block.coinbase.id }}?xmraddress={{ payout.address }}&txprvkey={{ block.coinbase.private_key }}">Verify on LocalMonero</a><br/>
+            <a href="{{ get_url("www.exploremonero.com") }}/receipt/{{ block.coinbase.id }}/{{ payout.address }}/{{ block.coinbase.private_key }}">Verify on Explore Monero</a><br/>
+            <a href="{{ get_url("monero.com") }}/payment/{{ block.coinbase.id }}/{{ payout.address }}/{{ block.coinbase.private_key }}/">Verify on Monero.com</a><br/>
         </p>
     </div>
 
