@@ -549,7 +549,7 @@ func main() {
 	})
 
 	serveMux.HandleFunc("/api/redirect/block/{main_height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/block/%d", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Header.Get("host") == torHost), utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/block/%d", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Host == torHost), utils.DecodeBinaryNumber(mux.Vars(request)["main_height"])), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/transaction/{tx_id:.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
 		txId := utils.DecodeHexBinaryNumber(mux.Vars(request)["tx_id"])
@@ -558,7 +558,7 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Header.Get("host") == torHost), txId), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Host == torHost), txId), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		foundTargets := indexDb.GetBlocksFound("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
@@ -574,7 +574,7 @@ func main() {
 			return
 		}
 
-		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Header.Get("host") == torHost), foundTargets[0].MainBlock.Id.String()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Host == torHost), foundTargets[0].MainBlock.Id.String()), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/share/{height:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		c := utils.DecodeBinaryNumber(mux.Vars(request)["height"])

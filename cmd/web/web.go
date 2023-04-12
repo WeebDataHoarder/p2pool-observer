@@ -158,7 +158,7 @@ func main() {
 		if ctx == nil {
 			ctx = make(map[string]stick.Value)
 		}
-		ctx["is_onion"] = request.Header.Get("host") == torHost
+		ctx["is_onion"] = request.Host == torHost
 
 		if err := env.Execute(template, w, ctx); err != nil {
 			w = bytes.NewBuffer(nil)
