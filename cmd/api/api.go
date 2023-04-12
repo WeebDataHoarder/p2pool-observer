@@ -438,7 +438,9 @@ func main() {
 
 		params := request.URL.Query()
 
-		window := p2api.Consensus().ChainWindowSize
+		tip := indexDb.GetSideBlockTip()
+
+		window := uint64(tip.WindowDepth)
 		if params.Has("window") {
 			if i, err := strconv.Atoi(params.Get("window")); err == nil {
 				if i <= int(p2api.Consensus().ChainWindowSize*4) {
@@ -454,6 +456,10 @@ func main() {
 					from = uint64(i)
 				}
 			}
+		}
+
+		if from == 0 {
+			from = tip.SideHeight
 		}
 
 		result := make([]*sharesInWindowResult, 0)
@@ -742,8 +748,8 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		if limit > 200 {
-			limit = 200
+		if limit > 1000 {
+			limit = 1000
 		}
 
 		if limit == 0 {
