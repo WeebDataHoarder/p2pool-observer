@@ -134,110 +134,28 @@
 
 <div style="text-align: center">
     <h2>Most recent payouts</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 12em)">
-        <tr>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 10em;">Reward</th>
-            <th style="width: 10em;">Global Output Index</th>
-            <th style="width: 12em;">Coinbase Transaction</th>
-            <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
-        </tr>
-        {% for p in last_payouts %}
-        <tr>
-            <th title="{{ p.main.id }}"><a href="/b/{{ p.main.height|benc }}">{{ p.main.height }}</a></th>
-            <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
-            <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
-            <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
-            <td class="small">{{ p.coinbase.global_output_index }}</td>
-            <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
-        </tr>
-        {% endfor %}
-
-        <tr>
-            <th colspan="7"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></th>
-        </tr>
-    </table>
+    {% set payouts = last_payouts %}
+    {% include('tpl_payouts.html') %}
+    <div class="center"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></div>
 </div>
 
 <hr/>
 
 <div style="text-align: center">
     <h2>Most recent shares</h2>
-    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 10em + 8em + 12em)">
-        <tr>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 12em;">P2Pool Id</th>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 10em;" title="The consensus implementation name and version">Software</th>
-            <th style="width: 8em;" title="Weight is the difficulty of mined share, with any uncle adjustments. It is variable, and is used in reward calculations">Weight</th>
-            <th style="width: 12em;">Valuation</th>
-        </tr>
-        {% for s in last_shares %}
-        <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
-            <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
-            <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
-            <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
-            <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
-            <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
-            <td>{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>
-            <td>
-                {% if s.IsUncle() %}
-                  {{ 100 - consensus.UnclePenalty }}% (uncle)
-                {% else %}
-                    100%
-                    {% if (s.Uncles is defined) and s.Uncles|length > 0 %}
-                        + {{ consensus.UnclePenalty }}% of {{ s.Uncles|length }} uncle(s)
-                    {% endif %}
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+    {% set shares = last_shares %}
+    {% set shares_is_miner = true %}
+    {% include('tpl_shares.html') %}
 </div>
 
 <hr/>
 
 <div style="text-align: center">
     <h2>Most recent Monero blocks found</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 10em + 7em + 12em + 28em)">
-        <tr>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 8em;">Transactions</th>
-            <th style="width: 10em;">Total Reward</th>
-            <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
-            <th style="width: 12em;">Coinbase Transaction</th>
-            <th style="width: 28em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
-        </tr>
-        {% for b in last_found %}
-        <tr>
-            <th title="{{ b.main.id }}"><a href="/b/{{ b.main.height|benc }}">{{ b.main.height }}</a></th>
-            {% if b.parent.height is defined %}
-            <th title="{{ b.id }} is an uncle of height {{ b.parent.height }}, {{ b.parent.id }}">
-                <a href="/share/{{ b.id }}">{{ b.height }}*</a>
-            </th>
-            {% else %}
-            <th title="{{ b.id }}">
-                <a href="/share/{{ b.id }}">{{ b.height }}</a>
-            </th>
-            {% endif %}
-            <td title="{{ utc_date(b.timestamp) }}">{{ date_diff_short(b.timestamp) }}</td>
-            <td>{{ b.transaction_count }}</td>
-            <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
-            <td>{{ b.coinbase.payouts|length }}</td>
-            <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller">{{ b.coinbase.private_key|shorten(10) }}</td>
-        </tr>
-        {% endfor %}
-        <tr>
-            <th colspan="8"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></th>
-        </tr>
-    </table>
+    {% set found_blocks = last_found %}
+    {% set found_blocks_is_miner = true %}
+    {% include('tpl_found_blocks.html') %}
+    <div class="center"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></div>
 </div>
 
 

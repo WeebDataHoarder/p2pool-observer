@@ -1,0 +1,37 @@
+{% if (shares_is_miner is defined) and (shares_is_miner) %}
+<table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 10em + 8em + 12em)">
+{% else %}
+<table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 12em + 10em + 8em + 12em)">
+{% endif %}
+    <tr>
+        <th style="width: 8em;">P2Pool Height</th>
+        <th style="width: 12em;">P2Pool Id</th>
+        <th style="width: 8em;">Monero Height</th>
+        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+        {% if (shares_is_miner is not defined) or (not shares_is_miner) %}
+        <th style="width: 12em;" title="The P2Pool miner who found this share">Found by</th>
+        {% endif %}
+        <th style="width: 10em;" title="The consensus implementation name and version of the miner who found this share">Software</th>
+        <th style="width: 8em;" title="Weight is the difficulty of mined share, with any uncle adjustments. It is variable, and is used in reward calculations">Weight</th>
+        <th style="width: 12em;">Valuation</th>
+    </tr>
+    {% for s in shares %}
+    <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
+        <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
+        <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
+        <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
+        <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
+        {% if (shares_is_miner is not defined) or (not shares_is_miner) %}
+            {% set minerAddress = s.MinerAddress.ToBase58() %}
+            {% if s.MinerAlias != "" %}
+            <td title="{{ minerAddress }} ({{ s.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ s.MinerAlias|shorten(10) }}</a></td>
+            {% else %}
+            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
+            {% endif %}
+        {% endif %}
+        <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
+        <td>{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>
+        <td>{{ side_block_valuation(s) }}</td>
+    </tr>
+    {% endfor %}
+</table>

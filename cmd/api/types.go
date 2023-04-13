@@ -80,23 +80,3 @@ type minerInfoResult struct {
 	LastShareHeight    uint64                                                          `json:"last_share_height"`
 	LastShareTimestamp uint64                                                          `json:"last_share_timestamp"`
 }
-
-type sharesInWindowResult struct {
-	Parent    *sharesInWindowResultParent `json:"parent,omitempty"`
-	Id        types.Hash                  `json:"id"`
-	Height    uint64                      `json:"height"`
-	Timestamp uint64                      `json:"timestamp"`
-	Weight    uint64                      `json:"weight"`
-	Uncles    []sharesInWindowResultUncle `json:"uncles,omitempty"`
-}
-
-type sharesInWindowResultParent struct {
-	Id     types.Hash `json:"id"`
-	Height uint64     `json:"height"`
-}
-
-type sharesInWindowResultUncle struct {
-	Id     types.Hash `json:"id"`
-	Height uint64     `json:"height"`
-	Weight uint64     `json:"weight"`
-}

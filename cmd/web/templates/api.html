@@ -163,54 +163,242 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/miner_info/47ab14E
     <hr/>
 
     <div>
-        <h3 class="mono">/api/shares_in_window/&lt;id|address&gt;?window=[window_size]&from=[height]</h3>
-        <p>Response contains shares on specified range window for a specific miner. Optional parameters are <em>height</em>, denoting the Tip where the window gets measured from, and <em>window_size</em>, max SIDECHAIN_PPLNS_WINDOW * 4</p>
-        <p>By default it will return current window shares, from current tip.</p>
-        <p>For each share, <em>weight</em> denotes how much is worth difficulty wise.</p>
+        <h3 class="mono">/api/side_blocks_in_window?window=[window_size]&from=[height][&noMainStatus][&noUncles][&noMiners]</h3>
+        <p>Response contains SideChain Blocks on specified range window. Optional parameters are <em>height</em>, denoting the Tip where the window gets measured from, and <em>window_size</em>, max SIDECHAIN_PPLNS_WINDOW * 4 * 7</p>
+        <p>By default it will return current window blocks, from current tip.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares_in_window/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
+curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_window
 [
     {
-        "id": "fe76125e3a3bc93698f6ef7063ce52bbff62102225f38e212b375d0b6a580295",
-        "height": 4868332,
-        "timestamp": 1681257374,
-        "weight": 1990675105
+        "main_id": "61c6463961c31584617f2ffd322fd32f91cef4a956b3ac431c128ab1ef8342c8",
+        "main_height": 2863488,
+        "template_id": "8782465759db40c11f64e78a26df4ec6221fb91202cc19a3beaef61acb8e1a50",
+        "side_height": 4882215,
+        "parent_template_id": "2ee8e55e2d0696d715049f5958c300c10b01d0a30b607c82afb8885a76f00d71",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882215,
+        "nonce": 3691022871,
+        "extra_nonce": 1665655721,
+        "timestamp": 1681402700,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 294,
+        "window_outputs": 30,
+        "transaction_count": 2,
+        "difficulty": 2107950958,
+        "cumulative_difficulty": "0000000000000000001b0a11dd0c9de0",
+        "pow_difficulty": 3167867138,
+        "pow_hash": "3e19a8e6c1db97bae77fb19b68b5bf6c927e3b212063ee219e26155b01000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "mined_main_at_height": false
     },
     {
-        "parent": {
-            "id": "d885ea8ff1556e44489da8682c11b2ae6fff9b94c5e97a134d235f5dd758919b",
-            "height": 4868129
-        },
-        "id": "9922bcaecdfffd0bbc19636d47dce9d08f7c17aacad7d607f2f6f524f75e5a05",
-        "height": 4868128,
-        "timestamp": 1681255318,
-        "weight": 1637112004
-    },
-    {
-        "id": "1471f2f2e62d527ca83ce5812a1a0faedcc35c1a6fea7783d267370e478263a2",
-        "height": 4868079,
-        "timestamp": 1681254664,
-        "weight": 2052258578
-    },
-    {
-        "id": "2b1e4ba179c7f29d022456e4a4e7e56487e482181414fa4cd28680bea256b3d3",
-        "height": 4868078,
-        "timestamp": 1681254658,
-        "weight": 2460486101,
+        "main_id": "30e8afa1c6961afae7686f4c9c2ee5ad77bd87bdcbf7da00958af53b3349264a",
+        "main_height": 2863488,
+        "template_id": "2ee8e55e2d0696d715049f5958c300c10b01d0a30b607c82afb8885a76f00d71",
+        "side_height": 4882214,
+        "parent_template_id": "e0b745e8e3004832d95ef7eb6aa5f43dd0f86a491b6edb8ccd8e8dfbf92f6768",
+        "miner_id": 2,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882214,
+        "nonce": 3791814950,
+        "extra_nonce": 610282123,
+        "timestamp": 1681402699,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 293,
+        "window_outputs": 30,
+        "transaction_count": 2,
+        "difficulty": 2108162718,
+        "cumulative_difficulty": "0000000000000000001b0a115f67d672",
+        "pow_difficulty": 5140029450,
+        "pow_hash": "591082e76b158724c0a1a3ea8ffdec93eaa33a8d371eda2ad85ae9d500000000",
+        "inclusion": 1,
+        "miner_address": "435QwkC3fJ4YeX929gmaBMeuUwR1wdmRrQBNyoKfpJdHKDbqnukHJeA768yt8ngnS7UTHRJ2yJmnWP8gCz6s3kkiBX8C363",
         "uncles": [
             {
-                "id": "da68e73b89820c13656f696a0b9a95e8c4091ced14346b7342095dbf22c33952",
-                "height": 4868077,
-                "weight": 410281813
+                "template_id": "4005ede80787679e83d269f09f6435ac4952d9c2cf2fadf999620ed81a948d40",
+                "miner_id": 77,
+                "side_height": 4882213,
+                "difficulty": 2109635914
             }
-        ]
+        ],
+        "mined_main_at_height": false
     },
     {
-        "id": "78b7d4f77698ef186ebf249cc44d13fe80555b03e0d27234b245c4df1af08c9e",
-        "height": 4868013,
-        "timestamp": 1681254006,
-        "weight": 2030339407
+        "main_id": "6d1865f59d8cd38f5de6a498a2a5465040194f63122187b6e439743913aac202",
+        "main_height": 2863487,
+        "template_id": "4005ede80787679e83d269f09f6435ac4952d9c2cf2fadf999620ed81a948d40",
+        "side_height": 4882213,
+        "parent_template_id": "985d621e565da6da1f772dffef4b1154678cc724b6b18eff6edde5e68136a45d",
+        "miner_id": 77,
+        "uncle_of": "2ee8e55e2d0696d715049f5958c300c10b01d0a30b607c82afb8885a76f00d71",
+        "effective_height": 4882214,
+        "nonce": 3326443597,
+        "extra_nonce": 3803058762,
+        "timestamp": 1681402680,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 294,
+        "window_outputs": 31,
+        "transaction_count": 0,
+        "difficulty": 2109635914,
+        "cumulative_difficulty": "0000000000000000001b0a106401568a",
+        "pow_difficulty": 2153295646,
+        "pow_hash": "b7912df968b3935e914ff5daf257a6d276bc84f5c23d9055a2389efe01000000",
+        "inclusion": 1,
+        "miner_address": "457fCKqWYSacjDRLjqah9kTga8KCQRNwL4WP7EfBNQKghYF3RZunjGHCoPSd6F7Y6mVRpT6eCgkEtin3cKvSCf11AqcP33g",
+        "mined_main_at_height": false
+    },
+    {
+        "main_id": "f5582e27b94a34713b607d0f47821142c8b88f8a3335d5b2b1d679c909a9651f",
+        "main_height": 2863486,
+        "template_id": "e0b745e8e3004832d95ef7eb6aa5f43dd0f86a491b6edb8ccd8e8dfbf92f6768",
+        "side_height": 4882213,
+        "parent_template_id": "985d621e565da6da1f772dffef4b1154678cc724b6b18eff6edde5e68136a45d",
+        "miner_id": 18,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882213,
+        "nonce": 3506931857,
+        "extra_nonce": 1625389436,
+        "timestamp": 1681402674,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 294,
+        "window_outputs": 31,
+        "transaction_count": 115,
+        "difficulty": 2109635914,
+        "cumulative_difficulty": "0000000000000000001b0a106401568a",
+        "pow_difficulty": 3604028547,
+        "pow_hash": "1d01609ded322d6665fb96410042cc5cc9604be078b77967a818143101000000",
+        "inclusion": 1,
+        "miner_address": "4BBb6ZBPPPWivZnx2m3m7YUUGQv54F9HfjPWurf2Xy2UDQwwPyb956dGQ3p9whrxNJ568zc3Ygfr9McVT1UJyRKtLi1jcMb",
+        "mined_main_at_height": false
+    }
+]
+        </pre>
+    </div>
+
+    <hr/>
+
+    <div>
+        <h3 class="mono">/api/side_blocks_in_window/&lt;id|address&gt;?window=[window_size]&from=[height][&noMainStatus][&noUncles][&noMiners]</h3>
+        <p>Response contains SideChain Blocks on specified range window for a specific miner. Optional parameters are <em>height</em>, denoting the Tip where the window gets measured from, and <em>window_size</em>, max SIDECHAIN_PPLNS_WINDOW * 4 * 7</p>
+        <p>By default it will return current window blocks, from current tip.</p>
+        <pre class="smaller">
+[result has been cut due to size, relevant portions shown]
+curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_window/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
+[
+        {
+        "main_id": "b41a9e78f11b9f7eaed30a4211f43ae7201f7c77031839f3e484b59c32088028",
+        "main_height": 2863492,
+        "template_id": "ce8de3ca5a9a066c0b4f5d5068783b17ace476f56236c65f5c949b9039c0ca3e",
+        "side_height": 4882250,
+        "parent_template_id": "a0cb288e467f5a4069603f4047c8607f1721a4b62fc8e2f794a5a942828fdf32",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882250,
+        "nonce": 2046825740,
+        "extra_nonce": 1477203696,
+        "timestamp": 1681403097,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 296,
+        "window_outputs": 28,
+        "transaction_count": 75,
+        "difficulty": 2099479471,
+        "cumulative_difficulty": "0000000000000000001b0a2473836c2c",
+        "pow_difficulty": 2770364525,
+        "pow_hash": "ea3d41d8874fb1de05aee76a0fb6df7267b07e34ee95cdf1f924e28c01000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "mined_main_at_height": false
+    },
+    {
+        "main_id": "fea4ee3769b350f2aad0571ff54eb555dbdf7f0cb811c19dea66bef286b041c4",
+        "main_height": 2863492,
+        "template_id": "74caf5d6ba885d05adbb4e4d611edabb55f0e05dcbb20cd3105d2adbcf4cdd1b",
+        "side_height": 4882248,
+        "parent_template_id": "3378e835d72a821b5157d8bebaf4f2193ebaf9cb86c93a106fc4fbbb1921c158",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882248,
+        "nonce": 3456175326,
+        "extra_nonce": 2803310737,
+        "timestamp": 1681403084,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 296,
+        "window_outputs": 28,
+        "transaction_count": 73,
+        "difficulty": 2103245329,
+        "cumulative_difficulty": "0000000000000000001b0a23792e7d07",
+        "pow_difficulty": 5249306449,
+        "pow_hash": "4ab091d18ac65c212feff8f1a971aee1da50c177620827326b5d75d100000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "mined_main_at_height": false
+    },
+    {
+        "main_id": "277a19bf024b4895553bbefc047eeb7733b95a97df6d8422759ec874d2d626c1",
+        "main_height": 2863492,
+        "template_id": "52ad4bb20d62b0e9d7762bab8d27de05563be6147cf3367d9bc79688f794217c",
+        "side_height": 4882246,
+        "parent_template_id": "40865b24eb4fbd1428ff1444d21b4337c8922b60b63a3ab6bdfef2586775390b",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882246,
+        "nonce": 754974898,
+        "extra_nonce": 2953378118,
+        "timestamp": 1681403082,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 296,
+        "window_outputs": 28,
+        "transaction_count": 72,
+        "difficulty": 2104858109,
+        "cumulative_difficulty": "0000000000000000001b0a227e77f578",
+        "pow_difficulty": 4514527717,
+        "pow_hash": "fc127598502b38c4977f7faef3f7db6bab11bab42353baed9ab58cf300000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "uncles": [
+            {
+                "template_id": "ab07fe1e4a6a00ae799bedc637c1b642b4938d302ec16db5b513923937614abe",
+                "miner_id": 7,
+                "side_height": 4882244,
+                "difficulty": 2105207888
+            }
+        ],
+        "mined_main_at_height": false
+    },
+    {
+        "main_id": "ff68eedc72252289e066d2dd59c209dc1502500d2cf4501fb69a91b69e2415b8",
+        "main_height": 2863492,
+        "template_id": "4764acc29d604f1491d600504d2802fea156a47ad691420b63d2c52924570925",
+        "side_height": 4882241,
+        "parent_template_id": "12f8b044e315669904f81caa055eac84f9a7d30d93bdd446cf304d38f18097cf",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882241,
+        "nonce": 4026633700,
+        "extra_nonce": 2755066571,
+        "timestamp": 1681403011,
+        "software_id": 0,
+        "software_version": 196610,
+        "window_depth": 296,
+        "window_outputs": 29,
+        "transaction_count": 47,
+        "difficulty": 2099621378,
+        "cumulative_difficulty": "0000000000000000001b0a1f8d604ce0",
+        "pow_difficulty": 5985480395,
+        "pow_hash": "6e0cc4b1e989a18a8f7a65c5aa5ad252a071cd57d877cac4f14bb2b700000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "mined_main_at_height": false
     }
 ]
         </pre>
@@ -220,43 +408,50 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares_in_window/4
 
     <div>
         <h3 class="mono">/api/payouts/&lt;id|address&gt;?search_limit=[search_limit]</h3>
-        <p>Response contains payouts received by this miner due to blocks on Monero network. Optional parameters are <em>search_limit</em>, maximum amount of records to return. Defaults to 10</p>
+        <p>Response contains payouts received by this miner due to blocks on Monero network. Optional parameters are <em>search_limit</em>, maximum amount of records to return, set 0 to return all. Defaults to 10</p>
         <p><em>.[].coinbase.private_key</em> can be used to prove the payout is correct.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
 [
     {
-        "id": "18cf7e7a359810b93ad0183c4c401acf69562b5dd3a9e35242cc4f8a890feb9a",
-        "height": 4868094,
-        "main": {
-            "id": "e3ec5e7e7cb76cfd2cff284a8812e4b0aeddf04115eb04440e6d26bd9825b7bb",
-            "height": 2862289
-        },
-        "timestamp": 1681254924,
-        "coinbase": {
-            "id": "105a638f1c56446a2ca97ec6c8f0e9c555af48df7e3c8b5552d80f25c1e64979",
-            "reward": 175877640000,
-            "private_key": "69447e1446075c2df723ef5e4cd35836816b9ac72f181e609f0bf45a6397530f",
-            "index": 5,
-            "global_output_index": 71556612
-        }
+        "template_id": "b87002e6b77723aaf9bd23f5425bd4d1e5d59a5f964b611dbcac44cf87d5fd3e",
+        "side_height": 4882060,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "main_id": "25aa3d6170869ce66aebb0f8932acf04885a64db70caa75e973b3111d3f643f8",
+        "main_height": 2863472,
+        "timestamp": 1681401091,
+        "coinbase_id": "aeb38695bd15beacb65b790fac17f76f020dd54c06eb2d724a6514d1d4af9cf5",
+        "coinbase_reward": 216527042165,
+        "coinbase_private_key": "e759ec6979d5640518c7776adde8cfa0d5af17a7a4831eba037f20877be9b90e",
+        "coinbase_output_index": 1,
+        "global_output_index": 71636253
     },
     {
-        "id": "1471f2f2e62d527ca83ce5812a1a0faedcc35c1a6fea7783d267370e478263a2",
-        "height": 4868079,
-        "main": {
-            "id": "e6ceaa02039c09022baaec73146340e20a64b6da19ecd234169c7bf73a569bdd",
-            "height": 2862287
-        },
-        "timestamp": 1681254664,
-        "coinbase": {
-            "id": "550ba891052b7325c42f2602f11fc55de575fb25c82b473279c8df0b24893406",
-            "reward": 171131022461,
-            "private_key": "c008eb0f2e8bdfe35376e83b6474c60d26b67b4982d0354ba199952899f0fd08",
-            "index": 15,
-            "global_output_index": 71556495
-        }
+        "template_id": "05442258dc454342d3573106f0a8a57e1f47fb939f4a6d233abe194facc1d620",
+        "side_height": 4881901,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "main_id": "41a719bb13c3b652f2a204aaee03c645e6d773964efe701ce317507554170a7b",
+        "main_height": 2863457,
+        "timestamp": 1681399294,
+        "coinbase_id": "7b5994fe3ab9c7cb9a2e7a46e8a333a2ea47707fc06332a4bc0fbd5ec23e7e52",
+        "coinbase_reward": 186918635945,
+        "coinbase_private_key": "0666e8c11e90792d0cc04b5722cfe5cbb64cd2daa4e270ccbb4e1c323948bc02",
+        "coinbase_output_index": 19,
+        "global_output_index": 71635134
+    },
+    {
+        "template_id": "bbca455a6032045d730e9311c8b83ec090ff93366bbd8dac7a6f6492425220cb",
+        "side_height": 4881818,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "main_id": "d528a54cff102eab4e6e311978921f15348ea88afa8ddc066eb6d5255ba09c81",
+        "main_height": 2863442,
+        "timestamp": 1681398196,
+        "coinbase_id": "2202f2e572b626c9b8751e2fa7e24e41a874a8bca98178046722257b96dd7835",
+        "coinbase_reward": 178951925576,
+        "coinbase_private_key": "b62ac1dc82ce0145eefcd5ab40511c7cf5a4b1579f440d055a7b1a70da166b0a",
+        "coinbase_output_index": 19,
+        "global_output_index": 71634339
     }
 ]
         </pre>
@@ -265,72 +460,58 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/47ab14EokG
     <hr/>
 
     <div>
-        <h3 class="mono">/api/found_blocks?limit=[limit]&miner=[id|address][&coinbase]</h3>
+        <h3 class="mono">/api/found_blocks?limit=[limit]&miner=[id|address]</h3>
         <p>Response contains last found block records on the Monero network by P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max 1000. Additionally, you can pass the <em>miner</em> parameter to select blocks from that miner only. <em>coinbase</em> parameter can also be used here to decode coinbase outputs.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/found_blocks?limit=2
 [
     {
-        "id": "18cf7e7a359810b93ad0183c4c401acf69562b5dd3a9e35242cc4f8a890feb9a",
-        "height": 4868094,
-        "previous_id": "5366fcb13ff53daa6530e5457b63a10a6ffc14293a8858e2462f42541a8f2b4b",
-        "coinbase": {
-            "id": "105a638f1c56446a2ca97ec6c8f0e9c555af48df7e3c8b5552d80f25c1e64979",
-            "reward": 604159430000,
-            "private_key": "69447e1446075c2df723ef5e4cd35836816b9ac72f181e609f0bf45a6397530f"
+        "main_block": {
+            "id": "25aa3d6170869ce66aebb0f8932acf04885a64db70caa75e973b3111d3f643f8",
+            "height": 2863472,
+            "timestamp": 1681401091,
+            "reward": 612478640000,
+            "coinbase_id": "aeb38695bd15beacb65b790fac17f76f020dd54c06eb2d724a6514d1d4af9cf5",
+            "difficulty": 307908974778,
+            "metadata": null,
+            "side_template_id": "b87002e6b77723aaf9bd23f5425bd4d1e5d59a5f964b611dbcac44cf87d5fd3e",
+            "coinbase_private_key": "e759ec6979d5640518c7776adde8cfa0d5af17a7a4831eba037f20877be9b90e"
         },
-        "difficulty": 2048502871,
-        "cumulative_difficulty": "0000000000000000001aed3747797197",
-        "timestamp": 1681254924,
-        "miner": "4ADyLD6c7hzT5gCYxWnw7k2q5RPDxwqNTMsHcz9n91ir22YJbjBQ4LjGZgcLUVV7tyG33vXfB5SR1iCWaCjEQ7BNJUg6SyJ",
-        "pow": "81be81201ce87029d8e6ffa6f2f0cb945633bc4e850037ee1d769c0100000000",
-        "main": {
-            "id": "e3ec5e7e7cb76cfd2cff284a8812e4b0aeddf04115eb04440e6d26bd9825b7bb",
-            "height": 2862289,
-            "found": true
-        },
-        "nonce": 403341455,
-        "extra_nonce": 3522802799,
-        "transaction_count": 17,
-        "software_id": 0,
-        "software_version": 196608,
-        "template": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "difficulty": "00000000000000000000004c56df1340"
-        },
-        "uncles": [],
-        "weight": 2048502871
+        "side_height": 4882060,
+        "miner": 4,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882060,
+        "window_depth": 292,
+        "window_outputs": 31,
+        "transaction_count": 50,
+        "difficulty": 2127402638,
+        "cumulative_difficulty": "0000000000000000001b09c084ab2910",
+        "inclusion": 1,
+        "miner_address": "4ADyLD6c7hzT5gCYxWnw7k2q5RPDxwqNTMsHcz9n91ir22YJbjBQ4LjGZgcLUVV7tyG33vXfB5SR1iCWaCjEQ7BNJUg6SyJ"
     },
     {
-        "id": "1471f2f2e62d527ca83ce5812a1a0faedcc35c1a6fea7783d267370e478263a2",
-        "height": 4868079,
-        "previous_id": "2b1e4ba179c7f29d022456e4a4e7e56487e482181414fa4cd28680bea256b3d3",
-        "coinbase": {
-            "id": "550ba891052b7325c42f2602f11fc55de575fb25c82b473279c8df0b24893406",
-            "reward": 600208160000,
-            "private_key": "c008eb0f2e8bdfe35376e83b6474c60d26b67b4982d0354ba199952899f0fd08"
+        "main_block": {
+            "id": "41a719bb13c3b652f2a204aaee03c645e6d773964efe701ce317507554170a7b",
+            "height": 2863457,
+            "timestamp": 1681399294,
+            "reward": 600617180000,
+            "coinbase_id": "7b5994fe3ab9c7cb9a2e7a46e8a333a2ea47707fc06332a4bc0fbd5ec23e7e52",
+            "difficulty": 308497931397,
+            "metadata": null,
+            "side_template_id": "05442258dc454342d3573106f0a8a57e1f47fb939f4a6d233abe194facc1d620",
+            "coinbase_private_key": "0666e8c11e90792d0cc04b5722cfe5cbb64cd2daa4e270ccbb4e1c323948bc02"
         },
-        "difficulty": 2052258578,
-        "cumulative_difficulty": "0000000000000000001aed301d8406b4",
-        "timestamp": 1681254664,
-        "miner": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
-        "pow": "615ecf4e0b7b8f81e60481e955e3ad653861d0c087db6f7903ffd50000000000",
-        "main": {
-            "id": "e6ceaa02039c09022baaec73146340e20a64b6da19ecd234169c7bf73a569bdd",
-            "height": 2862287,
-            "found": true
-        },
-        "nonce": 1090552259,
-        "extra_nonce": 437253563,
-        "transaction_count": 5,
-        "software_id": 0,
-        "software_version": 196610,
-        "template": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "difficulty": "00000000000000000000004c351565a4"
-        },
-        "uncles": [],
-        "weight": 2052258578
+        "side_height": 4881901,
+        "miner": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4881901,
+        "window_depth": 299,
+        "window_outputs": 25,
+        "transaction_count": 4,
+        "difficulty": 2137531229,
+        "cumulative_difficulty": "0000000000000000001b096aecb6d46c",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw"
     }
 ]
         </pre>
@@ -340,72 +521,60 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/found_blocks?limit
     <hr/>
 
     <div>
-        <h3 class="mono">/api/shares?limit=[limit]&miner=[id|address]&[onlyBlocks]</h3>
-        <p>Response contains last found share records on P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max SIDECHAIN_PPLNS_WINDOW. Additionally, you can pass the <em>miner</em> parameter to select shares from that miner only. <em>onlyBlocks</em> can be set to not receive uncle share entries. <em>coinbase</em> parameter can also be used here to decode coinbase outputs</p>
+        <h3 class="mono">/api/shares?limit=[limit]&miner=[id|address][&onlyBlocks][&noMainStatus][&noUncles][&noMiners]</h3>
+        <p>Response contains last found SideChain block records on P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max SIDECHAIN_PPLNS_WINDOW. Additionally, you can pass the <em>miner</em> parameter to select shares from that miner only. <em>onlyBlocks</em> can be set to not receive uncle share entries.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
 [
     {
-        "id": "09d1974eea6de73d3cb95bc495b0b24a7b6f6405eaada53c4ec1ad3f513a4cc8",
-        "height": 4868351,
-        "previous_id": "b74acca03b7593386dd54b8132bf79522c9861b41f7797d0ce4f2af5f35cc170",
-        "coinbase": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "reward": 0,
-            "private_key": "0000000000000000000000000000000000000000000000000000000000000000"
-        },
-        "difficulty": 2002581944,
-        "cumulative_difficulty": "0000000000000000001aedb5f2f0345a",
-        "timestamp": 1681257577,
-        "miner": "4ApeMQzcRS7huBW8HEGkug2e5kQxhhC2Ub9y8F9bc7arKHsCktAV24n5ezKM9PjX5yS3Pv4PPNMXT8rTAFVuKCRi1jEqJZd",
-        "pow": "fe471ad3fbd112fabe2abebafeccd2cb8eb0077864e7cfe939eaa62201000000",
-        "main": {
-            "id": "5b468e062dc4aa1570f956e6314f6d0634a772aa8d2905d8ab9c83026a7ac6af",
-            "height": 2862309,
-            "found": false
-        },
-        "nonce": 3271624915,
-        "extra_nonce": 1072029533,
-        "transaction_count": 28,
+        "main_id": "e99f4f86db66e7f037e2108e25a0344d0a96eccba02f1ec13e50b3991141b7c5",
+        "main_height": 2863507,
+        "template_id": "4c8706e878fa4b50b4e43f86614291b04936a12d23207b4356d6527fec4c77e1",
+        "side_height": 4882328,
+        "parent_template_id": "4e96b17ff920d5090c46634f48237da103525c10b3f2eb63765892525d0555e8",
+        "miner_id": 3,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882328,
+        "nonce": 1157627952,
+        "extra_nonce": 2079385110,
+        "timestamp": 1681403943,
         "software_id": 0,
-        "software_version": 196609,
-        "template": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "difficulty": "00000000000000000000004c054ccf15"
-        },
-        "uncles": [],
-        "weight": 2002581944
+        "software_version": 196610,
+        "window_depth": 303,
+        "window_outputs": 26,
+        "transaction_count": 6,
+        "difficulty": 2081512088,
+        "cumulative_difficulty": "0000000000000000001b0a4af187bfe8",
+        "pow_difficulty": 3617012556,
+        "pow_hash": "04eb1dba4352b5574fb8517b2c5ec7d60b6627e551e1781271bdfb2f01000000",
+        "inclusion": 1,
+        "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+        "mined_main_at_height": false
     },
     {
-        "id": "b74acca03b7593386dd54b8132bf79522c9861b41f7797d0ce4f2af5f35cc170",
-        "height": 4868350,
-        "previous_id": "498adcc483208de7d25f85ced122a6676be1c262d042e1abe72c3ca33e817b7e",
-        "coinbase": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "reward": 0,
-            "private_key": "0000000000000000000000000000000000000000000000000000000000000000"
-        },
-        "difficulty": 1998471582,
-        "cumulative_difficulty": "0000000000000000001aedb57b933aa2",
-        "timestamp": 1681257573,
-        "miner": "4ADyLD6c7hzT5gCYxWnw7k2q5RPDxwqNTMsHcz9n91ir22YJbjBQ4LjGZgcLUVV7tyG33vXfB5SR1iCWaCjEQ7BNJUg6SyJ",
-        "pow": "08ed8246e0a22220d4d9628acde4882acd47953eca8e6185627143aa00000000",
-        "main": {
-            "id": "b52ad7744683bf926a55297308c22b5f8b5a3e9d2024e476a4548bdba8e966ec",
-            "height": 2862309,
-            "found": false
-        },
-        "nonce": 335676781,
-        "extra_nonce": 2560308305,
-        "transaction_count": 27,
+        "main_id": "0d228e68134741f208285deef59dcadeb8e43af87691c390a3f3da0633723570",
+        "main_height": 2863507,
+        "template_id": "4e96b17ff920d5090c46634f48237da103525c10b3f2eb63765892525d0555e8",
+        "side_height": 4882327,
+        "parent_template_id": "5885c5610c475d8bb3a4162c91511a08fc3493fa3a028bcc51648fe1ae8df6a1",
+        "miner_id": 2,
+        "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+        "effective_height": 4882327,
+        "nonce": 1778484165,
+        "extra_nonce": 2015373570,
+        "timestamp": 1681403939,
         "software_id": 0,
-        "software_version": 196608,
-        "template": {
-            "id": "0000000000000000000000000000000000000000000000000000000000000000",
-            "difficulty": "00000000000000000000004c054ccf15"
-        },
-        "uncles": [],
-        "weight": 1998471582
+        "software_version": 196610,
+        "window_depth": 303,
+        "window_outputs": 26,
+        "transaction_count": 5,
+        "difficulty": 2081489188,
+        "cumulative_difficulty": "0000000000000000001b0a4a75766550",
+        "pow_difficulty": 8617237793,
+        "pow_hash": "aad50fc374723e9a4af60997ede2f007c87c02cbca278acf322d987f00000000",
+        "inclusion": 1,
+        "miner_address": "435QwkC3fJ4YeX929gmaBMeuUwR1wdmRrQBNyoKfpJdHKDbqnukHJeA768yt8ngnS7UTHRJ2yJmnWP8gCz6s3kkiBX8C363",
+        "mined_main_at_height": false
     }
 ]
         </pre>
@@ -415,41 +584,37 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
     <hr/>
 
     <div>
-        <h3 class="mono">/api/block_by_id/&lt;blockId&gt;[/raw|/payouts]</h3>
-        <p>Response contains a block/share record on P2Pool by Id. You can select the JSON version or the binary hex format (various format versions exist, decoding is documented by source code). <em>coinbase</em> parameter can also be used here to decode coinbase outputs</p>
+        <h3 class="mono">/api/block_by_id/&lt;blockId&gt;[/light|/raw|/payouts|/coinbase]</h3>
+        <p>Response contains a block/share record on P2Pool by Template or Main Id. You can select the JSON version or the binary format, or the light JSON format of the raw share.</p>
         <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
+        <p>Using <em>/coinbase</em> you can query all possible outputs and ownership for found and not found blocks.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/bc827aeecb5a5254cec6c2fc9a07f49c1d3c03b92dea39c5d9b3fbb19affe0ef
+curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/179cf9d77c7d198dc4d9a5deb03561b6121336fe9ea72fbda00fbf6eea34a34d
 {
-    "id": "09d1974eea6de73d3cb95bc495b0b24a7b6f6405eaada53c4ec1ad3f513a4cc8",
-    "height": 4868351,
-    "previous_id": "b74acca03b7593386dd54b8132bf79522c9861b41f7797d0ce4f2af5f35cc170",
-    "coinbase": {
-        "id": "0000000000000000000000000000000000000000000000000000000000000000",
-        "reward": 0,
-        "private_key": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    "difficulty": 2002581944,
-    "cumulative_difficulty": "0000000000000000001aedb5f2f0345a",
-    "timestamp": 1681257577,
-    "miner": "4ApeMQzcRS7huBW8HEGkug2e5kQxhhC2Ub9y8F9bc7arKHsCktAV24n5ezKM9PjX5yS3Pv4PPNMXT8rTAFVuKCRi1jEqJZd",
-    "pow": "fe471ad3fbd112fabe2abebafeccd2cb8eb0077864e7cfe939eaa62201000000",
-    "main": {
-        "id": "5b468e062dc4aa1570f956e6314f6d0634a772aa8d2905d8ab9c83026a7ac6af",
-        "height": 2862309,
-        "found": false
-    },
-    "nonce": 3271624915,
-    "extra_nonce": 1072029533,
-    "transaction_count": 28,
+    "main_id": "abf18da3388c1c5c8ca372ac4804c6b1b2adb511d6a6cc5f781d883211568eb0",
+    "main_height": 2863113,
+    "template_id": "179cf9d77c7d198dc4d9a5deb03561b6121336fe9ea72fbda00fbf6eea34a34d",
+    "side_height": 4877733,
+    "parent_template_id": "ffd6a96ce3131f043f273582a69d1eaa42b7557f47f7b241140cb22af9fbf556",
+    "miner_id": 3,
+    "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+    "effective_height": 4877733,
+    "nonce": 1694662668,
+    "extra_nonce": 2797508428,
+    "timestamp": 1681355864,
     "software_id": 0,
-    "software_version": 196609,
-    "template": {
-        "id": "0000000000000000000000000000000000000000000000000000000000000000",
-        "difficulty": "00000000000000000000004c054ccf15"
-    },
-    "uncles": [],
-    "weight": 2002581944
+    "software_version": 196610,
+    "window_depth": 327,
+    "window_outputs": 33,
+    "transaction_count": 5,
+    "difficulty": 1956175240,
+    "cumulative_difficulty": "0000000000000000001b0115ccd40518",
+    "pow_difficulty": 1301275836828,
+    "pow_hash": "602d39809af709405eb8660028fdfa5bf80e71e6a4ec1fbb924ed80000000000",
+    "inclusion": 1,
+    "miner_address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
+    "mined_main_at_height": true,
+    "main_difficulty": 332971955880
 }
         </pre>
     </div>
@@ -459,41 +624,37 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/bc827a
     <hr/>
 
     <div>
-        <h3 class="mono">/api/block_by_height/&lt;blockHeight&gt;[/raw|/payouts]</h3>
-        <p>Response contains a block/share record on P2Pool by height. You can select the JSON version or the binary hex format (various format versions exist, decoding is documented by source code). <em>coinbase</em> parameter can also be used here to decode coinbase outputs</p>
+        <h3 class="mono">/api/block_by_height/&lt;blockHeight&gt;[/light|/raw|/payouts|/coinbase]</h3>
+        <p>Response contains a block/share record on P2Pool by SideChain height. You can select the JSON version or the binary format, or the light JSON format of the raw share.</p>
         <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
+        <p>Using <em>/coinbase</em> you can query all possible outputs and ownership for found and not found blocks.</p>
         <pre class="smaller">
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_height/4868351
 {
-    "id": "09d1974eea6de73d3cb95bc495b0b24a7b6f6405eaada53c4ec1ad3f513a4cc8",
-    "height": 4868351,
-    "previous_id": "b74acca03b7593386dd54b8132bf79522c9861b41f7797d0ce4f2af5f35cc170",
-    "coinbase": {
-        "id": "0000000000000000000000000000000000000000000000000000000000000000",
-        "reward": 0,
-        "private_key": "0000000000000000000000000000000000000000000000000000000000000000"
-    },
-    "difficulty": 2002581944,
-    "cumulative_difficulty": "0000000000000000001aedb5f2f0345a",
-    "timestamp": 1681257577,
-    "miner": "4ApeMQzcRS7huBW8HEGkug2e5kQxhhC2Ub9y8F9bc7arKHsCktAV24n5ezKM9PjX5yS3Pv4PPNMXT8rTAFVuKCRi1jEqJZd",
-    "pow": "fe471ad3fbd112fabe2abebafeccd2cb8eb0077864e7cfe939eaa62201000000",
-    "main": {
-        "id": "5b468e062dc4aa1570f956e6314f6d0634a772aa8d2905d8ab9c83026a7ac6af",
-        "height": 2862309,
-        "found": false
-    },
+    "main_id": "5b468e062dc4aa1570f956e6314f6d0634a772aa8d2905d8ab9c83026a7ac6af",
+    "main_height": 2862309,
+    "template_id": "09d1974eea6de73d3cb95bc495b0b24a7b6f6405eaada53c4ec1ad3f513a4cc8",
+    "side_height": 4868351,
+    "parent_template_id": "b74acca03b7593386dd54b8132bf79522c9861b41f7797d0ce4f2af5f35cc170",
+    "miner_id": 1,
+    "uncle_of": "0000000000000000000000000000000000000000000000000000000000000000",
+    "effective_height": 4868351,
     "nonce": 3271624915,
     "extra_nonce": 1072029533,
-    "transaction_count": 28,
+    "timestamp": 1681257577,
     "software_id": 0,
     "software_version": 196609,
-    "template": {
-        "id": "0000000000000000000000000000000000000000000000000000000000000000",
-        "difficulty": "00000000000000000000004c054ccf15"
-    },
-    "uncles": [],
-    "weight": 2002581944
+    "window_depth": 323,
+    "window_outputs": 30,
+    "transaction_count": 28,
+    "difficulty": 2002581944,
+    "cumulative_difficulty": "0000000000000000001aedb5f2f0345a",
+    "pow_difficulty": 3782914221,
+    "pow_hash": "fe471ad3fbd112fabe2abebafeccd2cb8eb0077864e7cfe939eaa62201000000",
+    "inclusion": 1,
+    "miner_address": "4ApeMQzcRS7huBW8HEGkug2e5kQxhhC2Ub9y8F9bc7arKHsCktAV24n5ezKM9PjX5yS3Pv4PPNMXT8rTAFVuKCRi1jEqJZd",
+    "mined_main_at_height": false,
+    "main_difficulty": 326506434325
 }
         </pre>
     </div>

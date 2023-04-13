@@ -73,6 +73,7 @@ type SideBlock struct {
 	MinerAlias        string                `json:"miner_alias,omitempty"`
 	Uncles            []SideBlockUncleEntry `json:"uncles,omitempty"`
 	MinedMainAtHeight bool                  `json:"mined_main_at_height"`
+	MainDifficulty    uint64                `json:"main_difficulty"`
 }
 
 type SideBlockUncleEntry struct {
@@ -152,6 +153,10 @@ func (b *SideBlock) FullId() sidechain.FullId {
 
 func (b *SideBlock) IsUncle() bool {
 	return b.SideHeight != b.EffectiveHeight && b.UncleOf != types.ZeroHash
+}
+
+func (b *SideBlock) IsOrphan() bool {
+	return b.Inclusion == InclusionOrphan
 }
 
 func (b *SideBlock) ScanFromRow(i *Index, row RowScanInterface) error {

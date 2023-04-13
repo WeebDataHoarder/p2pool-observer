@@ -1,0 +1,22 @@
+<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 12em)">
+    <tr>
+        <th style="width: 8em;">Monero Height</th>
+        <th style="width: 8em;">P2Pool Height</th>
+        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+        <th style="width: 10em;">Reward</th>
+        <th style="width: 10em;">Global Output Index</th>
+        <th style="width: 12em;">Coinbase Transaction</th>
+        <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
+    </tr>
+    {% for p in payouts %}
+    <tr>
+        <th title="{{ p.main_id }}"><a href="/b/{{ p.main_height|benc }}">{{ p.main_height }}</a></th>
+        <th title="{{ p.template_id }}"><a href="/share/{{ p.template_id }}">{{ p.side_height }}</a></th>
+        <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
+        <td class="small">{{ monero_to_xmr(p.coinbase_reward) }} XMR</td>
+        <td class="small">{{ p.global_output_index }}</td>
+        <td title="{{ p.coinbase_id }}" class="mono small"><a href="/t/{{ p.coinbase_id|henc }}">{{ p.coinbase_id|shorten(10) }}</a></td>
+        <td class="mono smaller" title="{{ p.coinbase_private_key }}">{{ p.coinbase_private_key|shorten(10) }} <a href="/proof/{{ p.main_id }}/{{ p.coinbase_output_index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
+    </tr>
+    {% endfor %}
+</table>

@@ -8,29 +8,31 @@
 
 <div class="center" style="text-align: center">
 
-    {% if (block.main.found is defined) and block.main.found %}
-    <h1 style="color:#00C000">This share mined Monero block at height {{ block.main.height }}</h1>
+    {% if block.MinedMainAtHeight %}
+    <h1 style="color:#00C000">This share mined Monero block at height {{ block.MainHeight }}</h1>
+    {% elseif block.PowDifficulty >= block.MainDifficulty and (not block.MinedMainAtHeight) %}
+    <h1 style="color:#E0E000">This share mined Monero block at height {{ block.MainHeight }}, but was orphaned</h1>
     {% endif %}
-    {% if (block.invalid is defined) and block.invalid %}
-    <h1 style="color:#FF4433">This share is invalid</h1>
-    {% elseif (block.orphan is defined) and block.orphan %}
+    {% if block.IsOrphan() %}
     <h1 style="color:#E0E000">This share has been orphaned</h1>
-    {% elseif (block.main.orphan is defined) and block.main.orphan %}
-    <h1 style="color:#E0E000">This share mined Monero block at height {{ block.main.height }}, but was orphaned</h1>
     {% endif %}
     <br/>
 
     <table class="center" style="max-width: calc(8em + 28em + 8em + 28em)">
         <tr>
-            {% if (block.orphan is defined) and block.orphan %}
-            <td colspan="2"><a href="/share/{{ block.previous_id }}">&lt;&lt; Previous share</a></td>
+            {% if block.SideHeight == 0 %}
+            <td colspan="2">Genesis Block</td>
+            {% elseif block.IsUncle() %}
+            <td colspan="2"><a href="/share/{{ block.UncleOf }}">&lt;&lt; Parent share</a></td>
+            {% else %}
+            <td colspan="2"><a href="/share/{{ block.ParentTemplateId }}">&lt;&lt; Previous share</a></td>
+            {% endif %}
+            {% if block.IsOrphan() %}
             <td colspan="2">Orphans do not have next blocks</td>
-            {% elseif block.parent is defined %}
-            <td colspan="2"><a href="/share/{{ block.parent.id }}">&lt;&lt; Parent share</a></td>
+            {% elseif block.IsUncle() %}
             <td colspan="2">Uncles do not have next blocks</td>
             {% else %}
-            <td colspan="2"><a href="/share/{{ block.previous_id }}">&lt;&lt; Previous share</a></td>
-            <td colspan="2"><a href="/share/{{ add_uint(block.height, 1) }}">Next share &gt;&gt;</a></td>
+            <td colspan="2"><a href="/share/{{ add_uint(block.SideHeight, 1) }}">Next share &gt;&gt;</a></td>
             {% endif %}
         </tr>
         <tr><td colspan="4"><h2>Share information</h2></td></tr>
@@ -41,15 +43,15 @@
             <th style="width: 28em">Monero Id</th>
         </tr>
         <tr>
-            <td>{{ block.height }}</td>
-            <td class="mono smaller">{{ block.id }}</td>
+            <td>{{ block.SideHeight }}</td>
+            <td class="mono smaller">{{ block.TemplateId }}</td>
 
-            {% if block.main.found %}
-            <td><a href="/b/{{ block.main.height|benc }}">{{ block.main.height }}</a></td>
-            <td class="mono smaller"><a href="/b/{{ block.main.height|benc }}">{{ block.main.id }}</a></td>
+            {% if block.MinedMainAtHeight %}
+            <td><a href="/b/{{ block.MainHeight|benc }}">{{ block.MainHeight }}</a></td>
+            <td class="mono smaller"><a href="/b/{{ block.MainHeight|benc }}">{{ block.MainId }}</a></td>
             {% else %}
-            <td>{{ block.main.height }}</td>
-            <td class="mono smaller">{{ block.main.id }}</td>
+            <td>{{ block.MainHeight }}</td>
+            <td class="mono smaller">{{ block.MainId }}</td>
             {% endif %}
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
@@ -60,14 +62,15 @@
             <th>Difficulty</th>
         </tr>
         <tr>
-            <td title="{{ utc_date(block.timestamp) }}">{{ date_diff_short(block.timestamp) }}</td>
-            <td class="mono smaller">{{ block.pow }}</td>
-            {% if block.miner_alias != "" %}
-            <td title="{{ block.miner }} ({{ block.miner_alias }})" class="mono small"><a href="/miner/{{ block.miner }}">{{ block.miner_alias|shorten(10) }}</a></td>
+            <td title="{{ utc_date(block.timestamp) }}">{{ date_diff_short(block.Timestamp) }}</td>
+            <td class="mono smaller">{{ block.PowHash }}</td>
+            {% set minerAddress = block.MinerAddress.ToBase58() %}
+            {% if block.MinerAlias != "" %}
+            <td title="{{ minerAddress }} ({{ block.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ block.MinerAlias|shorten(10) }}</a></td>
             {% else %}
-            <td title="{{ block.miner }}" class="mono small"><a href="/miner/{{ block.miner }}">{{ block.miner|shorten(10) }}</a></td>
+            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% endif %}
-            <td class="mono">{{ block.difficulty }}</td>
+            <td class="mono">{{ block.Difficulty }}</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
@@ -78,20 +81,9 @@
         </tr>
         {% if raw is defined %}
         <tr>
-            <td>
-                {% if (block.orphan is defined) and block.orphan %}
-                0%
-                {% elseif block.parent is defined %}
-                {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)
-                {% else %}
-                100%
-                {% if (block.uncles is defined) and block.uncles|length > 0 %}
-                + {{ pool.sidechain.uncle_penalty }}% of {{ block.uncles|length }} uncle(s)
-                {% endif %}
-                {% endif %}
-            </td>
-            {% if block.main.found %}
-            <td class="mono smaller"><a href="/t/{{ block.coinbase.id|henc }}">{{ block.coinbase.id }}</a></td>
+            <td>{{ side_block_valuation(block) }}</td>
+            {% if block.MinedMainAtHeight %}
+            <td class="mono smaller"><a href="/t/{{ raw.Main.Coinbase.Id()|henc }}">{{ raw.Main.Coinbase.Id() }}</a></td>
             {% else %}
             <td class="mono smaller">{{ raw.Main.Coinbase.Id() }}</td>
             {% endif %}
@@ -109,7 +101,7 @@
             <td class="mono">{{ raw.Main.Nonce|hex }}</td>
             <td class="mono smaller">{{ raw.Side.CumulativeDifficulty }}</td>
             <td class="mono">{{ extra_nonce(raw)|hex }}</td>
-            <td class="mono smaller">{{ block.template.difficulty }}</td>
+            <td class="mono smaller">{{ block.MainDifficulty }}</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
@@ -130,7 +122,7 @@
 <div class="center" style="text-align: center">
     {% if raw.Side.Uncles|length > 0 %}
     <h2>Uncle shares</h2>
-    {% if block.parent is defined %}
+    {% if block.IsUncle() %}
     <p><strong>NOTE:</strong> Uncle shares do not have their listed uncles accounted for weight, the following list is just for reference.</p>
     {% endif %}
     <ul class="mono">
@@ -141,42 +133,17 @@
     {% endif %}
 
     <h2>Payouts share was weighted into</h2>
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 12em + 12em)">
-        <tr>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 10em;">Reward</th>
-            <th style="width: 10em;">Global Output Index</th>
-            <th style="width: 12em;">Coinbase Transaction</th>
-            <th style="width: 12em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
-        </tr>
-        {% for p in payouts %}
-        <tr>
-            <th title="{{ p.main.id }}"><a href="/b/{{ p.main.height|benc }}">{{ p.main.height }}</a></th>
-            <th title="{{ p.id }}"><a href="/share/{{ p.id }}">{{ p.height }}</a></th>
-            <td title="{{ utc_date(p.timestamp) }}">{{ date_diff_short(p.timestamp) }}</td>
-            <td class="small">{{ monero_to_xmr(p.coinbase.reward) }} XMR</td>
-            <td class="small">{{ p.coinbase.global_output_index }}</td>
-            <td title="{{ p.coinbase.id }}" class="mono small"><a href="/t/{{ p.coinbase.id|henc }}">{{ p.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller" title="{{ p.coinbase.private_key }}">{{ p.coinbase.private_key|shorten(10) }} <a href="/proof/{{ p.id }}/{{ p.coinbase.index }}" title="Prove you have a matching output for your address on this transaction">[[prove]]</a></td>
-        </tr>
-        {% endfor %}
 
-        {% if block.height > (pool.sidechain.height - pool.sidechain.window_size) %}
-        <tr>
-            <th colspan="7"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></th>
-        </tr>
-        {% else %}
-        <tr>
-            <th colspan="7">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</th>
-        </tr>
-        {% endif %}
-    </table>
+    {% include('tpl_payouts.html') %}
+    {% if block.EffectiveHeight > (pool.sidechain.height - pool.sidechain.window_size) %}
+    <div class="center"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></div>
+    {% else %}
+    <div class="center">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</div>
+    {% endif %}
 
     <h2>Coinbase Transaction</h2>
 
-    {% if block.main.found %}
+    {% if block.MinedMainAtHeight %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
         <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
         <tr><td colspan="6">&nbsp;</td></tr>
@@ -188,11 +155,11 @@
         <tr>
             <th style="width: 8em">Output Index</th>
             <th style="width: 28em">Ephemeral Public Key</th>
-            {% if block.main.found %}
+            {% if block.MinedMainAtHeight %}
             <th style="width: 12em">Payout Address</th>
             {% endif %}
             <th style="width: 10em">Reward</th>
-            {% if block.main.found %}
+            {% if block.MinedMainAtHeight %}
             <th style="width: 10em">Global Output Index</th>
             <th style="width: 8em">Proof</th>
             {% endif %}
@@ -201,18 +168,18 @@
         <tr>
             <td>{{ t.Index }}</td>
             <td class="mono smaller">{{ t.EphemeralPublicKey|hex }}</td>
-            {% if block.main.found and attribute(block.coinbase.payouts, t.Index) is defined %}
-            {% set payout = attribute(block.coinbase.payouts, t.Index) %}
-            {% if payout.alias != "" %}
-            <td title="{{ payout.address }} ({{ payout.alias }})" class="mono small"><a href="/miner/{{ payout.address }}">{{ payout.alias|shorten(10) }}</a></td>
+            {% if block.MinedMainAtHeight and attribute(coinbase, t.Index) is defined %}
+            {% set payout = attribute(coinbase, t.Index) %}
+            {% if payout.miner_alias != "" %}
+            <td title="{{ payout.miner_address }} ({{ payout.miner_alias }})" class="mono small"><a href="/miner/{{ payout.miner_address }}">{{ payout.miner_alias|shorten(10) }}</a></td>
             {% else %}
-            <td title="{{ payout.address }}" class="mono small"><a href="/miner/{{ payout.address }}">{{ payout.address|shorten(10) }}</a></td>
+            <td title="{{ payout.miner_address }}" class="mono small"><a href="/miner/{{ payout.miner_address }}">{{ payout.miner_address|shorten(10) }}</a></td>
             {% endif %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
-            {% if block.main.found %}
+            {% if block.MinedMainAtHeight %}
             <td class="small">{{ payout.global_output_index }}</td>
-            <td class="small"><a href="/proof/{{ block.id }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>
+            <td class="small"><a href="/proof/{{ block.MainId }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>
             {% endif %}
         </tr>
         {% endfor %}

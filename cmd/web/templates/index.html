@@ -56,7 +56,7 @@
                 <span class="small" style="color: {{ pool.sidechain.effort.average200|effort_color }};" title="Last 200 found blocks">{{ pool.sidechain.effort.average200|round(2) }}%</span>
             </td>
             <td>{{ time_duration_long(diff_uint(pool.mainchain.difficulty) / diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time)) }}</td>
-            <td title="{{ utc_date(blocks_found[0].timestamp) }}">{{ time_elapsed_short(blocks_found[0].timestamp) }}</td>
+            <td title="{{ utc_date(blocks_found[0].main_block.timestamp) }}">{{ time_elapsed_short(blocks_found[0].main_block.timestamp) }}</td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
         <tr>
@@ -103,56 +103,9 @@
 <div style="text-align: center">
     <h2>Recent Monero blocks found by P2Pool miners</h2>
 
-    <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 8em + 10em + 7em + 12em + 28em)">
-        <tr>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 8em;">Effort</th>
-            <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
-            <th style="width: 8em;">Transactions</th>
-            <th style="width: 10em;">Total Reward</th>
-            <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
-            <th style="width: 12em;">Coinbase Transaction</th>
-            <th style="width: 28em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
-        </tr>
-        {% for b in blocks_found %}
-        <tr>
-            <th title="{{ b.main.id }}"><a href="/b/{{ b.main.height|benc }}">{{ b.main.height }}</a></th>
-            {% if b.parent.height is defined %}
-                <th title="{{ b.id }} is an uncle of height {{ b.parent.height }}, {{ b.parent.id }}">
-                    <a href="/share/{{ b.id }}">{{ b.height }}*</a>
-                </th>
-            {% else %}
-                <th title="{{ b.id }}">
-                    <a href="/share/{{ b.id }}">{{ b.height }}</a>
-                </th>
-            {% endif %}
-            <td title="{{ utc_date(b.timestamp) }}">{{ date_diff_short(b.timestamp) }}</td>
-            {% if attribute(pool.sidechain.effort.last, b.main.id) is defined %}
-                <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.main.id)|effort_color }};">
-                    {{ attribute(pool.sidechain.effort.last, b.main.id)|round(2) }}%
-                </td>
-            {% else %}
-                <td>unknown</td>
-            {% endif %}
-            {% if b.miner_alias != "" %}
-            <td title="{{ b.miner }} ({{ b.miner_alias }})" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner_alias|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ b.miner }}" class="mono small"><a href="/miner/{{ b.miner }}">{{ b.miner|shorten(10) }}</a></td>
-            {% endif %}
-            <td>{{ b.transaction_count }}</td>
-            <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
-            <td>{{ b.coinbase.payouts|length }}</td>
-            <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller">{{ b.coinbase.private_key }}</td>
-        </tr>
-        {% endfor %}
-        <tr>
-            <th colspan="10"><a href="/blocks">[show more found blocks]</a></th>
-        </tr>
-    </table>
-
+    {% set found_blocks = blocks_found %}
+    {% include('tpl_found_blocks.html') %}
+    <div class="center"><a href="/blocks">[show more found blocks]</a></div>
 
     <h3>Blocks found during last day</h3>
     <code class="mono">{{ blocks_found_position }}</code>
@@ -162,42 +115,8 @@
 
 <div style="text-align: center">
     <h2>Recent P2Pool shares found</h2>
-    <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em + 12em + 10em + 12em)">
-        <tr>
-            <th style="width: 8em;">P2Pool Height</th>
-            <th style="width: 12em;">P2Pool Id</th>
-            <th style="width: 8em;">Monero Height</th>
-            <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-            <th style="width: 12em;" title="The P2Pool miner who found this share">Found by</th>
-            <th style="width: 10em;" title="The consensus implementation name and version of the miner who found this share">Software</th>
-            <th style="width: 12em;">Valuation</th>
-        </tr>
-        {% for s in shares %}
-        <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
-            <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
-            <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
-            <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
-            <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
-            {% set minerAddress = s.MinerAddress.ToBase58() %}
-            {% if s.MinerAlias != "" %}
-            <td title="{{ minerAddress }} ({{ s.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% endif %}
-            <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
-            <td>
-                {% if s.IsUncle() %}
-                {{ 100 - consensus.UnclePenalty }}% (uncle)
-                {% else %}
-                100%
-                {% if (s.Uncles is defined) and s.Uncles|length > 0 %}
-                + {{ consensus.UnclePenalty }}% of {{ s.Uncles|length }} uncle(s)
-                {% endif %}
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-    </table>
+    {% set shares = shares %}
+    {% include('tpl_shares.html') %}
 </div>
 
 

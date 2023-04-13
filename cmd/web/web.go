@@ -332,6 +332,20 @@ func main() {
 		return s
 	}
 
+	env.Functions["is_zero_hash"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+
+		if s, ok := args[0].(string); ok {
+			return s == types.ZeroHash.String()
+		} else if h, ok := args[0].(types.Hash); ok {
+			return h == types.ZeroHash
+		}
+
+		return false
+	}
+
 	env.Functions["prove_output_number"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 2 {
 			return nil
@@ -405,6 +419,36 @@ func main() {
 			return utils2.GetSiteUrlByHost(k, isOnion != nil && isOnion.(bool))
 		}
 		return ""
+	}
+
+	env.Functions["side_block_valuation"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+
+		if sideBlock, ok := args[0].(*index.SideBlock); ok {
+			if sideBlock.IsOrphan() {
+				return "0%"
+			} else if sideBlock.IsUncle() {
+				return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
+			} else if len(sideBlock.Uncles) > 0 {
+				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(sideBlock.Uncles))
+			} else {
+				return "100%"
+			}
+		} else if sideBlock, ok := args[0].(map[string]any); ok {
+			if toUint64(sideBlock["inclusion"]) == uint64(index.InclusionOrphan) {
+				return "0%"
+			} else if sideBlock["uncle_of"].(string) != types.ZeroHash.String() {
+				return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
+			} else if uncles, ok := sideBlock["uncles"].([]any); ok && len(uncles) > 0 {
+				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(uncles))
+			} else {
+				return "100%"
+			}
+		} else {
+			return ""
+		}
 	}
 
 	env.Functions["side_block_weight"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -507,6 +551,8 @@ func main() {
 
 		if h, ok := val.(types.Hash); ok {
 			return utils.EncodeHexBinaryNumber(h.String())
+		} else if k, ok := val.(crypto.PrivateKeyBytes); ok {
+			return utils.EncodeHexBinaryNumber(k.String())
 		} else if s, ok := val.(string); ok {
 			return utils.EncodeHexBinaryNumber(s)
 		}
@@ -592,7 +638,7 @@ func main() {
 
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
-		blocks := getFromAPI(fmt.Sprintf("found_blocks?coinbase&limit=%d", blocksToFetch), 5).([]any)
+		blocks := getFromAPI(fmt.Sprintf("found_blocks?limit=%d", blocksToFetch), 5).([]any)
 		shares := getSideBlocksFromAPI("side_blocks?limit=50", 5)
 
 		ctx := make(map[string]stick.Value)
@@ -602,7 +648,7 @@ func main() {
 
 		tip := toInt64(poolInfo["sidechain"].(map[string]any)["height"])
 		for _, b := range blocks {
-			blocksFound.Add(int(tip-toInt64(b.(map[string]any)["height"])), 1)
+			blocksFound.Add(int(tip-toInt64(b.(map[string]any)["side_height"])), 1)
 		}
 
 		if len(blocks) > 20 {
@@ -671,13 +717,13 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		if miner != nil {
-			blocks := getFromAPI(fmt.Sprintf("found_blocks?&limit=100&miner=%d&coinbase", toUint64(miner["id"])))
+			blocks := getFromAPI(fmt.Sprintf("found_blocks?&limit=100&miner=%d", toUint64(miner["id"])))
 			ctx["blocks_found"] = blocks
 			ctx["miner"] = miner
 
 			render(request, writer, "blocks_miner.html", ctx)
 		} else {
-			blocks := getFromAPI("found_blocks?limit=100&coinbase", 30)
+			blocks := getFromAPI("found_blocks?limit=100", 30)
 			ctx["blocks_found"] = blocks
 
 			render(request, writer, "blocks.html", ctx)
@@ -793,13 +839,14 @@ func main() {
 	serveMux.HandleFunc("/share/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 		identifier := mux.Vars(request)["block"]
 
-		var block any
+		var block *index.SideBlock
+		var coinbase any
 		var rawBlock any
 		if len(identifier) == 64 {
-			block = getFromAPI(fmt.Sprintf("block_by_id/%s?coinbase", identifier))
+			block = getSideBlockFromAPI(fmt.Sprintf("block_by_id/%s", identifier))
 			rawBlock = getFromAPI(fmt.Sprintf("block_by_id/%s/raw", identifier))
 		} else {
-			block = getFromAPI(fmt.Sprintf("block_by_height/%s?coinbase", identifier))
+			block = getSideBlockFromAPI(fmt.Sprintf("block_by_height/%s", identifier))
 			rawBlock = getFromAPI(fmt.Sprintf("block_by_height/%s/raw", identifier))
 		}
 
@@ -811,6 +858,10 @@ func main() {
 			error["message"] = "Share Not Found"
 			render(request, writer, "error.html", ctx)
 			return
+		}
+
+		if block.MinedMainAtHeight {
+			coinbase = getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", identifier))
 		}
 
 		poolInfo := getFromAPI("pool_info", 5)
@@ -826,13 +877,14 @@ func main() {
 			}
 		}
 
-		payouts := getFromAPI(fmt.Sprintf("block_by_id/%s/payouts", block.(map[string]any)["id"].(string)))
+		payouts := getFromAPI(fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
 		ctx["raw"] = raw
 		ctx["pool"] = poolInfo
 		ctx["payouts"] = payouts
+		ctx["coinbase"] = coinbase
 
 		render(request, writer, "share.html", ctx)
 	})
@@ -894,7 +946,7 @@ func main() {
 
 		foundPayout := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		for _, p := range payouts {
-			foundPayout.Add(int(int64(tipHeight)-toInt64(p.(map[string]any)["height"])), 1)
+			foundPayout.Add(int(int64(tipHeight)-toInt64(p.(map[string]any)["side_height"])), 1)
 		}
 
 		var raw *sidechain.PoolBlock
@@ -982,9 +1034,9 @@ func main() {
 		identifier := utils.DecodeHexBinaryNumber(mux.Vars(request)["block"])
 		index := toUint64(mux.Vars(request)["index"])
 
-		block := getFromAPI(fmt.Sprintf("block_by_id/%s?coinbase", identifier)).(map[string]any)
+		block := getSideBlockFromAPI(fmt.Sprintf("block_by_id/%s", identifier))
 
-		if block == nil || block["main"].(map[string]any)["found"] == false || block["coinbase"].(map[string]any)["payouts"] == nil {
+		if block == nil || !block.MinedMainAtHeight {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
@@ -994,13 +1046,32 @@ func main() {
 			return
 		}
 
-		payouts := block["coinbase"].(map[string]any)["payouts"].([]any)
+		var raw *sidechain.PoolBlock
+		rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", block.MainId))
+		b := &sidechain.PoolBlock{}
+		if json.Unmarshal(rawBlock, b) == nil && b.NetworkType != sidechain.NetworkInvalid {
+			raw = b
+		}
+
+		coinbase := getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
+
+		if raw == nil || coinbase.([]any) == nil {
+			ctx := make(map[string]stick.Value)
+			error := make(map[string]stick.Value)
+			ctx["error"] = error
+			ctx["code"] = http.StatusNotFound
+			error["message"] = "Coinbase Was Not Found"
+			render(request, writer, "error.html", ctx)
+			return
+		}
+
+		payouts := coinbase.([]any)
 		if uint64(len(payouts)) <= index {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
 			ctx["code"] = http.StatusNotFound
-			error["message"] = "Output Not Found"
+			error["message"] = "Payout Was Not Found"
 			render(request, writer, "error.html", ctx)
 			return
 		}
@@ -1009,6 +1080,7 @@ func main() {
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
+		ctx["raw"] = raw
 		ctx["payout"] = payouts[index]
 		ctx["pool"] = poolInfo
 
@@ -1058,7 +1130,7 @@ func main() {
 		ctx["payouts"] = payouts
 		ctx["total"] = func() (result uint64) {
 			for _, p := range payouts {
-				result += toUint64(p.(map[string]any)["coinbase"].(map[string]any)["reward"])
+				result += toUint64(p.(map[string]any)["coinbase_reward"])
 			}
 			return
 		}()

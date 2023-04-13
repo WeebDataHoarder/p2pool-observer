@@ -1,0 +1,54 @@
+{% if (found_blocks_is_miner is defined) and (found_blocks_is_miner) %}
+<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 10em + 7em + 12em + 28em)">
+{% else %}
+<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em + 12em + 8em + 10em + 7em + 12em + 28em)">
+{% endif %}
+    <tr>
+        <th style="width: 8em;">Monero Height</th>
+        <th style="width: 8em;">P2Pool Height</th>
+        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+        {% if (found_blocks_is_miner is not defined) or (not found_blocks_is_miner) %}
+            <th style="width: 8em;">Effort</th>
+            <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
+        {% endif %}
+        <th style="width: 8em;">Transactions</th>
+        <th style="width: 10em;">Total Reward</th>
+        <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
+        <th style="width: 12em;">Coinbase Transaction</th>
+        <th style="width: 28em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
+    </tr>
+    {% for b in found_blocks %}
+    <tr>
+        <th title="{{ b.main_block.id }}"><a href="/b/{{ b.main_block.height|benc }}">{{ b.main_block.height }}</a></th>
+        {% if not is_zero_hash(b.uncle_of) %}
+        <th title="{{ b.main_block.side_template_id }} is an uncle of height {{ b.effective_height }}, {{ b.uncle_of }}">
+            <a href="/share/{{ b.main_block.side_template_id }}">{{ b.side_height }}*</a>
+        </th>
+        {% else %}
+        <th title="{{ b.main_block.side_template_id }}">
+            <a href="/share/{{ b.main_block.side_template_id }}">{{ b.side_height }}</a>
+        </th>
+        {% endif %}
+        <td title="{{ utc_date(b.main_block.timestamp) }}">{{ date_diff_short(b.main_block.timestamp) }}</td>
+        {% if (found_blocks_is_miner is not defined) or (not found_blocks_is_miner) %}
+            {% if attribute(pool.sidechain.effort.last, b.main_block.id) is defined %}
+            <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.main_block.id)|effort_color }};">
+                {{ attribute(pool.sidechain.effort.last, b.main_block.id)|round(2) }}%
+            </td>
+            {% else %}
+            <td>unknown</td>
+            {% endif %}
+            {% if b.miner_alias != "" %}
+            <td title="{{ b.miner_address }} ({{ b.miner_alias }})" class="mono small"><a href="/miner/{{ b.miner_address }}">{{ b.miner_alias|shorten(10) }}</a></td>
+            {% else %}
+            <td title="{{ b.miner_address }}" class="mono small"><a href="/miner/{{ b.miner_address }}">{{ b.miner_address|shorten(10) }}</a></td>
+            {% endif %}
+        {% endif %}
+        <td>{{ b.transaction_count }}</td>
+        <th class="small">{{ monero_to_xmr(b.main_block.reward) }} XMR</th>
+        <td>{{ b.window_outputs }}</td>
+        <td title="{{ b.main_block.coinbase_id }}" class="mono small"><a href="/t/{{ b.main_block.coinbase_id|henc }}">{{ b.main_block.coinbase_id|shorten(10) }}</a></td>
+        <td class="mono smaller">{{ b.main_block.coinbase_private_key }}</td>
+    </tr>
+    {% endfor %}
+</table>

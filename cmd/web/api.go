@@ -47,6 +47,37 @@ func getFromAPI(method string, cacheTime ...int) any {
 
 }
 
+func getSideBlockFromAPI(method string, cacheTime ...int) *index.SideBlock {
+	cTime := 0
+	if len(cacheTime) > 0 {
+		cTime = cacheTime[0]
+	}
+
+	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+		uri, _ := url.Parse(os.Getenv("API_URL") + method)
+		if response, err := http.DefaultClient.Do(&http.Request{
+			Method: "GET",
+			URL:    uri,
+		}); err != nil {
+			return nil
+		} else {
+			defer response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				var sideBlock index.SideBlock
+				if data, err := io.ReadAll(response.Body); err != nil {
+					return nil
+				} else if json.Unmarshal(data, &sideBlock) != nil {
+					return nil
+				} else {
+					return &sideBlock
+				}
+			} else {
+				return nil
+			}
+		}
+	}).(*index.SideBlock)
+}
+
 func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 	cTime := 0
 	if len(cacheTime) > 0 {

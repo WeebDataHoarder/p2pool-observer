@@ -11,7 +11,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -40,6 +39,8 @@ type Index struct {
 		InsertMiner             *sql.Stmt
 		TipSideBlocksTemplateId *sql.Stmt
 		InsertOrUpdateSideBlock *sql.Stmt
+		GetMainBlockByHeight    *sql.Stmt
+		GetMainBlockById        *sql.Stmt
 		GetSideBlockByMainId    *sql.Stmt
 		GetSideBlockByUncleId   *sql.Stmt
 	}
@@ -96,6 +97,14 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 	}
 
 	if index.statements.InsertOrUpdateSideBlock, err = index.handle.Prepare("INSERT INTO side_blocks (" + SideBlockSelectFields + ") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) ON CONFLICT (main_id) DO UPDATE SET uncle_of = $7, effective_height = $8, inclusion = $21;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.GetMainBlockByHeight, err = index.PrepareMainBlocksByQueryStatement("WHERE height = $1;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.GetMainBlockById, err = index.PrepareMainBlocksByQueryStatement("WHERE id = $1;"); err != nil {
 		return nil, err
 	}
 
@@ -368,19 +377,6 @@ func (i *Index) PrepareMainBlocksByQueryStatement(where string) (stmt *sql.Stmt,
 	return i.handle.Prepare(fmt.Sprintf("SELECT "+MainBlockSelectFields+" FROM main_blocks %s;", where))
 }
 
-type BlockFound struct {
-	MainBlock MainBlock
-
-	SideHeight           uint64
-	Miner                uint64
-	UncleOf              types.Hash
-	WindowDepth          uint32
-	WindowOutputs        uint32
-	Difficulty           uint64
-	CumulativeDifficulty types.Difficulty
-	Inclusion            BlockInclusion
-}
-
 func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool) chan *SideBlock {
 	if limit == 0 {
 		if minerId != 0 {
@@ -413,15 +409,12 @@ func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool) chan *SideBloc
 	}
 }
 
-func (i *Index) GetBlocksFound(where string, limit uint64, params ...any) []*BlockFound {
-	result := make([]*BlockFound, 0, limit)
-	if err := i.Query(fmt.Sprintf("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.reward AS reward, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.difficulty AS main_difficulty, m.side_template_id AS template_id, s.side_height AS side_height, s.miner AS miner, s.uncle_of AS uncle_of, s.window_depth AS window_depth, s.window_outputs AS window_outputs, s.difficulty AS side_difficulty, s.cumulative_difficulty AS side_cumulative_difficulty, s.inclusion AS side_inclusion FROM (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m LEFT JOIN LATERAL (SELECT * FROM side_blocks WHERE main_id = m.id) s ON m.id = s.main_id %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
-		var d BlockFound
+func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) []*FoundBlock {
+	result := make([]*FoundBlock, 0, limit)
+	if err := i.Query(fmt.Sprintf("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.reward AS reward, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.difficulty AS main_difficulty, m.side_template_id AS template_id, s.side_height AS side_height, s.miner AS miner, s.uncle_of AS uncle_of, s.effective_height AS effective_height, s.window_depth AS window_depth, s.window_outputs AS window_outputs, s.transaction_count AS transaction_count, s.difficulty AS side_difficulty, s.cumulative_difficulty AS side_cumulative_difficulty, s.inclusion AS side_inclusion FROM (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m LEFT JOIN LATERAL (SELECT * FROM side_blocks WHERE main_id = m.id) s ON m.id = s.main_id %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
+		var d FoundBlock
 
-		if err := row.Scan(
-			&d.MainBlock.Id, &d.MainBlock.Height, &d.MainBlock.Timestamp, &d.MainBlock.Reward, &d.MainBlock.CoinbaseId, &d.MainBlock.CoinbasePrivateKey, &d.MainBlock.Difficulty, &d.MainBlock.SideTemplateId,
-			&d.SideHeight, &d.Miner, &d.UncleOf, &d.WindowDepth, &d.WindowOutputs, &d.Difficulty, &d.CumulativeDifficulty, &d.Inclusion,
-		); err != nil {
+		if err := d.ScanFromRow(i, row); err != nil {
 			return err
 		}
 
@@ -489,7 +482,7 @@ func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) cha
 }
 
 func (i *Index) GetMainBlockById(id types.Hash) *MainBlock {
-	r := i.GetMainBlocksByQuery("WHERE id = $1;", id[:])
+	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockById, id[:])
 	defer func() {
 		for range r {
 
@@ -508,8 +501,28 @@ func (i *Index) GetMainBlockTip() *MainBlock {
 	return <-r
 }
 
+func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) *MainBlock {
+	r := i.GetMainBlocksByQuery("WHERE coinbase_id = $1;", id[:])
+	defer func() {
+		for range r {
+
+		}
+	}()
+	return <-r
+}
+
+func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) *MainBlock {
+	r := i.GetMainBlocksByQuery("WHERE coinbase_id = (SELECT id FROM main_coinbase_outputs WHERE global_output_index = $1 LIMIT 1);", globalOutputIndex)
+	defer func() {
+		for range r {
+
+		}
+	}()
+	return <-r
+}
+
 func (i *Index) GetMainBlockByHeight(height uint64) *MainBlock {
-	r := i.GetMainBlocksByQuery("WHERE height = $1;", height)
+	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockByHeight, height)
 	defer func() {
 		for range r {
 
@@ -683,24 +696,6 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 	)
 }
 
-type Payout struct {
-	Id     types.Hash `json:"id"`
-	Height uint64     `json:"height"`
-	Main   struct {
-		Id     types.Hash `json:"id"`
-		Height uint64     `json:"height"`
-	} `json:"main"`
-	Timestamp uint64 `json:"timestamp"`
-	Uncle     bool   `json:"uncle,omitempty"`
-	Coinbase  struct {
-		Id                types.Hash             `json:"id"`
-		Reward            uint64                 `json:"reward"`
-		PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
-		Index             uint64                 `json:"index"`
-		GlobalOutputIndex uint64                 `json:"global_output_index"`
-	} `json:"coinbase"`
-}
-
 func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 	out := make(chan *Payout)
 
@@ -708,31 +703,11 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 		defer close(out)
 
 		resultFunc := func(row RowScanInterface) error {
-			var templateId, mainId, privKey, coinbaseId []byte
-			var height, mainHeight, timestamp, value, index, globalOutputIndex uint64
-			var uncle []byte
-
-			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index, &globalOutputIndex); err != nil {
+			p := &Payout{}
+			if err := p.ScanFromRow(i, row); err != nil {
 				return err
 			}
-
-			out <- &Payout{
-				Id:        types.HashFromBytes(templateId),
-				Height:    height,
-				Timestamp: timestamp,
-				Main: struct {
-					Id     types.Hash `json:"id"`
-					Height uint64     `json:"height"`
-				}{Id: types.HashFromBytes(mainId), Height: mainHeight},
-				Uncle: len(uncle) != 0,
-				Coinbase: struct {
-					Id                types.Hash             `json:"id"`
-					Reward            uint64                 `json:"reward"`
-					PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
-					Index             uint64                 `json:"index"`
-					GlobalOutputIndex uint64                 `json:"global_output_index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index, GlobalOutputIndex: globalOutputIndex},
-			}
+			out <- p
 			return nil
 		}
 
@@ -757,31 +732,11 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 		defer close(out)
 
 		resultFunc := func(row RowScanInterface) error {
-			var templateId, mainId, privKey, coinbaseId []byte
-			var height, mainHeight, timestamp, value, index, globalOutputIndex uint64
-			var uncle []byte
-
-			if err := row.Scan(&mainId, &mainHeight, &timestamp, &coinbaseId, &privKey, &templateId, &height, &uncle, &value, &index, &globalOutputIndex); err != nil {
+			p := &Payout{}
+			if err := p.ScanFromRow(i, row); err != nil {
 				return err
 			}
-
-			out <- &Payout{
-				Id:        types.HashFromBytes(templateId),
-				Height:    height,
-				Timestamp: timestamp,
-				Main: struct {
-					Id     types.Hash `json:"id"`
-					Height uint64     `json:"height"`
-				}{Id: types.HashFromBytes(mainId), Height: mainHeight},
-				Uncle: len(uncle) != 0,
-				Coinbase: struct {
-					Id                types.Hash             `json:"id"`
-					Reward            uint64                 `json:"reward"`
-					PrivateKey        crypto.PrivateKeyBytes `json:"private_key"`
-					Index             uint64                 `json:"index"`
-					GlobalOutputIndex uint64                 `json:"global_output_index"`
-				}{Id: types.HashFromBytes(coinbaseId), Reward: value, PrivateKey: crypto.PrivateKeyBytes(types.HashFromBytes(privKey)), Index: index, GlobalOutputIndex: globalOutputIndex},
-			}
+			out <- p
 			return nil
 		}
 
@@ -795,7 +750,7 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 
 func (i *Index) GetMainCoinbaseOutputs(coinbaseId types.Hash) MainCoinbaseOutputs {
 	var outputs MainCoinbaseOutputs
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 ORDER BY index ASC;", func(row RowScanInterface) error {
 		var output MainCoinbaseOutput
 		if err := output.ScanFromRow(i, row); err != nil {
 			return err
@@ -810,7 +765,7 @@ func (i *Index) GetMainCoinbaseOutputs(coinbaseId types.Hash) MainCoinbaseOutput
 
 func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64) *MainCoinbaseOutput {
 	var output MainCoinbaseOutput
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index ASC;", func(row RowScanInterface) error {
 		if err := output.ScanFromRow(i, row); err != nil {
 			return err
 		}
@@ -826,7 +781,7 @@ func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64
 
 func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint64) *MainCoinbaseOutput {
 	var output MainCoinbaseOutput
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index = $1 ORDER BY index DESC;", func(row RowScanInterface) error {
+	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index = $1 ORDER BY index ASC;", func(row RowScanInterface) error {
 		if err := output.ScanFromRow(i, row); err != nil {
 			return err
 		}

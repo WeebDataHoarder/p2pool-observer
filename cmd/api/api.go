@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -11,14 +12,17 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
 	"github.com/gorilla/mux"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"log"
+	"lukechampine.com/uint128"
 	"math"
 	"net/http"
 	"net/url"
@@ -63,6 +67,32 @@ func main() {
 	}
 	defer indexDb.Close()
 
+	fillMainCoinbaseOutputs := func(params url.Values, outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
+		fillMiner := !params.Has("noMiner")
+		for _, output := range outputs {
+			if fillMiner {
+				miner := indexDb.GetMiner(output.Miner)
+				output.MinerAddress = miner.Address()
+				output.MinerAlias = miner.Alias()
+			}
+			result = append(result, output)
+		}
+		return result
+	}
+
+	fillFoundBlockResult := func(params url.Values, foundBlocks []*index.FoundBlock) (result []*index.FoundBlock) {
+		fillMiner := !params.Has("noMiner")
+		for _, foundBlock := range foundBlocks {
+			if fillMiner {
+				miner := indexDb.GetMiner(foundBlock.Miner)
+				foundBlock.MinerAddress = miner.Address()
+				foundBlock.MinerAlias = miner.Alias()
+			}
+			result = append(result, foundBlock)
+		}
+		return result
+	}
+
 	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) (result []*index.SideBlock) {
 		fillUncles := !params.Has("noUncles")
 		fillMined := !params.Has("noMainStatus")
@@ -74,7 +104,11 @@ func main() {
 				sideBlock.MinerAlias = miner.Alias()
 			}
 			if fillMined {
-				sideBlock.MinedMainAtHeight = indexDb.GetMainBlockById(sideBlock.MainId) != nil
+				mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
+				if mainTipAtHeight != nil {
+					sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
+					sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
+				}
 			}
 			if fillUncles {
 				for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
@@ -202,7 +236,7 @@ func main() {
 			return result
 		}).(*totalKnownResult)
 
-		lastBlocksFound := indexDb.GetBlocksFound("", 201)
+		lastBlocksFound := indexDb.GetFoundBlocks("", 201)
 
 		mainTip := indexDb.GetMainBlockTip()
 		networkDifficulty := types.DifficultyFrom64(mainTip.Difficulty)
@@ -562,94 +596,6 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/shares_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
-		minerId := mux.Vars(request)["miner"]
-		var miner *index.Miner
-		if len(minerId) > 10 && minerId[0] == '4' {
-			miner = indexDb.GetMinerByStringAddress(minerId)
-		}
-
-		if miner == nil {
-			if i, err := strconv.Atoi(minerId); err == nil {
-				miner = indexDb.GetMiner(uint64(i))
-			}
-		}
-
-		if miner == nil {
-			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
-				Error string `json:"error"`
-			}{
-				Error: "not_found",
-			})
-			_, _ = writer.Write(buf)
-			return
-		}
-
-		params := request.URL.Query()
-
-		tip := indexDb.GetSideBlockTip()
-
-		window := uint64(tip.WindowDepth)
-		if params.Has("window") {
-			if i, err := strconv.Atoi(params.Get("window")); err == nil {
-				if i <= int(p2api.Consensus().ChainWindowSize*4) {
-					window = uint64(i)
-				}
-			}
-		}
-
-		var from uint64
-		if params.Has("from") {
-			if i, err := strconv.Atoi(params.Get("from")); err == nil {
-				if i >= 0 {
-					from = uint64(i)
-				}
-			}
-		}
-
-		if from == 0 {
-			from = tip.SideHeight
-		}
-
-		result := make([]*sharesInWindowResult, 0)
-
-		for sideBlock := range indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window) {
-			s := &sharesInWindowResult{
-				Id:        sideBlock.TemplateId,
-				Height:    sideBlock.SideHeight,
-				Timestamp: sideBlock.Timestamp,
-				Weight:    sideBlock.Difficulty,
-			}
-
-			if sideBlock.IsUncle() {
-				s.Parent = &sharesInWindowResultParent{
-					Id:     sideBlock.UncleOf,
-					Height: sideBlock.EffectiveHeight,
-				}
-				s.Weight = types.DifficultyFrom64(s.Weight).Mul64(100 - p2api.Consensus().UnclePenalty).Div64(100).Lo
-			} else {
-				for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
-					uncleWeight := types.DifficultyFrom64(u.Difficulty).Mul64(p2api.Consensus().UnclePenalty).Div64(100)
-					s.Uncles = append(s.Uncles, sharesInWindowResultUncle{
-						Id:     u.TemplateId,
-						Height: u.SideHeight,
-						Weight: uncleWeight.Lo,
-					})
-					s.Weight += uncleWeight.Lo
-				}
-			}
-
-			result = append(result, s)
-		}
-
-		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
-	})
-
 	serveMux.HandleFunc("/api/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *index.Miner
@@ -685,15 +631,9 @@ func main() {
 			}
 		}
 
-		payouts := make([]*index.Payout, 0)
-
-		for payout := range indexDb.GetPayoutsByMinerId(miner.Id(), limit) {
-			payouts = append(payouts, payout)
-		}
-
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, payouts)
+		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetPayoutsByMinerId(miner.Id(), limit)))
 		_, _ = writer.Write(buf)
 
 	})
@@ -711,7 +651,7 @@ func main() {
 		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", utils2.GetSiteUrl(utils2.SiteKeyP2PoolIo, request.Host == torHost), txId), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
-		foundTargets := indexDb.GetBlocksFound("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
+		foundTargets := indexDb.GetFoundBlocks("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"]))
 		if len(foundTargets) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
@@ -763,7 +703,7 @@ func main() {
 		height := i >> n
 		outputIndex := i & ((1 << n) - 1)
 
-		b := indexDb.GetBlocksFound("WHERE side_height = $1", 1, height)
+		b := indexDb.GetFoundBlocks("WHERE side_height = $1", 1, height)
 		var tx *index.MainCoinbaseOutput
 		if len(b) != 0 {
 			tx = indexDb.GetMainCoinbaseOutputByIndex(b[0].MainBlock.CoinbaseId, outputIndex)
@@ -785,7 +725,7 @@ func main() {
 	})
 
 	serveMux.HandleFunc("/api/redirect/prove/{height:[0-9]+|.[0-9A-Za-z]+}/{miner:[0-9]+|.?[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
-		b := indexDb.GetBlocksFound("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["height"]))
+		b := indexDb.GetFoundBlocks("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["height"]))
 		miner := indexDb.GetMiner(utils.DecodeBinaryNumber(mux.Vars(request)["miner"]))
 		if len(b) == 0 || miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -836,7 +776,7 @@ func main() {
 	//other redirects
 	serveMux.HandleFunc("/api/redirect/last_found{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
 		var lastFoundHash types.Hash
-		for _, b := range indexDb.GetBlocksFound("", 1) {
+		for _, b := range indexDb.GetFoundBlocks("", 1) {
 			lastFoundHash = b.MainBlock.SideTemplateId
 		}
 		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", lastFoundHash.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
@@ -895,24 +835,12 @@ func main() {
 			limit = 50
 		}
 
-		result := make([]*JSONBlock, 0, limit)
+		var result []*index.FoundBlock
 
 		if minerId != 0 {
-			for _, foundBlock := range indexDb.GetBlocksFound("WHERE miner = $1", limit, minerId) {
-				dbBlock := indexDb.GetSideBlockByMainId(foundBlock.MainBlock.Id)
-				if dbBlock == nil {
-					continue
-				}
-				result = append(result, MapJSONBlock(p2api, indexDb, dbBlock, foundBlock, false, params.Has("coinbase")))
-			}
+			result = fillFoundBlockResult(params, indexDb.GetFoundBlocks("WHERE miner = $1", limit, minerId))
 		} else {
-			for _, foundBlock := range indexDb.GetBlocksFound("", limit) {
-				dbBlock := indexDb.GetSideBlockByMainId(foundBlock.MainBlock.Id)
-				if dbBlock == nil {
-					continue
-				}
-				result = append(result, MapJSONBlock(p2api, indexDb, dbBlock, foundBlock, false, params.Has("coinbase")))
-			}
+			result = fillFoundBlockResult(params, indexDb.GetFoundBlocks("", limit))
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -1031,19 +959,13 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		result := make([]*JSONBlock, 0, limit)
-
-		for b := range indexDb.GetShares(limit, minerId, onlyBlocks) {
-			result = append(result, MapJSONBlock(p2api, indexDb, b, nil, true, params.Has("coinbase")))
-		}
-
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
+		buf, _ := encodeJson(request, fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks)))
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/light|/raw|/info|/payouts}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/light|/raw|/info|/payouts|/coinbase}", func(writer http.ResponseWriter, request *http.Request) {
 
 		params := request.URL.Query()
 
@@ -1052,8 +974,14 @@ func main() {
 			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
 				if b := indexDb.GetTipSideBlockByTemplateId(id); b != nil {
 					block = b
+				} else if bs := index.ChanToSlice(indexDb.GetSideBlocksByTemplateId(id)); len(bs) != 0 {
+					block = bs[0]
 				} else if b = indexDb.GetSideBlockByMainId(id); b != nil {
 					block = b
+				} else if mb := indexDb.GetMainBlockByCoinbaseId(id); mb != nil {
+					if b = indexDb.GetSideBlockByMainId(mb.Id); b != nil {
+						block = b
+					}
 				}
 			}
 		} else if mux.Vars(request)["by"] == "height" {
@@ -1075,9 +1003,6 @@ func main() {
 			_, _ = writer.Write(buf)
 			return
 		}
-
-		isOrphan := block.Inclusion == index.InclusionOrphan
-		isInvalid := false
 
 		switch mux.Vars(request)["kind"] {
 		case "/light":
@@ -1119,20 +1044,92 @@ func main() {
 			buf, _ := raw.MarshalBinary()
 			_, _ = writer.Write(buf)
 		case "/payouts":
-			result := make([]*index.Payout, 0)
-			if !isOrphan && !isInvalid {
-				for payout := range indexDb.GetPayoutsBySideBlock(block) {
-					result = append(result, payout)
-				}
-			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
+			buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetPayoutsBySideBlock(block)))
 			_, _ = writer.Write(buf)
+		case "/coinbase":
+			foundBlock := indexDb.GetMainBlockById(block.MainId)
+			if foundBlock == nil {
+				shares, _ := PayoutHint(p2api, indexDb, block)
+				if shares != nil {
+					poolBlock := p2api.LightByMainId(block.MainId)
+					if poolBlock != nil {
+						addresses := make(map[address.PackedAddress]*index.MainCoinbaseOutput, len(shares))
+						for minerId, amount := range PayoutAmountHint(shares, poolBlock.Main.Coinbase.TotalReward) {
+							miner := indexDb.GetMiner(minerId)
+							addresses[*miner.Address().ToPackedAddress()] = &index.MainCoinbaseOutput{
+								Id:                types.ZeroHash,
+								Miner:             miner.Id(),
+								MinerAddress:      miner.Address(),
+								MinerAlias:        miner.Alias(),
+								Value:             amount,
+								GlobalOutputIndex: 0,
+							}
+						}
+
+						sortedAddresses := maps.Keys(addresses)
+
+						slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) bool {
+							return a.Compare(&b) < 0
+						})
+
+						n := len(sortedAddresses)
+
+						//Shuffle shares
+						if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 && n > 1 {
+							h := crypto.PooledKeccak256(poolBlock.Side.CoinbasePrivateKeySeed[:])
+							seed := binary.LittleEndian.Uint64(h[:])
+
+							if seed == 0 {
+								seed = 1
+							}
+
+							for i := 0; i < (n - 1); i++ {
+								seed = utils.XorShift64Star(seed)
+								k := int(uint128.From64(seed).Mul64(uint64(n - i)).Hi)
+								//swap
+								sortedAddresses[i], sortedAddresses[i+k] = sortedAddresses[i+k], sortedAddresses[i]
+							}
+						}
+
+						result := make(index.MainCoinbaseOutputs, len(sortedAddresses))
+
+						for i, key := range sortedAddresses {
+							addresses[key].Index = uint32(i)
+							result[i] = *addresses[key]
+						}
+
+						writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+						writer.WriteHeader(http.StatusOK)
+						buf, _ := encodeJson(request, result)
+						_, _ = writer.Write(buf)
+						return
+					}
+				}
+
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusOK)
+				buf, _ := encodeJson(request, fillMainCoinbaseOutputs(params, indexDb.GetMainCoinbaseOutputs(foundBlock.CoinbaseId)))
+				_, _ = writer.Write(buf)
+			}
 		default:
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, MapJSONBlock(p2api, indexDb, block, nil, true, params.Has("coinbase")))
+			c := make(chan *index.SideBlock, 1)
+			c <- block
+			close(c)
+			buf, _ := encodeJson(request, fillSideBlockResult(params, c)[0])
 			_, _ = writer.Write(buf)
 		}
 	})
@@ -1248,7 +1245,7 @@ func main() {
 		}
 
 		blocks := make([]poolBlock, 0, 200)
-		for _, b := range indexDb.GetBlocksFound("", 200) {
+		for _, b := range indexDb.GetFoundBlocks("", 200) {
 			blocks = append(blocks, poolBlock{
 				Height:      b.MainBlock.Height,
 				Hash:        b.MainBlock.Id,
@@ -1285,7 +1282,7 @@ func main() {
 		poolInfo := lastPoolInfo.Load()
 
 		var lastBlockFound, lastBlockFoundTime uint64
-		for _, b := range indexDb.GetBlocksFound("", 1) {
+		for _, b := range indexDb.GetFoundBlocks("", 1) {
 			lastBlockFound = b.MainBlock.Height
 			lastBlockFoundTime = b.MainBlock.Timestamp
 		}
@@ -1332,7 +1329,7 @@ func main() {
 		var lastBlockFound, lastBlockFoundTime uint64
 		var lastBlockFoundHash types.Hash
 		var lastBlockCumulativeDifficulty types.Difficulty
-		for _, b := range indexDb.GetBlocksFound("", 1) {
+		for _, b := range indexDb.GetFoundBlocks("", 1) {
 			lastBlockFound = b.MainBlock.Height
 			lastBlockFoundTime = b.MainBlock.Timestamp
 			lastBlockFoundHash = b.MainBlock.Id
