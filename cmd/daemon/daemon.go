@@ -141,7 +141,7 @@ func main() {
 	scanHeader := func(h daemon.BlockHeader) error {
 		if err := utils2.FindAndInsertMainHeader(h, indexDb, func(b *sidechain.PoolBlock) {
 			p2api.InsertAlternate(b)
-		}, client.GetDefaultClient(), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId, p2api.ByMainId, p2api.ByMainHeight, func(b *sidechain.PoolBlock) error {
+		}, client.GetDefaultClient(), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId, p2api.ByMainId, p2api.LightByMainHeight, func(b *sidechain.PoolBlock) error {
 			_, err := b.PreProcessBlock(p2api.Consensus(), &sidechain.NilDerivationCache{}, sidechain.PreAllocateShares(p2api.Consensus().ChainWindowSize*2), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId)
 			return err
 		}); err != nil {
@@ -173,6 +173,8 @@ func main() {
 	}
 
 	var doCheckOfOldBlocks atomic.Bool
+
+	doCheckOfOldBlocks.Store(true)
 
 	go func() {
 		//do deep scan for any missed main headers or deep reorgs every once in a while

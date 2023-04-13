@@ -85,7 +85,7 @@ type PoolBlock struct {
 	WantBroadcast atomic.Bool `json:"-"`
 	Broadcasted   atomic.Bool `json:"-"`
 
-	NetworkType    NetworkType `json:"-"`
+	NetworkType    NetworkType `json:"network_type"`
 	LocalTimestamp uint64      `json:"-"`
 }
 

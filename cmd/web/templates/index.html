@@ -173,24 +173,25 @@
             <th style="width: 12em;">Valuation</th>
         </tr>
         {% for s in shares %}
-        <tr{% if (s.main.found is defined) and s.main.found %} class="hl-found"{% endif %}>
-            <th><a href="/share/{{ s.id }}">{{ s.height }}</a></th>
-            <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
-            <td title="{{ s.main.id }}">{{ s.main.height }}</td>
-            <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
-            {% if s.miner_alias != "" %}
-            <td title="{{ s.miner }} ({{ s.miner_alias }})" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner_alias|shorten(10) }}</a></td>
+        <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
+            <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
+            <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
+            <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
+            <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
+            {% set minerAddress = s.MinerAddress.ToBase58() %}
+            {% if s.MinerAlias != "" %}
+            <td title="{{ minerAddress }} ({{ s.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% else %}
-            <td title="{{ s.miner }}" class="mono small"><a href="/miner/{{ s.miner }}">{{ s.miner|shorten(10) }}</a></td>
+            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% endif %}
-            <td>{{ software_info(s.software_id, s.software_version) }}</td>
+            <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
             <td>
-                {% if s.parent is defined %}
-                {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)
+                {% if s.IsUncle() %}
+                {{ 100 - consensus.UnclePenalty }}% (uncle)
                 {% else %}
                 100%
-                {% if (s.uncles is defined) and s.uncles|length > 0 %}
-                + {{ pool.sidechain.uncle_penalty }}% of {{ s.uncles|length }} uncle(s)
+                {% if (s.Uncles is defined) and s.Uncles|length > 0 %}
+                + {{ consensus.UnclePenalty }}% of {{ s.Uncles|length }} uncle(s)
                 {% endif %}
                 {% endif %}
             </td>

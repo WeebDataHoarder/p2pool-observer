@@ -619,6 +619,94 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			}
 		})
 
+		serveMux.HandleFunc("/archive/light_blocks_by_main_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
+			if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
+				if blocks := archiveCache.LoadByMainChainHeight(height); len(blocks) > 0 {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusNotFound)
+					if blocks == nil {
+						blocks = make(sidechain.UniquePoolBlockSlice, 0)
+					}
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("{}"))
+			}
+		})
+
+		serveMux.HandleFunc("/archive/light_blocks_by_side_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
+			if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
+				if blocks := archiveCache.LoadBySideChainHeight(height); len(blocks) > 0 {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusNotFound)
+					if blocks == nil {
+						blocks = make(sidechain.UniquePoolBlockSlice, 0)
+					}
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("{}"))
+			}
+		})
+
+		serveMux.HandleFunc("/archive/light_blocks_by_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+			if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
+				if blocks := archiveCache.LoadByTemplateId(mainId); len(blocks) > 0 {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusNotFound)
+					if blocks == nil {
+						blocks = make(sidechain.UniquePoolBlockSlice, 0)
+					}
+					buf, _ := encodeJson(request, blocks)
+					_, _ = writer.Write(buf)
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("{}"))
+			}
+		})
+
+		serveMux.HandleFunc("/archive/light_block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+			if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
+				if b := archiveCache.LoadByMainId(mainId); b != nil {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					buf, _ := encodeJson(request, b)
+					_, _ = writer.Write(buf)
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusNotFound)
+					_, _ = writer.Write([]byte("{}"))
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusInternalServerError)
+				_, _ = writer.Write([]byte("{}"))
+			}
+		})
+
 		serveMux.HandleFunc("/archive/block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 			if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
 				var result p2pooltypes.P2PoolBinaryBlockResult

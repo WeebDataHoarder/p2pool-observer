@@ -375,29 +375,29 @@ func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool) chan *SideBloc
 	if limit == 0 {
 		if minerId != 0 {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL ORDER BY side_height DESC;", minerId)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC;", minerId, InclusionInVerifiedChain)
 			} else {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 ORDER BY side_height DESC, timestamp DESC;", minerId)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $2  ORDER BY side_height DESC, timestamp DESC;", minerId, InclusionInVerifiedChain)
 			}
 		} else {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL ORDER BY side_height DESC;")
+				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $1 ORDER BY side_height DESC;", InclusionInVerifiedChain)
 			} else {
-				return i.GetSideBlocksByQuery("ORDER BY side_height DESC, timestamp DESC;")
+				return i.GetSideBlocksByQuery("ORDER BY side_height AND inclusion = $1 DESC, timestamp DESC;", InclusionInVerifiedChain)
 			}
 		}
 	} else {
 		if minerId != 0 {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL ORDER BY side_height DESC LIMIT $2;", minerId, limit)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $3 ORDER BY side_height DESC LIMIT $2;", minerId, limit, InclusionInVerifiedChain)
 			} else {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 ORDER BY side_height DESC, timestamp DESC LIMIT $2;", minerId, limit)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $3 ORDER BY side_height DESC, timestamp DESC LIMIT $2;", minerId, limit, InclusionInVerifiedChain)
 			}
 		} else {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL ORDER BY side_height DESC LIMIT $1;", limit)
+				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC LIMIT $1;", limit, InclusionInVerifiedChain)
 			} else {
-				return i.GetSideBlocksByQuery("ORDER BY side_height DESC, timestamp DESC LIMIT $1;", limit)
+				return i.GetSideBlocksByQuery("WHERE inclusion = $2 ORDER BY side_height DESC, timestamp DESC LIMIT $1;", limit, InclusionInVerifiedChain)
 			}
 		}
 	}
@@ -836,7 +836,7 @@ type TransactionInputQueryResults []TransactionInputQueryResult
 func (r TransactionInputQueryResults) Match() {
 	//cannot have more than one of same miner outputs valid per input
 	//no miner outputs in whole input doesn't count
-	//cannot take same exact miner outputs on different inputs
+	//cannot take vsame exact miner outputs on different inputs
 	//TODO
 
 	minerCountsTotal := make(map[uint64]uint64)

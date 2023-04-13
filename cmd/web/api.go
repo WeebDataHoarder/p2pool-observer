@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"io"
 	"net/http"
 	"net/url"
@@ -44,4 +45,63 @@ func getFromAPI(method string, cacheTime ...int) any {
 		}
 	})
 
+}
+
+func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
+	cTime := 0
+	if len(cacheTime) > 0 {
+		cTime = cacheTime[0]
+	}
+
+	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+		uri, _ := url.Parse(os.Getenv("API_URL") + method)
+		if response, err := http.DefaultClient.Do(&http.Request{
+			Method: "GET",
+			URL:    uri,
+		}); err != nil {
+			return nil
+		} else {
+			defer response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				var sideBlocks []*index.SideBlock
+				if data, err := io.ReadAll(response.Body); err != nil {
+					return nil
+				} else if json.Unmarshal(data, &sideBlocks) != nil {
+					return nil
+				} else {
+					return sideBlocks
+				}
+			} else {
+				return nil
+			}
+		}
+	}).([]*index.SideBlock)
+}
+
+func getFromAPIRaw(method string, cacheTime ...int) []byte {
+	cTime := 0
+	if len(cacheTime) > 0 {
+		cTime = cacheTime[0]
+	}
+
+	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+		uri, _ := url.Parse(os.Getenv("API_URL") + method)
+		if response, err := http.DefaultClient.Do(&http.Request{
+			Method: "GET",
+			URL:    uri,
+		}); err != nil {
+			return nil
+		} else {
+			defer response.Body.Close()
+			if response.StatusCode == http.StatusOK {
+				if data, err := io.ReadAll(response.Body); err != nil {
+					return nil
+				} else {
+					return data
+				}
+			} else {
+				return nil
+			}
+		}
+	}).([]byte)
 }

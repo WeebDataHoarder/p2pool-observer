@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,8 @@ func main() {
 	inPeers := flag.Uint64("in-peers", 10, "Maximum number of incoming connections for p2p server (any value between 10 and 450)")
 	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
 
+	memoryLimitInGiB := flag.Uint64("memory-limit", 0, "Memory limit for go managed sections in GiB, set 0 to disable")
+
 	noCache := flag.Bool("no-cache", false, "Disable p2pool.cache")
 	debugLog := flag.Bool("debug", false, "Log more details")
 	//TODO extend verbosity to debug flag
@@ -61,6 +64,11 @@ func main() {
 	randomx.UseFullMemory.Store(!*lightMode)
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
+
+	debug.SetTraceback("all")
+	if *memoryLimitInGiB != 0 {
+		debug.SetMemoryLimit(int64(*memoryLimitInGiB) * 1024 * 1024 * 1024)
+	}
 
 	settings := make(map[string]string)
 	settings["listen"] = *p2pListen
@@ -122,6 +130,8 @@ func main() {
 						writer.WriteHeader(http.StatusForbidden)
 						return
 					}
+
+					log.Printf("handling %s", request.URL.String())
 
 					serveMux.ServeHTTP(writer, request)
 				}),

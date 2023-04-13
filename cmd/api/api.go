@@ -20,6 +20,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -59,6 +60,34 @@ func main() {
 		log.Panic(err)
 	}
 	defer indexDb.Close()
+
+	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) (result []*index.SideBlock) {
+		fillUncles := !params.Has("noUncles")
+		fillMined := !params.Has("noMainStatus")
+		fillMiner := !params.Has("noMiner")
+		for sideBlock := range sideBlocks {
+			if fillMiner {
+				miner := indexDb.GetMiner(sideBlock.Miner)
+				sideBlock.MinerAddress = miner.Address()
+				sideBlock.MinerAlias = miner.Alias()
+			}
+			if fillMined {
+				sideBlock.MinedMainAtHeight = indexDb.GetMainBlockById(sideBlock.MainId) != nil
+			}
+			if fillUncles {
+				for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
+					sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
+						TemplateId: u.TemplateId,
+						Miner:      u.Miner,
+						SideHeight: u.SideHeight,
+						Difficulty: u.Difficulty,
+					})
+				}
+			}
+			result = append(result, sideBlock)
+		}
+		return result
+	}
 
 	getBlockWithUncles := func(id types.Hash) (block *sidechain.PoolBlock, uncles []*sidechain.PoolBlock) {
 		block = p2api.ByTemplateId(id)
@@ -410,6 +439,100 @@ func main() {
 			_, _ = writer.Write(buf)
 			return
 		}
+	})
+
+	serveMux.HandleFunc("/api/side_blocks_in_window", func(writer http.ResponseWriter, request *http.Request) {
+		params := request.URL.Query()
+
+		tip := indexDb.GetSideBlockTip()
+
+		window := uint64(tip.WindowDepth)
+		if params.Has("window") {
+			if i, err := strconv.Atoi(params.Get("window")); err == nil {
+				if i <= int(p2api.Consensus().ChainWindowSize*4*7) {
+					window = uint64(i)
+				}
+			}
+		}
+
+		var from uint64
+		if params.Has("from") {
+			if i, err := strconv.Atoi(params.Get("from")); err == nil {
+				if i >= 0 {
+					from = uint64(i)
+				}
+			}
+		}
+
+		if from == 0 {
+			from = tip.SideHeight
+		}
+
+		result := fillSideBlockResult(params, indexDb.GetSideBlocksInWindow(from, window))
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/side_blocks_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		var miner *index.Miner
+		if len(minerId) > 10 && minerId[0] == '4' {
+			miner = indexDb.GetMinerByStringAddress(minerId)
+		}
+
+		if miner == nil {
+			if i, err := strconv.Atoi(minerId); err == nil {
+				miner = indexDb.GetMiner(uint64(i))
+			}
+		}
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		tip := indexDb.GetSideBlockTip()
+
+		window := uint64(tip.WindowDepth)
+		if params.Has("window") {
+			if i, err := strconv.Atoi(params.Get("window")); err == nil {
+				if i <= int(p2api.Consensus().ChainWindowSize*4*7) {
+					window = uint64(i)
+				}
+			}
+		}
+
+		var from uint64
+		if params.Has("from") {
+			if i, err := strconv.Atoi(params.Get("from")); err == nil {
+				if i >= 0 {
+					from = uint64(i)
+				}
+			}
+		}
+
+		if from == 0 {
+			from = tip.SideHeight
+		}
+
+		result := fillSideBlockResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
 	})
 
 	serveMux.HandleFunc("/api/shares_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -771,6 +894,65 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
+	serveMux.HandleFunc("/api/side_blocks", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var limit uint64 = 50
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		if limit > p2api.Consensus().ChainWindowSize*4*7 {
+			limit = p2api.Consensus().ChainWindowSize * 4 * 7
+		}
+		if limit == 0 {
+			limit = 50
+		}
+
+		onlyBlocks := params.Has("onlyBlocks")
+
+		var minerId uint64
+
+		var miner *index.Miner
+		if params.Has("miner") {
+			id := params.Get("miner")
+
+			if len(id) > 10 && id[0] == '4' {
+				miner = indexDb.GetMinerByStringAddress(id)
+			}
+
+			if miner == nil {
+				if i, err := strconv.Atoi(id); err == nil {
+					miner = indexDb.GetMiner(uint64(i))
+				}
+			}
+
+			if miner == nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			minerId = miner.Id()
+		}
+
+		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks))
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
 	serveMux.HandleFunc("/api/shares", func(writer http.ResponseWriter, request *http.Request) {
 
 		params := request.URL.Query()
@@ -834,7 +1016,7 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
-	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/raw|/info|/payouts}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/light|/raw|/info|/payouts}", func(writer http.ResponseWriter, request *http.Request) {
 
 		params := request.URL.Query()
 
@@ -871,6 +1053,25 @@ func main() {
 		isInvalid := false
 
 		switch mux.Vars(request)["kind"] {
+		case "/light":
+			raw := p2api.LightByMainId(block.MainId)
+
+			if raw == nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			buf, _ := json.Marshal(raw)
+			_, _ = writer.Write(buf)
 		case "/raw":
 			raw := p2api.ByMainId(block.MainId)
 

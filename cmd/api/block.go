@@ -303,7 +303,7 @@ func MapJSONBlock(p2api *api.P2PoolApi, indexDb *index.Index, block *index.SideB
 		} else {
 			shares, _ := PayoutHint(p2api, indexDb, block)
 			if shares != nil {
-				poolBlock := p2api.ByMainId(block.MainId)
+				poolBlock := p2api.LightByMainId(block.MainId)
 				if poolBlock != nil {
 					addresses := make(map[address.PackedAddress]*JSONCoinbaseOutput, len(shares))
 					for minerId, amount := range PayoutAmountHint(shares, poolBlock.Main.Coinbase.TotalReward) {

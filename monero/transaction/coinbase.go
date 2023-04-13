@@ -23,7 +23,7 @@ type CoinbaseTransaction struct {
 	Outputs    Outputs `json:"outputs"`
 
 	// OutputsBlobSize length of serialized Outputs. Used by p2pool serialized pruned blocks, filled regardless
-	OutputsBlobSize uint64 `json:"-"`
+	OutputsBlobSize uint64 `json:"outputs_blob_size"`
 	// TotalReward amount of reward existing Outputs. Used by p2pool serialized pruned blocks, filled regardless
 	TotalReward uint64 `json:"total_reward"`
 

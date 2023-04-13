@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -132,6 +132,14 @@ func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
+	basePoolInfo := getFromAPI("pool_info", 5).(map[string]any)
+
+	consensusData, _ := json.Marshal(basePoolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any))
+	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	render := func(request *http.Request, writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
 		w := bytes.NewBuffer(nil)
 		defer func() {
@@ -159,6 +167,7 @@ func main() {
 			ctx = make(map[string]stick.Value)
 		}
 		ctx["is_onion"] = request.Host == torHost
+		ctx["consensus"] = consensus
 
 		if err := env.Execute(template, w, ctx); err != nil {
 			w = bytes.NewBuffer(nil)
@@ -328,7 +337,7 @@ func main() {
 			return nil
 		}
 
-		n := uint64(math.Ceil(math.Log2(p2pool.PPLNSWindow * 4)))
+		n := uint64(math.Ceil(math.Log2(float64(consensus.ChainWindowSize * 4))))
 
 		//height | index
 
@@ -396,6 +405,18 @@ func main() {
 			return utils2.GetSiteUrlByHost(k, isOnion != nil && isOnion.(bool))
 		}
 		return ""
+	}
+
+	env.Functions["side_block_weight"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 3 {
+			return nil
+		}
+
+		if sideBlock, ok := args[0].(*index.SideBlock); ok {
+			w, _ := sideBlock.Weight(toUint64(args[1]), toUint64(args[2]), consensus.UnclePenalty)
+			return w
+		}
+		return 0
 	}
 
 	env.Functions["attribute"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -572,12 +593,12 @@ func main() {
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
 		blocks := getFromAPI(fmt.Sprintf("found_blocks?coinbase&limit=%d", blocksToFetch), 5).([]any)
-		shares := getFromAPI("shares?limit=50", 5).([]any)
+		shares := getSideBlocksFromAPI("side_blocks?limit=50", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["refresh"] = writer.Header().Get("refresh")
 
-		blocksFound := NewPositionChart(30*4, p2pool.PPLNSWindow*4)
+		blocksFound := NewPositionChart(30*4, consensus.ChainWindowSize*4)
 
 		tip := toInt64(poolInfo["sidechain"].(map[string]any)["height"])
 		for _, b := range blocks {
@@ -671,13 +692,12 @@ func main() {
 
 		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
-		windowSize := toUint64(poolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any)["pplns_window"])
 		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
 		shareCount := uint64(currentWindowSize)
 		size := uint64(30)
 		cacheTime := 30
 		if params.Has("weekly") {
-			shareCount = windowSize * 4 * 7
+			shareCount = consensus.ChainWindowSize * 4 * 7
 			size *= 2
 			if params.Has("refresh") {
 				writer.Header().Set("refresh", "3600")
@@ -685,72 +705,71 @@ func main() {
 			cacheTime = 60
 		}
 
-		shares := getFromAPI(fmt.Sprintf("shares?limit=%d&onlyBlocks", shareCount), cacheTime).([]any)
+		shares := getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window?window=%d&noMainStatus&noUncles", shareCount), cacheTime)
 
-		miners := make(map[string]map[string]any, 0)
+		miners := make(map[uint64]map[string]any, 0)
 
 		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
 		wend := tipHeight - shareCount
 
-		tip := shares[0].(map[string]any)
+		tip := shares[0]
 
-		var totalWeight types.Difficulty
-		for _, s := range shares {
-			share := s.(map[string]any)
-			miner := share["miner"].(string)
+		createMiner := func(miner uint64, share *index.SideBlock) {
 			if _, ok := miners[miner]; !ok {
 				miners[miner] = make(map[string]any)
-				miners[miner]["software_id"] = share["software_id"]
-				miners[miner]["software_version"] = share["software_version"]
+				miners[miner]["address"] = share.MinerAddress.ToBase58()
+				miners[miner]["software_id"] = share.SoftwareId
+				miners[miner]["software_version"] = share.SoftwareVersion
 				miners[miner]["weight"] = types.ZeroDifficulty
 				miners[miner]["shares"] = NewPositionChart(size, shareCount)
 				miners[miner]["uncles"] = NewPositionChart(size, shareCount)
-				if a, ok := share["miner_alias"]; ok {
-					miners[miner]["alias"] = a
-				}
-			}
-
-			miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(share["height"])), 1)
-			diff := toUint64(share["weight"])
-			miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
-			totalWeight = totalWeight.Add64(diff)
-
-			if _, ok := share["uncles"]; ok {
-				for _, u := range share["uncles"].([]any) {
-					uncle := u.(map[string]any)
-					if toUint64(uncle["height"]) <= wend {
-						continue
-					}
-					miner := uncle["miner"].(string)
-					if _, ok := miners[miner]; !ok {
-						miners[miner] = make(map[string]any)
-						miners[miner]["software_id"] = uncle["software_id"]
-						miners[miner]["software_version"] = uncle["software_version"]
-						miners[miner]["weight"] = types.ZeroDifficulty
-						miners[miner]["shares"] = NewPositionChart(size, shareCount)
-						miners[miner]["uncles"] = NewPositionChart(size, shareCount)
-						if a, ok := uncle["miner_alias"]; ok {
-							miners[miner]["alias"] = a
-						}
-					}
-
-					miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip["height"])-toInt64(uncle["height"])), 1)
-					diff := toUint64(uncle["weight"])
-					miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(diff)
-					totalWeight = totalWeight.Add64(diff)
+				if share.MinerAlias != "" {
+					miners[miner]["alias"] = share.MinerAlias
 				}
 			}
 		}
 
+		var totalWeight types.Difficulty
+		for _, share := range shares {
+			miner := share.Miner
+
+			if share.IsUncle() {
+				if share.SideHeight <= wend {
+					continue
+				}
+				createMiner(share.Miner, share)
+				miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip.SideHeight)-toInt64(share.SideHeight)), 1)
+
+				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
+				uncleWeight := share.Difficulty - unclePenalty.Lo
+
+				if i := slices.IndexFunc(shares, func(block *index.SideBlock) bool {
+					return block.TemplateId == share.UncleOf
+				}); i != -1 {
+					parent := shares[i]
+					createMiner(parent.Miner, parent)
+					miners[parent.Miner]["weight"] = miners[parent.Miner]["weight"].(types.Difficulty).Add64(unclePenalty.Lo)
+				}
+				miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(uncleWeight)
+
+				totalWeight = totalWeight.Add64(share.Difficulty)
+			} else {
+				createMiner(share.Miner, share)
+				miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip.SideHeight)-toInt64(share.SideHeight)), 1)
+				miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(share.Difficulty)
+				totalWeight = totalWeight.Add64(share.Difficulty)
+			}
+		}
+
 		minerKeys := maps.Keys(miners)
-		slices.SortFunc(minerKeys, func(a string, b string) bool {
+		slices.SortFunc(minerKeys, func(a uint64, b uint64) bool {
 			return miners[a]["weight"].(types.Difficulty).Cmp(miners[b]["weight"].(types.Difficulty)) > 0
 		})
 
 		sortedMiners := make(mapslice.MapSlice, len(minerKeys))
 
 		for i, k := range minerKeys {
-			sortedMiners[i].Key = k
+			sortedMiners[i].Key = miners[k]["address"].(string)
 			sortedMiners[i].Value = miners[k]
 		}
 
@@ -846,29 +865,31 @@ func main() {
 		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
 		const totalWindows = 4
-		wsize := uint64(p2pool.PPLNSWindow * totalWindows)
+		wsize := consensus.ChainWindowSize * totalWindows
 
 		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
 
 		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
 
-		var shares, payouts, lastShares, lastFound []any
+		var shares, lastShares []*index.SideBlock
+
+		var payouts, lastFound []any
 		if toUint64(miner["id"]) != 0 {
-			shares = getFromAPI(fmt.Sprintf("shares_in_window/%d?from=%d&window=%d", toUint64(miner["id"]), tipHeight, wsize)).([]any)
+			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", toUint64(miner["id"]), tipHeight, wsize))
 			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"]))).([]any)
-			lastShares = getFromAPI(fmt.Sprintf("shares?limit=50&miner=%d", toUint64(miner["id"]))).([]any)
+			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", toUint64(miner["id"])))
 			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
 		}
 
-		sharesFound := NewPositionChart(30*totalWindows, p2pool.PPLNSWindow*totalWindows)
-		unclesFound := NewPositionChart(30*totalWindows, p2pool.PPLNSWindow*totalWindows)
+		sharesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
+		unclesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 
 		var sharesInWindow, unclesInWindow uint64
 		var longDiff, windowDiff types.Difficulty
 
 		wend := tipHeight - currentWindowSize
 
-		foundPayout := NewPositionChart(30*totalWindows, p2pool.PPLNSWindow*totalWindows)
+		foundPayout := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		for _, p := range payouts {
 			foundPayout.Add(int(int64(tipHeight)-toInt64(p.(map[string]any)["height"])), 1)
 		}
@@ -876,34 +897,45 @@ func main() {
 		var raw *sidechain.PoolBlock
 
 		if len(lastShares) > 0 {
-			rawBlock := getFromAPI(fmt.Sprintf("block_by_id/%s/raw", lastShares[0].(map[string]any)["id"]))
-			if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
-				b := &sidechain.PoolBlock{
-					NetworkType: sidechain.NetworkMainnet,
-				}
-				if b.UnmarshalBinary(&sidechain.NilDerivationCache{}, s) == nil {
-					raw = b
-				}
+			rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
+			b := &sidechain.PoolBlock{}
+			if json.Unmarshal(rawBlock, b) == nil && b.NetworkType != sidechain.NetworkInvalid {
+				raw = b
 			}
 		}
 
 		for _, share := range shares {
-			s := share.(map[string]any)
-			if p, ok := s["parent"]; ok {
-				parent := p.(map[string]any)
-				unclesFound.Add(int(int64(tipHeight)-toInt64(parent["height"])), 1)
-				if toUint64(s["height"]) > wend {
+			if share.IsUncle() {
+				if share.SideHeight <= wend {
+					continue
+				}
+
+				unclesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
+
+				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
+				uncleWeight := share.Difficulty - unclePenalty.Lo
+
+				if i := slices.IndexFunc(shares, func(block *index.SideBlock) bool {
+					return block.TemplateId == share.UncleOf
+				}); i != -1 {
+					if shares[i].SideHeight > wend {
+						windowDiff = windowDiff.Add64(unclePenalty.Lo)
+					}
+					longDiff = longDiff.Add64(unclePenalty.Lo)
+				}
+				if share.SideHeight > wend {
+					windowDiff = windowDiff.Add64(uncleWeight)
 					unclesInWindow++
-					windowDiff = windowDiff.Add64(toUint64(s["weight"]))
 				}
+				longDiff = longDiff.Add64(uncleWeight)
 			} else {
-				sharesFound.Add(int(int64(tipHeight)-toInt64(s["height"])), 1)
-				if toUint64(s["height"]) > wend {
+				sharesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
+				if share.SideHeight > wend {
+					windowDiff = windowDiff.Add64(share.Difficulty)
 					sharesInWindow++
-					windowDiff = windowDiff.Add64(toUint64(s["weight"]))
 				}
+				longDiff = longDiff.Add64(share.Difficulty)
 			}
-			longDiff = longDiff.Add64(toUint64(s["weight"]))
 		}
 
 		if len(payouts) > 10 {
@@ -928,9 +960,9 @@ func main() {
 		ctx["count_uncles"] = unclesFound.Total()
 		ctx["count_payouts"] = foundPayout.Total()
 		ctx["position_resolution"] = foundPayout.Resolution()
-		ctx["position_blocks"] = sharesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
-		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
-		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(p2pool.PPLNSWindow*totalWindows - currentWindowSize))
+		ctx["position_blocks"] = sharesFound.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
+		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
+		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
 		render(request, writer, "miner.html", ctx)
 	})
 

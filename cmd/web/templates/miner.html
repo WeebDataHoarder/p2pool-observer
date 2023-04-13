@@ -177,20 +177,20 @@
             <th style="width: 12em;">Valuation</th>
         </tr>
         {% for s in last_shares %}
-        <tr{% if s.main.found %} class="hl-found"{% endif %}>
-            <th><a href="/share/{{ s.id }}">{{ s.height }}</a></th>
-            <td class="mono smaller"><a href="/share/{{ s.id }}">{{ s.id|shorten(10) }}</a></td>
-            <td title="{{ s.main.id }}">{{ s.main.height }}</td>
-            <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
-            <td>{{ software_info(s.software_id, s.software_version) }}</td>
-            <td>{{ s.weight|si_units(1) }}</td>
+        <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
+            <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
+            <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
+            <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
+            <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
+            <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
+            <td>{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>
             <td>
-                {% if s.parent is defined %}
-                  {{ 100 - pool.sidechain.uncle_penalty }}% (uncle)
+                {% if s.IsUncle() %}
+                  {{ 100 - consensus.UnclePenalty }}% (uncle)
                 {% else %}
                     100%
-                    {% if (s.uncles is defined) and s.uncles|length > 0 %}
-                        + {{ pool.sidechain.uncle_penalty }}% of {{ s.uncles|length }} uncle(s)
+                    {% if (s.Uncles is defined) and s.Uncles|length > 0 %}
+                        + {{ consensus.UnclePenalty }}% of {{ s.Uncles|length }} uncle(s)
                     {% endif %}
                 {% endif %}
             </td>
@@ -231,7 +231,7 @@
             <th class="small">{{ monero_to_xmr(b.coinbase.reward) }} XMR</th>
             <td>{{ b.coinbase.payouts|length }}</td>
             <td title="{{ b.coinbase.id }}" class="mono small"><a href="/t/{{ b.coinbase.id|henc }}">{{ b.coinbase.id|shorten(10) }}</a></td>
-            <td class="mono smaller">{{ b.coinbase.private_key }}</td>
+            <td class="mono smaller">{{ b.coinbase.private_key|shorten(10) }}</td>
         </tr>
         {% endfor %}
         <tr>

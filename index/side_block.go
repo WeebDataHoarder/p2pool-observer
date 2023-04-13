@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"sync"
 	"unsafe"
 )
 
@@ -27,48 +27,59 @@ const SideBlockSelectFields = "main_id, main_height, template_id, side_height, p
 
 type SideBlock struct {
 	// MainId mainchain id, on Monero network
-	MainId     types.Hash
-	MainHeight uint64
+	MainId     types.Hash `json:"main_id"`
+	MainHeight uint64     `json:"main_height"`
 
 	// TemplateId -- sidechain template id. Note multiple blocks can exist per template id, see Inclusion
-	TemplateId types.Hash
-	SideHeight uint64
+	TemplateId types.Hash `json:"template_id"`
+	SideHeight uint64     `json:"side_height"`
 	// ParentTemplateId previous sidechain template id
-	ParentTemplateId types.Hash
+	ParentTemplateId types.Hash `json:"parent_template_id"`
 
 	// Miner internal id of the miner who contributed the block
-	Miner uint64
+	Miner uint64 `json:"miner_id"`
 
 	// Uncle inclusion information
 
 	// UncleOf has been included under this parent block TemplateId as an uncle
-	UncleOf types.Hash
+	UncleOf types.Hash `json:"uncle_of"`
 	// EffectiveHeight has been included under this parent block height as an uncle, or is this height
-	EffectiveHeight uint64
+	EffectiveHeight uint64 `json:"effective_height"`
 
 	// Nonce data
-	Nonce      uint32
-	ExtraNonce uint32
+	Nonce      uint32 `json:"nonce"`
+	ExtraNonce uint32 `json:"extra_nonce"`
 
-	Timestamp       uint64
-	SoftwareId      p2pooltypes.SoftwareId
-	SoftwareVersion p2pooltypes.SoftwareVersion
+	Timestamp       uint64                      `json:"timestamp"`
+	SoftwareId      p2pooltypes.SoftwareId      `json:"software_id"`
+	SoftwareVersion p2pooltypes.SoftwareVersion `json:"software_version"`
 	// WindowDepth PPLNS window depth, in blocks including this one
-	WindowDepth      uint32
-	WindowOutputs    uint32
-	TransactionCount uint32
+	WindowDepth      uint32 `json:"window_depth"`
+	WindowOutputs    uint32 `json:"window_outputs"`
+	TransactionCount uint32 `json:"transaction_count"`
 
 	// Difficulty sidechain difficulty at height
-	Difficulty           uint64
-	CumulativeDifficulty types.Difficulty
-	PowDifficulty        uint64
+	Difficulty           uint64           `json:"difficulty"`
+	CumulativeDifficulty types.Difficulty `json:"cumulative_difficulty"`
+	PowDifficulty        uint64           `json:"pow_difficulty"`
 	// PowHash result of PoW function as a hash (all 0x00 = not known)
-	PowHash types.Hash
+	PowHash types.Hash `json:"pow_hash"`
 
-	Inclusion BlockInclusion
+	Inclusion BlockInclusion `json:"inclusion"`
 
-	// Lock TODO remove
-	Lock sync.RWMutex
+	// Extra information filled just for JSON purposes
+
+	MinerAddress      *address.Address      `json:"miner_address,omitempty"`
+	MinerAlias        string                `json:"miner_alias,omitempty"`
+	Uncles            []SideBlockUncleEntry `json:"uncles,omitempty"`
+	MinedMainAtHeight bool                  `json:"mined_main_at_height"`
+}
+
+type SideBlockUncleEntry struct {
+	TemplateId types.Hash `json:"template_id"`
+	Miner      uint64     `json:"miner_id"`
+	SideHeight uint64     `json:"side_height"`
+	Difficulty uint64     `json:"difficulty"`
 }
 
 // FromPoolBlock block needs to be pre-processed for ids to be correct
@@ -148,4 +159,27 @@ func (b *SideBlock) ScanFromRow(i *Index, row RowScanInterface) error {
 		return err
 	}
 	return nil
+}
+
+//Utilities to be used by JSON decoded blocks
+
+func (b *SideBlock) Weight(tipHeight, windowSize, consensusUnclePenalty uint64) (weight, parentWeight uint64) {
+	if (tipHeight - b.SideHeight) >= windowSize {
+		return 0, 0
+	}
+	if b.IsUncle() {
+		unclePenalty := types.DifficultyFrom64(b.Difficulty).Mul64(consensusUnclePenalty).Div64(100)
+		uncleWeight := b.Difficulty - unclePenalty.Lo
+
+		return uncleWeight, unclePenalty.Lo
+	} else {
+		weight = b.Difficulty
+		for _, u := range b.Uncles {
+			if (tipHeight - u.SideHeight) >= windowSize {
+				continue
+			}
+			weight += types.DifficultyFrom64(u.Difficulty).Mul64(consensusUnclePenalty).Div64(100).Lo
+		}
+		return weight, 0
+	}
 }
