@@ -127,7 +127,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 		return nil
 	}
 
-	if t := candidates.Get(sideTemplateId); t != nil {
+	if t := getByTemplateId(sideTemplateId); t != nil {
 		//found template
 		if err := processBlock(t); err != nil {
 			return fmt.Errorf("could not process template: %w", err)

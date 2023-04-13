@@ -536,6 +536,10 @@ func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) *SideBlock {
 	return <-r
 }
 
+func (i *Index) GetSideBlocksByMainHeight(height uint64) chan *SideBlock {
+	return i.GetSideBlocksByQuery("WHERE main_height = $1;", height)
+}
+
 func (i *Index) GetSideBlocksByHeight(height uint64) chan *SideBlock {
 	return i.GetSideBlocksByQuery("WHERE side_height = $1;", height)
 }
