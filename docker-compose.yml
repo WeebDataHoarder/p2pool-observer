@@ -21,6 +21,10 @@ services:
       SERVICE1_TOR_SERVICE_HOSTS: 80:site:80,${P2POOL_EXTERNAL_PORT}:p2pool:${P2POOL_PORT}
       SERVICE1_TOR_SERVICE_VERSION: '3'
       SERVICE1_TOR_SERVICE_KEY: ${TOR_SERVICE_KEY}
+      TOR_EXTRA_OPTIONS: |
+        SocksPort 0
+        HiddenServiceNonAnonymousMode 1
+        HiddenServiceSingleHopMode 1
     depends_on:
       - site
       - p2pool
