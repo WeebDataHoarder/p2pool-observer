@@ -24,6 +24,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode"
 )
@@ -106,13 +107,23 @@ func main() {
 	_ = getBlockWithUncles
 
 	serveMux := mux.NewRouter()
-	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
+
+	var lastPoolInfo atomic.Pointer[poolInfoResult]
+	getPoolInfo := func() {
+
+		oldPoolInfo := lastPoolInfo.Load()
+
 		tip := p2api.Tip()
 
 		blockCount := 0
 		uncleCount := 0
 
 		miners := make(map[uint64]uint64)
+
+		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.SideTemplateId(p2api.Consensus()) {
+			//no changes!
+			return
+		}
 
 		window, windowUncles := p2api.StateFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
 
@@ -131,7 +142,10 @@ func main() {
 		for ps := range sidechain.IterateBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
 			if b := window.Get(h); b == nil {
 				if b = windowUncles.Get(h); b == nil {
-					return p2api.ByTemplateId(h)
+					if bs := p2api.LightByTemplateId(h); len(bs) > 0 {
+						return bs[0]
+					}
+					return nil
 				} else {
 					return b
 				}
@@ -217,9 +231,6 @@ func main() {
 			}
 		}
 
-		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-		writer.WriteHeader(http.StatusOK)
-
 		averageEffort := func(limit int) (result float64) {
 			maxI := utils.Min(limit, len(blockEfforts))
 			for i, e := range blockEfforts {
@@ -231,7 +242,7 @@ func main() {
 			return result / float64(maxI)
 		}
 
-		if buf, err := encodeJson(request, poolInfoResult{
+		result := &poolInfoResult{
 			SideChain: poolInfoResultSideChain{
 				Consensus:            p2api.Consensus(),
 				Id:                   tip.SideTemplateId(p2api.Consensus()),
@@ -270,12 +281,27 @@ func main() {
 				P2Pool versionInfo `json:"p2pool"`
 				Monero versionInfo `json:"monero"`
 			}{P2Pool: getP2PoolVersion(), Monero: getMoneroVersion()},
-		}); err != nil {
-			log.Panic(err)
-		} else {
-			_, _ = writer.Write(buf)
 		}
 
+		lastPoolInfo.Store(result)
+	}
+
+	getPoolInfo()
+
+	go func() {
+		for range time.NewTicker(time.Second * 2).C {
+			getPoolInfo()
+		}
+	}()
+
+	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
+		if buf, err := encodeJson(request, lastPoolInfo.Load()); err != nil {
+			log.Panic(err)
+		} else {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(buf)
+		}
 	})
 
 	serveMux.HandleFunc("/api/miner_info/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
