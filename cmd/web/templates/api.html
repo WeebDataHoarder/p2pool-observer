@@ -409,7 +409,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_win
     <div>
         <h3 class="mono">/api/payouts/&lt;id|address&gt;?search_limit=[search_limit]</h3>
         <p>Response contains payouts received by this miner due to blocks on Monero network. Optional parameters are <em>search_limit</em>, maximum amount of records to return, set 0 to return all. Defaults to 10</p>
-        <p><em>.[].coinbase.private_key</em> can be used to prove the payout is correct.</p>
+        <p><em>.[].coinbase_private_key</em> can be used to prove the payout is correct.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
 curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
@@ -585,7 +585,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
 
     <div>
         <h3 class="mono">/api/block_by_id/&lt;blockId&gt;[/light|/raw|/payouts|/coinbase]</h3>
-        <p>Response contains a block/share record on P2Pool by Template or Main Id. You can select the JSON version or the binary format, or the light JSON format of the raw share.</p>
+        <p>Response contains a block/share record on P2Pool by Template, Main Id, or Coinbase Id. You can select the JSON version or the binary format, or the light JSON format of the raw share.</p>
         <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
         <p>Using <em>/coinbase</em> you can query all possible outputs and ownership for found and not found blocks.</p>
         <pre class="smaller">

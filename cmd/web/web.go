@@ -933,7 +933,7 @@ func main() {
 			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", toUint64(miner["id"]), tipHeight, wsize))
 			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"]))).([]any)
 			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", toUint64(miner["id"])))
-			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=5&miner=%d&coinbase", toUint64(miner["id"]))).([]any)
+			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=10&miner=%d", toUint64(miner["id"]))).([]any)
 		}
 
 		sharesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
