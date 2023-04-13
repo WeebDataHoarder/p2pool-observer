@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -1212,6 +1213,135 @@ func main() {
 			buf, _ := encodeJson(request, result)
 			_, _ = writer.Write(buf)
 		}
+	})
+
+	// p2pool.io emulation
+	serveMux.HandleFunc("/api/network/stats", func(writer http.ResponseWriter, request *http.Request) {
+		type networkStats struct {
+			Difficulty uint64     `json:"difficulty"`
+			Hash       types.Hash `json:"hash"`
+			Height     uint64     `json:"height"`
+			Reward     uint64     `json:"reward"`
+			Timestamp  uint64     `json:"timestamp"`
+		}
+
+		mainTip := indexDb.GetMainBlockTip()
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, networkStats{
+			Difficulty: mainTip.Difficulty,
+			Hash:       mainTip.Id,
+			Height:     mainTip.Height,
+			Reward:     mainTip.Reward,
+			Timestamp:  mainTip.Timestamp,
+		})
+		_, _ = writer.Write(buf)
+	})
+	serveMux.HandleFunc("/api/pool/blocks", func(writer http.ResponseWriter, request *http.Request) {
+		type poolBlock struct {
+			Height      uint64     `json:"height"`
+			Hash        types.Hash `json:"hash"`
+			Difficulty  uint64     `json:"difficulty"`
+			TotalHashes uint64     `json:"totalHashes"`
+			Timestamp   uint64     `json:"ts"`
+		}
+
+		blocks := make([]poolBlock, 0, 200)
+		for _, b := range indexDb.GetBlocksFound("", 200) {
+			blocks = append(blocks, poolBlock{
+				Height:      b.MainBlock.Height,
+				Hash:        b.MainBlock.Id,
+				Difficulty:  b.MainBlock.Difficulty,
+				TotalHashes: b.CumulativeDifficulty.Lo,
+				Timestamp:   b.MainBlock.Timestamp,
+			})
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, blocks)
+		_, _ = writer.Write(buf)
+	})
+	serveMux.HandleFunc("/api/pool/stats", func(writer http.ResponseWriter, request *http.Request) {
+		type poolStats struct {
+			PoolList       []string `json:"pool_list"`
+			PoolStatistics struct {
+				HashRate            uint64 `json:"hashRate"`
+				Miners              uint64 `json:"miners"`
+				TotalHashes         uint64 `json:"totalHashes"`
+				LastBlockFoundTime  uint64 `json:"lastBlockFoundTime"`
+				LastBlockFound      uint64 `json:"lastBlockFound"`
+				TotalBlocksFound    uint64 `json:"totalBlocksFound"`
+				PPLNSWindowSize     uint64 `json:"pplnsWindowSize"`
+				SidechainDifficulty uint64 `json:"sidechainDifficulty"`
+				SidechainHeight     uint64 `json:"sidechainHeight"`
+			} `json:"pool_statistics"`
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+
+		poolInfo := lastPoolInfo.Load()
+
+		var lastBlockFound, lastBlockFoundTime uint64
+		for _, b := range indexDb.GetBlocksFound("", 1) {
+			lastBlockFound = b.MainBlock.Height
+			lastBlockFoundTime = b.MainBlock.Timestamp
+		}
+
+		buf, _ := encodeJson(request, poolStats{
+			PoolList: []string{"pplns"},
+			PoolStatistics: struct {
+				HashRate            uint64 `json:"hashRate"`
+				Miners              uint64 `json:"miners"`
+				TotalHashes         uint64 `json:"totalHashes"`
+				LastBlockFoundTime  uint64 `json:"lastBlockFoundTime"`
+				LastBlockFound      uint64 `json:"lastBlockFound"`
+				TotalBlocksFound    uint64 `json:"totalBlocksFound"`
+				PPLNSWindowSize     uint64 `json:"pplnsWindowSize"`
+				SidechainDifficulty uint64 `json:"sidechainDifficulty"`
+				SidechainHeight     uint64 `json:"sidechainHeight"`
+			}{
+				HashRate:            poolInfo.SideChain.Difficulty.Div64(p2api.Consensus().TargetBlockTime).Lo,
+				Miners:              poolInfo.SideChain.Miners,
+				TotalHashes:         poolInfo.SideChain.CumulativeDifficulty.Lo,
+				LastBlockFound:      lastBlockFound,
+				LastBlockFoundTime:  lastBlockFoundTime,
+				TotalBlocksFound:    poolInfo.SideChain.Found,
+				PPLNSWindowSize:     uint64(poolInfo.SideChain.WindowSize),
+				SidechainDifficulty: poolInfo.SideChain.Difficulty.Lo,
+				SidechainHeight:     poolInfo.SideChain.Height,
+			},
+		})
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/config", func(writer http.ResponseWriter, request *http.Request) {
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte("{\"pplns_fee\":0,\"min_wallet_payout\":300000000,\"dev_donation\":0,\"pool_dev_donation\":0,\"maturity_depth\":60,\"min_denom\":1}"))
+	})
+
+	serveMux.HandleFunc("/api/stats_mod", func(writer http.ResponseWriter, request *http.Request) {
+
+		mainTip := indexDb.GetMainBlockTip()
+
+		poolInfo := lastPoolInfo.Load()
+
+		var lastBlockFound, lastBlockFoundTime uint64
+		var lastBlockFoundHash types.Hash
+		var lastBlockCumulativeDifficulty types.Difficulty
+		for _, b := range indexDb.GetBlocksFound("", 1) {
+			lastBlockFound = b.MainBlock.Height
+			lastBlockFoundTime = b.MainBlock.Timestamp
+			lastBlockFoundHash = b.MainBlock.Id
+			lastBlockCumulativeDifficulty = b.CumulativeDifficulty
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte(fmt.Sprintf("{\"config\":{\"ports\":[{\"port\":3333,\"tls\":false}],\"fee\":0,\"minPaymentThreshold\":300000000},\"network\":{\"height\":%d},\"pool\":{\"stats\":{\"lastBlockFound\":\"%d\"},\"blocks\":[\"%s...%s:%d\",\"%d\"],\"miners\":%d,\"hashrate\":%d,\"roundHashes\":%d}}", mainTip.Height, lastBlockFoundTime*1000, hex.EncodeToString(lastBlockFoundHash[:2]), hex.EncodeToString(lastBlockFoundHash[types.HashSize-2:]), lastBlockFoundTime, lastBlockFound, poolInfo.SideChain.Miners, poolInfo.SideChain.Difficulty.Div64(p2api.Consensus().TargetBlockTime).Lo, poolInfo.SideChain.CumulativeDifficulty.Sub(lastBlockCumulativeDifficulty).Lo)))
 	})
 
 	server := &http.Server{
