@@ -406,6 +406,10 @@ func main() {
 		if len(args) != 2 {
 			return nil
 		}
+
+		if toUint64(args[0]) == 0 && toUint64(args[1]) == 0 {
+			return "Not present"
+		}
 		return fmt.Sprintf("%s %s", types2.SoftwareId(toUint64(args[0])).String(), types2.SoftwareVersion(toUint64(args[1])).String())
 	}
 

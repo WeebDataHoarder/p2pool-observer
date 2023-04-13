@@ -111,7 +111,7 @@
             <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Coinbase Private Key Seed</th>
         </tr>
         <tr>
-            <td>{% if raw.ShareVersion()|str != "v1" %}{{ raw.Side.ExtraBuffer.SoftwareId }} {{ raw.Side.ExtraBuffer.SoftwareVersion }}{% else %}Not present{% endif %}</td>
+            <td>{{ software_info(raw.Side.ExtraBuffer.SoftwareId, raw.Side.ExtraBuffer.SoftwareVersion) }}</td>
             <td>{{ raw.ShareVersion() }} <span class="small">({% if raw.ShareVersionSignaling()|str != "none" %}signaling {{ raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
             <td></td>
             <td class="mono smaller">{{ raw.GetPrivateKeySeed() }}</td>
