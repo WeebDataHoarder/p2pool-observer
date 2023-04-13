@@ -693,11 +693,14 @@ func main() {
 		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
 		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
-		shareCount := uint64(currentWindowSize)
+		windowSize := currentWindowSize
+		if toUint64(poolInfo["sidechain"].(map[string]any)["height"]) <= windowSize {
+			windowSize = consensus.ChainWindowSize
+		}
 		size := uint64(30)
 		cacheTime := 30
 		if params.Has("weekly") {
-			shareCount = consensus.ChainWindowSize * 4 * 7
+			windowSize = consensus.ChainWindowSize * 4 * 7
 			size *= 2
 			if params.Has("refresh") {
 				writer.Header().Set("refresh", "3600")
@@ -705,12 +708,12 @@ func main() {
 			cacheTime = 60
 		}
 
-		shares := getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window?window=%d&noMainStatus&noUncles", shareCount), cacheTime)
+		shares := getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window?window=%d&noMainStatus&noUncles", windowSize), cacheTime)
 
 		miners := make(map[uint64]map[string]any, 0)
 
 		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
-		wend := tipHeight - shareCount
+		wend := tipHeight - windowSize
 
 		tip := shares[0]
 
@@ -721,8 +724,8 @@ func main() {
 				miners[miner]["software_id"] = share.SoftwareId
 				miners[miner]["software_version"] = share.SoftwareVersion
 				miners[miner]["weight"] = types.ZeroDifficulty
-				miners[miner]["shares"] = NewPositionChart(size, shareCount)
-				miners[miner]["uncles"] = NewPositionChart(size, shareCount)
+				miners[miner]["shares"] = NewPositionChart(size, windowSize)
+				miners[miner]["uncles"] = NewPositionChart(size, windowSize)
 				if share.MinerAlias != "" {
 					miners[miner]["alias"] = share.MinerAlias
 				}
@@ -738,7 +741,7 @@ func main() {
 					continue
 				}
 				createMiner(share.Miner, share)
-				miners[miner]["uncles"].(*PositionChart).Add(int(toInt64(tip.SideHeight)-toInt64(share.SideHeight)), 1)
+				miners[miner]["uncles"].(*PositionChart).Add(int(int64(tip.SideHeight)-int64(share.SideHeight)), 1)
 
 				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
 				uncleWeight := share.Difficulty - unclePenalty.Lo
@@ -755,7 +758,7 @@ func main() {
 				totalWeight = totalWeight.Add64(share.Difficulty)
 			} else {
 				createMiner(share.Miner, share)
-				miners[miner]["shares"].(*PositionChart).Add(int(toInt64(tip.SideHeight)-toInt64(share.SideHeight)), 1)
+				miners[miner]["shares"].(*PositionChart).Add(int(int64(tip.SideHeight)-int64(share.SideHeight)), 1)
 				miners[miner]["weight"] = miners[miner]["weight"].(types.Difficulty).Add64(share.Difficulty)
 				totalWeight = totalWeight.Add64(share.Difficulty)
 			}

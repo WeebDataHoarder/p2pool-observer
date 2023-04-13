@@ -14,6 +14,10 @@ func (p *PositionChart) Add(index int, value uint64) {
 	if index < 0 || index >= int(p.totalItems) {
 		return
 	}
+	if len(p.bucket) == 1 {
+		p.bucket[0] += value
+		return
+	}
 	i := uint64(index) / ((p.totalItems + uint64(len(p.bucket)) - 1) / uint64(len(p.bucket)))
 	p.bucket[i] += value
 }

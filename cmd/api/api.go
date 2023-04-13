@@ -227,7 +227,7 @@ func main() {
 			if i < (len(lastBlocksFound)-1) && b.CumulativeDifficulty.Cmp64(0) > 0 && lastBlocksFound[i+1].CumulativeDifficulty.Cmp64(0) > 0 {
 				blockEfforts = append(blockEfforts, mapslice.MapItem{
 					Key:   b.MainBlock.Id.String(),
-					Value: getBlockEffort(b.CumulativeDifficulty, lastBlocksFound[i+1].CumulativeDifficulty, networkDifficulty),
+					Value: getBlockEffort(b.CumulativeDifficulty, lastBlocksFound[i+1].CumulativeDifficulty, types.DifficultyFrom64(b.MainBlock.Difficulty)),
 				})
 			}
 		}
