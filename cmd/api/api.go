@@ -113,22 +113,22 @@ func main() {
 
 		oldPoolInfo := lastPoolInfo.Load()
 
-		tip := p2api.Tip()
+		tip := indexDb.GetSideBlockTip()
 
 		blockCount := 0
 		uncleCount := 0
 
 		miners := make(map[uint64]uint64)
 
-		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.SideTemplateId(p2api.Consensus()) {
+		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.TemplateId {
 			//no changes!
 			return
 		}
 
-		window, windowUncles := p2api.StateFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
+		window, windowUncles := p2api.StateFromTemplateId(tip.TemplateId)
 
 		if len(window) == 0 {
-			window, windowUncles = p2api.WindowFromTemplateId(tip.SideTemplateId(p2api.Consensus()))
+			window, windowUncles = p2api.WindowFromTemplateId(tip.TemplateId)
 			if len(window) == 0 {
 				//err
 				log.Panic("empty window")
@@ -139,7 +139,7 @@ func main() {
 
 		var pplnsWeight types.Difficulty
 
-		for ps := range sidechain.IterateBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
+		for ps := range sidechain.IterateBlocksInPPLNSWindow(window[0], p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
 			if b := window.Get(h); b == nil {
 				if b = windowUncles.Get(h); b == nil {
 					if bs := p2api.LightByTemplateId(h); len(bs) > 0 {
@@ -203,8 +203,8 @@ func main() {
 
 		lastBlocksFound := indexDb.GetBlocksFound("", 201)
 
-		mainTip := p2api.MainTip()
-		networkDifficulty := mainTip.Difficulty
+		mainTip := indexDb.GetMainBlockTip()
+		networkDifficulty := types.DifficultyFrom64(mainTip.Difficulty)
 
 		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
 			return float64(blockCumulativeDifficulty.Sub(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
@@ -215,7 +215,7 @@ func main() {
 			lastDiff = lastBlocksFound[0].CumulativeDifficulty
 		}
 
-		currentEffort := getBlockEffort(tip.Side.CumulativeDifficulty, lastDiff, networkDifficulty)
+		currentEffort := getBlockEffort(tip.CumulativeDifficulty, lastDiff, networkDifficulty)
 
 		if currentEffort <= 0 || lastDiff.Cmp64(0) == 0 {
 			currentEffort = 0
@@ -245,11 +245,11 @@ func main() {
 		result := &poolInfoResult{
 			SideChain: poolInfoResultSideChain{
 				Consensus:            p2api.Consensus(),
-				Id:                   tip.SideTemplateId(p2api.Consensus()),
-				Height:               tip.Side.Height,
-				Difficulty:           tip.Side.Difficulty,
-				CumulativeDifficulty: tip.Side.CumulativeDifficulty,
-				Timestamp:            tip.Main.Timestamp,
+				Id:                   tip.TemplateId,
+				Height:               tip.SideHeight,
+				Difficulty:           types.DifficultyFrom64(tip.Difficulty),
+				CumulativeDifficulty: tip.CumulativeDifficulty,
+				Timestamp:            tip.Timestamp,
 				Effort: poolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),

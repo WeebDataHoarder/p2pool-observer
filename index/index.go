@@ -40,6 +40,8 @@ type Index struct {
 		InsertMiner             *sql.Stmt
 		TipSideBlocksTemplateId *sql.Stmt
 		InsertOrUpdateSideBlock *sql.Stmt
+		GetSideBlockByMainId    *sql.Stmt
+		GetSideBlockByUncleId   *sql.Stmt
 	}
 	caches struct {
 		minerLock sync.RWMutex
@@ -94,6 +96,14 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 	}
 
 	if index.statements.InsertOrUpdateSideBlock, err = index.handle.Prepare("INSERT INTO side_blocks (" + SideBlockSelectFields + ") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) ON CONFLICT (main_id) DO UPDATE SET uncle_of = $7, effective_height = $8, inclusion = $21;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.GetSideBlockByMainId, err = index.PrepareSideBlocksByQueryStatement("WHERE main_id = $1;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.GetSideBlockByUncleId, err = index.PrepareSideBlocksByQueryStatement("WHERE uncle_of = $1;"); err != nil {
 		return nil, err
 	}
 
@@ -509,7 +519,7 @@ func (i *Index) GetMainBlockByHeight(height uint64) *MainBlock {
 }
 
 func (i *Index) GetSideBlockByMainId(id types.Hash) *SideBlock {
-	r := i.GetSideBlocksByQuery("WHERE main_id = $1;", id[:])
+	r := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByMainId, id[:])
 	defer func() {
 		for range r {
 
@@ -523,7 +533,7 @@ func (i *Index) GetSideBlocksByTemplateId(id types.Hash) chan *SideBlock {
 }
 
 func (i *Index) GetSideBlocksByUncleId(id types.Hash) chan *SideBlock {
-	return i.GetSideBlocksByQuery("WHERE uncle_of = $1;", id[:])
+	return i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByUncleId, id[:])
 }
 
 func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) *SideBlock {
