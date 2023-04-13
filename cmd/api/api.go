@@ -68,6 +68,7 @@ func main() {
 	defer indexDb.Close()
 
 	fillMainCoinbaseOutputs := func(params url.Values, outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
+		result = make(index.MainCoinbaseOutputs, 0, len(outputs))
 		fillMiner := !params.Has("noMiner")
 		for _, output := range outputs {
 			if fillMiner {
@@ -81,6 +82,7 @@ func main() {
 	}
 
 	fillFoundBlockResult := func(params url.Values, foundBlocks []*index.FoundBlock) (result []*index.FoundBlock) {
+		result = make([]*index.FoundBlock, 0)
 		fillMiner := !params.Has("noMiner")
 		for _, foundBlock := range foundBlocks {
 			if fillMiner {
@@ -94,6 +96,7 @@ func main() {
 	}
 
 	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) (result []*index.SideBlock) {
+		result = make([]*index.SideBlock, 0)
 		fillUncles := !params.Has("noUncles")
 		fillMined := !params.Has("noMainStatus")
 		fillMiner := !params.Has("noMiner")
