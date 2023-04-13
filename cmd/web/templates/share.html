@@ -10,7 +10,7 @@
 
     {% if block.MinedMainAtHeight %}
     <h1 style="color:#00C000">This share mined Monero block at height {{ block.MainHeight }}</h1>
-    {% elseif block.PowDifficulty >= block.MainDifficulty and (not block.MinedMainAtHeight) %}
+    {% elseif (block.MainDifficulty > 0) and (block.PowDifficulty >= block.MainDifficulty) and (not block.MinedMainAtHeight) %}
     <h1 style="color:#E0E000">This share mined Monero block at height {{ block.MainHeight }}, but was orphaned</h1>
     {% endif %}
     {% if block.IsOrphan() %}
@@ -38,7 +38,7 @@
         <tr><td colspan="4"><h2>Share information</h2></td></tr>
         <tr>
             <th style="width: 8em">P2Pool Height</th>
-            <th style="width: 28em">P2Pool Id</th>
+            <th style="width: 28em">P2Pool Template Id</th>
             <th style="width: 8em">Monero Height</th>
             <th style="width: 28em">Monero Id</th>
         </tr>
@@ -107,13 +107,13 @@
         <tr>
             <th>Software</th>
             <th>Version Signaling</th>
-            <th></th>
+            <th>{% if raw.ShareVersion()|str != "v1" %}Template Extra Buffer{% endif %}</th>
             <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Coinbase Private Key Seed</th>
         </tr>
         <tr>
             <td>{{ software_info(raw.Side.ExtraBuffer.SoftwareId, raw.Side.ExtraBuffer.SoftwareVersion) }}</td>
             <td>{{ raw.ShareVersion() }} <span class="small">({% if raw.ShareVersionSignaling()|str != "none" %}signaling {{ raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
-            <td></td>
+            <td class="smaller">{% if raw.ShareVersion()|str != "v1" %}<span class="mono" title="Extra Buffer Random Number">{{ raw.Side.ExtraBuffer.RandomNumber|hex }}</span> / <span class="mono" title="Extra Buffer SideChain Extra Nonce">{{ raw.Side.ExtraBuffer.SideChainExtraNonce|hex }}{% endif %}</span></td>
             <td class="mono smaller">{{ raw.GetPrivateKeySeed() }}</td>
         </tr>
 

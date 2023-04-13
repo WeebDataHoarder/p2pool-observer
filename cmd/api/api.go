@@ -67,6 +67,8 @@ func main() {
 	}
 	defer indexDb.Close()
 
+	var lastPoolInfo atomic.Pointer[poolInfoResult]
+
 	fillMainCoinbaseOutputs := func(params url.Values, outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
 		result = make(index.MainCoinbaseOutputs, 0, len(outputs))
 		fillMiner := !params.Has("noMiner")
@@ -111,6 +113,13 @@ func main() {
 				if mainTipAtHeight != nil {
 					sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
 					sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
+				} else {
+					poolInfo := lastPoolInfo.Load()
+					if (poolInfo.MainChain.Height + 1) == sideBlock.MainHeight {
+						sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.NextDifficulty.Lo
+					} else if poolInfo.MainChain.Height == sideBlock.MainHeight {
+						sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.Difficulty.Lo
+					}
 				}
 			}
 			if fillUncles {
@@ -146,7 +155,6 @@ func main() {
 
 	serveMux := mux.NewRouter()
 
-	var lastPoolInfo atomic.Pointer[poolInfoResult]
 	getPoolInfo := func() {
 
 		oldPoolInfo := lastPoolInfo.Load()
@@ -243,6 +251,7 @@ func main() {
 
 		mainTip := indexDb.GetMainBlockTip()
 		networkDifficulty := types.DifficultyFrom64(mainTip.Difficulty)
+		minerDifficulty := p2api.MinerData().Difficulty
 
 		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
 			return float64(blockCumulativeDifficulty.Sub(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
@@ -312,7 +321,7 @@ func main() {
 			MainChain: poolInfoResultMainChain{
 				Id:         mainTip.Id,
 				Height:     mainTip.Height,
-				Difficulty: networkDifficulty,
+				Difficulty: minerDifficulty,
 				BlockTime:  monero.BlockTime,
 			},
 			Versions: struct {

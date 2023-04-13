@@ -848,10 +848,8 @@ func main() {
 		var rawBlock any
 		if len(identifier) == 64 {
 			block = getSideBlockFromAPI(fmt.Sprintf("block_by_id/%s", identifier))
-			rawBlock = getFromAPI(fmt.Sprintf("block_by_id/%s/raw", identifier))
 		} else {
 			block = getSideBlockFromAPI(fmt.Sprintf("block_by_height/%s", identifier))
-			rawBlock = getFromAPI(fmt.Sprintf("block_by_height/%s/raw", identifier))
 		}
 
 		if block == nil {
@@ -863,9 +861,10 @@ func main() {
 			render(request, writer, "error.html", ctx)
 			return
 		}
+		rawBlock = getFromAPI(fmt.Sprintf("block_by_id/%s/raw", block.MainId))
 
 		if block.MinedMainAtHeight {
-			coinbase = getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", identifier))
+			coinbase = getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 		}
 
 		poolInfo := getFromAPI("pool_info", 5)

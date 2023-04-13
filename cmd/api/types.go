@@ -60,10 +60,11 @@ type poolInfoResultSideChainWindow struct {
 }
 
 type poolInfoResultMainChain struct {
-	Id         types.Hash       `json:"id"`
-	Height     uint64           `json:"height"`
-	Difficulty types.Difficulty `json:"difficulty"`
-	BlockTime  int              `json:"block_time"`
+	Id             types.Hash       `json:"id"`
+	Height         uint64           `json:"height"`
+	Difficulty     types.Difficulty `json:"difficulty"`
+	NextDifficulty types.Difficulty `json:"next_difficulty"`
+	BlockTime      int              `json:"block_time"`
 }
 
 type minerInfoBlockData struct {
