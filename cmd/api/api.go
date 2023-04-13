@@ -319,10 +319,11 @@ func main() {
 				Miners:        totalKnown.minersKnown,
 			},
 			MainChain: poolInfoResultMainChain{
-				Id:         mainTip.Id,
-				Height:     mainTip.Height,
-				Difficulty: minerDifficulty,
-				BlockTime:  monero.BlockTime,
+				Id:             mainTip.Id,
+				Height:         mainTip.Height,
+				Difficulty:     networkDifficulty,
+				NextDifficulty: minerDifficulty,
+				BlockTime:      monero.BlockTime,
 			},
 			Versions: struct {
 				P2Pool versionInfo `json:"p2pool"`

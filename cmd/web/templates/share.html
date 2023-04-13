@@ -70,7 +70,7 @@
             {% else %}
             <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% endif %}
-            <td class="mono">{{ block.Difficulty }}</td>
+            <td><span class="mono">{{ block.Difficulty }}</span> / <span class="mono" title="Proof of Work Difficulty">{{ block.PowDifficulty }}</span></td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
@@ -98,10 +98,10 @@
             <th>Monero Target Difficulty</th>
         </tr>
         <tr>
-            <td class="mono">{{ raw.Main.Nonce|hex }}</td>
+            <td class="mono" title="{{ block.Nonce|hex }}">{{ block.Nonce }}</td>
             <td class="mono smaller">{{ raw.Side.CumulativeDifficulty }}</td>
-            <td class="mono">{{ extra_nonce(raw)|hex }}</td>
-            <td class="mono smaller">{{ block.MainDifficulty }}</td>
+            <td class="mono" title="{{ block.ExtraNonce|hex }}">{{ block.ExtraNonce }}</td>
+            <td class="mono">{{ block.MainDifficulty }}</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
@@ -113,7 +113,7 @@
         <tr>
             <td>{{ software_info(raw.Side.ExtraBuffer.SoftwareId, raw.Side.ExtraBuffer.SoftwareVersion) }}</td>
             <td>{{ raw.ShareVersion() }} <span class="small">({% if raw.ShareVersionSignaling()|str != "none" %}signaling {{ raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
-            <td class="smaller">{% if raw.ShareVersion()|str != "v1" %}<span class="mono" title="Extra Buffer Random Number">{{ raw.Side.ExtraBuffer.RandomNumber|hex }}</span> / <span class="mono" title="Extra Buffer SideChain Extra Nonce">{{ raw.Side.ExtraBuffer.SideChainExtraNonce|hex }}{% endif %}</span></td>
+            <td class="small">{% if raw.ShareVersion()|str != "v1" %}<span class="mono" title="Random Number">{{ raw.Side.ExtraBuffer.RandomNumber|hex }}</span> / <span class="mono" title="SideChain Extra Nonce">{{ raw.Side.ExtraBuffer.SideChainExtraNonce|hex }}{% endif %}</span></td>
             <td class="mono smaller">{{ raw.GetPrivateKeySeed() }}</td>
         </tr>
 
