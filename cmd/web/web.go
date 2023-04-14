@@ -22,10 +22,13 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/html"
+	"io"
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -330,6 +333,13 @@ func main() {
 		}
 
 		return s
+	}
+
+	env.Functions["is_nil"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return false
+		}
+		return args[0] == nil || (reflect.ValueOf(args[0]).Kind() == reflect.Pointer && reflect.ValueOf(args[0]).IsNil())
 	}
 
 	env.Functions["is_zero_hash"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -690,6 +700,160 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		render(request, writer, "calculate-share-time.html", ctx)
+	})
+
+	serveMux.HandleFunc("/transaction-lookup", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var txId types.Hash
+		if params.Has("txid") {
+			txId, _ = types.HashFromString(params.Get("txid"))
+		}
+
+		type transactionLookupResult struct {
+			Id     types.Hash                                `json:"id"`
+			Inputs index.TransactionInputQueryResults        `json:"inputs"`
+			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
+		}
+
+		var results []transactionLookupResult
+
+		if txId != types.ZeroHash {
+			txLookupPath := fmt.Sprintf("transaction_lookup/%s", txId.String())
+			txResult := getFromAPIRaw(txLookupPath)
+
+			var r, r2 transactionLookupResult
+
+			if json.Unmarshal(txResult, &r) == nil && r.Id == txId {
+				results = append(results, r)
+			}
+
+			if consensus.IsMini() && os.Getenv("NET_SERVICE_ADDRESS") == "mini.p2pool.observer" {
+				//lookup main observer
+				uri, _ := url.Parse(utils2.GetSiteUrl(utils2.SiteKeyP2PoolObserver, false) + "/" + txLookupPath)
+				if response, err := http.DefaultClient.Do(&http.Request{
+					Method: "GET",
+					URL:    uri,
+				}); err == nil {
+					defer response.Body.Close()
+					if response.StatusCode == http.StatusOK {
+						if data, err := io.ReadAll(response.Body); err == nil {
+							if json.Unmarshal(data, &r2) == nil && r2.Id == txId {
+								results = append(results, r2)
+							}
+						}
+					}
+				}
+			} else if consensus.IsDefault() && os.Getenv("NET_SERVICE_ADDRESS") == "p2pool.observer" {
+				//lookup mini observer
+				uri, _ := url.Parse(utils2.GetSiteUrl(utils2.SiteKeyP2PoolObserverMini, false) + "/" + txLookupPath)
+				if response, err := http.DefaultClient.Do(&http.Request{
+					Method: "GET",
+					URL:    uri,
+				}); err == nil {
+					defer response.Body.Close()
+					if response.StatusCode == http.StatusOK {
+						if data, err := io.ReadAll(response.Body); err == nil {
+							if json.Unmarshal(data, &r2) == nil && r2.Id == txId {
+								results = append(results, r2)
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if len(results) > 0 {
+			var fullResult transactionLookupResult
+			fullResult.Id = results[0].Id
+			fullResult.Inputs = results[0].Inputs
+			for _, otherResult := range results[1:] {
+				for i, input := range otherResult.Inputs {
+					for j, output := range input.MatchedOutputs {
+						if output == nil {
+							continue
+						}
+						fullResult.Inputs[i].MatchedOutputs[j] = &index.MainCoinbaseOutput{
+							Id:                output.Id,
+							Index:             output.Index,
+							GlobalOutputIndex: output.GlobalOutputIndex,
+							Miner:             0,
+							Value:             output.Value,
+							MinerAddress:      output.MinerAddress,
+							MinerAlias:        output.MinerAlias,
+						}
+					}
+				}
+			}
+			fullResult.Match = fullResult.Inputs.MatchViaAddress()
+
+			var topMiner *index.TransactionInputQueryResultsMatch
+			for i, m := range fullResult.Match {
+				if m.MinerAddress == nil {
+					continue
+				} else if topMiner == nil {
+					topMiner = &fullResult.Match[i]
+				} else {
+					if topMiner.Count <= 2 && topMiner.Count == m.Count {
+						//if count is not greater
+						topMiner = nil
+					}
+					break
+				}
+			}
+
+			if topMiner != nil {
+				var noMinerCount, minerCount, otherMinerCount uint64
+				for _, i := range fullResult.Inputs {
+					var isNoMiner, isMiner, isOtherMiner bool
+					for _, o := range i.MatchedOutputs {
+						if o == nil {
+							isNoMiner = true
+						} else if topMiner.MinerAddress.Compare(o.MinerAddress) == 0 {
+							isMiner = true
+							break
+						} else {
+							isOtherMiner = true
+						}
+					}
+
+					if isMiner {
+						minerCount++
+					} else if isOtherMiner {
+						otherMinerCount++
+					} else if isNoMiner {
+						noMinerCount++
+					}
+				}
+
+				minerRatio := float64(topMiner.Count) / float64(len(fullResult.Inputs))
+				noMinerRatio := float64(noMinerCount) / float64(len(fullResult.Inputs))
+				otherMinerRatio := float64(otherMinerCount) / float64(len(fullResult.Inputs))
+				var likelyMiner bool
+				if minerRatio >= noMinerRatio || (len(fullResult.Inputs) > 16 && minerRatio > 0.33) {
+					likelyMiner = true
+				}
+				ctx := make(map[string]stick.Value)
+				ctx["txid"] = txId
+				ctx["result"] = fullResult
+				ctx["likely_miner"] = likelyMiner
+				ctx["no_miner_count"] = noMinerCount
+				ctx["other_miner_count"] = otherMinerCount
+				ctx["miner"] = topMiner
+				ctx["miner_ratio"] = minerRatio * 100
+				ctx["no_miner_ratio"] = noMinerRatio * 100
+				ctx["other_miner_ratio"] = otherMinerRatio * 100
+
+				render(request, writer, "transaction-lookup.html", ctx)
+				return
+			}
+		}
+
+		ctx := make(map[string]stick.Value)
+		ctx["txid"] = txId
+
+		render(request, writer, "transaction-lookup.html", ctx)
 	})
 
 	serveMux.HandleFunc("/blocks", func(writer http.ResponseWriter, request *http.Request) {

@@ -20,7 +20,7 @@ func NewPackedAddress(spend, view crypto.PublicKey) (result PackedAddress) {
 }
 
 func (p *PackedAddress) Bytes() []byte {
-	return (*[crypto.PublicKeySize*2]byte)(unsafe.Pointer(p))[:]
+	return (*[crypto.PublicKeySize * 2]byte)(unsafe.Pointer(p))[:]
 }
 
 func (p *PackedAddress) PublicKeys() (spend, view crypto.PublicKey) {
@@ -45,8 +45,8 @@ func (p *PackedAddress) Compare(otherI Interface) int {
 	//golang might free other otherwise
 	defer runtime.KeepAlive(other)
 	defer runtime.KeepAlive(p)
-	a := (*[(2*crypto.PublicKeySize)/8]uint64)(unsafe.Pointer(p))
-	b := (*[(2*crypto.PublicKeySize)/8]uint64)(unsafe.Pointer(other))
+	a := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(p))
+	b := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(other))
 
 	//compare spend key
 
@@ -112,6 +112,7 @@ func (p *PackedAddress) Compare(otherI Interface) int {
 }
 
 func (p *PackedAddress) ToAddress() *Address {
+	//TODO: consensus here
 	return FromRawAddress(moneroutil.MainNetwork, p.SpendPublicKey(), p.ViewPublicKey())
 }
 

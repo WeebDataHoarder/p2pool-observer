@@ -56,7 +56,7 @@ var existingUrl = map[siteKey]url{
 		Onion: "http://gitshn5x75sgs53q3pxwjva2z65ns5vadx3h7u3hrdssbxsova66cxid.onion",
 	},
 	SiteKeyXmrChainNet: {
-		Host:  "https://xmrchain.net/",
+		Host:  "https://xmrchain.net",
 		Onion: "http://gitshn5x75sgs53q3pxwjva2z65ns5vadx3h7u3hrdssbxsova66cxid.onion",
 	},
 }

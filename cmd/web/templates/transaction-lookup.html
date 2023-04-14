@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %} - Transaction Lookup{% endblock %}
+
+{% block content %}
+
+<div style="text-align: center">
+    <form action="/transaction-lookup" method="get">
+        <h2>Transaction Lookup</h2>
+        <p>
+            This tool looks up inputs used in the transaction decoys and correlates it against known P2Pool outputs. It then displays the likeliness of the transaction being a <em>sweep transaction</em> by a specific miner.
+            <br/>
+            <small>Do note false positives can be found. However, large sweep transactions with many inputs will most likely be correct.</small>
+            <br/>
+            If available, this tool will query other P2Pool SideChains.
+        </p>
+        <div>
+            <label for="txid">Transaction Id</label><br/>
+            <input type="text" name="txid" id="txid" placeholder="e1c88cd5fb5538edfcb4814c286cb0af02b7800f50a86e50626014124aec2f1e" size="64" maxlength="64" class="mono" value="{% if not is_zero_hash(txid) %}{{ txid }}{% endif %}"/>
+        </div>
+        <div style="margin-top: 10px">
+            <input type="submit" value="Lookup" style="width: 20em;"/>
+        </div>
+    </form>
+</div>
+
+
+
+{% if not is_zero_hash(txid) %}
+<hr/>
+<div style="text-align: center">
+    <h1>Transaction Lookup Result</h1>
+    {% if (miner is not defined) %}
+    <p>Not enough miner results found.</p>
+    {% else %}
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em + 15em + 15em);">
+        <tr>
+            <td colspan="6">
+                <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{{ txid|henc }}">{{ txid }}</a></p>
+                {% set minerAddress = miner.MinerAddress.ToBase58() %}
+                <p><strong>Miner Payout Address:</strong> <a href="/miner/{{ minerAddress }}"><span class="mono small">{{ minerAddress }}</span></a></p>
+                <p><strong>Likely:</strong> {% if likely_miner %}Yes{% else %}Not likely{% endif %}</p>
+            </td>
+        </tr>
+        <tr style="line-height: 1.5;">
+            <td style="width: 15em"><strong>Total Inputs</strong><br/>{{ result.Inputs|length }}</td>
+            <td style="width: 15em"><strong>Unknown Inputs</strong><br/>{{ no_miner_count }} ({{no_miner_ratio|round(3) }}%)</td>
+            <td style="width: 15em"><strong>Other Miner Inputs</strong><br/>{{ other_miner_count }} ({{other_miner_ratio|round(3) }}%)</td>
+            <td style="width: 15em"><strong>Top Miner Inputs</strong><br/>{{ miner.Count }} ({{miner_ratio|round(3) }}%)</td>
+            <td style="width: 15em"><strong>Top Miner Inputs Amount</strong><br/>{{ monero_to_xmr(miner.Amount) }} XMR</td>
+            <td style="width: 15em"></td>
+        </tr>
+        <tr><th colspan="6">&nbsp;</th></tr>
+
+        <tr><th>Input Index</th><th>Input Key Image</th><th>Decoy Address</th><th>Decoy Output</th><th>Global Output Index</th><th>Decoy Value</th></tr>
+        {% for index, input in result.Inputs %}
+
+            {% set outputCount = 0 %}
+            {% set noMinerCount = 0 %}
+            {% for oindex, o in input.MatchedOutputs %}
+                {% if is_nil(o) %}
+                    {% set noMinerCount = add_uint(noMinerCount, 1) %}
+                    {% if outputCount > 0 %}
+                    </tr><tr><td colspan="2"></td>
+                    {% else %}
+                    <tr>
+                        <td>{{ index }}</td>
+                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
+                    {% endif %}
+                    <td>No known miner.</td>
+                    <td>-</td>
+                    <td>{{ input.Input.KeyOffsets[oindex] }}</td>
+                    <td>-</td>
+                    </tr>
+                {% else %}
+                    {% if outputCount > 0 %}
+                        </tr><tr {% if o.MinerAddress.ToBase58() == minerAddress %} class="hl-found"{% endif %}><td colspan="2"></td>
+                    {% else %}
+                    <tr {% if o.MinerAddress.ToBase58() == minerAddress %} class="hl-found"{% endif %}>
+                        <td>{{ index }}</td>
+                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
+                    {% endif %}
+                    <td title="{{ o.MinerAddress.ToBase58() }}" class="mono small"><a href="/miner/{{ o.MinerAddress.ToBase58() }}">{{ o.MinerAddress.ToBase58()|shorten(10) }}</a></td>
+                    <td title="{{ o.Id }}" class="mono small"><a href="/t/{{ o.Id|henc }}">{{ (o.Id|hex)|shorten(10) }}</a> #{{ o.Index }}</td>
+                    <td>{{ o.GlobalOutputIndex }}</td>
+                    <td class="small">{{ monero_to_xmr(o.Value) }} XMR</td>
+                    </tr>
+                {% endif %}
+                {% set outputCount = add_uint(outputCount, 1) %}
+            {% endfor %}
+            <tr><th colspan="6">&nbsp;</th></tr>
+        {% endfor %}
+    </table>
+
+    {% endif %}
+</div>
+{% endif %}
+
+
+{% endblock %}

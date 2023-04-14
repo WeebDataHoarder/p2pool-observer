@@ -869,6 +869,66 @@ func (r TransactionInputQueryResults) Match() (result []TransactionInputQueryRes
 	return result
 }
 
+func (r TransactionInputQueryResults) MatchViaAddress() (result []TransactionInputQueryResultsMatch) {
+	//cannot have more than one of same miner outputs valid per input
+	//no miner outputs in whole input doesn't count
+	//cannot take vsame exact miner outputs on different inputs
+	//TODO
+
+	var zeroAddress address.PackedAddress
+	minerCountsTotal := make(map[address.PackedAddress]uint64)
+	for _, matchResult := range r {
+		minerCountsInInput := make(map[address.PackedAddress]uint64)
+		for _, o := range matchResult.MatchedOutputs {
+			if o != nil {
+				minerCountsInInput[*o.MinerAddress.ToPackedAddress()]++
+			}
+		}
+		for minerId, count := range minerCountsInInput {
+			if count > 1 {
+				minerCountsInInput[minerId] = 1
+				//cannot have more than one of our outputs valid per input
+			}
+			minerCountsTotal[minerId]++
+		}
+		if len(minerCountsInInput) == 0 {
+			minerCountsTotal[zeroAddress]++
+		}
+	}
+
+	result = make([]TransactionInputQueryResultsMatch, 0, len(minerCountsTotal))
+
+	for k, v := range minerCountsTotal {
+		addr := k.ToAddress().ToPackedAddress().ToAddress()
+		if k == zeroAddress {
+			addr = nil
+		}
+		result = append(result, TransactionInputQueryResultsMatch{
+			MinerAddress: addr,
+			Count:        v,
+			Amount: func() (result uint64) {
+				for _, matchResult := range r {
+					for _, o := range matchResult.MatchedOutputs {
+						if o == nil {
+							continue
+						}
+						if addr != nil && o.MinerAddress.Compare(addr) == 0 {
+							result += o.Value
+						}
+					}
+				}
+				return result
+			}(),
+		})
+	}
+
+	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) bool {
+		return a.Count > b.Count
+	})
+
+	return result
+}
+
 func (i *Index) QueryTransactionInputs(inputs []client.TransactionInput) TransactionInputQueryResults {
 	result := make(TransactionInputQueryResults, len(inputs))
 	for index, input := range inputs {
