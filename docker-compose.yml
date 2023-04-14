@@ -22,7 +22,6 @@ services:
       SERVICE1_TOR_SERVICE_VERSION: '3'
       SERVICE1_TOR_SERVICE_KEY: ${TOR_SERVICE_KEY}
       TOR_EXTRA_OPTIONS: |
-        SocksPort 0
         HiddenServiceNonAnonymousMode 1
         HiddenServiceSingleHopMode 1
     depends_on:
