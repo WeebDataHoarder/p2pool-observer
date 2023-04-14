@@ -16,6 +16,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
 	_ "github.com/lib/pq"
+	"golang.org/x/exp/slices"
 	"log"
 	"reflect"
 	"strings"
@@ -796,13 +797,23 @@ func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint6
 }
 
 type TransactionInputQueryResult struct {
-	Input          client.TransactionInput
-	MatchedOutputs []*MainCoinbaseOutput
+	Input          client.TransactionInput `json:"input"`
+	MatchedOutputs []*MainCoinbaseOutput   `json:"matched_outputs"`
 }
 
 type TransactionInputQueryResults []TransactionInputQueryResult
 
-func (r TransactionInputQueryResults) Match() {
+type TransactionInputQueryResultsMatch struct {
+	Miner uint64 `json:"miner"`
+	Count uint64 `json:"count"`
+
+	// Extra information filled just for JSON purposes
+
+	MinerAddress *address.Address `json:"miner_address,omitempty"`
+	MinerAlias   string           `json:"miner_alias,omitempty"`
+}
+
+func (r TransactionInputQueryResults) Match() (result []TransactionInputQueryResultsMatch) {
 	//cannot have more than one of same miner outputs valid per input
 	//no miner outputs in whole input doesn't count
 	//cannot take vsame exact miner outputs on different inputs
@@ -823,12 +834,31 @@ func (r TransactionInputQueryResults) Match() {
 			}
 			minerCountsTotal[minerId]++
 		}
+		if len(minerCountsInInput) == 0 {
+			minerCountsTotal[0]++
+		}
 	}
+
+	result = make([]TransactionInputQueryResultsMatch, 0, len(minerCountsTotal))
+
+	for k, v := range minerCountsTotal {
+		result = append(result, TransactionInputQueryResultsMatch{
+			Miner: k,
+			Count: v,
+		})
+	}
+
+	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) bool {
+		return a.Count > b.Count
+	})
+
+	return result
 }
 
 func (i *Index) QueryTransactionInputs(inputs []client.TransactionInput) TransactionInputQueryResults {
 	result := make(TransactionInputQueryResults, len(inputs))
 	for index, input := range inputs {
+		result[index].Input = input
 		result[index].MatchedOutputs = make([]*MainCoinbaseOutput, len(input.KeyOffsets))
 		if input.Amount != 0 {
 			continue

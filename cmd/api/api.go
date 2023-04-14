@@ -430,6 +430,77 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
+	serveMux.HandleFunc("/api/transaction_lookup/{txid:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+		txId, err := types.HashFromString(mux.Vars(request)["txid"])
+		if err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		txs, err := client.GetDefaultClient().GetTransactionInputs(request.Context(), txId)
+		if err != nil || len(txs) != 1 {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		tx := txs[0]
+
+		inputResult := indexDb.QueryTransactionInputs(tx.Inputs)
+
+		inputMatch := inputResult.Match()
+
+		type transactionLookupResult struct {
+			Id     types.Hash                                `json:"id"`
+			Inputs index.TransactionInputQueryResults        `json:"inputs"`
+			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
+		}
+
+		for _, r := range inputResult {
+			for _, output := range r.MatchedOutputs {
+				if output == nil {
+					continue
+				}
+				miner := indexDb.GetMiner(output.Miner)
+				output.MinerAddress = miner.Address()
+				output.MinerAlias = miner.Alias()
+			}
+		}
+
+		for i, r := range inputMatch {
+			if r.Miner == 0 {
+				continue
+			}
+			miner := indexDb.GetMiner(r.Miner)
+			r.MinerAddress = miner.Address()
+			r.MinerAlias = miner.Alias()
+			inputMatch[i] = r
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, transactionLookupResult{
+			Id:     tx.Id,
+			Inputs: inputResult,
+			Match:  inputMatch,
+		})
+		_, _ = writer.Write(buf)
+
+	})
+
 	serveMux.HandleFunc("/api/miner_alias/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		miner := indexDb.GetMinerByStringAddress(minerId)

@@ -1,9 +1,7 @@
 package client
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -169,16 +167,15 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 }
 
 type TransactionInputResult struct {
-	Id         types.Hash
-	UnlockTime uint64
-	Inputs     []TransactionInput
+	Id         types.Hash         `json:"id"`
+	UnlockTime uint64             `json:"unlock_time"`
+	Inputs     []TransactionInput `json:"inputs"`
 }
 
 type TransactionInput struct {
-	InputType  uint8
-	Amount     uint64
-	KeyOffsets []uint64
-	KeyImage   types.Hash
+	Amount     uint64     `json:"amount"`
+	KeyOffsets []uint64   `json:"key_offsets"`
+	KeyImage   types.Hash `json:"key_image"`
 }
 
 // GetTransactionInputs get transaction input information for several transactions, including key images and global key offsets
@@ -198,67 +195,25 @@ func (c *Client) GetTransactionInputs(ctx context.Context, hashes ...types.Hash)
 			return nil, errors.New("invalid transaction count")
 		}
 
-		var (
-			Version    uint8
-			InputCount uint8
-
-			OffsetCount uint8
-		)
-
 		s := make([]TransactionInputResult, len(result.Txs))
 
-		for ix := range result.Txs {
+		jsonTxs, err := result.GetTransactions()
+		if err != nil {
+			return nil, err
+		}
+		for ix, tx := range jsonTxs {
 			s[ix].Id = hashes[ix]
-			if buf, err := hex.DecodeString(result.Txs[ix].AsHex); err != nil {
-				return nil, err
-			} else {
-				reader := bytes.NewReader(buf)
-				if Version, err = reader.ReadByte(); err != nil {
-					return nil, err
-				}
+			s[ix].UnlockTime = uint64(tx.UnlockTime)
 
-				if Version != 2 {
-					return nil, errors.New("version not supported")
-				}
-
-				if s[ix].UnlockTime, err = binary.ReadUvarint(reader); err != nil {
-					return nil, err
-				}
-
-				if InputCount, err = reader.ReadByte(); err != nil {
-					return nil, err
-				}
-
-				s[ix].Inputs = make([]TransactionInput, InputCount)
-
-				for i := 0; i < int(InputCount); i++ {
-					if s[ix].Inputs[i].InputType, err = reader.ReadByte(); err != nil {
-						return nil, err
-					}
-					if s[ix].Inputs[i].Amount, err = binary.ReadUvarint(reader); err != nil {
-						return nil, err
-					}
-					if s[ix].Inputs[i].InputType != transaction.TxInToKey {
-						continue
-					}
-					if OffsetCount, err = reader.ReadByte(); err != nil {
-						return nil, err
-					}
-
-					s[ix].Inputs[i].KeyOffsets = make([]uint64, OffsetCount)
-
-					for j := 0; j < int(OffsetCount); j++ {
-						if s[ix].Inputs[i].KeyOffsets[j], err = binary.ReadUvarint(reader); err != nil {
-							return nil, err
-						}
-
-						if j > 0 {
-							s[ix].Inputs[i].KeyOffsets[j] += s[ix].Inputs[i].KeyOffsets[j-1]
-						}
-					}
-
-					if err = binary.Read(reader, binary.LittleEndian, &s[ix].Inputs[i].KeyImage); err != nil {
-						return nil, err
+			s[ix].Inputs = make([]TransactionInput, len(tx.Vin))
+			for i, input := range tx.Vin {
+				s[ix].Inputs[i].Amount = uint64(input.Key.Amount)
+				s[ix].Inputs[i].KeyImage, _ = types.HashFromString(input.Key.KImage)
+				s[ix].Inputs[i].KeyOffsets = make([]uint64, len(input.Key.KeyOffsets))
+				for j, o := range input.Key.KeyOffsets {
+					s[ix].Inputs[i].KeyOffsets[j] = uint64(o)
+					if j > 0 {
+						s[ix].Inputs[i].KeyOffsets[j] += s[ix].Inputs[i].KeyOffsets[j-1]
 					}
 				}
 			}
