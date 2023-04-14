@@ -15,6 +15,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 	"golang.org/x/exp/slices"
 	"log"
@@ -796,130 +797,108 @@ func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint6
 	return &output
 }
 
-type TransactionInputQueryResult struct {
-	Input          client.TransactionInput `json:"input"`
-	MatchedOutputs []*MainCoinbaseOutput   `json:"matched_outputs"`
+func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndex(globalOutputIndex uint64) *MainLikelySweepTransaction {
+	var tx MainLikelySweepTransaction
+	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE ARRAY[$1]::bigint[] <@ global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
+		if err := tx.ScanFromRow(i, row); err != nil {
+			return err
+		}
+		return nil
+	}, globalOutputIndex); err != nil {
+		return nil
+	}
+	if tx.Id == types.ZeroHash {
+		return nil
+	}
+	return &tx
 }
 
+type TransactionInputQueryResult struct {
+	Input          client.TransactionInput `json:"input"`
+	MatchedOutputs []*MatchedOutput        `json:"matched_outputs"`
+}
+
+type MatchedOutput struct {
+	Coinbase          *MainCoinbaseOutput         `json:"coinbase,omitempty"`
+	Sweep             *MainLikelySweepTransaction `json:"sweep,omitempty"`
+	GlobalOutputIndex uint64                      `json:"global_output_index"`
+	Timestamp         uint64                      `json:"timestamp"`
+	Address           *address.Address            `json:"address"`
+}
+
+type MinimalTransactionInputQueryResult struct {
+	Input          client.TransactionInput `json:"input"`
+	MatchedOutputs []*MinimalMatchedOutput `json:"matched_outputs"`
+}
+
+type MinimalMatchedOutput struct {
+	Coinbase          types.Hash       `json:"coinbase,omitempty"`
+	Sweep             types.Hash       `json:"sweep,omitempty"`
+	GlobalOutputIndex uint64           `json:"global_output_index"`
+	Address           *address.Address `json:"address"`
+}
+
+type MinimalTransactionInputQueryResults []TransactionInputQueryResult
 type TransactionInputQueryResults []TransactionInputQueryResult
 
 type TransactionInputQueryResultsMatch struct {
-	Miner  uint64 `json:"miner"`
-	Count  uint64 `json:"count"`
-	Amount uint64 `json:"amount"`
-
-	// Extra information filled just for JSON purposes
-
-	MinerAddress *address.Address `json:"miner_address,omitempty"`
-	MinerAlias   string           `json:"miner_alias,omitempty"`
+	Address        *address.Address `json:"address"`
+	Count          uint64           `json:"count"`
+	SweepCount     uint64           `json:"sweep_count"`
+	CoinbaseCount  uint64           `json:"coinbase_count"`
+	CoinbaseAmount uint64           `json:"coinbase_amount"`
 }
+type TransactionInputQueryResultsMatches []TransactionInputQueryResultsMatch
 
-func (r TransactionInputQueryResults) Match() (result []TransactionInputQueryResultsMatch) {
-	//cannot have more than one of same miner outputs valid per input
-	//no miner outputs in whole input doesn't count
-	//cannot take vsame exact miner outputs on different inputs
-	//TODO
-
-	minerCountsTotal := make(map[uint64]uint64)
-	for _, matchResult := range r {
-		minerCountsInInput := make(map[uint64]uint64)
-		for _, o := range matchResult.MatchedOutputs {
-			if o != nil {
-				minerCountsInInput[o.Miner]++
-			}
-		}
-		for minerId, count := range minerCountsInInput {
-			if count > 1 {
-				minerCountsInInput[minerId] = 1
-				//cannot have more than one of our outputs valid per input
-			}
-			minerCountsTotal[minerId]++
-		}
-		if len(minerCountsInInput) == 0 {
-			minerCountsTotal[0]++
-		}
-	}
-
-	result = make([]TransactionInputQueryResultsMatch, 0, len(minerCountsTotal))
-
-	for k, v := range minerCountsTotal {
-		result = append(result, TransactionInputQueryResultsMatch{
-			Miner: k,
-			Count: v,
-			Amount: func() (result uint64) {
-				for _, matchResult := range r {
-					for _, o := range matchResult.MatchedOutputs {
-						if o == nil {
-							continue
-						}
-						if o.Miner == k {
-							result += o.Value
-						}
-					}
-				}
-				return result
-			}(),
-		})
-	}
-
-	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) bool {
-		return a.Count > b.Count
-	})
-
-	return result
-}
-
-func (r TransactionInputQueryResults) MatchViaAddress() (result []TransactionInputQueryResultsMatch) {
+func (r TransactionInputQueryResults) Match() (result TransactionInputQueryResultsMatches) {
 	//cannot have more than one of same miner outputs valid per input
 	//no miner outputs in whole input doesn't count
 	//cannot take vsame exact miner outputs on different inputs
 	//TODO
 
 	var zeroAddress address.PackedAddress
-	minerCountsTotal := make(map[address.PackedAddress]uint64)
+	miners := make(map[address.PackedAddress]*TransactionInputQueryResultsMatch)
+	miners[zeroAddress] = &TransactionInputQueryResultsMatch{
+		Address:        nil,
+		Count:          0,
+		SweepCount:     0,
+		CoinbaseCount:  0,
+		CoinbaseAmount: 0,
+	}
+
+	//TODO: handle same miner multiple times in same decoy
+
 	for _, matchResult := range r {
-		minerCountsInInput := make(map[address.PackedAddress]uint64)
 		for _, o := range matchResult.MatchedOutputs {
 			if o != nil {
-				minerCountsInInput[*o.MinerAddress.ToPackedAddress()]++
+				pA := *o.Address.ToPackedAddress()
+				if _, ok := miners[pA]; !ok {
+					miners[pA] = &TransactionInputQueryResultsMatch{
+						Address:        o.Address,
+						Count:          0,
+						SweepCount:     0,
+						CoinbaseCount:  0,
+						CoinbaseAmount: 0,
+					}
+				}
+
+				if o.Coinbase != nil {
+					miners[pA].CoinbaseCount++
+					miners[pA].CoinbaseAmount += o.Coinbase.Value
+				} else if o.Sweep != nil {
+					miners[pA].SweepCount++
+				}
+				miners[pA].Count++
+			} else {
+				miners[zeroAddress].Count++
 			}
-		}
-		for minerId, count := range minerCountsInInput {
-			if count > 1 {
-				minerCountsInInput[minerId] = 1
-				//cannot have more than one of our outputs valid per input
-			}
-			minerCountsTotal[minerId]++
-		}
-		if len(minerCountsInInput) == 0 {
-			minerCountsTotal[zeroAddress]++
 		}
 	}
 
-	result = make([]TransactionInputQueryResultsMatch, 0, len(minerCountsTotal))
+	result = make([]TransactionInputQueryResultsMatch, 0, len(miners))
 
-	for k, v := range minerCountsTotal {
-		addr := k.ToAddress().ToPackedAddress().ToAddress()
-		if k == zeroAddress {
-			addr = nil
-		}
-		result = append(result, TransactionInputQueryResultsMatch{
-			MinerAddress: addr,
-			Count:        v,
-			Amount: func() (result uint64) {
-				for _, matchResult := range r {
-					for _, o := range matchResult.MatchedOutputs {
-						if o == nil {
-							continue
-						}
-						if addr != nil && o.MinerAddress.Compare(addr) == 0 {
-							result += o.Value
-						}
-					}
-				}
-				return result
-			}(),
-		})
+	for _, v := range miners {
+		result = append(result, *v)
 	}
 
 	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) bool {
@@ -933,14 +912,61 @@ func (i *Index) QueryTransactionInputs(inputs []client.TransactionInput) Transac
 	result := make(TransactionInputQueryResults, len(inputs))
 	for index, input := range inputs {
 		result[index].Input = input
-		result[index].MatchedOutputs = make([]*MainCoinbaseOutput, len(input.KeyOffsets))
+		result[index].MatchedOutputs = make([]*MatchedOutput, len(input.KeyOffsets))
 		if input.Amount != 0 {
 			continue
 		}
-		for ki, k := range input.KeyOffsets {
-			//TODO: query many at once
-			result[index].MatchedOutputs[ki] = i.GetMainCoinbaseOutputByGlobalOutputIndex(k)
+		result[index].MatchedOutputs = i.QueryGlobalOutputIndices(input.KeyOffsets)
+	}
+	return result
+}
+
+func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
+	result := make([]*MatchedOutput, len(indices))
+
+	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index IN $1::bigint[] ORDER BY index ASC;", func(row RowScanInterface) error {
+		var o MainCoinbaseOutput
+		if err := o.ScanFromRow(i, row); err != nil {
+			return err
 		}
+		if index := slices.Index(indices, o.GlobalOutputIndex); index != -1 {
+			result[index] = &MatchedOutput{
+				Coinbase:          &o,
+				Sweep:             nil,
+				GlobalOutputIndex: o.GlobalOutputIndex,
+				Address:           i.GetMiner(o.Miner).Address(),
+			}
+			if mb := i.GetMainBlockByCoinbaseId(o.Id); mb != nil {
+				result[index].Timestamp = mb.Timestamp
+			}
+		}
+		return nil
+	}, pq.Array(indices)); err != nil {
+		return nil
+	}
+
+	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
+		var tx MainLikelySweepTransaction
+		if err := tx.ScanFromRow(i, row); err != nil {
+			return err
+		}
+		for _, globalOutputIndex := range tx.GlobalOutputIndices {
+			// fill all possible indices
+			if index := slices.Index(indices, globalOutputIndex); index != -1 {
+				if result[index] == nil {
+					result[index] = &MatchedOutput{
+						Coinbase:          nil,
+						Sweep:             &tx,
+						GlobalOutputIndex: globalOutputIndex,
+						Timestamp:         tx.Timestamp,
+						Address:           tx.Address,
+					}
+				}
+			}
+		}
+		return nil
+	}, pq.Array(indices)); err != nil {
+		return nil
 	}
 	return result
 }

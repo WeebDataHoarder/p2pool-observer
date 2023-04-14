@@ -29,37 +29,46 @@
 {% if not is_zero_hash(txid) %}
 <hr/>
 <div style="text-align: center">
-    <h1>Transaction Lookup Result</h1>
+    <h2>Transaction Lookup Result</h2>
     {% if (miner is not defined) %}
     <p>Not enough miner results found.</p>
     {% else %}
-    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em + 15em + 15em);">
+    <table class="center" style="max-width: calc(8em + 15em + 15em + 15em + 15em + 15em);">
         <tr>
             <td colspan="6">
                 <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{{ txid|henc }}">{{ txid }}</a></p>
-                {% set minerAddress = miner.MinerAddress.ToBase58() %}
+                {% set minerAddress = miner.Address.ToBase58() %}
                 <p><strong>Miner Payout Address:</strong> <a href="/miner/{{ minerAddress }}"><span class="mono small">{{ minerAddress }}</span></a></p>
                 <p><strong>Likely:</strong> {% if likely_miner %}Yes{% else %}Not likely{% endif %}</p>
             </td>
         </tr>
         <tr style="line-height: 1.5;">
-            <td style="width: 15em"><strong>Total Inputs</strong><br/>{{ result.Inputs|length }}</td>
+            <td style="width: 8em"><strong>Total Inputs</strong><br/>{{ result.Inputs|length }}</td>
             <td style="width: 15em"><strong>Unknown Inputs</strong><br/>{{ no_miner_count }} ({{no_miner_ratio|round(3) }}%)</td>
             <td style="width: 15em"><strong>Other Miner Inputs</strong><br/>{{ other_miner_count }} ({{other_miner_ratio|round(3) }}%)</td>
             <td style="width: 15em"><strong>Top Miner Inputs</strong><br/>{{ miner.Count }} ({{miner_ratio|round(3) }}%)</td>
-            <td style="width: 15em"><strong>Top Miner Inputs Amount</strong><br/>{{ monero_to_xmr(miner.Amount) }} XMR</td>
-            <td style="width: 15em"></td>
+            <td style="width: 15em"><strong>Coinbase Inputs Amount</strong><br/>{{ monero_to_xmr(miner.CoinbaseAmount) }} XMR</td>
+            <td style="width: 15em"><strong>Coinbase / Sweep Inputs</strong><br/>{{ miner.CoinbaseCount }} / {{ miner.SweepCount }}</td>
         </tr>
+        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr><th colspan="6">
+            <h3>Miner inputs time scale (from {{ utc_date(bottom_timestamp) }} to {{ utc_date(top_timestamp) }})</h3>
+            <code class="mono">{{ miner_coinbase_chart }}</code>
+            <code class="mono">{{ miner_sweep_chart }}</code>
+        </th></tr>
+        <tr><th colspan="6">
+            <h3>Other Miner inputs time scale (from {{ utc_date(bottom_timestamp) }} to {{ utc_date(top_timestamp) }})</h3>
+            <code class="mono">{{ other_miner_coinbase_chart }}</code>
+            <code class="mono">{{ other_miner_sweep_chart }}</code>
+        </th></tr>
         <tr><th colspan="6">&nbsp;</th></tr>
 
         <tr><th>Input Index</th><th>Input Key Image</th><th>Decoy Address</th><th>Decoy Output</th><th>Global Output Index</th><th>Decoy Value</th></tr>
         {% for index, input in result.Inputs %}
 
             {% set outputCount = 0 %}
-            {% set noMinerCount = 0 %}
             {% for oindex, o in input.MatchedOutputs %}
                 {% if is_nil(o) %}
-                    {% set noMinerCount = add_uint(noMinerCount, 1) %}
                     {% if outputCount > 0 %}
                     </tr><tr><td colspan="2"></td>
                     {% else %}
@@ -67,23 +76,38 @@
                         <td>{{ index }}</td>
                         <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
                     {% endif %}
-                    <td>No known miner.</td>
-                    <td>-</td>
-                    <td>{{ input.Input.KeyOffsets[oindex] }}</td>
-                    <td>-</td>
+                    <td class="small">No known miner.</td>
+                    <td class="small">-</td>
+                    <td class="small">{{ input.Input.KeyOffsets[oindex] }}</td>
+                    <td class="small">-</td>
                     </tr>
                 {% else %}
                     {% if outputCount > 0 %}
-                        </tr><tr {% if o.MinerAddress.ToBase58() == minerAddress %} class="hl-found"{% endif %}><td colspan="2"></td>
+                        </tr><tr {% if o.Address.ToBase58() == minerAddress %} class="hl-found"{% endif %}><td colspan="2"></td>
                     {% else %}
-                    <tr {% if o.MinerAddress.ToBase58() == minerAddress %} class="hl-found"{% endif %}>
+                    <tr {% if o.Address.ToBase58() == minerAddress %} class="hl-found"{% endif %}>
                         <td>{{ index }}</td>
                         <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
                     {% endif %}
-                    <td title="{{ o.MinerAddress.ToBase58() }}" class="mono small"><a href="/miner/{{ o.MinerAddress.ToBase58() }}">{{ o.MinerAddress.ToBase58()|shorten(10) }}</a></td>
-                    <td title="{{ o.Id }}" class="mono small"><a href="/t/{{ o.Id|henc }}">{{ (o.Id|hex)|shorten(10) }}</a> #{{ o.Index }}</td>
+                    <td title="{{ o.MinerAddress.ToBase58() }}" class="mono small"><a href="/miner/{{ o.Address.ToBase58() }}">{{ o.Address.ToBase58()|shorten(10) }}</a></td>
+                    {% if not is_nil(o.Coinbase) %}
+                    <td title="{{ o.Coinbase.Id }}" class="mono small"><a href="/t/{{ o.Coinbase.Id|henc }}">{{ (o.Coinbase.Id|hex)|shorten(10) }}</a> #{{ o.Coinbase.Index }}</td>
+                    <td class="small">{{ o.GlobalOutputIndex }}</td>
+                    <td class="small">Coinbase {{ monero_to_xmr(o.Coinbase.Value) }} XMR</td>
+                    {% elseif not is_nil(o.Sweep) %}
+                    <td title="{{ o.Sweep.Id }}" class="mono small"><a href="/t/{{ o.Sweep.Id|henc }}">{{ (o.Sweep.Id|hex)|shorten(10) }}</a>
+                    {% for oindex, goi in o.Sweep.GlobalOutputIndices %}
+                        {% if goi == o.GlobalOutputIndex %}
+                        #{{ oindex }} of {{ o.Sweep.GlobalOutputIndices|length }}
+                        {% endif %}
+                    {% endfor %}</td>
+                    <td class="small">{{ o.GlobalOutputIndex }}</td>
+                    <td class="small">Previous Sweep</td>
+                    {% else %}
+                    <td class="small">Unknown type</td>
                     <td>{{ o.GlobalOutputIndex }}</td>
-                    <td class="small">{{ monero_to_xmr(o.Value) }} XMR</td>
+                    <td class="small">-</td>
+                    {% endif %}
                     </tr>
                 {% endif %}
                 {% set outputCount = add_uint(outputCount, 1) %}

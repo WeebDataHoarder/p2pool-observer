@@ -774,23 +774,15 @@ func main() {
 						if output == nil {
 							continue
 						}
-						fullResult.Inputs[i].MatchedOutputs[j] = &index.MainCoinbaseOutput{
-							Id:                output.Id,
-							Index:             output.Index,
-							GlobalOutputIndex: output.GlobalOutputIndex,
-							Miner:             0,
-							Value:             output.Value,
-							MinerAddress:      output.MinerAddress,
-							MinerAlias:        output.MinerAlias,
-						}
+						fullResult.Inputs[i].MatchedOutputs[j] = output
 					}
 				}
 			}
-			fullResult.Match = fullResult.Inputs.MatchViaAddress()
+			fullResult.Match = fullResult.Inputs.Match()
 
 			var topMiner *index.TransactionInputQueryResultsMatch
 			for i, m := range fullResult.Match {
-				if m.MinerAddress == nil {
+				if m.Address == nil {
 					continue
 				} else if topMiner == nil {
 					topMiner = &fullResult.Match[i]
@@ -803,6 +795,37 @@ func main() {
 				}
 			}
 
+			var topTimestamp, bottomTimestamp uint64 = 0, math.MaxUint64
+
+			for _, i := range fullResult.Inputs {
+				for _, o := range i.MatchedOutputs {
+					if o == nil {
+						continue
+					}
+					if o.Timestamp != 0 {
+						if topTimestamp < o.Timestamp {
+							topTimestamp = o.Timestamp
+						}
+						if bottomTimestamp > o.Timestamp {
+							bottomTimestamp = o.Timestamp
+						}
+					}
+				}
+			}
+
+			timeScaleItems := topTimestamp - bottomTimestamp
+			if bottomTimestamp == math.MaxUint64 {
+				timeScaleItems = 0
+			}
+			minerCoinbaseChart := NewPositionChart(170, timeScaleItems)
+			minerCoinbaseChart.SetIdle('_')
+			minerSweepChart := NewPositionChart(170, timeScaleItems)
+			minerSweepChart.SetIdle('_')
+			otherCoinbaseMinerChart := NewPositionChart(170, timeScaleItems)
+			otherCoinbaseMinerChart.SetIdle('_')
+			otherSweepMinerChart := NewPositionChart(170, timeScaleItems)
+			otherSweepMinerChart.SetIdle('_')
+
 			if topMiner != nil {
 				var noMinerCount, minerCount, otherMinerCount uint64
 				for _, i := range fullResult.Inputs {
@@ -810,11 +833,24 @@ func main() {
 					for _, o := range i.MatchedOutputs {
 						if o == nil {
 							isNoMiner = true
-						} else if topMiner.MinerAddress.Compare(o.MinerAddress) == 0 {
+						} else if topMiner.Address.Compare(o.Address) == 0 {
 							isMiner = true
-							break
+							if o.Timestamp != 0 {
+								if o.Coinbase != nil {
+									minerCoinbaseChart.Add(int(topTimestamp-o.Timestamp), 1)
+								} else if o.Sweep != nil {
+									minerSweepChart.Add(int(topTimestamp-o.Timestamp), 1)
+								}
+							}
 						} else {
 							isOtherMiner = true
+							if o.Timestamp != 0 {
+								if o.Coinbase != nil {
+									otherCoinbaseMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
+								} else if o.Sweep != nil {
+									otherSweepMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
+								}
+							}
 						}
 					}
 
@@ -844,6 +880,12 @@ func main() {
 				ctx["miner_ratio"] = minerRatio * 100
 				ctx["no_miner_ratio"] = noMinerRatio * 100
 				ctx["other_miner_ratio"] = otherMinerRatio * 100
+				ctx["top_timestamp"] = topTimestamp
+				ctx["bottom_timestamp"] = bottomTimestamp
+				ctx["miner_coinbase_chart"] = minerCoinbaseChart.String()
+				ctx["other_miner_coinbase_chart"] = otherCoinbaseMinerChart.String()
+				ctx["miner_sweep_chart"] = minerSweepChart.String()
+				ctx["other_miner_sweep_chart"] = otherSweepMinerChart.String()
 
 				render(request, writer, "transaction-lookup.html", ctx)
 				return

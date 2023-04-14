@@ -21,7 +21,7 @@ import (
 // keep last few main blocks
 var mainBlockCache = lru.New[types.Hash, *block.Block](100)
 
-func getMainBlock(id types.Hash, client *client.Client) (*block.Block, error) {
+func GetMainBlock(id types.Hash, client *client.Client) (*block.Block, error) {
 	if bb := mainBlockCache.Get(id); bb == nil {
 		blockData, err := client.GetBlock(id, context.Background())
 		if err != nil {
@@ -89,7 +89,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 
 	log.Printf("checking block %s at height %d: %d candidate(s)", mainId, h.Height, len(candidates))
 
-	mainBlock, err := getMainBlock(mainId, client)
+	mainBlock, err := GetMainBlock(mainId, client)
 	if err != nil {
 		log.Printf("could not get main block: %e", err)
 		// insert errored block as-is

@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"io"
 	"log"
 	"lukechampine.com/uint128"
 	"math"
@@ -430,6 +431,51 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
+	serveMux.HandleFunc("/api/global_indices_lookup", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusMethodNotAllowed)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_allowed",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		buf, err := io.ReadAll(request.Body)
+		if err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "bad_request",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+		var indices []uint64
+		if err = json.Unmarshal(buf, &indices); err != nil || len(indices) == 0 {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "bad_request",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ = encodeJson(request, indexDb.QueryGlobalOutputIndices(indices))
+		_, _ = writer.Write(buf)
+
+	})
+
 	serveMux.HandleFunc("/api/transaction_lookup/{txid:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 		txId, err := types.HashFromString(mux.Vars(request)["txid"])
 		if err != nil {
@@ -467,27 +513,6 @@ func main() {
 			Id     types.Hash                                `json:"id"`
 			Inputs index.TransactionInputQueryResults        `json:"inputs"`
 			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
-		}
-
-		for _, r := range inputResult {
-			for _, output := range r.MatchedOutputs {
-				if output == nil {
-					continue
-				}
-				miner := indexDb.GetMiner(output.Miner)
-				output.MinerAddress = miner.Address()
-				output.MinerAlias = miner.Alias()
-			}
-		}
-
-		for i, r := range inputMatch {
-			if r.Miner == 0 {
-				continue
-			}
-			miner := indexDb.GetMiner(r.Miner)
-			r.MinerAddress = miner.Address()
-			r.MinerAlias = miner.Alias()
-			inputMatch[i] = r
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")

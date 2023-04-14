@@ -92,12 +92,30 @@ CREATE TABLE IF NOT EXISTS main_coinbase_outputs (
 CREATE INDEX IF NOT EXISTS main_coinbase_outputs_id_idx ON main_coinbase_outputs (id);
 CREATE INDEX IF NOT EXISTS main_coinbase_outputs_miner_idx ON main_coinbase_outputs (miner);
 
--- TODO, maybe also use intarray module
--- CREATE TABLE IF NOT EXISTS main_coinbase_sweep_transactions (
---    id bytea NOT NULL, -- transaction id
---    indexes bigint[] NOT NULL, -- Monero global output indexes used
---    miner bigint NOT NULL, -- plausible owner of the transaction
---    -- not possible yet in postgres FOREIGN KEY (EACH ELEMENT OF indexes) REFERENCES main_coinbase_outputs (global_output_index),
---    FOREIGN KEY (miner) REFERENCES miners (id)
---);
---CREATE INDEX main_coinbase_sweep_transactions_indexes_idx ON main_coinbase_outputs USING GIN (indexes);
+CREATE TABLE IF NOT EXISTS main_likely_sweep_transactions (
+    id bytea PRIMARY KEY NOT NULL, -- transaction id
+    timestamp bigint NOT NULL, -- when the transaction was made / included in block
+    result jsonb NOT NULL, -- MinimalTransactionInputQueryResults
+    match jsonb NOT NULL, -- TransactionInputQueryResultsMatch
+    value bigint NOT NULL,
+    spending_output_indices bigint[] NOT NULL, -- global output indices consumed by this transaction (including decoys)
+    global_output_indices bigint[] NOT NULL, -- global output indices produced by this transaction
+
+    input_count integer NOT NULL, -- count of inputs
+    input_decoy_count integer NOT NULL, -- count of decoys per input
+
+    miner_count integer NOT NULL,
+    other_miners_count integer NOT NULL,
+    no_miner_count integer NOT NULL,
+
+    miner_ratio real NOT NULL,
+    other_miners_ratio real NOT NULL,
+    no_miner_ratio real NOT NULL,
+
+    miner_spend_public_key bytea NOT NULL, -- plausible owner of the transaction
+    miner_view_public_key bytea NOT NULL
+);
+CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_miner_idx ON main_likely_sweep_transactions (miner_spend_public_key, miner_view_public_key);
+
+CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_spending_output_indexes_idx ON main_likely_sweep_transactions USING GIN (spending_output_indices);
+CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_global_output_indexes_idx ON main_likely_sweep_transactions USING GIN (global_output_indices);

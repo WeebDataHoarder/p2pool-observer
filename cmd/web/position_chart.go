@@ -8,10 +8,11 @@ import (
 type PositionChart struct {
 	totalItems uint64
 	bucket     []uint64
+	idle       byte
 }
 
 func (p *PositionChart) Add(index int, value uint64) {
-	if index < 0 || index >= int(p.totalItems) {
+	if index < 0 || index > int(p.totalItems) {
 		return
 	}
 	if len(p.bucket) == 1 {
@@ -37,6 +38,10 @@ func (p *PositionChart) Resolution() uint64 {
 	return p.totalItems / uint64(len(p.bucket))
 }
 
+func (p *PositionChart) SetIdle(idleChar byte) {
+	p.idle = idleChar
+}
+
 func (p *PositionChart) String() string {
 	position := make([]byte, 2*2+len(p.bucket))
 	position[0], position[1] = '[', '<'
@@ -49,7 +54,7 @@ func (p *PositionChart) String() string {
 				position[2+i] = 0x30 + byte(e)
 			}
 		} else {
-			position[2+i] = '.'
+			position[2+i] = p.idle
 		}
 	}
 
@@ -76,7 +81,7 @@ func (p *PositionChart) StringWithSeparator(index int) string {
 				position[2+i] = 0x30 + byte(e)
 			}
 		} else {
-			position[2+i] = '.'
+			position[2+i] = p.idle
 		}
 	}
 
@@ -87,5 +92,6 @@ func NewPositionChart(size uint64, totalItems uint64) *PositionChart {
 	return &PositionChart{
 		totalItems: totalItems,
 		bucket:     make([]uint64, size),
+		idle:       '.',
 	}
 }
