@@ -924,7 +924,7 @@ func (i *Index) QueryTransactionInputs(inputs []client.TransactionInput) Transac
 func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
 	result := make([]*MatchedOutput, len(indices))
 
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index IN $1::bigint[] ORDER BY index ASC;", func(row RowScanInterface) error {
+	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index = ANY($1) ORDER BY index ASC;", func(row RowScanInterface) error {
 		var o MainCoinbaseOutput
 		if err := o.ScanFromRow(i, row); err != nil {
 			return err

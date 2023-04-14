@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"github.com/lib/pq"
 )
 
 const MainLikelySweepTransactionSelectFields = "id, timestamp, result, match, value, spending_output_indices, global_output_indices, input_count, input_decoy_count, miner_count, other_miners_count, no_miner_count, miner_ratio, other_miners_ratio, no_miner_ratio, miner_spend_public_key, miner_view_public_key"
@@ -39,7 +40,7 @@ type MainLikelySweepTransaction struct {
 func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface) error {
 	var spendPub, viewPub crypto.PublicKeyBytes
 	var resultBuf, matchBuf []byte
-	if err := row.Scan(&t.Id, &t.Timestamp, &resultBuf, &matchBuf, &t.Value, &t.SpendingOutputIndices, &t.GlobalOutputIndices, &t.InputCount, &t.InputDecoyCount, &t.MinerCount, &t.OtherMinersCount, &t.NoMinerCount, &t.MinerRatio, &t.OtherMinersRatio, &t.NoMinerRatio, &spendPub, &viewPub); err != nil {
+	if err := row.Scan(&t.Id, &t.Timestamp, &resultBuf, &matchBuf, &t.Value, pq.Array(&t.SpendingOutputIndices), pq.Array(&t.GlobalOutputIndices), &t.InputCount, &t.InputDecoyCount, &t.MinerCount, &t.OtherMinersCount, &t.NoMinerCount, &t.MinerRatio, &t.OtherMinersRatio, &t.NoMinerRatio, &spendPub, &viewPub); err != nil {
 		return err
 	} else if err = json.Unmarshal(resultBuf, &t.Result); err != nil {
 		return err
