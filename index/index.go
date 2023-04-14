@@ -804,8 +804,9 @@ type TransactionInputQueryResult struct {
 type TransactionInputQueryResults []TransactionInputQueryResult
 
 type TransactionInputQueryResultsMatch struct {
-	Miner uint64 `json:"miner"`
-	Count uint64 `json:"count"`
+	Miner  uint64 `json:"miner"`
+	Count  uint64 `json:"count"`
+	Amount uint64 `json:"amount"`
 
 	// Extra information filled just for JSON purposes
 
@@ -820,9 +821,9 @@ func (r TransactionInputQueryResults) Match() (result []TransactionInputQueryRes
 	//TODO
 
 	minerCountsTotal := make(map[uint64]uint64)
-	for _, result := range r {
+	for _, matchResult := range r {
 		minerCountsInInput := make(map[uint64]uint64)
-		for _, o := range result.MatchedOutputs {
+		for _, o := range matchResult.MatchedOutputs {
 			if o != nil {
 				minerCountsInInput[o.Miner]++
 			}
@@ -845,6 +846,19 @@ func (r TransactionInputQueryResults) Match() (result []TransactionInputQueryRes
 		result = append(result, TransactionInputQueryResultsMatch{
 			Miner: k,
 			Count: v,
+			Amount: func() (result uint64) {
+				for _, matchResult := range r {
+					for _, o := range matchResult.MatchedOutputs {
+						if o == nil {
+							continue
+						}
+						if o.Miner == k {
+							result += o.Value
+						}
+					}
+				}
+				return result
+			}(),
 		})
 	}
 
