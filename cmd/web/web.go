@@ -22,11 +22,9 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/html"
-	"io"
 	"log"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -717,179 +715,123 @@ func main() {
 			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
 		}
 
-		var results []transactionLookupResult
-
 		if txId != types.ZeroHash {
-			txLookupPath := fmt.Sprintf("transaction_lookup/%s", txId.String())
-			txResult := getFromAPIRaw(txLookupPath)
+			txResult := getFromAPIRaw(fmt.Sprintf("transaction_lookup/%s", txId.String()))
 
-			var r, r2 transactionLookupResult
-
-			if json.Unmarshal(txResult, &r) == nil && r.Id == txId {
-				results = append(results, r)
-			}
-
-			if consensus.IsMini() && os.Getenv("NET_SERVICE_ADDRESS") == "mini.p2pool.observer" {
-				//lookup main observer
-				uri, _ := url.Parse(utils2.GetSiteUrl(utils2.SiteKeyP2PoolObserver, false) + "/" + txLookupPath)
-				if response, err := http.DefaultClient.Do(&http.Request{
-					Method: "GET",
-					URL:    uri,
-				}); err == nil {
-					defer response.Body.Close()
-					if response.StatusCode == http.StatusOK {
-						if data, err := io.ReadAll(response.Body); err == nil {
-							if json.Unmarshal(data, &r2) == nil && r2.Id == txId {
-								results = append(results, r2)
-							}
-						}
-					}
-				}
-			} else if consensus.IsDefault() && os.Getenv("NET_SERVICE_ADDRESS") == "p2pool.observer" {
-				//lookup mini observer
-				uri, _ := url.Parse(utils2.GetSiteUrl(utils2.SiteKeyP2PoolObserverMini, false) + "/" + txLookupPath)
-				if response, err := http.DefaultClient.Do(&http.Request{
-					Method: "GET",
-					URL:    uri,
-				}); err == nil {
-					defer response.Body.Close()
-					if response.StatusCode == http.StatusOK {
-						if data, err := io.ReadAll(response.Body); err == nil {
-							if json.Unmarshal(data, &r2) == nil && r2.Id == txId {
-								results = append(results, r2)
-							}
-						}
-					}
-				}
-			}
-		}
-
-		if len(results) > 0 {
 			var fullResult transactionLookupResult
-			fullResult.Id = results[0].Id
-			fullResult.Inputs = results[0].Inputs
-			for _, otherResult := range results[1:] {
-				for i, input := range otherResult.Inputs {
-					for j, output := range input.MatchedOutputs {
-						if output == nil {
-							continue
-						}
-						fullResult.Inputs[i].MatchedOutputs[j] = output
-					}
-				}
-			}
-			fullResult.Match = fullResult.Inputs.Match()
 
-			var topMiner *index.TransactionInputQueryResultsMatch
-			for i, m := range fullResult.Match {
-				if m.Address == nil {
-					continue
-				} else if topMiner == nil {
-					topMiner = &fullResult.Match[i]
-				} else {
-					if topMiner.Count <= 2 && topMiner.Count == m.Count {
-						//if count is not greater
-						topMiner = nil
-					}
-					break
-				}
-			}
-
-			var topTimestamp, bottomTimestamp uint64 = 0, math.MaxUint64
-
-			for _, i := range fullResult.Inputs {
-				for _, o := range i.MatchedOutputs {
-					if o == nil {
+			if json.Unmarshal(txResult, &fullResult) == nil && fullResult.Id == txId {
+				var topMiner *index.TransactionInputQueryResultsMatch
+				for i, m := range fullResult.Match {
+					if m.Address == nil {
 						continue
-					}
-					if o.Timestamp != 0 {
-						if topTimestamp < o.Timestamp {
-							topTimestamp = o.Timestamp
+					} else if topMiner == nil {
+						topMiner = &fullResult.Match[i]
+					} else {
+						if topMiner.Count <= 2 && topMiner.Count == m.Count {
+							//if count is not greater
+							topMiner = nil
 						}
-						if bottomTimestamp > o.Timestamp {
-							bottomTimestamp = o.Timestamp
-						}
+						break
 					}
 				}
-			}
 
-			timeScaleItems := topTimestamp - bottomTimestamp
-			if bottomTimestamp == math.MaxUint64 {
-				timeScaleItems = 0
-			}
-			minerCoinbaseChart := NewPositionChart(170, timeScaleItems)
-			minerCoinbaseChart.SetIdle('_')
-			minerSweepChart := NewPositionChart(170, timeScaleItems)
-			minerSweepChart.SetIdle('_')
-			otherCoinbaseMinerChart := NewPositionChart(170, timeScaleItems)
-			otherCoinbaseMinerChart.SetIdle('_')
-			otherSweepMinerChart := NewPositionChart(170, timeScaleItems)
-			otherSweepMinerChart.SetIdle('_')
+				var topTimestamp, bottomTimestamp uint64 = 0, math.MaxUint64
 
-			if topMiner != nil {
-				var noMinerCount, minerCount, otherMinerCount uint64
 				for _, i := range fullResult.Inputs {
-					var isNoMiner, isMiner, isOtherMiner bool
 					for _, o := range i.MatchedOutputs {
 						if o == nil {
-							isNoMiner = true
-						} else if topMiner.Address.Compare(o.Address) == 0 {
-							isMiner = true
-							if o.Timestamp != 0 {
-								if o.Coinbase != nil {
-									minerCoinbaseChart.Add(int(topTimestamp-o.Timestamp), 1)
-								} else if o.Sweep != nil {
-									minerSweepChart.Add(int(topTimestamp-o.Timestamp), 1)
-								}
+							continue
+						}
+						if o.Timestamp != 0 {
+							if topTimestamp < o.Timestamp {
+								topTimestamp = o.Timestamp
 							}
-						} else {
-							isOtherMiner = true
-							if o.Timestamp != 0 {
-								if o.Coinbase != nil {
-									otherCoinbaseMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
-								} else if o.Sweep != nil {
-									otherSweepMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
-								}
+							if bottomTimestamp > o.Timestamp {
+								bottomTimestamp = o.Timestamp
 							}
 						}
 					}
+				}
 
-					if isMiner {
-						minerCount++
-					} else if isOtherMiner {
-						otherMinerCount++
-					} else if isNoMiner {
-						noMinerCount++
+				timeScaleItems := topTimestamp - bottomTimestamp
+				if bottomTimestamp == math.MaxUint64 {
+					timeScaleItems = 0
+				}
+				minerCoinbaseChart := NewPositionChart(170, timeScaleItems)
+				minerCoinbaseChart.SetIdle('_')
+				minerSweepChart := NewPositionChart(170, timeScaleItems)
+				minerSweepChart.SetIdle('_')
+				otherCoinbaseMinerChart := NewPositionChart(170, timeScaleItems)
+				otherCoinbaseMinerChart.SetIdle('_')
+				otherSweepMinerChart := NewPositionChart(170, timeScaleItems)
+				otherSweepMinerChart.SetIdle('_')
+
+				if topMiner != nil {
+					var noMinerCount, minerCount, otherMinerCount uint64
+					for _, i := range fullResult.Inputs {
+						var isNoMiner, isMiner, isOtherMiner bool
+						for _, o := range i.MatchedOutputs {
+							if o == nil {
+								isNoMiner = true
+							} else if topMiner.Address.Compare(o.Address) == 0 {
+								isMiner = true
+								if o.Timestamp != 0 {
+									if o.Coinbase != nil {
+										minerCoinbaseChart.Add(int(topTimestamp-o.Timestamp), 1)
+									} else if o.Sweep != nil {
+										minerSweepChart.Add(int(topTimestamp-o.Timestamp), 1)
+									}
+								}
+							} else {
+								isOtherMiner = true
+								if o.Timestamp != 0 {
+									if o.Coinbase != nil {
+										otherCoinbaseMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
+									} else if o.Sweep != nil {
+										otherSweepMinerChart.Add(int(topTimestamp-o.Timestamp), 1)
+									}
+								}
+							}
+						}
+
+						if isMiner {
+							minerCount++
+						} else if isOtherMiner {
+							otherMinerCount++
+						} else if isNoMiner {
+							noMinerCount++
+						}
 					}
-				}
 
-				minerRatio := float64(minerCount) / float64(len(fullResult.Inputs))
-				noMinerRatio := float64(noMinerCount) / float64(len(fullResult.Inputs))
-				otherMinerRatio := float64(otherMinerCount) / float64(len(fullResult.Inputs))
-				var likelyMiner bool
-				if (len(fullResult.Inputs) > 8 && minerRatio >= noMinerRatio) || (len(fullResult.Inputs) > 8 && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) >= 4 && minerRatio > 0.9) {
-					likelyMiner = true
-				}
-				ctx := make(map[string]stick.Value)
-				ctx["txid"] = txId
-				ctx["result"] = fullResult
-				ctx["likely_miner"] = likelyMiner
-				ctx["miner_count"] = minerCount
-				ctx["no_miner_count"] = noMinerCount
-				ctx["other_miner_count"] = otherMinerCount
-				ctx["miner"] = topMiner
-				ctx["miner_ratio"] = minerRatio * 100
-				ctx["no_miner_ratio"] = noMinerRatio * 100
-				ctx["other_miner_ratio"] = otherMinerRatio * 100
-				ctx["top_timestamp"] = topTimestamp
-				ctx["bottom_timestamp"] = bottomTimestamp
-				ctx["miner_coinbase_chart"] = minerCoinbaseChart.String()
-				ctx["other_miner_coinbase_chart"] = otherCoinbaseMinerChart.String()
-				ctx["miner_sweep_chart"] = minerSweepChart.String()
-				ctx["other_miner_sweep_chart"] = otherSweepMinerChart.String()
+					minerRatio := float64(minerCount) / float64(len(fullResult.Inputs))
+					noMinerRatio := float64(noMinerCount) / float64(len(fullResult.Inputs))
+					otherMinerRatio := float64(otherMinerCount) / float64(len(fullResult.Inputs))
+					var likelyMiner bool
+					if (len(fullResult.Inputs) > 8 && minerRatio >= noMinerRatio) || (len(fullResult.Inputs) > 8 && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) >= 4 && minerRatio > 0.9) {
+						likelyMiner = true
+					}
+					ctx := make(map[string]stick.Value)
+					ctx["txid"] = txId
+					ctx["result"] = fullResult
+					ctx["likely_miner"] = likelyMiner
+					ctx["miner_count"] = minerCount
+					ctx["no_miner_count"] = noMinerCount
+					ctx["other_miner_count"] = otherMinerCount
+					ctx["miner"] = topMiner
+					ctx["miner_ratio"] = minerRatio * 100
+					ctx["no_miner_ratio"] = noMinerRatio * 100
+					ctx["other_miner_ratio"] = otherMinerRatio * 100
+					ctx["top_timestamp"] = topTimestamp
+					ctx["bottom_timestamp"] = bottomTimestamp
+					ctx["miner_coinbase_chart"] = minerCoinbaseChart.String()
+					ctx["other_miner_coinbase_chart"] = otherCoinbaseMinerChart.String()
+					ctx["miner_sweep_chart"] = minerSweepChart.String()
+					ctx["other_miner_sweep_chart"] = otherSweepMinerChart.String()
 
-				render(request, writer, "transaction-lookup.html", ctx)
-				return
+					render(request, writer, "transaction-lookup.html", ctx)
+					return
+				}
 			}
 		}
 

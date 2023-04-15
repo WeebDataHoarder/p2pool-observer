@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -490,8 +491,46 @@ func main() {
 			return
 		}
 
-		txs, err := client.GetDefaultClient().GetTransactionInputs(request.Context(), txId)
-		if err != nil || len(txs) != 1 {
+		var otherLookupHostFunc func(ctx context.Context, indices []uint64) []*index.MatchedOutput
+
+		if os.Getenv("TRANSACTION_LOOKUP_OTHER") != "" {
+			otherLookupHostFunc = func(ctx context.Context, indices []uint64) (result []*index.MatchedOutput) {
+				data, _ := json.Marshal(indices)
+
+				result = make([]*index.MatchedOutput, len(indices))
+
+				for _, host := range strings.Split(os.Getenv("TRANSACTION_LOOKUP_OTHER"), ",") {
+					host = strings.TrimSpace(host)
+					uri, _ := url.Parse(os.Getenv("TRANSACTION_LOOKUP_OTHER") + "/api/global_indices_lookup")
+					if response, err := http.DefaultClient.Do(&http.Request{
+						Method: "POST",
+						URL:    uri,
+						Body:   io.NopCloser(bytes.NewReader(data)),
+					}); err == nil {
+						func() {
+							defer response.Body.Close()
+							if response.StatusCode == http.StatusOK {
+								if data, err := io.ReadAll(response.Body); err == nil {
+									r := make([]*index.MatchedOutput, 0, len(indices))
+									if json.Unmarshal(data, &r) == nil && len(r) == len(indices) {
+										for i := range r {
+											if result[i] == nil {
+												result[i] = r[i]
+											}
+										}
+									}
+								}
+							}
+						}()
+					}
+				}
+				return result
+			}
+		}
+
+		results := utils2.LookupTransactions(otherLookupHostFunc, indexDb, request.Context(), 4, txId)
+
+		if len(results) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
 			buf, _ := json.Marshal(struct {
@@ -503,12 +542,6 @@ func main() {
 			return
 		}
 
-		tx := txs[0]
-
-		inputResult := indexDb.QueryTransactionInputs(tx.Inputs)
-
-		inputMatch := inputResult.Match()
-
 		type transactionLookupResult struct {
 			Id     types.Hash                                `json:"id"`
 			Inputs index.TransactionInputQueryResults        `json:"inputs"`
@@ -518,9 +551,9 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, transactionLookupResult{
-			Id:     tx.Id,
-			Inputs: inputResult,
-			Match:  inputMatch,
+			Id:     txId,
+			Inputs: results[0],
+			Match:  results[0].Match(),
 		})
 		_, _ = writer.Write(buf)
 
