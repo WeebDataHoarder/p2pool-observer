@@ -264,7 +264,12 @@ func main() {
 			lastDiff = lastBlocksFound[0].CumulativeDifficulty
 		}
 
-		currentEffort := getBlockEffort(tip.CumulativeDifficulty, lastDiff, networkDifficulty)
+		tipCumDiff := tip.CumulativeDifficulty
+		if lastDiff.Cmp(tipCumDiff) > 0 {
+			tipCumDiff = lastDiff
+		}
+
+		currentEffort := getBlockEffort(tipCumDiff, lastDiff, networkDifficulty)
 
 		if currentEffort <= 0 || lastDiff.Cmp64(0) == 0 {
 			currentEffort = 0
