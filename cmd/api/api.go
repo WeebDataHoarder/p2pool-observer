@@ -531,7 +531,7 @@ func main() {
 			}
 		}
 
-		results := utils2.LookupTransactions(otherLookupHostFunc, indexDb, request.Context(), 4, txId)
+		results := utils2.LookupTransactions(otherLookupHostFunc, indexDb, request.Context(), 0, txId)
 
 		if len(results) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
