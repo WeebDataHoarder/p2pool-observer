@@ -32,9 +32,4 @@ RUN go build -buildvcs=false -trimpath -v -o /usr/bin/api git.gammaspectra.live/
 RUN go build -buildvcs=false -trimpath -v -o /usr/bin/daemon git.gammaspectra.live/P2Pool/p2pool-observer/cmd/daemon
 RUN go build -buildvcs=false -trimpath -v -o /usr/bin/web git.gammaspectra.live/P2Pool/p2pool-observer/cmd/web
 
-# utilities
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/cachetoarchive git.gammaspectra.live/P2Pool/p2pool-observer/cmd/cachetoarchive
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/archivetoindex git.gammaspectra.live/P2Pool/p2pool-observer/cmd/archivetoindex
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/archivetoarchive git.gammaspectra.live/P2Pool/p2pool-observer/cmd/archivetoarchive
-
 WORKDIR /data
