@@ -213,7 +213,7 @@ func ProcessFullBlock(b *index.MainBlock, indexDb *index.Index) error {
 				noMinerRatio := float64(noMinerCount) / float64(len(inputs))
 				otherMinerRatio := float64(otherMinerCount) / float64(len(inputs))
 				var likelyMiner bool
-				if (len(inputs) >= txInputThresholdForRatio && minerRatio >= noMinerRatio) || (len(inputs) >= txInputThresholdForRatio && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(inputs) >= txInputThreshold && minerRatio > 0.9) {
+				if (len(inputs) >= txInputThresholdForRatio && minerRatio >= noMinerRatio && minerRatio > otherMinerRatio) || (len(inputs) >= txInputThresholdForRatio && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(inputs) >= txInputThreshold && minerRatio > 0.9) {
 					likelyMiner = true
 				}
 

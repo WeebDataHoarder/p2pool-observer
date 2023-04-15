@@ -808,7 +808,7 @@ func main() {
 					noMinerRatio := float64(noMinerCount) / float64(len(fullResult.Inputs))
 					otherMinerRatio := float64(otherMinerCount) / float64(len(fullResult.Inputs))
 					var likelyMiner bool
-					if (len(fullResult.Inputs) > 8 && minerRatio >= noMinerRatio) || (len(fullResult.Inputs) > 8 && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) >= 4 && minerRatio > 0.9) {
+					if (len(fullResult.Inputs) > 8 && minerRatio >= noMinerRatio && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) > 8 && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) >= 4 && minerRatio > 0.9) {
 						likelyMiner = true
 					}
 					ctx := make(map[string]stick.Value)
