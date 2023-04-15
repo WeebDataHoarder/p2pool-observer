@@ -203,7 +203,8 @@ func main() {
 		//process older full blocks and sweeps
 		for range time.NewTicker(time.Second * monero.BlockTime).C {
 
-			mainTip := indexDb.GetMainBlockTip()
+			actualTip := indexDb.GetMainBlockTip()
+			mainTip := actualTip
 			maxDepth := mainTip.Height - randomx.SeedHashEpochBlocks*4
 
 			//find top start height
@@ -218,10 +219,10 @@ func main() {
 			}
 
 			if mainTip.Height == maxDepth {
-				log.Printf("Use scansweeps to backfill data")
+				log.Printf("Reached maxdepth %d: Use scansweeps to backfill data", maxDepth)
 			}
 
-			for h := mainTip.Height - monero.MinerRewardUnlockTime; h <= mainTip.Height-monero.TransactionUnlockTime; h++ {
+			for h := mainTip.Height - monero.MinerRewardUnlockTime; h <= actualTip.Height-monero.TransactionUnlockTime; h++ {
 				b := indexDb.GetMainBlockByHeight(h)
 				if b == nil {
 					continue
