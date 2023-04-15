@@ -7,7 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
-func LookupTransactions(requestOther func(ctx context.Context, indices []uint64) []*index.MatchedOutput, indexDb *index.Index, ctx context.Context, ids ...types.Hash) (results []index.TransactionInputQueryResults) {
+func LookupTransactions(requestOther func(ctx context.Context, indices []uint64) []*index.MatchedOutput, indexDb *index.Index, ctx context.Context, inputThreshold int, ids ...types.Hash) (results []index.TransactionInputQueryResults) {
 	txs, err := client.GetDefaultClient().GetTransactionInputs(ctx, ids...)
 	if err != nil || len(txs) != len(ids) {
 		return nil
@@ -15,6 +15,9 @@ func LookupTransactions(requestOther func(ctx context.Context, indices []uint64)
 
 	decoys := make([]uint64, 0, len(txs)*16*16)
 	for _, tx := range txs {
+		if len(tx.Inputs) < inputThreshold {
+			continue
+		}
 		for _, i := range tx.Inputs {
 			decoys = append(decoys, i.KeyOffsets...)
 		}
@@ -30,6 +33,15 @@ func LookupTransactions(requestOther func(ctx context.Context, indices []uint64)
 
 	var otherIndex int
 	for _, tx := range txs {
+		if len(tx.Inputs) < inputThreshold {
+			queryResult := make(index.TransactionInputQueryResults, len(tx.Inputs))
+			for i := range queryResult {
+				queryResult[i].Input = tx.Inputs[i]
+				queryResult[i].MatchedOutputs = make([]*index.MatchedOutput, len(tx.Inputs[i].KeyOffsets))
+			}
+			results = append(results, queryResult)
+			continue
+		}
 		queryResult := indexDb.QueryTransactionInputs(tx.Inputs)
 
 		if otherResult != nil {

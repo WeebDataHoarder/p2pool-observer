@@ -158,6 +158,16 @@
     <div class="center"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></div>
 </div>
 
+<hr/>
+
+<div style="text-align: center">
+    <h2>Most recent likely sweeps</h2>
+    {% set sweeps = last_sweeps %}
+    {% set sweeps_is_miner = true %}
+    {% include('tpl_sweeps.html') %}
+    <div class="center"><a href="/sweeps?miner={{ miner.address }}">[show more likely sweeps]</a></div>
+</div>
+
 
 
 {% if miner.last_share_timestamp != 0 %}

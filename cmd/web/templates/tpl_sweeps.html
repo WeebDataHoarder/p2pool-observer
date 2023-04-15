@@ -1,0 +1,38 @@
+{% if (sweeps_is_miner is defined) and (sweeps_is_miner) %}
+<table class="center datatable" style="max-width: calc(12em + 10em + 10em + 8em + 10em + 10em + 10em + 12em)">
+{% else %}
+<table class="center datatable" style="max-width: calc(12em + 10em + 12em + 8em + 10em + 10em + 10em + 10em + 12em)">
+{% endif %}
+    <tr>
+        <th style="width: 12em;">Transaction Id</th>
+        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
+        {% if (sweeps_is_miner is not defined) or (not sweeps_is_miner) %}
+        <th style="width: 12em;" title="The P2Pool miner who likely produced this sweep">Owned by</th>
+        {% endif %}
+        <th style="width: 8em;" title="The number of decoys each input has">Decoys per Input</th>
+        <th style="width: 10em;" title="The number of inputs and outputs in this transaction">Inputs / Outputs</th>
+        <th style="width: 10em;" title="The number and ratio of decoy inputs owned by the miner on this sweep">Self Decoys</th>
+        <th style="width: 10em;" title="The number and ratio of decoy inputs owned by other miners on this sweep">Other Decoys</th>
+        <th style="width: 10em;" title="The number and ratio of decoy inputs not owned by miners on this sweep">Unknown Decoys</th>
+        <th style="width: 10em;" title="The value known from Coinbase sources">Swept Coinbase Value</th>
+    </tr>
+    {% for s in sweeps %}
+    <tr>
+        <td class="mono small"><a href="/transaction-lookup?txid={{ s.id }}">{{ s.id|shorten(10) }}</a></td>
+        <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+        {% if (sweeps_is_miner is not defined) or (not sweeps_is_miner) %}
+        <td title="{{ s.address }}" class="mono small"><a href="/miner/{{ s.address }}">{{ s.address|shorten(10) }}</a></td>
+        {% endif %}
+        <td>{{ s.input_decoy_count }}</td>
+        <td>{{ s.input_count }} / {{ s.global_output_indices|length }}</td>
+        <td>{{ s.miner_count }} ({{(s.miner_ratio*100)|round(2)}}%)</td>
+        <td>{{ s.other_miners_count }} ({{(s.other_miners_ratio*100)|round(2)}}%)</td>
+        <td>{{ s.no_miner_count }} ({{(s.no_miner_ratio*100)|round(2)}}%)</td>
+        {% if s.value == 0 %}
+        <td>-</td>
+        {% else %}
+        <td class="mono">{{ monero_to_xmr(s.value) }} XMR</td>
+        {% endif %}
+    </tr>
+    {% endfor %}
+</table>

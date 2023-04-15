@@ -1,18 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %} - Transaction Lookup{% endblock %}
+{% block title %} - Sweep Transaction Lookup{% endblock %}
 
 {% block content %}
 
 <div style="text-align: center">
     <form action="/transaction-lookup" method="get">
-        <h2>Transaction Lookup</h2>
+        <h2>Sweep Transaction Lookup</h2>
         <p>
             This tool looks up inputs used in the transaction decoys and correlates it against known P2Pool outputs. It then displays the likeliness of the transaction being a <em>sweep transaction</em> by a specific miner.
             <br/>
             <small>Do note false positives can be found. However, large sweep transactions with many inputs will most likely be correct.</small>
             <br/>
             If available, this tool will query other P2Pool SideChains.
+        </p>
+        <p>
+            <a href="/sweeps">[Recent Likely Sweep Transactions]</a>
         </p>
         <div>
             <label for="txid">Transaction Id</label><br/>
@@ -33,9 +36,9 @@
     {% if (miner is not defined) %}
     <p>Not enough miner results found.</p>
     {% else %}
-    <table class="center" style="max-width: calc(8em + 15em + 15em + 15em + 15em + 15em);">
+    <table class="center" style="max-width: calc(8em + 15em + 15em + 15em + 15em + 15em + 15em);">
         <tr>
-            <td colspan="6">
+            <td colspan="7">
                 <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{{ txid|henc }}">{{ txid }}</a></p>
                 {% set minerAddress = miner.Address.ToBase58() %}
                 <p><strong>Miner Payout Address:</strong> <a href="/miner/{{ minerAddress }}"><span class="mono small">{{ minerAddress }}</span></a></p>
@@ -44,26 +47,35 @@
         </tr>
         <tr style="line-height: 1.5;">
             <td style="width: 8em"><strong>Total Inputs</strong><br/>{{ result.Inputs|length }}</td>
+            <td style="width: 8em"><strong>Decoys per Input</strong><br/>{{ result.Inputs[0].Input.KeyOffsets|length }}</td>
             <td style="width: 15em"><strong>Unknown Inputs</strong><br/>{{ no_miner_count }} ({{no_miner_ratio|round(3) }}%)</td>
             <td style="width: 15em"><strong>Other Miner Inputs</strong><br/>{{ other_miner_count }} ({{other_miner_ratio|round(3) }}%)</td>
-            <td style="width: 15em"><strong>Top Miner Inputs</strong><br/>{{ miner.Count }} ({{miner_ratio|round(3) }}%)</td>
+            <td style="width: 15em"><strong>Top Miner Inputs</strong><br/>{{ miner_count }} ({{miner_ratio|round(3) }}%)</td>
             <td style="width: 15em"><strong>Coinbase Inputs Amount</strong><br/>{{ monero_to_xmr(miner.CoinbaseAmount) }} XMR</td>
             <td style="width: 15em"><strong>Coinbase / Sweep Inputs</strong><br/>{{ miner.CoinbaseCount }} / {{ miner.SweepCount }}</td>
         </tr>
-        <tr><th colspan="6">&nbsp;</th></tr>
-        <tr><th colspan="6">
+        <tr><th colspan="7">&nbsp;</th></tr>
+        <tr><th colspan="7">
             <h3>Miner inputs time scale (from {{ utc_date(bottom_timestamp) }} to {{ utc_date(top_timestamp) }})</h3>
             <code class="mono">{{ miner_coinbase_chart }}</code>
             <code class="mono">{{ miner_sweep_chart }}</code>
         </th></tr>
-        <tr><th colspan="6">
+        <tr><th colspan="7">
             <h3>Other Miner inputs time scale (from {{ utc_date(bottom_timestamp) }} to {{ utc_date(top_timestamp) }})</h3>
             <code class="mono">{{ other_miner_coinbase_chart }}</code>
             <code class="mono">{{ other_miner_sweep_chart }}</code>
         </th></tr>
-        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr><th colspan="7">&nbsp;</th></tr>
 
-        <tr><th>Input Index</th><th>Input Key Image</th><th>Decoy Address</th><th>Decoy Output</th><th>Global Output Index</th><th>Decoy Value</th></tr>
+        <tr>
+            <th>Input Index</th>
+            <th>Input Key Image</th>
+            <th>Decoy Address</th>
+            <th>Decoy Output</th>
+            <th>Global Output Index</th>
+            <th>Decoy Type</th>
+            <th>Decoy Value</th>
+        </tr>
         {% for index, input in result.Inputs %}
 
             {% set outputCount = 0 %}
@@ -80,6 +92,7 @@
                     <td class="small">-</td>
                     <td class="small">{{ input.Input.KeyOffsets[oindex] }}</td>
                     <td class="small">-</td>
+                    <td class="small">-</td>
                     </tr>
                 {% else %}
                     {% if outputCount > 0 %}
@@ -93,19 +106,22 @@
                     {% if not is_nil(o.Coinbase) %}
                     <td title="{{ o.Coinbase.Id }}" class="mono small"><a href="/t/{{ o.Coinbase.Id|henc }}">{{ (o.Coinbase.Id|hex)|shorten(10) }}</a> #{{ o.Coinbase.Index }}</td>
                     <td class="small">{{ o.GlobalOutputIndex }}</td>
-                    <td class="small">Coinbase {{ monero_to_xmr(o.Coinbase.Value) }} XMR</td>
+                    <td class="small" title="This input was seen as an output to a mined Monero block via P2Pool">Coinbase</td>
+                    <td class="small mono">{{ monero_to_xmr(o.Coinbase.Value) }} XMR</td>
                     {% elseif not is_nil(o.Sweep) %}
-                    <td title="{{ o.Sweep.Id }}" class="mono small"><a href="/t/{{ o.Sweep.Id|henc }}">{{ (o.Sweep.Id|hex)|shorten(10) }}</a>
+                    <td title="{{ o.Sweep.Id }}" class="mono small"><a href="/transaction-lookup?txid={{ o.Sweep.Id }}">{{ (o.Sweep.Id|hex)|shorten(10) }}</a>
                     {% for oindex, goi in o.Sweep.GlobalOutputIndices %}
                         {% if goi == o.GlobalOutputIndex %}
-                        #{{ oindex }} of {{ o.Sweep.GlobalOutputIndices|length }}
+                        #{{ oindex }}/{{ o.Sweep.GlobalOutputIndices|length }}
                         {% endif %}
                     {% endfor %}</td>
                     <td class="small">{{ o.GlobalOutputIndex }}</td>
-                    <td class="small">Previous Sweep</td>
+                    <td class="small" title="This input was seen as an output to a likely previous sweep by this miner">Previous Sweep</td>
+                    <td class="small mono"><span title="Previous Sweep had {{ o.Sweep.GlobalOutputIndices|length }} outputs. This value denotes the whole previous coinbase amount and will probably be wrong.">(?) {{ monero_to_xmr(o.Sweep.Value) }} XMR</span></td>
                     {% else %}
-                    <td class="small">Unknown type</td>
+                    <td class="small">Unknown</td>
                     <td>{{ o.GlobalOutputIndex }}</td>
+                    <td class="small">-</td>
                     <td class="small">-</td>
                     {% endif %}
                     </tr>

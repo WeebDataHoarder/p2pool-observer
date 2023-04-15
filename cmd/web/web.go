@@ -863,17 +863,18 @@ func main() {
 					}
 				}
 
-				minerRatio := float64(topMiner.Count) / float64(len(fullResult.Inputs))
+				minerRatio := float64(minerCount) / float64(len(fullResult.Inputs))
 				noMinerRatio := float64(noMinerCount) / float64(len(fullResult.Inputs))
 				otherMinerRatio := float64(otherMinerCount) / float64(len(fullResult.Inputs))
 				var likelyMiner bool
-				if minerRatio >= noMinerRatio || (len(fullResult.Inputs) > 16 && minerRatio > 0.33) {
+				if (len(fullResult.Inputs) > 8 && minerRatio >= noMinerRatio) || (len(fullResult.Inputs) > 8 && minerRatio > 0.35 && minerRatio > otherMinerRatio) || (len(fullResult.Inputs) >= 4 && minerRatio > 0.9) {
 					likelyMiner = true
 				}
 				ctx := make(map[string]stick.Value)
 				ctx["txid"] = txId
 				ctx["result"] = fullResult
 				ctx["likely_miner"] = likelyMiner
+				ctx["miner_count"] = minerCount
 				ctx["no_miner_count"] = noMinerCount
 				ctx["other_miner_count"] = otherMinerCount
 				ctx["miner"] = topMiner
@@ -896,6 +897,48 @@ func main() {
 		ctx["txid"] = txId
 
 		render(request, writer, "transaction-lookup.html", ctx)
+	})
+
+	serveMux.HandleFunc("/sweeps", func(writer http.ResponseWriter, request *http.Request) {
+		params := request.URL.Query()
+		if params.Has("refresh") {
+			writer.Header().Set("refresh", "600")
+		}
+
+		var miner map[string]any
+		if params.Has("miner") {
+			m := getFromAPI(fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			if m == nil || m.(map[string]any)["address"] == nil {
+				ctx := make(map[string]stick.Value)
+				error := make(map[string]stick.Value)
+				ctx["error"] = error
+				ctx["code"] = http.StatusNotFound
+				error["message"] = "Address Not Found"
+				error["content"] = "<div class=\"center\" style=\"text-align: center\">You need to have mined at least one share in the past. Come back later :)</div>"
+				render(request, writer, "error.html", ctx)
+				return
+			}
+			miner = m.(map[string]any)
+		}
+
+		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+
+		ctx := make(map[string]stick.Value)
+		ctx["refresh"] = writer.Header().Get("refresh")
+		ctx["pool"] = poolInfo
+
+		if miner != nil {
+			blocks := getFromAPI(fmt.Sprintf("sweeps/%d?limit=100", toUint64(miner["id"])))
+			ctx["sweeps"] = blocks
+			ctx["miner"] = miner
+
+			render(request, writer, "sweeps_miner.html", ctx)
+		} else {
+			blocks := getFromAPI("sweeps?limit=100", 30)
+			ctx["sweeps"] = blocks
+
+			render(request, writer, "sweeps.html", ctx)
+		}
 	})
 
 	serveMux.HandleFunc("/blocks", func(writer http.ResponseWriter, request *http.Request) {
@@ -1137,12 +1180,13 @@ func main() {
 
 		var shares, lastShares []*index.SideBlock
 
-		var payouts, lastFound []any
+		var payouts, lastFound, sweeps []any
 		if toUint64(miner["id"]) != 0 {
 			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", toUint64(miner["id"]), tipHeight, wsize))
 			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"]))).([]any)
 			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", toUint64(miner["id"])))
 			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=10&miner=%d", toUint64(miner["id"]))).([]any)
+			sweeps = getFromAPI(fmt.Sprintf("sweeps/%d?limit=5", toUint64(miner["id"]))).([]any)
 		}
 
 		sharesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
@@ -1213,6 +1257,7 @@ func main() {
 		if raw != nil {
 			ctx["last_raw_share"] = raw
 		}
+		ctx["last_sweeps"] = sweeps
 		ctx["last_shares"] = lastShares
 		ctx["last_found"] = lastFound
 		ctx["last_payouts"] = payouts

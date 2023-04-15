@@ -705,6 +705,73 @@ func main() {
 		_, _ = writer.Write(buf)
 	})
 
+	serveMux.HandleFunc("/api/sweeps", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var limit uint64 = 10
+
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		if limit > 200 {
+			limit = 200
+		} else if limit <= 0 {
+			limit = 10
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetMainLikelySweepTransactions(limit)))
+		_, _ = writer.Write(buf)
+
+	})
+
+	serveMux.HandleFunc("/api/sweeps/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		var miner *index.Miner
+		if len(minerId) > 10 && minerId[0] == '4' {
+			miner = indexDb.GetMinerByStringAddress(minerId)
+		}
+
+		if miner == nil {
+			if i, err := strconv.Atoi(minerId); err == nil {
+				miner = indexDb.GetMiner(uint64(i))
+			}
+		}
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		var limit uint64 = 10
+
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetMainLikelySweepTransactionsByAddress(miner.Address(), limit)))
+		_, _ = writer.Write(buf)
+
+	})
+
 	serveMux.HandleFunc("/api/payouts/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		var miner *index.Miner

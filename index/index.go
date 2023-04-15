@@ -797,6 +797,64 @@ func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint6
 	return &output
 }
 
+func (i *Index) GetMainLikelySweepTransactions(limit uint64) chan *MainLikelySweepTransaction {
+	out := make(chan *MainLikelySweepTransaction)
+
+	go func() {
+		defer close(out)
+		scanFunc := func(row RowScanInterface) error {
+			var tx MainLikelySweepTransaction
+			if err := tx.ScanFromRow(i, row); err != nil {
+				return err
+			}
+			out <- &tx
+			return nil
+		}
+
+		if limit > 0 {
+			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions ORDER BY timestamp DESC LIMIT $1;", scanFunc, limit); err != nil {
+				return
+			}
+		} else {
+			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions ORDER BY timestamp DESC;", scanFunc); err != nil {
+				return
+			}
+		}
+	}()
+
+	return out
+}
+
+func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, limit uint64) chan *MainLikelySweepTransaction {
+	out := make(chan *MainLikelySweepTransaction)
+
+	go func() {
+		defer close(out)
+
+		spendPub, viewPub := addr.SpendPub.AsSlice(), addr.ViewPub.AsSlice()
+		scanFunc := func(row RowScanInterface) error {
+			var tx MainLikelySweepTransaction
+			if err := tx.ScanFromRow(i, row); err != nil {
+				return err
+			}
+			out <- &tx
+			return nil
+		}
+
+		if limit > 0 {
+			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC LIMIT $3;", scanFunc, &spendPub, &viewPub, limit); err != nil {
+				return
+			}
+		} else {
+			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC;", scanFunc, &spendPub, &viewPub); err != nil {
+				return
+			}
+		}
+	}()
+
+	return out
+}
+
 func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndex(globalOutputIndex uint64) *MainLikelySweepTransaction {
 	var tx MainLikelySweepTransaction
 	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE ARRAY[$1]::bigint[] <@ global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
@@ -838,7 +896,7 @@ type MinimalMatchedOutput struct {
 	Address           *address.Address `json:"address"`
 }
 
-type MinimalTransactionInputQueryResults []TransactionInputQueryResult
+type MinimalTransactionInputQueryResults []MinimalTransactionInputQueryResult
 type TransactionInputQueryResults []TransactionInputQueryResult
 
 type TransactionInputQueryResultsMatch struct {
@@ -969,6 +1027,38 @@ func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
 		return nil
 	}
 	return result
+}
+
+func (i *Index) InsertOrUpdateMainLikelySweepTransaction(t *MainLikelySweepTransaction) error {
+
+	resultJson, _ := json.Marshal(t.Result)
+	matchJson, _ := json.Marshal(t.Match)
+	spendPub, viewPub := t.Address.SpendPub.AsSlice(), t.Address.ViewPub.AsSlice()
+
+	if _, err := i.handle.Exec(
+		"INSERT INTO main_likely_sweep_transactions (id, timestamp, result, match, value, spending_output_indices, global_output_indices, input_count, input_decoy_count, miner_count, other_miners_count, no_miner_count, miner_ratio, other_miners_ratio, no_miner_ratio, miner_spend_public_key, miner_view_public_key) VALUES ($1, $2, $3, $4, $5, $6::bigint[], $7::bigint[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) ON CONFLICT (id) DO UPDATE SET result = $3, match = $4, value = $5, miner_count = $10, other_miners_count = $11, no_miner_count = $12, miner_ratio = $13, other_miners_ratio = $14, no_miner_ratio = $15, miner_spend_public_key = $16, miner_view_public_key = $17;",
+		t.Id[:],
+		t.Timestamp,
+		resultJson,
+		matchJson,
+		t.Value,
+		pq.Array(t.SpendingOutputIndices),
+		pq.Array(t.GlobalOutputIndices),
+		t.InputCount,
+		t.InputDecoyCount,
+		t.MinerCount,
+		t.OtherMinersCount,
+		t.NoMinerCount,
+		t.MinerRatio,
+		t.OtherMinersRatio,
+		t.NoMinerRatio,
+		&spendPub,
+		&viewPub,
+	); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (i *Index) GetMainCoinbaseOutputByMinerId(coinbaseId types.Hash, minerId uint64) *MainCoinbaseOutput {
@@ -1144,6 +1234,7 @@ func (i *Index) InsertOrUpdatePoolBlock(b *sidechain.PoolBlock, inclusion BlockI
 }
 
 func ChanToSlice[T any](s chan T) (r []T) {
+	r = make([]T, 0)
 	for v := range s {
 		r = append(r, v)
 	}

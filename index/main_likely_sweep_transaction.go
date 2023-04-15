@@ -40,12 +40,21 @@ type MainLikelySweepTransaction struct {
 func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface) error {
 	var spendPub, viewPub crypto.PublicKeyBytes
 	var resultBuf, matchBuf []byte
-	if err := row.Scan(&t.Id, &t.Timestamp, &resultBuf, &matchBuf, &t.Value, pq.Array(&t.SpendingOutputIndices), pq.Array(&t.GlobalOutputIndices), &t.InputCount, &t.InputDecoyCount, &t.MinerCount, &t.OtherMinersCount, &t.NoMinerCount, &t.MinerRatio, &t.OtherMinersRatio, &t.NoMinerRatio, &spendPub, &viewPub); err != nil {
+	var spendingOutputIndices, globalOutputIndices pq.Int64Array
+	if err := row.Scan(&t.Id, &t.Timestamp, &resultBuf, &matchBuf, &t.Value, &spendingOutputIndices, &globalOutputIndices, &t.InputCount, &t.InputDecoyCount, &t.MinerCount, &t.OtherMinersCount, &t.NoMinerCount, &t.MinerRatio, &t.OtherMinersRatio, &t.NoMinerRatio, &spendPub, &viewPub); err != nil {
 		return err
 	} else if err = json.Unmarshal(resultBuf, &t.Result); err != nil {
 		return err
 	} else if err = json.Unmarshal(resultBuf, &t.Match); err != nil {
 		return err
+	}
+	t.SpendingOutputIndices = make([]uint64, len(spendingOutputIndices))
+	for j, ix := range spendingOutputIndices {
+		t.SpendingOutputIndices[j] = uint64(ix)
+	}
+	t.GlobalOutputIndices = make([]uint64, len(globalOutputIndices))
+	for j, ix := range globalOutputIndices {
+		t.GlobalOutputIndices[j] = uint64(ix)
 	}
 	var network uint8
 	switch i.consensus.NetworkType {
