@@ -1,6 +1,6 @@
 package utils
 
-type url struct {
+type urlEntry struct {
 	Host  string
 	Onion string
 }
@@ -20,7 +20,7 @@ const (
 	SiteKeyXmrChainNet
 )
 
-var existingUrl = map[siteKey]url{
+var existingUrl = map[siteKey]urlEntry{
 	SiteKeyP2PoolIo: {
 		Host:  "https://p2pool.io",
 		Onion: "http://yucmgsbw7nknw7oi3bkuwudvc657g2xcqahhbjyewazusyytapqo4xid.onion",

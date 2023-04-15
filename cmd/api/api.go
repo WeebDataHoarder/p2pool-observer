@@ -501,7 +501,10 @@ func main() {
 
 				for _, host := range strings.Split(os.Getenv("TRANSACTION_LOOKUP_OTHER"), ",") {
 					host = strings.TrimSpace(host)
-					uri, _ := url.Parse(os.Getenv("TRANSACTION_LOOKUP_OTHER") + "/api/global_indices_lookup")
+					if host == "" {
+						continue
+					}
+					uri, _ := url.Parse(host + "/api/global_indices_lookup")
 					if response, err := http.DefaultClient.Do(&http.Request{
 						Method: "POST",
 						URL:    uri,

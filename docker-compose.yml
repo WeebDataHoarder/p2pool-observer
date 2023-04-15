@@ -162,6 +162,7 @@ services:
     restart: always
     environment:
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
+      - TRANSACTION_LOOKUP_OTHER=${TRANSACTION_LOOKUP_OTHER}
     depends_on:
       - db
       - p2pool

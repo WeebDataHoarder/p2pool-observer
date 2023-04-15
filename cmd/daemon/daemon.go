@@ -183,7 +183,7 @@ func main() {
 				continue
 			}
 			mainTip := indexDb.GetMainBlockTip()
-			for h := mainTip.Height; h >= 0 && h >= (mainTip.Height-10); h-- {
+			for h := mainTip.Height; h >= 0 && h >= (mainTip.Height-monero.TransactionUnlockTime); h-- {
 				header := indexDb.GetMainBlockByHeight(h)
 				if header == nil {
 					break
@@ -194,6 +194,44 @@ func main() {
 				}
 				if err := scanHeader(*cur); err != nil {
 					log.Panic(err)
+				}
+			}
+		}
+	}()
+
+	go func() {
+		//process older full blocks and sweeps
+		for range time.NewTicker(time.Second * monero.BlockTime).C {
+
+			mainTip := indexDb.GetMainBlockTip()
+			maxDepth := mainTip.Height - randomx.SeedHashEpochBlocks*4
+
+			//find top start height
+			for h := mainTip.Height - monero.TransactionUnlockTime; h >= maxDepth; h-- {
+				mainTip = indexDb.GetMainBlockByHeight(h)
+				if mainTip == nil {
+					continue
+				}
+				if isProcessed, ok := mainTip.GetMetadata("processed").(bool); ok && isProcessed {
+					break
+				}
+			}
+
+			if mainTip.Height == maxDepth {
+				log.Printf("Use scansweeps to backfill data")
+			}
+
+			for h := mainTip.Height - monero.MinerRewardUnlockTime; h <= mainTip.Height-monero.TransactionUnlockTime; h++ {
+				b := indexDb.GetMainBlockByHeight(h)
+				if b == nil {
+					continue
+				}
+				if isProcessed, ok := b.GetMetadata("processed").(bool); ok && isProcessed {
+					continue
+				}
+
+				if err := utils2.ProcessFullBlock(b, indexDb); err != nil {
+					log.Printf("error processing block %s at %d: %s", b.Id, b.Height, err)
 				}
 			}
 		}
