@@ -4,10 +4,10 @@ package randomx
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"git.gammaspectra.live/P2Pool/go-randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"github.com/go-faster/xor"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -46,7 +46,7 @@ func ConsensusHash(buf []byte) types.Hash {
 		if stride > len(cachePtr) {
 			stride = len(cachePtr)
 		}
-		xor.Bytes(scratchpadTopPtr, scratchpadTopPtr, cachePtr[:stride])
+		subtle.XORBytes(scratchpadTopPtr, scratchpadTopPtr, cachePtr[:stride])
 		cachePtr = cachePtr[stride:]
 	}
 

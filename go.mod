@@ -1,6 +1,6 @@
 module git.gammaspectra.live/P2Pool/p2pool-observer
 
-go 1.19
+go 1.20
 
 require (
 	filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550
@@ -10,12 +10,11 @@ require (
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20221027134633-11f5607e6752
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
-	github.com/go-faster/xor v1.0.0
 	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.2
 	github.com/jxskiss/base62 v1.1.0
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.8
 	github.com/stretchr/testify v1.8.1
 	github.com/tyler-sommer/stick v1.0.6
 	go.etcd.io/bbolt v1.3.7
