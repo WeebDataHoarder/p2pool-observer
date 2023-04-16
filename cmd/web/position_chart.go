@@ -62,10 +62,10 @@ func (p *PositionChart) String() string {
 }
 
 func (p *PositionChart) StringWithSeparator(index int) string {
-	if index < 0 || index >= int(p.totalItems) {
+	if index < 0 || index > int(p.totalItems) {
 		return p.String()
 	}
-	separatorIndex := index*len(p.bucket) - 1/int(p.totalItems-1)
+	separatorIndex := index * (len(p.bucket) - 1) / int(p.totalItems-1)
 	position := make([]byte, 1+2*2+len(p.bucket))
 	position[0], position[1] = '[', '<'
 	position[2+separatorIndex] = '|'
