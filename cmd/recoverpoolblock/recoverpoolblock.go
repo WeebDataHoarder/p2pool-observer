@@ -284,8 +284,8 @@ func main() {
 					CumulativeDifficulty: parentBlock.Side.CumulativeDifficulty.Add(v2.Diff),
 					// no extrabuffer
 				},
-				NetworkType: consensus.NetworkType,
 			}
+			poolBlock.CachedShareVersion = poolBlock.CalculateShareVersion(consensus)
 		}
 
 		poolBlock.Depth.Store(math.MaxUint64)

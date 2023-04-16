@@ -195,10 +195,8 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 			return nil
 		} else {
 			data, _ := t.MarshalBinary()
-			newBlock := &sidechain.PoolBlock{
-				NetworkType: t.NetworkType,
-			}
-			if err := newBlock.UnmarshalBinary(&sidechain.NilDerivationCache{}, data); err != nil {
+			newBlock := &sidechain.PoolBlock{}
+			if err := newBlock.UnmarshalBinary(indexDb.Consensus(), &sidechain.NilDerivationCache{}, data); err != nil {
 				log.Panic(err)
 			}
 			copy(newBlock.CoinbaseExtra(sidechain.SideExtraNonce), extraNonce)

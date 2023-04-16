@@ -14,7 +14,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"golang.org/x/exp/slices"
 	"io"
-	"log"
 	"sync"
 	"sync/atomic"
 	"unsafe"
@@ -49,7 +48,6 @@ const (
 )
 
 const ShareVersion_V2MainNetTimestamp uint64 = 1679173200 // 2023-03-18 21:00 UTC
-const ShareVersion_V2TestNetTimestamp uint64 = 1674507600 // 2023-01-23 21:00 UTC
 
 type UniquePoolBlockSlice []*PoolBlock
 
@@ -85,16 +83,14 @@ type PoolBlock struct {
 	WantBroadcast atomic.Bool `json:"-"`
 	Broadcasted   atomic.Bool `json:"-"`
 
-	NetworkType    NetworkType `json:"network_type"`
-	LocalTimestamp uint64      `json:"-"`
+	LocalTimestamp     uint64       `json:"-"`
+	CachedShareVersion ShareVersion `json:"share_version"`
 }
 
-// NewShareFromExportedBytes TODO deprecate this in favor of standard serialized shares
+// NewShareFromExportedBytes
 // Deprecated
-func NewShareFromExportedBytes(buf []byte, networkType NetworkType, cacheInterface DerivationCacheInterface) (*PoolBlock, error) {
-	b := &PoolBlock{
-		NetworkType: networkType,
-	}
+func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface DerivationCacheInterface) (*PoolBlock, error) {
+	b := &PoolBlock{}
 
 	if len(buf) < 32 {
 		return nil, errors.New("invalid block data")
@@ -189,6 +185,8 @@ func NewShareFromExportedBytes(buf []byte, networkType NetworkType, cacheInterfa
 		return nil, err
 	}
 
+	b.CachedShareVersion = b.CalculateShareVersion(consensus)
+
 	if err = b.Side.UnmarshalBinary(sideData, b.ShareVersion()); err != nil {
 		return nil, err
 	}
@@ -249,28 +247,15 @@ func (b *PoolBlock) FillTransactionParentIndices(parent *PoolBlock) bool {
 	return true
 }
 
-func (b *PoolBlock) ShareVersion() ShareVersion {
+func (b *PoolBlock) CalculateShareVersion(consensus *Consensus) ShareVersion {
 	// P2Pool forks to v2 at 2023-03-18 21:00 UTC
 	// Different miners can have different timestamps,
 	// so a temporary mix of v1 and v2 blocks is allowed
-	switch b.NetworkType {
-	case NetworkInvalid:
-		log.Panicf("invalid network type for determining share version")
-	case NetworkMainnet:
-		if b.Main.Timestamp >= ShareVersion_V2MainNetTimestamp {
-			return ShareVersion_V2
-		}
-	case NetworkTestnet:
-		if b.Main.Timestamp >= ShareVersion_V2TestNetTimestamp {
-			return ShareVersion_V2
-		}
-	case NetworkStagenet:
-		return ShareVersion_V2
-	}
-	if b.Main.Timestamp >= ShareVersion_V2MainNetTimestamp {
-		return ShareVersion_V2
-	}
-	return ShareVersion_V1
+	return P2PoolShareVersion(consensus, b.Main.Timestamp)
+}
+
+func (b *PoolBlock) ShareVersion() ShareVersion {
+	return b.CachedShareVersion
 }
 
 func (b *PoolBlock) ShareVersionSignaling() ShareVersion {
@@ -421,9 +406,9 @@ func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash t
 	}
 }
 
-func (b *PoolBlock) UnmarshalBinary(derivationCache DerivationCacheInterface, data []byte) error {
+func (b *PoolBlock) UnmarshalBinary(consensus *Consensus, derivationCache DerivationCacheInterface, data []byte) error {
 	reader := bytes.NewReader(data)
-	return b.FromReader(derivationCache, reader)
+	return b.FromReader(consensus, derivationCache, reader)
 }
 
 func (b *PoolBlock) MarshalBinary() ([]byte, error) {
@@ -452,10 +437,12 @@ func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
 	}
 }
 
-func (b *PoolBlock) FromReader(derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
 	if err = b.Main.FromReader(reader); err != nil {
 		return err
 	}
+
+	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
 	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
 		return err
@@ -467,10 +454,12 @@ func (b *PoolBlock) FromReader(derivationCache DerivationCacheInterface, reader 
 }
 
 // FromCompactReader used in Protocol 1.1 and above
-func (b *PoolBlock) FromCompactReader(derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
 	if err = b.Main.FromCompactReader(reader); err != nil {
 		return err
 	}
+
+	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
 	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
 		return err

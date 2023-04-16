@@ -374,7 +374,6 @@ func (c *Client) OnConnection() {
 		case MessageBlockResponse:
 			block := &sidechain.PoolBlock{
 				LocalTimestamp: uint64(time.Now().Unix()),
-				NetworkType:    c.Owner.Consensus().NetworkType,
 			}
 
 			expectedBlockId, ok := c.getNextBlockRequest()
@@ -393,7 +392,7 @@ func (c *Client) OnConnection() {
 				//NOT found
 				//TODO log
 			} else {
-				if err = block.FromReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
@@ -430,7 +429,6 @@ func (c *Client) OnConnection() {
 		case MessageBlockBroadcast, MessageBlockBroadcastCompact:
 			block := &sidechain.PoolBlock{
 				LocalTimestamp: uint64(time.Now().Unix()),
-				NetworkType:    c.Owner.Consensus().NetworkType,
 			}
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
@@ -441,13 +439,13 @@ func (c *Client) OnConnection() {
 				//NOT found
 				//TODO log
 			} else if messageId == MessageBlockBroadcastCompact {
-				if err = block.FromCompactReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromCompactReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
 				}
 			} else {
-				if err = block.FromReader(c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return

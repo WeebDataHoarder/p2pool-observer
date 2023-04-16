@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"log"
 	"strconv"
 )
 
@@ -21,7 +22,6 @@ const (
 )
 
 const (
-	PPLNSWindow     = 2160
 	UncleBlockDepth = 3
 )
 
@@ -78,6 +78,8 @@ type Consensus struct {
 	MinimumDifficulty uint64      `json:"min_diff"`
 	ChainWindowSize   uint64      `json:"pplns_window"`
 	UnclePenalty      uint64      `json:"uncle_penalty"`
+	// HardFork optional hardfork information for p2pool
+	HardForks []HardFork `json:"hard_forks,omitempty"`
 
 	id types.Hash
 }
@@ -144,6 +146,19 @@ func (c *Consensus) verify() bool {
 	c.id = c.CalculateId()
 	if c.id == emptyHash {
 		return false
+	}
+
+	if len(c.HardForks) == 0 {
+		switch c.NetworkType {
+		case NetworkMainnet:
+			c.HardForks = p2poolMainNetHardForks
+		case NetworkTestnet:
+			c.HardForks = p2poolTestNetHardForks
+		case NetworkStagenet:
+			c.HardForks = p2poolStageNetHardForks
+		default:
+			log.Panicf("invalid network type for determining hardfork")
+		}
 	}
 
 	return true
@@ -216,5 +231,5 @@ func (c *Consensus) CalculateId() types.Hash {
 	return randomx.ConsensusHash(buf)
 }
 
-var ConsensusDefault = &Consensus{NetworkType: NetworkMainnet, PoolName: "mainnet test 2", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, id: types.Hash{34, 175, 126, 231, 181, 11, 104, 146, 227, 153, 218, 107, 44, 108, 68, 39, 178, 81, 4, 212, 169, 4, 142, 0, 177, 110, 157, 240, 68, 7, 249, 24}}
-var ConsensusMini = &Consensus{NetworkType: NetworkMainnet, PoolName: "mini", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, id: types.Hash{57, 130, 201, 26, 149, 174, 199, 250, 66, 80, 189, 18, 108, 216, 194, 220, 136, 23, 63, 24, 64, 113, 221, 44, 219, 86, 39, 163, 53, 24, 126, 196}}
+var ConsensusDefault = &Consensus{NetworkType: NetworkMainnet, PoolName: "mainnet test 2", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, id: types.Hash{34, 175, 126, 231, 181, 11, 104, 146, 227, 153, 218, 107, 44, 108, 68, 39, 178, 81, 4, 212, 169, 4, 142, 0, 177, 110, 157, 240, 68, 7, 249, 24}}
+var ConsensusMini = &Consensus{NetworkType: NetworkMainnet, PoolName: "mini", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, id: types.Hash{57, 130, 201, 26, 149, 174, 199, 250, 66, 80, 189, 18, 108, 216, 194, 220, 136, 23, 63, 24, 64, 113, 221, 44, 219, 86, 39, 163, 53, 24, 126, 196}}

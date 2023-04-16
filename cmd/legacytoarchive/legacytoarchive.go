@@ -52,7 +52,7 @@ func main() {
 			if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
 				log.Panic(err)
 			} else {
-				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType, derivationCache); err != nil {
+				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus, derivationCache); err != nil {
 					log.Printf("error decoding block %s, %s", id.String(), err)
 				} else {
 					block.Depth.Store(math.MaxUint64)
@@ -136,7 +136,7 @@ func main() {
 					if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
 						log.Panic(err)
 					} else {
-						if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus.NetworkType, derivationCache); err != nil {
+						if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus, derivationCache); err != nil {
 							log.Panic(err)
 						} else {
 							block.Depth.Store(math.MaxUint64)

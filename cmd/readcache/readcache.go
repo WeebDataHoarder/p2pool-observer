@@ -37,7 +37,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	cache, err := legacy.NewCache(*inputFile)
+	cache, err := legacy.NewCache(consensus, *inputFile)
 	if err != nil {
 		log.Panic(err)
 	}

@@ -208,17 +208,15 @@ func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {
 
 	flags := binary.LittleEndian.Uint64(blob)
 
-	b := &sidechain.PoolBlock{
-		NetworkType: c.consensus.NetworkType,
-	}
+	b := &sidechain.PoolBlock{}
 	reader := bytes.NewReader(blob[8:])
 	if (flags & 0b10) > 0 {
-		if err := b.FromCompactReader(c.derivationCache, reader); err != nil {
+		if err := b.FromCompactReader(c.consensus, c.derivationCache, reader); err != nil {
 			log.Printf("[Archive Cache] error decoding block: %s", err)
 			return nil
 		}
 	} else {
-		if err := b.FromReader(c.derivationCache, reader); err != nil {
+		if err := b.FromReader(c.consensus, c.derivationCache, reader); err != nil {
 			log.Printf("[Archive Cache] error decoding block: %s", err)
 			return nil
 		}

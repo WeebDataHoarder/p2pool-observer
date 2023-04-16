@@ -60,11 +60,7 @@ func PayoutHint(p2api *api.P2PoolApi, indexDb *index.Index, tip *index.SideBlock
 		return nil, 0
 	}
 
-	//TODO: remove this hack
-	sidechainVersion := sidechain.ShareVersion_V1
-	if tip.Timestamp >= sidechain.ShareVersion_V2MainNetTimestamp {
-		sidechainVersion = sidechain.ShareVersion_V2
-	}
+	sidechainVersion := sidechain.P2PoolShareVersion(p2api.Consensus(), tip.Timestamp)
 	maxPplnsWeight := types.MaxDifficulty
 
 	if sidechainVersion > sidechain.ShareVersion_V1 {

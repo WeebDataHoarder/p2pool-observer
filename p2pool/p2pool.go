@@ -118,7 +118,7 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 	}
 
 	if cachePath, ok := settings["cache"]; ok {
-		if pool.cache, err = legacy.NewCache(cachePath); err != nil {
+		if pool.cache, err = legacy.NewCache(consensus, cachePath); err != nil {
 			return nil, fmt.Errorf("could not create cache: %w", err)
 		}
 	}

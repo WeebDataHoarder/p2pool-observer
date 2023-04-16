@@ -504,11 +504,9 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			if buf, err := io.ReadAll(request.Body); err != nil {
 				return
 			} else {
-				b := &sidechain.PoolBlock{
-					NetworkType: instance.Consensus().NetworkType,
-				}
+				b := &sidechain.PoolBlock{}
 
-				if err = b.UnmarshalBinary(instance.SideChain().DerivationCache(), buf); err != nil {
+				if err = b.UnmarshalBinary(instance.Consensus(), instance.SideChain().DerivationCache(), buf); err != nil {
 					return
 				}
 				if b.NeedsPreProcess() {
@@ -529,10 +527,8 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				tempData, _ := existingBlock[0].MarshalBinary()
 
-				newBlock := &sidechain.PoolBlock{
-					NetworkType: instance.Consensus().NetworkType,
-				}
-				if err = newBlock.UnmarshalBinary(instance.SideChain().DerivationCache(), tempData); err != nil {
+				newBlock := &sidechain.PoolBlock{}
+				if err = newBlock.UnmarshalBinary(instance.Consensus(), instance.SideChain().DerivationCache(), tempData); err != nil {
 					return
 				}
 				//set extra nonce and nonce

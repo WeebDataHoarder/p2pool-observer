@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
@@ -54,7 +56,13 @@ func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error)
 	}
 	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
 	buf = append(buf, b.MajorVersion)
+	if b.MajorVersion > monero.HardForkSupportedVersion {
+		return nil, fmt.Errorf("unsupported version %d", b.MajorVersion)
+	}
 	buf = append(buf, b.MinorVersion)
+	if b.MinorVersion < b.MajorVersion {
+		return nil, fmt.Errorf("minor version %d smaller than major %d", b.MinorVersion, b.MajorVersion)
+	}
 	buf = binary.AppendUvarint(buf, b.Timestamp)
 	buf = append(buf, b.PreviousId[:]...)
 	buf = binary.LittleEndian.AppendUint32(buf, b.Nonce)

@@ -22,9 +22,10 @@ type Cache struct {
 	storeIndex        atomic.Uint32
 	loadingStarted    sync.Once
 	loadingInProgress atomic.Bool
+	consensus         *sidechain.Consensus
 }
 
-func NewCache(path string) (*Cache, error) {
+func NewCache(consensus *sidechain.Consensus, path string) (*Cache, error) {
 	if f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666); err != nil {
 		return nil, err
 	} else {
@@ -39,7 +40,8 @@ func NewCache(path string) (*Cache, error) {
 		}
 
 		return &Cache{
-			f: f,
+			f:         f,
+			consensus: consensus,
 		}, nil
 	}
 }
@@ -87,11 +89,10 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 			}
 
 			block := &sidechain.PoolBlock{
-				NetworkType:    l.Consensus().NetworkType,
 				LocalTimestamp: uint64(time.Now().Unix()),
 			}
 
-			if err := block.UnmarshalBinary(&sidechain.NilDerivationCache{}, buf[:blobLength]); err != nil {
+			if err := block.UnmarshalBinary(c.consensus, &sidechain.NilDerivationCache{}, buf[:blobLength]); err != nil {
 				continue
 			}
 

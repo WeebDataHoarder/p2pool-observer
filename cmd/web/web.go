@@ -1090,11 +1090,9 @@ func main() {
 
 		var raw *sidechain.PoolBlock
 		if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
-			b := &sidechain.PoolBlock{
-				NetworkType: sidechain.NetworkMainnet,
-			}
+			b := &sidechain.PoolBlock{}
 
-			if b.UnmarshalBinary(&sidechain.NilDerivationCache{}, s) == nil {
+			if b.UnmarshalBinary(consensus, &sidechain.NilDerivationCache{}, s) == nil {
 				raw = b
 			}
 		}
@@ -1177,7 +1175,7 @@ func main() {
 		if len(lastShares) > 0 {
 			rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
 			b := &sidechain.PoolBlock{}
-			if json.Unmarshal(rawBlock, b) == nil && b.NetworkType != sidechain.NetworkInvalid {
+			if json.Unmarshal(rawBlock, b) == nil && b.ShareVersion() != sidechain.ShareVersion_None {
 				raw = b
 			}
 		}
@@ -1273,7 +1271,7 @@ func main() {
 		var raw *sidechain.PoolBlock
 		rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", block.MainId))
 		b := &sidechain.PoolBlock{}
-		if json.Unmarshal(rawBlock, b) == nil && b.NetworkType != sidechain.NetworkInvalid {
+		if json.Unmarshal(rawBlock, b) == nil && b.ShareVersion() != sidechain.ShareVersion_None {
 			raw = b
 		}
 

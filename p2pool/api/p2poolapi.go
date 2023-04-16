@@ -83,7 +83,7 @@ func (p *P2PoolApi) LightByMainId(id types.Hash) *sidechain.PoolBlock {
 		} else {
 			b := &sidechain.PoolBlock{}
 
-			if err = json.Unmarshal(buf, &b); err != nil || b.NetworkType == sidechain.NetworkInvalid {
+			if err = json.Unmarshal(buf, &b); err != nil || b.ShareVersion() == sidechain.ShareVersion_None {
 				return nil
 			}
 
@@ -107,10 +107,8 @@ func (p *P2PoolApi) ByMainId(id types.Hash) *sidechain.PoolBlock {
 				return nil
 			}
 
-			b := &sidechain.PoolBlock{
-				NetworkType: p.Consensus().NetworkType,
-			}
-			if err = b.UnmarshalBinary(p.derivationCache, result.Blob); err != nil || int(b.ShareVersion()) != result.Version {
+			b := &sidechain.PoolBlock{}
+			if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, result.Blob); err != nil || int(b.ShareVersion()) != result.Version {
 				return nil
 			}
 			return b
@@ -172,10 +170,8 @@ func (p *P2PoolApi) ByTemplateId(id types.Hash) *sidechain.PoolBlock {
 							if r.Version == 0 {
 								continue
 							}
-							b := &sidechain.PoolBlock{
-								NetworkType: p.Consensus().NetworkType,
-							}
-							if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil || int(b.ShareVersion()) != r.Version {
+							b := &sidechain.PoolBlock{}
+							if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil || int(b.ShareVersion()) != r.Version {
 								continue
 							}
 							return b
@@ -185,10 +181,8 @@ func (p *P2PoolApi) ByTemplateId(id types.Hash) *sidechain.PoolBlock {
 				}
 			}
 
-			b := &sidechain.PoolBlock{
-				NetworkType: p.Consensus().NetworkType,
-			}
-			if err = b.UnmarshalBinary(p.derivationCache, result.Blob); err != nil {
+			b := &sidechain.PoolBlock{}
+			if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, result.Blob); err != nil {
 				return nil
 			}
 			return b
@@ -250,10 +244,8 @@ func (p *P2PoolApi) BySideHeight(height uint64) sidechain.UniquePoolBlockSlice {
 							if r.Version == 0 {
 								return nil
 							}
-							b := &sidechain.PoolBlock{
-								NetworkType: p.Consensus().NetworkType,
-							}
-							if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+							b := &sidechain.PoolBlock{}
+							if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 								return nil
 							}
 							results = append(results, b)
@@ -268,10 +260,8 @@ func (p *P2PoolApi) BySideHeight(height uint64) sidechain.UniquePoolBlockSlice {
 				if r.Version == 0 {
 					return nil
 				}
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil
 				}
 				results = append(results, b)
@@ -321,10 +311,8 @@ func (p *P2PoolApi) ByMainHeight(height uint64) sidechain.UniquePoolBlockSlice {
 				if r.Version == 0 {
 					return nil
 				}
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil
 				}
 				results = append(results, b)
@@ -453,20 +441,16 @@ func (p *P2PoolApi) StateFromTemplateId(id types.Hash) (chain, uncles sidechain.
 			uncles = make([]*sidechain.PoolBlock, 0, len(result.Uncles))
 
 			for _, r := range result.Chain {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				chain = append(chain, b)
 			}
 
 			for _, r := range result.Uncles {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				uncles = append(uncles, b)
@@ -496,20 +480,16 @@ func (p *P2PoolApi) WindowFromTemplateId(id types.Hash) (chain, uncles sidechain
 			uncles = make([]*sidechain.PoolBlock, 0, len(result.Uncles))
 
 			for _, r := range result.Chain {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				chain = append(chain, b)
 			}
 
 			for _, r := range result.Uncles {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				uncles = append(uncles, b)
@@ -539,20 +519,16 @@ func (p *P2PoolApi) StateFromTip() (chain, uncles sidechain.UniquePoolBlockSlice
 			uncles = make([]*sidechain.PoolBlock, 0, len(result.Uncles))
 
 			for _, r := range result.Chain {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				chain = append(chain, b)
 			}
 
 			for _, r := range result.Uncles {
-				b := &sidechain.PoolBlock{
-					NetworkType: p.Consensus().NetworkType,
-				}
-				if err = b.UnmarshalBinary(p.derivationCache, r.Blob); err != nil {
+				b := &sidechain.PoolBlock{}
+				if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, r.Blob); err != nil {
 					return nil, nil
 				}
 				uncles = append(uncles, b)
@@ -581,10 +557,8 @@ func (p *P2PoolApi) Tip() *sidechain.PoolBlock {
 			if result.Version == 0 {
 				return nil
 			}
-			b := &sidechain.PoolBlock{
-				NetworkType: p.Consensus().NetworkType,
-			}
-			if err = b.UnmarshalBinary(p.derivationCache, result.Blob); err != nil {
+			b := &sidechain.PoolBlock{}
+			if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, result.Blob); err != nil {
 				return nil
 			}
 			return b

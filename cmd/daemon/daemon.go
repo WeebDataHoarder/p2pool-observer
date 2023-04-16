@@ -37,7 +37,7 @@ func main() {
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
-	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
+	for status := p2api.Status(); !status.Synchronized; status = p2api.Status() {
 		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
 		time.Sleep(time.Second * 5)
 	}
