@@ -553,17 +553,41 @@ func main() {
 		type transactionLookupResult struct {
 			Id     types.Hash                                `json:"id"`
 			Inputs index.TransactionInputQueryResults        `json:"inputs"`
+			Outs   []client.Output                           `json:"outs"`
 			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
 		}
 
-		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, transactionLookupResult{
-			Id:     txId,
-			Inputs: results[0],
-			Match:  results[0].Match(),
-		})
-		_, _ = writer.Write(buf)
+		indicesToLookup := make([]uint64, 0, len(results[0]))
+		for _, i := range results[0] {
+			indicesToLookup = append(indicesToLookup, i.Input.KeyOffsets...)
+		}
+
+		if outs, err := client.GetDefaultClient().GetOuts(indicesToLookup...); err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "bad_request",
+			})
+			_, _ = writer.Write(buf)
+			return
+		} else {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			for i, out := range outs {
+				if mb := indexDb.GetMainBlockByHeight(out.Height); mb != nil {
+					outs[i].Timestamp = mb.Timestamp
+				}
+			}
+			buf, _ := encodeJson(request, transactionLookupResult{
+				Id:     txId,
+				Inputs: results[0],
+				Outs:   outs,
+				Match:  results[0].Match(),
+			})
+			_, _ = writer.Write(buf)
+		}
 
 	})
 

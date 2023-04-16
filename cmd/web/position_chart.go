@@ -19,7 +19,7 @@ func (p *PositionChart) Add(index int, value uint64) {
 		p.bucket[0] += value
 		return
 	}
-	i := uint64(index) / ((p.totalItems + uint64(len(p.bucket)) - 1) / uint64(len(p.bucket)))
+	i := uint64(index) * uint64(len(p.bucket)-1) / (p.totalItems - 1)
 	p.bucket[i] += value
 }
 
@@ -65,7 +65,7 @@ func (p *PositionChart) StringWithSeparator(index int) string {
 	if index < 0 || index >= int(p.totalItems) {
 		return p.String()
 	}
-	separatorIndex := int(uint64(index) / ((p.totalItems + uint64(len(p.bucket)) - 1) / uint64(len(p.bucket))))
+	separatorIndex := index*len(p.bucket) - 1/int(p.totalItems-1)
 	position := make([]byte, 1+2*2+len(p.bucket))
 	position[0], position[1] = '[', '<'
 	position[2+separatorIndex] = '|'
@@ -89,6 +89,9 @@ func (p *PositionChart) StringWithSeparator(index int) string {
 }
 
 func NewPositionChart(size uint64, totalItems uint64) *PositionChart {
+	if size < 1 {
+		size = 1
+	}
 	return &PositionChart{
 		totalItems: totalItems,
 		bucket:     make([]uint64, size),

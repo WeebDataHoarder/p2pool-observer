@@ -65,17 +65,22 @@
             <code class="mono">{{ other_miner_coinbase_chart }}</code>
             <code class="mono">{{ other_miner_sweep_chart }}</code>
         </th></tr>
+        <tr><th colspan="7">
+            <h3>Unknown inputs time scale (from {{ utc_date(bottom_timestamp) }} to {{ utc_date(top_timestamp) }})</h3>
+            <code class="mono">{{ no_miner_chart }}</code>
+        </th></tr>
         <tr><th colspan="7">&nbsp;</th></tr>
 
         <tr>
             <th>Input Index</th>
             <th>Input Key Image</th>
-            <th>Decoy Address</th>
-            <th>Decoy Output</th>
+            <th>Decoy Owner</th>
+            <th>Source Transaction</th>
             <th>Global Output Index</th>
-            <th>Decoy Type</th>
-            <th>Decoy Value</th>
+            <th>Source Type</th>
+            <th>Source Value</th>
         </tr>
+        {% set totalInputCount = 0 %}
         {% for index, input in result.Inputs %}
 
             {% set outputCount = 0 %}
@@ -88,8 +93,9 @@
                         <td>{{ index }}</td>
                         <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
                     {% endif %}
-                    <td class="small">No known miner.</td>
                     <td class="small">-</td>
+                    {% set out = result.Outs[totalInputCount] %}
+                    <td title="{{ out.TransactionId }}" class="mono small"><a href="/t/{{ out.TransactionId|henc }}">{{ (out.TransactionId|hex)|shorten(10) }}</a></td>
                     <td class="small">{{ input.Input.KeyOffsets[oindex] }}</td>
                     <td class="small">-</td>
                     <td class="small">-</td>
@@ -127,6 +133,7 @@
                     </tr>
                 {% endif %}
                 {% set outputCount = add_uint(outputCount, 1) %}
+                {% set totalInputCount = add_uint(totalInputCount, 1) %}
             {% endfor %}
             <tr><th colspan="6">&nbsp;</th></tr>
         {% endfor %}

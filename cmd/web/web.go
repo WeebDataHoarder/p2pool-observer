@@ -712,6 +712,7 @@ func main() {
 		type transactionLookupResult struct {
 			Id     types.Hash                                `json:"id"`
 			Inputs index.TransactionInputQueryResults        `json:"inputs"`
+			Outs   []client.Output                           `json:"outs"`
 			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
 		}
 
@@ -738,9 +739,28 @@ func main() {
 
 				var topTimestamp, bottomTimestamp uint64 = 0, math.MaxUint64
 
+				getOut := func(outputIndex uint64) *client.Output {
+					if i := slices.IndexFunc(fullResult.Outs, func(output client.Output) bool {
+						return output.GlobalOutputIndex == outputIndex
+					}); i != -1 {
+						return &fullResult.Outs[i]
+					}
+					return nil
+				}
+
 				for _, i := range fullResult.Inputs {
-					for _, o := range i.MatchedOutputs {
+					for j, o := range i.MatchedOutputs {
 						if o == nil {
+							if oi := getOut(i.Input.KeyOffsets[j]); oi != nil {
+								if oi.Timestamp != 0 {
+									if topTimestamp < oi.Timestamp {
+										topTimestamp = oi.Timestamp
+									}
+									if bottomTimestamp > oi.Timestamp {
+										bottomTimestamp = oi.Timestamp
+									}
+								}
+							}
 							continue
 						}
 						if o.Timestamp != 0 {
@@ -756,7 +776,7 @@ func main() {
 
 				timeScaleItems := topTimestamp - bottomTimestamp
 				if bottomTimestamp == math.MaxUint64 {
-					timeScaleItems = 0
+					timeScaleItems = 1
 				}
 				minerCoinbaseChart := NewPositionChart(170, timeScaleItems)
 				minerCoinbaseChart.SetIdle('_')
@@ -766,13 +786,20 @@ func main() {
 				otherCoinbaseMinerChart.SetIdle('_')
 				otherSweepMinerChart := NewPositionChart(170, timeScaleItems)
 				otherSweepMinerChart.SetIdle('_')
+				noMinerChart := NewPositionChart(170, timeScaleItems)
+				noMinerChart.SetIdle('_')
 
 				if topMiner != nil {
 					var noMinerCount, minerCount, otherMinerCount uint64
 					for _, i := range fullResult.Inputs {
 						var isNoMiner, isMiner, isOtherMiner bool
-						for _, o := range i.MatchedOutputs {
+						for j, o := range i.MatchedOutputs {
 							if o == nil {
+								if oi := getOut(i.Input.KeyOffsets[j]); oi != nil {
+									if oi.Timestamp != 0 {
+										noMinerChart.Add(int(topTimestamp-oi.Timestamp), 1)
+									}
+								}
 								isNoMiner = true
 							} else if topMiner.Address.Compare(o.Address) == 0 {
 								isMiner = true
@@ -828,6 +855,7 @@ func main() {
 					ctx["other_miner_coinbase_chart"] = otherCoinbaseMinerChart.String()
 					ctx["miner_sweep_chart"] = minerSweepChart.String()
 					ctx["other_miner_sweep_chart"] = otherSweepMinerChart.String()
+					ctx["no_miner_chart"] = noMinerChart.String()
 
 					render(request, writer, "transaction-lookup.html", ctx)
 					return

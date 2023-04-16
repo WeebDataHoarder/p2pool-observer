@@ -224,11 +224,13 @@ func (c *Client) GetTransactionInputs(ctx context.Context, hashes ...types.Hash)
 }
 
 type Output struct {
-	Height        uint64
-	Key           types.Hash
-	Mask          types.Hash
-	TransactionId types.Hash
-	Unlocked      bool
+	GlobalOutputIndex uint64     `json:"global_output_index"`
+	Height            uint64     `json:"height"`
+	Timestamp         uint64     `json:"timestamp"`
+	Key               types.Hash `json:"key"`
+	Mask              types.Hash `json:"mask"`
+	TransactionId     types.Hash `json:"tx_id"`
+	Unlocked          bool       `json:"unlocked"`
 }
 
 // GetOutputIndexes Get global output indexes for a given transaction
@@ -257,6 +259,7 @@ func (c *Client) GetOuts(inputs ...uint64) ([]Output, error) {
 		s := make([]Output, len(inputs))
 		for i := range result.Outs {
 			o := &result.Outs[i]
+			s[i].GlobalOutputIndex = inputs[i]
 			s[i].Height = o.Height
 			s[i].Key, _ = types.HashFromString(o.Key)
 			s[i].Mask, _ = types.HashFromString(o.Mask)
