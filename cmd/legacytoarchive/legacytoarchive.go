@@ -85,7 +85,9 @@ func main() {
 			return
 		}
 		if parent := getByTemplateId(b.Side.Parent); parent != nil {
+			storeBlock(b.Side.Parent, parent, depth+1)
 			topDepth := parent.Depth.Load()
+			b.FillTransactionParentIndices(parent)
 			if topDepth == math.MaxUint64 {
 				b.Depth.Store(consensus.ChainWindowSize * 2)
 			} else if topDepth == 0 {
@@ -93,8 +95,6 @@ func main() {
 			} else {
 				b.Depth.Store(topDepth - 1)
 			}
-			b.FillTransactionParentIndices(parent)
-			storeBlock(b.Side.Parent, parent, depth+1)
 		} else {
 			b.Depth.Store(math.MaxUint64)
 		}
