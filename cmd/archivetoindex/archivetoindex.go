@@ -31,6 +31,7 @@ func main() {
 
 	randomx.UseFullMemory.Store(true)
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
+	client.GetDefaultClient().SetThrottle(1000)
 
 	cf, err := os.ReadFile(*inputConsensus)
 
@@ -309,8 +310,6 @@ func main() {
 	}, index.InclusionInVerifiedChain); err != nil {
 		log.Panic(err)
 	}
-
-	client.GetDefaultClient().SetThrottle(100)
 
 	heightCount := maxHeight - minHeight + 1
 
