@@ -185,6 +185,10 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 		return nil, err
 	}
 
+	if expectedMajorVersion := NetworkMajorVersion(consensus, b.Main.Coinbase.GenHeight); expectedMajorVersion != b.Main.MajorVersion {
+		return nil, fmt.Errorf("expected major version %d at height %d, got %d", expectedMajorVersion, b.Main.Coinbase.GenHeight, b.Main.MajorVersion)
+	}
+
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
 	if err = b.Side.UnmarshalBinary(sideData, b.ShareVersion()); err != nil {
@@ -442,6 +446,10 @@ func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationC
 		return err
 	}
 
+	if expectedMajorVersion := NetworkMajorVersion(consensus, b.Main.Coinbase.GenHeight); expectedMajorVersion != b.Main.MajorVersion {
+		return fmt.Errorf("expected major version %d at height %d, got %d", expectedMajorVersion, b.Main.Coinbase.GenHeight, b.Main.MajorVersion)
+	}
+
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
 	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
@@ -457,6 +465,10 @@ func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationC
 func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
 	if err = b.Main.FromCompactReader(reader); err != nil {
 		return err
+	}
+
+	if expectedMajorVersion := NetworkMajorVersion(consensus, b.Main.Coinbase.GenHeight); expectedMajorVersion != b.Main.MajorVersion {
+		return fmt.Errorf("expected major version %d at height %d, got %d", expectedMajorVersion, b.Main.Coinbase.GenHeight, b.Main.MajorVersion)
 	}
 
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
