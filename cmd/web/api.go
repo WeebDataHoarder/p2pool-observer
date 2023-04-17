@@ -53,7 +53,7 @@ func getSideBlockFromAPI(method string, cacheTime ...int) *index.SideBlock {
 		cTime = cacheTime[0]
 	}
 
-	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	if sb, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -75,7 +75,10 @@ func getSideBlockFromAPI(method string, cacheTime ...int) *index.SideBlock {
 				return nil
 			}
 		}
-	}).(*index.SideBlock)
+	}).(*index.SideBlock); ok {
+		return sb
+	}
+	return nil
 }
 
 func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
@@ -84,7 +87,7 @@ func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 		cTime = cacheTime[0]
 	}
 
-	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	if sb, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -106,7 +109,10 @@ func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 				return nil
 			}
 		}
-	}).([]*index.SideBlock)
+	}).([]*index.SideBlock); ok {
+		return sb
+	}
+	return nil
 }
 
 func getFromAPIRaw(method string, cacheTime ...int) []byte {
@@ -115,7 +121,7 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 		cTime = cacheTime[0]
 	}
 
-	return cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	if b, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -134,5 +140,8 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 				return nil
 			}
 		}
-	}).([]byte)
+	}).([]byte); ok {
+		return b
+	}
+	return nil
 }
