@@ -128,7 +128,7 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 	if err = c.Extra.UnmarshalBinary(txExtra); err != nil {
 		return err
 	}
-	if err = binary.Read(reader, binary.BigEndian, &c.ExtraBaseRCT); err != nil {
+	if err = binary.Read(reader, binary.LittleEndian, &c.ExtraBaseRCT); err != nil {
 		return err
 	}
 
@@ -148,10 +148,10 @@ func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 
-	_ = binary.Write(buf, binary.BigEndian, c.Version)
+	_ = binary.Write(buf, binary.LittleEndian, c.Version)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.UnlockTime)])
-	_ = binary.Write(buf, binary.BigEndian, c.InputCount)
-	_ = binary.Write(buf, binary.BigEndian, c.InputType)
+	_ = binary.Write(buf, binary.LittleEndian, c.InputCount)
+	_ = binary.Write(buf, binary.LittleEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
 	outputs, _ := c.OutputsBlob()
@@ -167,7 +167,7 @@ func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
 	txExtra, _ := c.Extra.MarshalBinary()
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
 	_, _ = buf.Write(txExtra)
-	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)
+	_ = binary.Write(buf, binary.LittleEndian, c.ExtraBaseRCT)
 
 	return buf.Bytes(), nil
 }
@@ -181,10 +181,10 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte,
 
 	varIntBuf := make([]byte, binary.MaxVarintLen64)
 
-	_ = binary.Write(buf, binary.BigEndian, c.Version)
+	_ = binary.Write(buf, binary.LittleEndian, c.Version)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.UnlockTime)])
-	_ = binary.Write(buf, binary.BigEndian, c.InputCount)
-	_ = binary.Write(buf, binary.BigEndian, c.InputType)
+	_ = binary.Write(buf, binary.LittleEndian, c.InputCount)
+	_ = binary.Write(buf, binary.LittleEndian, c.InputType)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
 	outputs, _ := c.Outputs.MarshalBinary()
@@ -193,7 +193,7 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte,
 	txExtra, _ := c.Extra.SideChainHashingBlob(zeroTemplateId)
 	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
 	_, _ = buf.Write(txExtra)
-	_ = binary.Write(buf, binary.BigEndian, c.ExtraBaseRCT)
+	_ = binary.Write(buf, binary.LittleEndian, c.ExtraBaseRCT)
 
 	return buf.Bytes(), nil
 }

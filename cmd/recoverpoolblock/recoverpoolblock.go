@@ -249,19 +249,21 @@ func main() {
 						TotalReward: v2.CoinbaseReward,
 						Extra: transaction.ExtraTags{
 							transaction.ExtraTag{
-								Tag:          transaction.TxExtraTagPubKey,
-								VarIntLength: 0,
-								Data:         types.Bytes(keyPair.PublicKey.AsSlice()),
+								Tag:    transaction.TxExtraTagPubKey,
+								VarInt: 0,
+								Data:   types.Bytes(keyPair.PublicKey.AsSlice()),
 							},
 							transaction.ExtraTag{
-								Tag:          transaction.TxExtraTagNonce,
-								VarIntLength: 4,
-								Data:         make(types.Bytes, 4), //TODO: expand nonce size as needed
+								Tag:       transaction.TxExtraTagNonce,
+								VarInt:    4,
+								HasVarInt: true,
+								Data:      make(types.Bytes, 4), //TODO: expand nonce size as needed
 							},
 							transaction.ExtraTag{
-								Tag:          transaction.TxExtraTagMergeMining,
-								VarIntLength: types.HashSize,
-								Data:         v2.Id[:],
+								Tag:       transaction.TxExtraTagMergeMining,
+								VarInt:    32,
+								HasVarInt: true,
+								Data:      v2.Id[:],
 							},
 						},
 						ExtraBaseRCT: 0,
@@ -380,7 +382,7 @@ func main() {
 				if err := tx.UnmarshalBinary(minerTxBlob); err != nil {
 					return err
 				}
-				tx.Extra[1].VarIntLength = uint64(nonceSize)
+				tx.Extra[1].VarInt = uint64(nonceSize)
 				tx.Extra[1].Data = make([]byte, nonceSize)
 
 				buf, _ := tx.MarshalBinary()
@@ -413,7 +415,7 @@ func main() {
 		}
 
 		log.Printf("found extra nonce %d, size %d", foundExtraNonce.Load(), foundExtraNonceSize.Load())
-		poolBlock.Main.Coinbase.Extra[1].VarIntLength = uint64(foundExtraNonceSize.Load())
+		poolBlock.Main.Coinbase.Extra[1].VarInt = uint64(foundExtraNonceSize.Load())
 		poolBlock.Main.Coinbase.Extra[1].Data = make([]byte, foundExtraNonceSize.Load())
 		binary.LittleEndian.PutUint32(poolBlock.Main.Coinbase.Extra[1].Data, foundExtraNonce.Load())
 

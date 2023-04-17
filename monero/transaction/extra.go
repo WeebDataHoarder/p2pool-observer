@@ -26,9 +26,11 @@ const TxExtraTemplateNonceSize = 4
 type ExtraTags []ExtraTag
 
 type ExtraTag struct {
-	Tag          uint8       `json:"tag"`
-	VarIntLength uint64      `json:"var_int_length"`
-	Data         types.Bytes `json:"data"`
+	Tag uint8 `json:"tag"`
+	// VarInt has different meanings. In TxExtraTagMergeMining it is depth, while in others it is length
+	VarInt    uint64      `json:"var_int"`
+	HasVarInt bool        `json:"has_var_int"`
+	Data      types.Bytes `json:"data"`
 }
 
 func (t *ExtraTags) UnmarshalBinary(data []byte) (err error) {
@@ -102,8 +104,8 @@ func (t *ExtraTag) UnmarshalBinary(data []byte) error {
 func (t *ExtraTag) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 0, len(t.Data)+1+binary.MaxVarintLen64)
 	buf = append(buf, t.Tag)
-	if t.VarIntLength > 0 {
-		buf = binary.AppendUvarint(buf, t.VarIntLength)
+	if t.HasVarInt {
+		buf = binary.AppendUvarint(buf, t.VarInt)
 	}
 	buf = append(buf, t.Data...)
 	return buf, nil
@@ -112,8 +114,8 @@ func (t *ExtraTag) MarshalBinary() ([]byte, error) {
 func (t *ExtraTag) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 	buf := make([]byte, 0, len(t.Data)+1+binary.MaxVarintLen64)
 	buf = append(buf, t.Tag)
-	if t.VarIntLength > 0 {
-		buf = binary.AppendUvarint(buf, t.VarIntLength)
+	if t.HasVarInt {
+		buf = binary.AppendUvarint(buf, t.VarInt)
 	}
 	if zeroTemplateId && t.Tag == TxExtraTagMergeMining {
 		buf = append(buf, make([]byte, len(t.Data))...)
@@ -132,7 +134,7 @@ func (t *ExtraTag) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 
 func (t *ExtraTag) FromReader(reader readerAndByteReader) (err error) {
 
-	if err = binary.Read(reader, binary.BigEndian, &t.Tag); err != nil {
+	if err = binary.Read(reader, binary.LittleEndian, &t.Tag); err != nil {
 		return err
 	}
 
@@ -167,50 +169,53 @@ func (t *ExtraTag) FromReader(reader readerAndByteReader) (err error) {
 			return err
 		}
 	case TxExtraTagNonce:
-		if t.VarIntLength, err = binary.ReadUvarint(reader); err != nil {
+		t.HasVarInt = true
+		if t.VarInt, err = binary.ReadUvarint(reader); err != nil {
 			return err
 		} else {
-			if t.VarIntLength > TxExtraNonceMaxCount {
+			if t.VarInt > TxExtraNonceMaxCount {
 				return errors.New("nonce is too big")
 			}
 
-			t.Data = make([]byte, t.VarIntLength)
+			t.Data = make([]byte, t.VarInt)
 			if _, err = io.ReadFull(reader, t.Data); err != nil {
 				return err
 			}
 		}
 	case TxExtraTagMergeMining:
-		if t.VarIntLength, err = binary.ReadUvarint(reader); err != nil {
+		t.HasVarInt = true
+		if t.VarInt, err = binary.ReadUvarint(reader); err != nil {
 			return err
 		} else {
-
 			t.Data = make([]byte, types.HashSize)
 			if _, err = io.ReadFull(reader, t.Data); err != nil {
 				return err
 			}
 		}
 	case TxExtraTagAdditionalPubKeys:
-		if t.VarIntLength, err = binary.ReadUvarint(reader); err != nil {
+		t.HasVarInt = true
+		if t.VarInt, err = binary.ReadUvarint(reader); err != nil {
 			return err
 		} else {
-			if t.VarIntLength > TxExtraAdditionalPubKeysMaxCount {
+			if t.VarInt > TxExtraAdditionalPubKeysMaxCount {
 				return errors.New("too many public keys")
 			}
 
-			t.Data = make([]byte, types.HashSize*t.VarIntLength)
+			t.Data = make([]byte, types.HashSize*t.VarInt)
 			if _, err = io.ReadFull(reader, t.Data); err != nil {
 				return err
 			}
 		}
 	case TxExtraTagMysteriousMinergate:
-		if t.VarIntLength, err = binary.ReadUvarint(reader); err != nil {
+		t.HasVarInt = true
+		if t.VarInt, err = binary.ReadUvarint(reader); err != nil {
 			return err
 		} else {
-			if t.VarIntLength > TxExtraNonceMaxCount {
+			if t.VarInt > TxExtraNonceMaxCount {
 				return errors.New("nonce is too big")
 			}
 
-			t.Data = make([]byte, t.VarIntLength)
+			t.Data = make([]byte, t.VarInt)
 			if _, err = io.ReadFull(reader, t.Data); err != nil {
 				return err
 			}
