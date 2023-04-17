@@ -191,6 +191,11 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
+	//TODO: this is to comply with non-standard p2pool serialization, see https://github.com/SChernykh/p2pool/issues/249
+	if t := b.Main.Coinbase.Extra.GetTag(transaction.TxExtraTagMergeMining); t == nil && t.VarInt != 32 {
+		return nil, errors.New("wrong merge mining tag depth")
+	}
+
 	if err = b.Side.UnmarshalBinary(sideData, b.ShareVersion()); err != nil {
 		return nil, err
 	}
@@ -450,6 +455,11 @@ func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationC
 		return fmt.Errorf("expected major version %d at height %d, got %d", expectedMajorVersion, b.Main.Coinbase.GenHeight, b.Main.MajorVersion)
 	}
 
+	//TODO: this is to comply with non-standard p2pool serialization, see https://github.com/SChernykh/p2pool/issues/249
+	if t := b.Main.Coinbase.Extra.GetTag(transaction.TxExtraTagMergeMining); t == nil && t.VarInt != 32 {
+		return errors.New("wrong merge mining tag depth")
+	}
+
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
 
 	if err = b.Side.FromReader(reader, b.ShareVersion()); err != nil {
@@ -469,6 +479,11 @@ func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache Deri
 
 	if expectedMajorVersion := NetworkMajorVersion(consensus, b.Main.Coinbase.GenHeight); expectedMajorVersion != b.Main.MajorVersion {
 		return fmt.Errorf("expected major version %d at height %d, got %d", expectedMajorVersion, b.Main.Coinbase.GenHeight, b.Main.MajorVersion)
+	}
+
+	//TODO: this is to comply with non-standard p2pool serialization, see https://github.com/SChernykh/p2pool/issues/249
+	if t := b.Main.Coinbase.Extra.GetTag(transaction.TxExtraTagMergeMining); t == nil && t.VarInt != 32 {
+		return errors.New("wrong merge mining tag depth")
 	}
 
 	b.CachedShareVersion = b.CalculateShareVersion(consensus)
