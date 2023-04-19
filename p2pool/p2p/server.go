@@ -118,9 +118,13 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
-		versionInformation: p2pooltypes.PeerVersionInformation{SoftwareId: p2pooltypes.SoftwareIdGoObserver, SoftwareVersion: p2pooltypes.CurrentSoftwareVersion, Protocol: p2pooltypes.SupportedProtocolVersion},
-		ctx:                ctx,
-		bans:               make(map[[16]byte]uint64),
+		versionInformation: p2pooltypes.PeerVersionInformation{
+			SoftwareId:      p2pooltypes.SoftwareIdGoObserver,
+			SoftwareVersion: p2pooltypes.CurrentSoftwareVersion,
+			Protocol:        p2pooltypes.SupportedProtocolVersion,
+		},
+		ctx:  ctx,
+		bans: make(map[[16]byte]uint64),
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))

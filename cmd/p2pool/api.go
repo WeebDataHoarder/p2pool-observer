@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -12,11 +13,21 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
+func encodeJson(r *http.Request, d any) ([]byte, error) {
+	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
+		return json.MarshalIndent(d, "", "    ")
+	} else {
+		return json.Marshal(d)
+	}
+}
+
 func getServerMux(instance *p2pool.P2Pool) *mux.Router {
+
 	serveMux := mux.NewRouter()
 
 	archiveCache := instance.AddressableCache()

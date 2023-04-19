@@ -2,31 +2,26 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"log"
 	"net"
 	"net/http"
 	"net/netip"
 	"os"
+	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
-
-func encodeJson(r *http.Request, d any) ([]byte, error) {
-	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
-		return json.MarshalIndent(d, "", "    ")
-	} else {
-		return json.Marshal(d)
-	}
-}
 
 func main() {
 
@@ -52,10 +47,16 @@ func main() {
 
 	memoryLimitInGiB := flag.Uint64("memory-limit", 0, "Memory limit for go managed sections in GiB, set 0 to disable")
 
-	noCache := flag.Bool("no-cache", false, "Disable p2pool.cache")
+	blockCache := flag.String("block-cache", "p2pool.cache", "Block cache for faster startups. Set to empty to disable")
 	debugLog := flag.Bool("debug", false, "Log more details")
 	//TODO extend verbosity to debug flag
 	flag.Parse()
+
+	if buildInfo, _ := debug.ReadBuildInfo(); buildInfo != nil {
+		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.SoftwareIdGoObserver, types.CurrentSoftwareVersion, buildInfo.GoVersion)
+	} else {
+		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.SoftwareIdGoObserver, types.CurrentSoftwareVersion, runtime.Version())
+	}
 
 	if *debugLog {
 		log.SetFlags(log.Flags() | log.Lshortfile)
@@ -105,8 +106,8 @@ func main() {
 	settings["in-peers"] = strconv.FormatUint(*inPeers, 10)
 	settings["external-port"] = strconv.FormatUint(*p2pExternalPort, 10)
 
-	if !*noCache {
-		settings["cache"] = "p2pool.cache"
+	if *blockCache != "" {
+		settings["cache"] = *blockCache
 	}
 
 	if *createArchive != "" {
@@ -230,8 +231,24 @@ func main() {
 			}
 		}()
 
+		sigHandler := make(chan os.Signal, 1)
+		signal.Notify(sigHandler, syscall.SIGINT)
+		go func() {
+			for s := range sigHandler {
+				if s == syscall.SIGKILL || s == syscall.SIGINT {
+					instance.Close(nil)
+				}
+			}
+		}()
+
 		if err := instance.Run(); err != nil {
-			log.Panic(err)
+			instance.Close(err)
+			instance.WaitUntilClosed()
+			if closeError := instance.CloseError(); closeError != nil {
+				log.Panic(err)
+			} else {
+				os.Exit(0)
+			}
 		}
 	}
 }

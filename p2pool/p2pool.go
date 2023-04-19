@@ -40,7 +40,9 @@ type P2Pool struct {
 
 	recentSubmittedBlocks *utils.CircularBuffer[types.Hash]
 
-	started atomic.Bool
+	started    atomic.Bool
+	closeError error
+	closed     chan struct{}
 }
 
 func (p *P2Pool) GetBlob(key []byte) (blob []byte, err error) {
@@ -63,8 +65,20 @@ func (p *P2Pool) Cache() cache.Cache {
 	return p.cache
 }
 
+func (p *P2Pool) CloseError() error {
+	return p.closeError
+}
+
+func (p *P2Pool) WaitUntilClosed() {
+	<-p.closed
+}
+
 func (p *P2Pool) Close(err error) {
 	started := p.started.Swap(false)
+
+	if started {
+		p.closeError = err
+	}
 
 	p.ctxCancel()
 	_ = p.zmqClient.Close()
@@ -80,9 +94,13 @@ func (p *P2Pool) Close(err error) {
 	}
 
 	if started && err != nil {
+		close(p.closed)
 		log.Panicf("[P2Pool] Closed due to error %s", err)
 	} else if started {
+		close(p.closed)
 		log.Printf("[P2Pool] Closed")
+	} else if err != nil {
+		log.Printf("[P2Pool] Received extra error during closing %s", err)
 	}
 }
 
@@ -90,6 +108,7 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 	pool := &P2Pool{
 		consensus:             consensus,
 		recentSubmittedBlocks: utils.NewCircularBuffer[types.Hash](8),
+		closed:                make(chan struct{}),
 	}
 	var err error
 

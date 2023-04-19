@@ -36,47 +36,41 @@ func (i *PeerVersionInformation) ToAddrPort() netip.AddrPort {
 	return netip.AddrPortFrom(netip.AddrFrom16(addr), 0xFFFF)
 }
 
-type ProtocolVersion uint32
+type ProtocolVersion SemanticVersion
 
 func (v ProtocolVersion) Major() uint16 {
-	return uint16(v >> 16)
+	return SemanticVersion(v).Major()
 }
 func (v ProtocolVersion) Minor() uint16 {
-	return uint16(v & 0xFFFF)
+	return SemanticVersion(v).Minor()
 }
 
 func (v ProtocolVersion) String() string {
-	if v == 0 {
-		return "unknown"
-	}
-	return fmt.Sprintf("%d.%d", v.Major(), v.Minor())
+	return SemanticVersion(v).String()
 }
 
 const (
-	ProtocolVersion_0_0 ProtocolVersion = 0x00000000
-	ProtocolVersion_1_0 ProtocolVersion = 0x00010000
-	ProtocolVersion_1_1 ProtocolVersion = 0x00010001
+	ProtocolVersion_0_0 ProtocolVersion = (0 << 16) | 0
+	ProtocolVersion_1_0 ProtocolVersion = (1 << 16) | 0
+	ProtocolVersion_1_1 ProtocolVersion = (1 << 16) | 1
 )
 
 const SupportedProtocolVersion = ProtocolVersion_1_1
 
-type SoftwareVersion uint32
+type SoftwareVersion SemanticVersion
 
 func (v SoftwareVersion) Major() uint16 {
-	return uint16(v >> 16)
+	return SemanticVersion(v).Major()
 }
 func (v SoftwareVersion) Minor() uint16 {
-	return uint16(v & 0xFFFF)
+	return SemanticVersion(v).Minor()
 }
 
 func (v SoftwareVersion) String() string {
-	if v == 0 {
-		return "unknown"
-	}
-	return fmt.Sprintf("v%d.%d", v.Major(), v.Minor())
+	return SemanticVersion(v).String()
 }
 
-const CurrentSoftwareVersion SoftwareVersion = 0x00000001
+const CurrentSoftwareVersion SoftwareVersion = (1 << 16) | 0
 
 type SoftwareId uint32
 
