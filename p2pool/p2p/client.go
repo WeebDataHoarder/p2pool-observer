@@ -46,8 +46,8 @@ type Client struct {
 	Owner                                *Server
 	Connection                           *net.TCPConn
 	Closed                               atomic.Bool
-	LastBroadcast                        time.Time
-	LastBlockRequest                     time.Time
+	LastBroadcastTimestamp               atomic.Uint64
+	LastBlockRequestTimestamp            atomic.Uint64
 	LastIncomingPeerListRequestTime      time.Time
 	LastActiveTimestamp                  atomic.Uint64
 	LastPeerListRequestTimestamp         atomic.Uint64
@@ -90,6 +90,7 @@ func NewClient(owner *Server, conn *net.TCPConn) *Client {
 
 func (c *Client) Ban(duration time.Duration, err error) {
 	c.Owner.Ban(c.AddressPort.Addr(), duration, err)
+	c.Owner.RemoveFromPeerList(c.AddressPort.Addr())
 	c.Close()
 }
 
@@ -97,7 +98,7 @@ func (c *Client) OnAfterHandshake() {
 	c.SendListenPort()
 	c.SendBlockRequest(types.ZeroHash)
 
-	c.LastBroadcast = time.Now()
+	c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 }
 
 func (c *Client) getNextBlockRequest() (id types.Hash, ok bool) {
@@ -352,8 +353,9 @@ func (c *Client) OnConnection() {
 				return
 			}
 			c.ListenPort.Store(listenPort)
+			c.Owner.UpdateInPeerList(netip.AddrPortFrom(c.AddressPort.Addr(), uint16(c.ListenPort.Load())))
 		case MessageBlockRequest:
-			c.LastBlockRequest = time.Now()
+			c.LastBlockRequestTimestamp.Store(uint64(time.Now().Unix()))
 
 			var templateId types.Hash
 			if err := binary.Read(c, binary.LittleEndian, &templateId); err != nil {
@@ -464,7 +466,7 @@ func (c *Client) OnConnection() {
 
 			c.BroadcastedHashes.Push(types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)))
 
-			c.LastBroadcast = time.Now()
+			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
 					c.SendMissingBlockRequest(id)
@@ -680,8 +682,15 @@ func (c *Client) Close() {
 		return
 	}
 
+	if !c.HandshakeComplete.Load() {
+		c.Ban(DefaultBanTime, errors.New("disconnected before finishing handshake"))
+	}
+
 	c.Owner.clientsLock.Lock()
 	defer c.Owner.clientsLock.Unlock()
+	if c.Owner.fastestPeer == c {
+		c.Owner.fastestPeer = nil
+	}
 	if i := slices.Index(c.Owner.clients, c); i != -1 {
 		c.Owner.clients = slices.Delete(c.Owner.clients, i, i+1)
 		if c.IsIncomingConnection {

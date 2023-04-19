@@ -51,7 +51,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		peers := instance.Server().PeerList()
 		var result []byte
 		for _, c := range peers {
-			result = append(result, []byte(c.String()+"\n")...)
+			result = append(result, []byte(c.AddressPort.String()+"\n")...)
 		}
 		writer.Header().Set("Content-Type", "text/plain")
 		writer.WriteHeader(http.StatusOK)

@@ -204,7 +204,7 @@ func main() {
 					for range time.Tick(time.Minute * 5) {
 						contents = contents[:0]
 						for _, addrPort := range instance.Server().PeerList() {
-							contents = append(contents, []byte(addrPort.String())...)
+							contents = append(contents, []byte(addrPort.AddressPort.String())...)
 							contents = append(contents, '\n')
 						}
 						if err := os.WriteFile(*peerList, contents, 0644); err != nil {

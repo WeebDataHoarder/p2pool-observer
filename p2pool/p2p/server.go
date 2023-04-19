@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
@@ -27,6 +29,35 @@ type P2PoolInterface interface {
 	MainChain() *mainchain.MainChain
 	GetChainMainTip() *sidechain.ChainMain
 	GetMinerDataTip() *p2pooltypes.MinerData
+	ClientRPC() *client.Client
+}
+
+type PeerListEntry struct {
+	AddressPort       netip.AddrPort
+	FailedConnections atomic.Uint32
+	LastSeenTimestamp atomic.Uint64
+}
+
+type PeerList []*PeerListEntry
+
+func (l PeerList) Get(addr netip.Addr) *PeerListEntry {
+	if i := slices.IndexFunc(l, func(entry *PeerListEntry) bool {
+		return entry.AddressPort.Addr().Compare(addr) == 0
+	}); i != -1 {
+		return l[i]
+	}
+	return nil
+}
+func (l PeerList) Delete(addr netip.Addr) PeerList {
+	ret := l
+	for i := slices.IndexFunc(ret, func(entry *PeerListEntry) bool {
+		return entry.AddressPort.Addr().Compare(addr) == 0
+	}); i != -1; i = slices.IndexFunc(ret, func(entry *PeerListEntry) bool {
+		return entry.AddressPort.Addr().Compare(addr) == 0
+	}) {
+		ret = slices.Delete(ret, i, i+1)
+	}
+	return ret
 }
 
 type Server struct {
@@ -41,6 +72,8 @@ type Server struct {
 	close    atomic.Bool
 	listener *net.TCPListener
 
+	fastestPeer *Client
+
 	MaxOutgoingPeers uint32
 	MaxIncomingPeers uint32
 
@@ -49,8 +82,12 @@ type Server struct {
 
 	PendingOutgoingConnections *utils.CircularBuffer[string]
 
-	peerList     []netip.AddrPort
-	peerListLock sync.RWMutex
+	peerList       PeerList
+	peerListLock   sync.RWMutex
+	moneroPeerList PeerList
+
+	bansLock sync.RWMutex
+	bans     map[[16]byte]uint64
 
 	clientsLock sync.RWMutex
 	clients     []*Client
@@ -83,6 +120,7 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
 		versionInformation: p2pooltypes.PeerVersionInformation{SoftwareId: p2pooltypes.SoftwareIdGoObserver, SoftwareVersion: p2pooltypes.CurrentSoftwareVersion, Protocol: p2pooltypes.SupportedProtocolVersion},
 		ctx:                ctx,
+		bans:               make(map[[16]byte]uint64),
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
@@ -94,22 +132,50 @@ func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
 	if addressPort.Addr().IsLoopback() {
 		return
 	}
+	addr := addressPort.Addr().Unmap()
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
-	for _, a := range s.peerList {
-		if a.Addr().Compare(addressPort.Addr()) == 0 {
-			//already added
+	if e := s.peerList.Get(addr); e == nil {
+		if s.IsBanned(addr) {
 			return
 		}
+		e = &PeerListEntry{
+			AddressPort: netip.AddrPortFrom(addr, addressPort.Port()),
+		}
+		e.LastSeenTimestamp.Store(uint64(time.Now().Unix()))
+		s.peerList = append(s.peerList, e)
+	} else {
+		e.LastSeenTimestamp.Store(uint64(time.Now().Unix()))
 	}
-	s.peerList = append(s.peerList, addressPort)
+}
+
+func (s *Server) UpdateInPeerList(addressPort netip.AddrPort) {
+	if addressPort.Addr().IsLoopback() {
+		return
+	}
+	addr := addressPort.Addr().Unmap()
+	s.peerListLock.Lock()
+	defer s.peerListLock.Unlock()
+	if e := s.peerList.Get(addr); e == nil {
+		if s.IsBanned(addr) {
+			return
+		}
+		e = &PeerListEntry{
+			AddressPort: netip.AddrPortFrom(addr, addressPort.Port()),
+		}
+		e.LastSeenTimestamp.Store(uint64(time.Now().Unix()))
+		s.peerList = append(s.peerList, e)
+	} else {
+		e.FailedConnections.Store(0)
+		e.LastSeenTimestamp.Store(uint64(time.Now().Unix()))
+	}
 }
 
 func (s *Server) ListenPort() uint16 {
 	return s.externalListenPort
 }
 
-func (s *Server) PeerList() []netip.AddrPort {
+func (s *Server) PeerList() PeerList {
 	s.peerListLock.RLock()
 	defer s.peerListLock.RUnlock()
 
@@ -117,10 +183,11 @@ func (s *Server) PeerList() []netip.AddrPort {
 }
 
 func (s *Server) RemoveFromPeerList(ip netip.Addr) {
+	ip = ip.Unmap()
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
 	for i, a := range s.peerList {
-		if a.Addr().Compare(ip) == 0 {
+		if a.AddressPort.Addr().Compare(ip) == 0 {
 			s.peerList = slices.Delete(s.peerList, i, i+1)
 			return
 		}
@@ -151,25 +218,132 @@ func (s *Server) updatePeerList() {
 }
 
 func (s *Server) updateClientConnections() {
-	//log.Printf("clients %d len %d", s.NumOutgoingConnections.Load(), len(s.Clients()))
-	currentPeers := uint32(s.NumOutgoingConnections.Load())
 
 	//TODO: remove peers from peerlist not seen in the last hour
 
-	peerList := s.PeerList()
-	for currentPeers < s.MaxOutgoingPeers && len(peerList) > 0 {
-		peerIndex := unsafeRandom.Intn(len(peerList))
-		randomPeer := peerList[peerIndex]
-		currentPeers++
-		peerList = slices.Delete(peerList, peerIndex, peerIndex+1)
-		go func() {
-			if err := s.Connect(randomPeer); err != nil {
-				log.Printf("error connecting to %s: %s", randomPeer.String(), err.Error())
-				s.RemoveFromPeerList(randomPeer.Addr())
-			} else {
-				log.Printf("connected to %s", randomPeer.String())
+	currentTime := uint64(time.Now().Unix())
+	lastUpdated := s.SideChain().LastUpdated()
+
+	var hasGoodPeers bool
+	var fastestPeer *Client
+
+	connectedClients := s.Clients()
+
+	connectedPeers := make([]netip.Addr, 0, len(connectedClients))
+
+	for _, client := range connectedClients {
+		timeout := uint64(10)
+		if client.HandshakeComplete.Load() {
+			timeout = 300
+		}
+
+		lastAlive := client.LastActiveTimestamp.Load()
+
+		if currentTime >= (lastAlive + timeout) {
+			idleTime := currentTime - lastAlive
+			log.Printf("peer %s has been idle for %d seconds, disconnecting", client.AddressPort, idleTime)
+			client.Close()
+			continue
+		}
+
+		if client.HandshakeComplete.Load() && client.LastBroadcastTimestamp.Load() > 0 {
+			// - Side chain is at least 15 minutes newer (last_updated >= client->m_lastBroadcastTimestamp + 900)
+			// - It's been at least 10 seconds since side chain updated (cur_time >= last_updated + 10)
+			// - It's been at least 10 seconds since the last block request (peer is not syncing)
+			// - Peer should have sent a broadcast by now
+
+			if lastUpdated > 0 && (currentTime >= utils.Max(lastUpdated, client.LastBlockRequestTimestamp.Load())+10) && (lastUpdated >= client.LastBroadcastTimestamp.Load()+900) {
+				dt := lastUpdated - client.LastBroadcastTimestamp.Load()
+				client.Ban(DefaultBanTime, fmt.Errorf("not broadcasting blocks (last update %d seconds ago)", dt))
+				client.Close()
+				continue
 			}
+		}
+
+		connectedPeers = append(connectedPeers, client.AddressPort.Addr().Unmap())
+		if client.IsGood() {
+			hasGoodPeers = true
+			if client.PingDuration.Load() >= 0 && (fastestPeer == nil || fastestPeer.PingDuration.Load() > client.PingDuration.Load()) {
+				fastestPeer = client
+			}
+		}
+	}
+
+	deletedPeers := 0
+	peerList := s.PeerList()
+	for _, p := range peerList {
+		if slices.ContainsFunc(connectedPeers, func(addr netip.Addr) bool {
+			return p.AddressPort.Addr().Compare(addr) == 0
+		}) {
+			p.LastSeenTimestamp.Store(currentTime)
+		}
+		if (p.LastSeenTimestamp.Load() + 3600) < currentTime {
+			peerList = peerList.Delete(p.AddressPort.Addr())
+			deletedPeers++
+		}
+	}
+	if deletedPeers > 0 {
+		func() {
+			s.peerListLock.Lock()
+			defer s.peerListLock.Unlock()
+			s.peerList = peerList
 		}()
+	}
+
+	N := int(s.MaxOutgoingPeers)
+
+	// Special case: when we can't find p2pool peers, scan through monerod peers (try 25 peers at a time)
+	if !hasGoodPeers && len(s.moneroPeerList) > 0 {
+		log.Printf("Scanning monerod peers, %d left", len(s.moneroPeerList))
+		for i := 0; i < 25 && len(s.moneroPeerList) > 0; i++ {
+			peerList = append(peerList, s.moneroPeerList[len(s.moneroPeerList)-1])
+			s.moneroPeerList = s.moneroPeerList[:len(s.moneroPeerList)-1]
+		}
+		N = len(peerList)
+	}
+
+	for i := s.NumOutgoingConnections.Load() - s.NumIncomingConnections.Load(); int(i) < N && len(peerList) > 0; {
+		k := unsafeRandom.Intn(len(peerList)) % len(peerList)
+		peer := peerList[k]
+
+		if !slices.ContainsFunc(connectedPeers, func(addr netip.Addr) bool {
+			return peer.AddressPort.Addr().Compare(addr) == 0
+		}) {
+			go func() {
+				if err := s.Connect(peer.AddressPort); err != nil {
+					log.Printf("error connecting to %s: %s", peer.AddressPort.String(), err.Error())
+				} else {
+					log.Printf("connected to %s", peer.AddressPort.String())
+				}
+			}()
+			i++
+		}
+
+		peerList = slices.Delete(peerList, k, k+1)
+	}
+
+	if !hasGoodPeers && len(s.moneroPeerList) == 0 {
+		log.Printf("no connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
+		if moneroPeerList, err := s.p2pool.ClientRPC().GetPeerList(); err == nil {
+			s.moneroPeerList = make(PeerList, 0, len(moneroPeerList.WhiteList))
+			for _, p := range moneroPeerList.WhiteList {
+				addr, err := netip.ParseAddr(p.Host)
+				if err != nil {
+					continue
+				}
+				e := &PeerListEntry{
+					AddressPort: netip.AddrPortFrom(addr, s.Consensus().DefaultPort()),
+				}
+				e.LastSeenTimestamp.Store(uint64(p.LastSeen))
+				if !s.IsBanned(addr) {
+					s.moneroPeerList = append(s.moneroPeerList, e)
+				}
+			}
+			slices.SortFunc(s.moneroPeerList, func(a, b *PeerListEntry) bool {
+				return a.LastSeenTimestamp.Load() < b.LastSeenTimestamp.Load()
+			})
+			log.Printf("monerod peer list loaded (%d peers)", len(s.moneroPeerList))
+		}
 	}
 }
 
@@ -313,6 +487,9 @@ func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
 }
 
 func (s *Server) Connect(addrPort netip.AddrPort) error {
+	if s.IsBanned(addrPort.Addr()) {
+		return fmt.Errorf("peer is banned")
+	}
 	if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
 		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
@@ -325,9 +502,19 @@ func (s *Server) Connect(addrPort netip.AddrPort) error {
 
 	if conn, err := (&net.Dialer{Timeout: time.Second * 5}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
+		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
+			if p.FailedConnections.Add(1) >= 10 {
+				s.RemoveFromPeerList(addrPort.Addr())
+			}
+		}
 		return err
 	} else if tcpConn, ok := conn.(*net.TCPConn); !ok {
 		s.NumOutgoingConnections.Add(-1)
+		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
+			if p.FailedConnections.Add(1) >= 10 {
+				s.RemoveFromPeerList(addrPort.Addr())
+			}
+		}
 		return errors.New("not a tcp connection")
 	} else {
 		s.clientsLock.Lock()
@@ -345,11 +532,34 @@ func (s *Server) Clients() []*Client {
 	return slices.Clone(s.clients)
 }
 
+func (s *Server) IsBanned(ip netip.Addr) bool {
+	if ip.IsLoopback() {
+		return false
+	}
+	s.bansLock.RLock()
+	defer s.bansLock.RUnlock()
+	k := ip.Unmap().As16()
+	if t, ok := s.bans[k]; ok == false {
+		return false
+	} else if uint64(time.Now().Unix()) < t {
+		go func() {
+			//HACK: delay via goroutine
+			s.bansLock.Lock()
+			defer s.bansLock.Unlock()
+			delete(s.bans, k)
+		}()
+		return false
+	}
+	return true
+}
+
 func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 	go func() {
-		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
-		s.RemoveFromPeerList(ip)
 		if !ip.IsLoopback() {
+			s.bansLock.Lock()
+			defer s.bansLock.Unlock()
+			s.bans[ip.Unmap().As16()] = uint64(time.Now().Unix()) + uint64(duration.Seconds())
+			log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 			for _, c := range s.GetAddressConnected(ip) {
 				c.Close()
 			}

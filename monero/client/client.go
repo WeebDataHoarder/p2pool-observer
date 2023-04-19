@@ -280,6 +280,15 @@ func (c *Client) GetVersion() (*daemon.GetVersionResult, error) {
 	}
 }
 
+func (c *Client) GetPeerList() (*daemon.GetPeerListResult, error) {
+	<-c.throttler
+	if result, err := c.d.GetPeerList(context.Background()); err != nil {
+		return nil, err
+	} else {
+		return result, nil
+	}
+}
+
 func (c *Client) GetInfo() (*daemon.GetInfoResult, error) {
 	<-c.throttler
 	if result, err := c.d.GetInfo(context.Background()); err != nil {

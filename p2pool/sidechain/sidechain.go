@@ -866,6 +866,13 @@ func (c *SideChain) GetChainTip() *PoolBlock {
 	return c.chainTip.Load()
 }
 
+func (c *SideChain) LastUpdated() uint64 {
+	if tip := c.chainTip.Load(); tip != nil {
+		return tip.LocalTimestamp
+	}
+	return 0
+}
+
 func (c *SideChain) IsLongerChain(block, candidate *PoolBlock) (isLonger, isAlternative bool) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
