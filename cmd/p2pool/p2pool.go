@@ -133,7 +133,7 @@ func main() {
 						return
 					}
 
-					log.Printf("handling %s", request.URL.String())
+					log.Printf("[API] Handling %s %s", request.Method, request.URL.String())
 
 					serveMux.ServeHTTP(writer, request)
 				}),
@@ -204,14 +204,14 @@ func main() {
 
 				go func() {
 					contents := make([]byte, 0, 4096)
-					for range time.Tick(time.Minute * 5) {
+					for range time.Tick(time.Minute * 1) {
 						contents = contents[:0]
 						for _, addrPort := range instance.Server().PeerList() {
 							contents = append(contents, []byte(addrPort.AddressPort.String())...)
 							contents = append(contents, '\n')
 						}
 						if err := os.WriteFile(*peerList, contents, 0644); err != nil {
-							log.Printf("error writing %s: %s", *peerList, err.Error())
+							log.Printf("error writing peer list %s: %s", *peerList, err.Error())
 							break
 						}
 					}
@@ -227,7 +227,7 @@ func main() {
 			for _, addrPort := range connectList {
 				go func(addrPort netip.AddrPort) {
 					if err := instance.Server().Connect(addrPort); err != nil {
-						log.Printf("error connecting to peer %s: %s", addrPort.String(), err.Error())
+						log.Printf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
 					}
 				}(addrPort)
 			}

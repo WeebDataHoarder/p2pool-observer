@@ -647,7 +647,7 @@ func (c *Client) OnConnection() {
 									c.VersionInformation.Protocol = p2pooltypes.ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
 									c.VersionInformation.SoftwareVersion = p2pooltypes.SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
 									c.VersionInformation.SoftwareId = p2pooltypes.SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
-									log.Printf("peer %s is %s", c.AddressPort.String(), c.VersionInformation.String())
+									log.Printf("[P2PClient] Peer %s version information: %s", c.AddressPort.String(), c.VersionInformation.String())
 								}
 								continue
 							}

@@ -224,6 +224,7 @@ func (s *Server) updatePeerList() {
 func (s *Server) updateClientConnections() {
 
 	//TODO: remove peers from peerlist not seen in the last hour
+	//TODO: deprecate this
 
 	currentTime := uint64(time.Now().Unix())
 	lastUpdated := s.SideChain().LastUpdated()
@@ -245,7 +246,7 @@ func (s *Server) updateClientConnections() {
 
 		if currentTime >= (lastAlive + timeout) {
 			idleTime := currentTime - lastAlive
-			log.Printf("peer %s has been idle for %d seconds, disconnecting", client.AddressPort, idleTime)
+			log.Printf("[P2PServer] peer %s has been idle for %d seconds, disconnecting", client.AddressPort, idleTime)
 			client.Close()
 			continue
 		}
@@ -298,7 +299,7 @@ func (s *Server) updateClientConnections() {
 
 	// Special case: when we can't find p2pool peers, scan through monerod peers (try 25 peers at a time)
 	if !hasGoodPeers && len(s.moneroPeerList) > 0 {
-		log.Printf("Scanning monerod peers, %d left", len(s.moneroPeerList))
+		log.Printf("[P2PServer] Scanning monerod peers, %d left", len(s.moneroPeerList))
 		for i := 0; i < 25 && len(s.moneroPeerList) > 0; i++ {
 			peerList = append(peerList, s.moneroPeerList[len(s.moneroPeerList)-1])
 			s.moneroPeerList = s.moneroPeerList[:len(s.moneroPeerList)-1]
@@ -315,9 +316,10 @@ func (s *Server) updateClientConnections() {
 		}) {
 			go func() {
 				if err := s.Connect(peer.AddressPort); err != nil {
-					log.Printf("error connecting to %s: %s", peer.AddressPort.String(), err.Error())
+
+					log.Printf("[P2PServer] Connection to %s rejected (%s)", peer.AddressPort.String(), err.Error())
 				} else {
-					log.Printf("connected to %s", peer.AddressPort.String())
+					log.Printf("[P2PServer] Outgoing connection to %s", peer.AddressPort.String())
 				}
 			}()
 			i++
@@ -327,7 +329,7 @@ func (s *Server) updateClientConnections() {
 	}
 
 	if !hasGoodPeers && len(s.moneroPeerList) == 0 {
-		log.Printf("no connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
+		log.Printf("[P2PServer] No connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
 		if moneroPeerList, err := s.p2pool.ClientRPC().GetPeerList(); err == nil {
 			s.moneroPeerList = make(PeerList, 0, len(moneroPeerList.WhiteList))
 			for _, p := range moneroPeerList.WhiteList {
@@ -346,7 +348,7 @@ func (s *Server) updateClientConnections() {
 			slices.SortFunc(s.moneroPeerList, func(a, b *PeerListEntry) bool {
 				return a.LastSeenTimestamp.Load() < b.LastSeenTimestamp.Load()
 			})
-			log.Printf("monerod peer list loaded (%d peers)", len(s.moneroPeerList))
+			log.Printf("[P2PServer] monerod peer list loaded (%d peers)", len(s.moneroPeerList))
 		}
 	}
 }
@@ -465,6 +467,7 @@ func (s *Server) Listen() (err error) {
 						log.Printf("[P2PServer] Connection from %s rejected (banned)", conn.RemoteAddr().String())
 						return
 					}
+					log.Printf("[P2PServer] Incoming connection from %s", conn.RemoteAddr().String())
 
 					s.clientsLock.Lock()
 					defer s.clientsLock.Unlock()
