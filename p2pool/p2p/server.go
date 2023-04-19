@@ -545,7 +545,7 @@ func (s *Server) IsBanned(ip netip.Addr) bool {
 	k := ip.Unmap().As16()
 	if t, ok := s.bans[k]; ok == false {
 		return false
-	} else if uint64(time.Now().Unix()) < t {
+	} else if uint64(time.Now().Unix()) >= t {
 		go func() {
 			//HACK: delay via goroutine
 			s.bansLock.Lock()
