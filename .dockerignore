@@ -1,5 +1,8 @@
 .git/
 .env
+.env.example
+.gitignore
 docker-compose.override.yml
 p2pool.cache
 p2pool_peers.txt
+README.md
