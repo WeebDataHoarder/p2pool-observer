@@ -461,6 +461,11 @@ func (s *Server) Listen() (err error) {
 				}
 
 				func() {
+					if s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()) {
+						log.Printf("[P2PServer] Connection from %s rejected (banned)", conn.RemoteAddr().String())
+						return
+					}
+
 					s.clientsLock.Lock()
 					defer s.clientsLock.Unlock()
 					client := NewClient(s, conn)
@@ -490,44 +495,52 @@ func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
 	return result
 }
 
-func (s *Server) Connect(addrPort netip.AddrPort) error {
-	if s.IsBanned(addrPort.Addr()) {
-		return fmt.Errorf("peer is banned")
-	}
+func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 	if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
-		return errors.New("peer is already connected as " + clients[0].AddressPort.String())
+		return nil, errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
 
 	if !s.PendingOutgoingConnections.PushUnique(addrPort.Addr().String()) {
-		return errors.New("peer is already attempting connection")
+		return nil, errors.New("peer is already attempting connection")
 	}
 
 	s.NumOutgoingConnections.Add(1)
 
 	if conn, err := (&net.Dialer{Timeout: time.Second * 5}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
+		s.PendingOutgoingConnections.Replace(addrPort.Addr().String(), "")
 		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
 			if p.FailedConnections.Add(1) >= 10 {
 				s.RemoveFromPeerList(addrPort.Addr())
 			}
 		}
-		return err
+		return nil, err
 	} else if tcpConn, ok := conn.(*net.TCPConn); !ok {
 		s.NumOutgoingConnections.Add(-1)
+		s.PendingOutgoingConnections.Replace(addrPort.Addr().String(), "")
 		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
 			if p.FailedConnections.Add(1) >= 10 {
 				s.RemoveFromPeerList(addrPort.Addr())
 			}
 		}
-		return errors.New("not a tcp connection")
+		return nil, errors.New("not a tcp connection")
 	} else {
 		s.clientsLock.Lock()
 		defer s.clientsLock.Unlock()
 		client := NewClient(s, tcpConn)
 		s.clients = append(s.clients, client)
 		go client.OnConnection()
-		return nil
+		return client, nil
 	}
+}
+
+func (s *Server) Connect(addrPort netip.AddrPort) error {
+	if s.IsBanned(addrPort.Addr()) {
+		return fmt.Errorf("peer is banned")
+	}
+
+	_, err := s.DirectConnect(addrPort)
+	return err
 }
 
 func (s *Server) Clients() []*Client {

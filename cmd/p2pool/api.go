@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -12,6 +13,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
@@ -55,6 +57,99 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, result)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/server/connection_check/{addrPort:.+}", func(writer http.ResponseWriter, request *http.Request) {
+		addrPort, err := netip.ParseAddrPort(mux.Vars(request)["addrPort"])
+		if err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: err.Error(),
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		var client *p2p.Client
+		var alreadyConnected bool
+		isBanned := instance.Server().IsBanned(addrPort.Addr())
+		for _, c := range instance.Server().Clients() {
+			if c.AddressPort.Addr().Compare(addrPort.Addr()) == 0 && uint16(c.ListenPort.Load()) == addrPort.Port() {
+				client = c
+				alreadyConnected = true
+				break
+			}
+		}
+		if client == nil && addrPort.Port() != 0 {
+			if client, err = instance.Server().DirectConnect(addrPort); err != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := json.Marshal(struct {
+					Error string `json:"error"`
+				}{
+					Error: err.Error(),
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+		}
+
+		if client == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "could not find client",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		for i := 0; i < 6; i++ {
+			if client.Closed.Load() || (client.IsGood() && client.PingDuration.Load() > 0 && client.LastKnownTip.Load() != nil) {
+				break
+			}
+			time.Sleep(time.Second * 1)
+		}
+
+		errorStr := ""
+		if err := client.BanError(); err != nil {
+			errorStr = err.Error()
+		}
+
+		info := p2pooltypes.P2PoolConnectionCheckInformation{
+			Address:           client.AddressPort.Addr().Unmap().String(),
+			Port:              client.AddressPort.Port(),
+			ListenPort:        uint16(client.ListenPort.Load()),
+			PeerId:            client.PeerId.Load(),
+			SoftwareId:        client.VersionInformation.SoftwareId.String(),
+			SoftwareVersion:   client.VersionInformation.SoftwareVersion.String(),
+			ProtocolVersion:   client.VersionInformation.Protocol.String(),
+			ConnectionTime:    uint64(client.ConnectionTime.Unix()),
+			Latency:           uint64(time.Duration(client.PingDuration.Load()).Milliseconds()),
+			Incoming:          client.IsIncomingConnection,
+			BroadcastHeight:   client.BroadcastMaxHeight.Load(),
+			TipHash:           *client.LastKnownTip.Load(),
+			Closed:            client.Closed.Load(),
+			AlreadyConnected:  alreadyConnected,
+			HandshakeComplete: client.HandshakeComplete.Load(),
+			LastActive:        client.LastActiveTimestamp.Load(),
+			Banned:            isBanned,
+			Error:             errorStr,
+		}
+
+		if isBanned {
+			client.Close()
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, info)
 		_, _ = writer.Write(buf)
 	})
 

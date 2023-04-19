@@ -13,6 +13,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"sync/atomic"
@@ -340,6 +341,40 @@ func (p *P2PoolApi) SeedByHeight(height uint64) types.Hash {
 		return v.Id
 	}
 	return types.ZeroHash
+}
+
+func (p *P2PoolApi) PeerList() []byte {
+	if response, err := p.Client.Get(p.Host + "/server/peerlist"); err != nil {
+		return nil
+	} else {
+		defer response.Body.Close()
+		buf, err := io.ReadAll(response.Body)
+		if err == nil {
+			return buf
+		}
+	}
+
+	return nil
+}
+
+func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2PoolConnectionCheckInformation {
+	if response, err := p.Client.Get(p.Host + "/server/connection_check/"); err != nil {
+		return nil
+	} else {
+		defer response.Body.Close()
+
+		if buf, err := io.ReadAll(response.Body); err != nil {
+			return nil
+		} else {
+			var result p2pooltypes.P2PoolConnectionCheckInformation
+
+			if err = json.Unmarshal(buf, &result); err != nil {
+				return nil
+			}
+
+			return &result
+		}
+	}
 }
 
 func (p *P2PoolApi) MinerData() *p2pooltypes.MinerData {

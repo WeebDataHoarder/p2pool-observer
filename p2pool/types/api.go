@@ -51,3 +51,24 @@ type P2PoolServerPeerResult struct {
 	ListenPort      uint32 `json:"listen_port"`
 	Latency         uint64 `json:"latency"`
 }
+
+type P2PoolConnectionCheckInformation struct {
+	Address           string     `json:"address"`
+	Port              uint16     `json:"port"`
+	ListenPort        uint16     `json:"listen_port"`
+	PeerId            uint64     `json:"peer_id"`
+	SoftwareId        string     `json:"software_id"`
+	SoftwareVersion   string     `json:"software_version"`
+	ProtocolVersion   string     `json:"protocol_version"`
+	ConnectionTime    uint64     `json:"connection_time"`
+	Latency           uint64     `json:"latency"`
+	LastActive        uint64     `json:"last_active"`
+	Incoming          bool       `json:"incoming"`
+	BroadcastHeight   uint64     `json:"broadcast_height"`
+	TipHash           types.Hash `json:"tip_hash"`
+	Closed            bool       `json:"closed"`
+	AlreadyConnected  bool       `json:"already_connected"`
+	HandshakeComplete bool       `json:"handshake_complete"`
+	Banned            bool       `json:"banned"`
+	Error             string     `json:"error,omitempty"`
+}

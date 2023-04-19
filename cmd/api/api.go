@@ -27,6 +27,7 @@ import (
 	"lukechampine.com/uint128"
 	"math"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -1453,7 +1454,41 @@ func main() {
 		}
 	})
 
-	// p2pool.io emulation
+	// p2pool consensus server api
+	serveMux.HandleFunc("/api/consensus/peer_list", func(writer http.ResponseWriter, request *http.Request) {
+
+		writer.Header().Set("Content-Type", "text/plain")
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write(p2api.PeerList())
+	})
+
+	serveMux.HandleFunc("/api/consensus/connection_check/{addrPort:.+}", func(writer http.ResponseWriter, request *http.Request) {
+		addrPort, err := netip.ParseAddrPort(mux.Vars(request)["addrPort"])
+		if err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: err.Error(),
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, p2api.ConnectionCheck(addrPort))
+		_, _ = writer.Write(buf)
+		/*
+		checkResult := p2api.ConnectionCheck(addrPort)
+		if checkResult.ListenPort == 0 && checkResult.Error != "" { //failed before it could connect properly. maybe different sidechain, or connection issues
+
+		}
+		*/
+	})
+
+	// p2pool disk / p2pool.io emulation
 	serveMux.HandleFunc("/api/network/stats", func(writer http.ResponseWriter, request *http.Request) {
 		type networkStats struct {
 			Difficulty uint64     `json:"difficulty"`

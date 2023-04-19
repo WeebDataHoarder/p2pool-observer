@@ -46,6 +46,8 @@ type Client struct {
 	Owner                                *Server
 	Connection                           *net.TCPConn
 	Closed                               atomic.Bool
+	banErrorLock                         sync.Mutex
+	banError                             error
 	LastBroadcastTimestamp               atomic.Uint64
 	LastBlockRequestTimestamp            atomic.Uint64
 	LastIncomingPeerListRequestTime      time.Time
@@ -55,6 +57,8 @@ type Client struct {
 
 	//State properties
 	HandshakeComplete atomic.Bool
+
+	LastKnownTip atomic.Pointer[types.Hash]
 
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
@@ -82,13 +86,28 @@ func NewClient(owner *Server, conn *net.TCPConn) *Client {
 		RequestedHashes:      utils.NewCircularBuffer[types.Hash](16),
 		blockPendingRequests: make(chan types.Hash, 100), //allow max 100 pending block requests at the same time
 	}
+	c.LastKnownTip.Store(&types.ZeroHash)
 
 	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
 
 	return c
 }
 
+func (c *Client) BanError() error {
+	c.banErrorLock.Lock()
+	c.banErrorLock.Unlock()
+	return c.banError
+}
+
 func (c *Client) Ban(duration time.Duration, err error) {
+
+	func() {
+		c.banErrorLock.Lock()
+		c.banErrorLock.Unlock()
+		if c.banError == nil {
+			c.banError = err
+		}
+	}()
 	c.Owner.Ban(c.AddressPort.Addr(), duration, err)
 	c.Owner.RemoveFromPeerList(c.AddressPort.Addr())
 	c.Close()
@@ -401,7 +420,8 @@ func (c *Client) OnConnection() {
 				} else {
 					isChainTipBlockRequest := expectedBlockId == types.ZeroHash
 					if isChainTipBlockRequest {
-						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Coinbase.GenHeight)
+						tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
+						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
 
@@ -411,6 +431,7 @@ func (c *Client) OnConnection() {
 						}
 
 						c.SendPeerListRequest()
+						c.LastKnownTip.Store(&tipHash)
 					}
 					if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 						//TODO warn
@@ -464,9 +485,14 @@ func (c *Client) OnConnection() {
 				}
 			}
 
-			c.BroadcastedHashes.Push(types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)))
+			tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
+
+			c.BroadcastedHashes.Push(tipHash)
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
+
+			c.LastKnownTip.Store(&tipHash)
+
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
 					c.SendMissingBlockRequest(id)
@@ -677,9 +703,9 @@ func (c *Client) ReadByte() (b byte, err error) {
 	return buf[0], err
 }
 
-func (c *Client) Close() {
+func (c *Client) Close() bool {
 	if c.Closed.Swap(true) {
-		return
+		return false
 	}
 
 	if !c.HandshakeComplete.Load() {
@@ -697,9 +723,11 @@ func (c *Client) Close() {
 			c.Owner.NumIncomingConnections.Add(-1)
 		} else {
 			c.Owner.NumOutgoingConnections.Add(-1)
+			c.Owner.PendingOutgoingConnections.Replace(c.AddressPort.Addr().String(), "")
 		}
 	}
 
 	_ = c.Connection.Close()
 	close(c.closeChannel)
+	return true
 }

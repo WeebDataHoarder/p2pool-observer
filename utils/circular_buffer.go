@@ -35,6 +35,17 @@ func (b *CircularBuffer[T]) Get(index uint32) T {
 	return b.buffer[index%uint32(len(b.buffer))]
 }
 
+func (b *CircularBuffer[T]) Replace(value, replace T) {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	for i, v := range b.buffer {
+		if value == v {
+			b.buffer[i] = replace
+		}
+	}
+}
+
 func (b *CircularBuffer[T]) PushUnique(value T) bool {
 	b.lock.Lock()
 	defer b.lock.Unlock()

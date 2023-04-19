@@ -167,7 +167,6 @@ func main() {
 			for _, seedNodeIp := range ips {
 				seedNodeAddr := netip.MustParseAddrPort(fmt.Sprintf("%s:%d", seedNodeIp.String(), currentConsensus.DefaultPort()))
 				instance.Server().AddToPeerList(seedNodeAddr)
-				//connectList = append(connectList, seedNodeAddr)
 			}
 		}
 
