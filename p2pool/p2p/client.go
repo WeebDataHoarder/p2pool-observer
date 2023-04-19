@@ -591,6 +591,22 @@ func (c *Client) OnConnection() {
 				}
 			}
 
+			lastLen := len(entriesToSend)
+
+			if lastLen < PeerListResponseMaxPeers {
+				//improvement from normal p2pool: pad response with other peers from peer list, not connected
+				peerList := c.Owner.PeerList()
+				for i := lastLen; i < PeerListResponseMaxPeers; i++ {
+					k := unsafeRandom.Intn(len(peerList)) % len(peerList)
+					peer := peerList[k]
+					if !slices.ContainsFunc(entriesToSend, func(addrPort netip.AddrPort) bool {
+						return addrPort.Addr().Compare(peer.AddressPort.Addr()) == 0
+					}) {
+						entriesToSend = append(entriesToSend, peer.AddressPort)
+					}
+				}
+			}
+
 			c.LastIncomingPeerListRequestTime = time.Now()
 
 			c.SendPeerListResponse(entriesToSend)
