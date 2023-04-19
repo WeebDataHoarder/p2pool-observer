@@ -92,6 +92,9 @@ services:
     build:
       context: ./
       dockerfile: ./docker/golang/Dockerfile
+      args:
+        - BUILD_BINARY=p2pool
+        - GOPROXY=${GOPROXY}
     restart: always
     depends_on:
       - db
@@ -119,6 +122,9 @@ services:
     build:
       context: ./
       dockerfile: ./docker/golang/Dockerfile
+      args:
+        - BUILD_BINARY=api
+        - GOPROXY=${GOPROXY}
     restart: always
     environment:
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
@@ -140,6 +146,9 @@ services:
     build:
       context: ./
       dockerfile: ./docker/golang/Dockerfile
+      args:
+        - BUILD_BINARY=web
+        - GOPROXY=${GOPROXY}
     restart: always
     environment:
       - MONEROD_RPC_URL=http://${MONEROD_HOST}:${MONEROD_RPC_PORT}
@@ -159,6 +168,9 @@ services:
     build:
       context: ./
       dockerfile: ./docker/golang/Dockerfile
+      args:
+        - BUILD_BINARY=daemon
+        - GOPROXY=${GOPROXY}
     restart: always
     environment:
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}

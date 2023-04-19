@@ -1,11 +1,10 @@
 FROM golang:1.20-alpine
 
 
-ENV CFLAGS="-march=native -Ofast -flto"
-ENV CXXFLAGS="-march=native -Ofast -flto"
+ENV CFLAGS="-march=native -Ofast"
+ENV CXXFLAGS="-march=native -Ofast"
 ENV LDFLAGS="-flto"
 ENV CGO_CFLAGS="-march=native -Ofast"
-ENV GOPROXY="direct"
 
 RUN apk update && apk add --no-cache \
     git gcc g++ musl-dev bash autoconf automake cmake make libtool gettext
@@ -22,14 +21,16 @@ RUN git clone --depth 1 --branch master https://github.com/tevador/RandomX.git /
 
 WORKDIR /usr/src/p2pool
 
-COPY ./ .
+ARG GOPROXY=""
+ENV GOPROXY=${GOPROXY}
 
-# p2pool
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/p2pool git.gammaspectra.live/P2Pool/p2pool-observer/cmd/p2pool
+COPY go.mod go.sum ./
+RUN go mod download -x && go mod verify
 
-# observer stuff
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/api git.gammaspectra.live/P2Pool/p2pool-observer/cmd/api
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/daemon git.gammaspectra.live/P2Pool/p2pool-observer/cmd/daemon
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/web git.gammaspectra.live/P2Pool/p2pool-observer/cmd/web
+COPY . .
+
+ARG BUILD_BINARY
+
+RUN go build -buildvcs=false -trimpath -v -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
 
 WORKDIR /data
