@@ -241,7 +241,7 @@ func (c *Client) OnConnection() {
 	var messageId MessageId
 	for !c.Closed.Load() {
 		if _, err := io.ReadFull(c, messageIdBuf[:]); err != nil {
-			c.Ban(DefaultBanTime, err)
+			c.Close()
 			return
 		}
 
