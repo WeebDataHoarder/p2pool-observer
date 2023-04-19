@@ -56,9 +56,10 @@ type Client struct {
 	NextOutgoingPeerListRequestTimestamp atomic.Uint64
 
 	//State properties
-	HandshakeComplete atomic.Bool
+	HandshakeComplete     atomic.Bool
+	SentHandshakeSolution atomic.Bool
 
-	LastKnownTip atomic.Pointer[types.Hash]
+	LastKnownTip atomic.Pointer[sidechain.PoolBlock]
 
 	BroadcastedHashes *utils.CircularBuffer[types.Hash]
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
@@ -86,7 +87,6 @@ func NewClient(owner *Server, conn *net.TCPConn) *Client {
 		RequestedHashes:      utils.NewCircularBuffer[types.Hash](16),
 		blockPendingRequests: make(chan types.Hash, 100), //allow max 100 pending block requests at the same time
 	}
-	c.LastKnownTip.Store(&types.ZeroHash)
 
 	c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
 
@@ -316,7 +316,9 @@ func (c *Client) OnConnection() {
 
 			c.expectedMessage = MessageHandshakeSolution
 
-			c.OnAfterHandshake()
+			if c.HandshakeComplete.Load() && c.SentHandshakeSolution.Load() {
+				c.OnAfterHandshake()
+			}
 
 		case MessageHandshakeSolution:
 			if c.HandshakeComplete.Load() {
@@ -353,6 +355,10 @@ func (c *Client) OnConnection() {
 				}
 			}
 			c.HandshakeComplete.Store(true)
+
+			if c.HandshakeComplete.Load() && c.SentHandshakeSolution.Load() {
+				c.OnAfterHandshake()
+			}
 
 		case MessageListenPort:
 			if c.ListenPort.Load() != 0 {
@@ -427,6 +433,7 @@ func (c *Client) OnConnection() {
 					isChainTipBlockRequest := expectedBlockId == types.ZeroHash
 					tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 					if isChainTipBlockRequest {
+						c.LastKnownTip.Store(block)
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
@@ -437,7 +444,6 @@ func (c *Client) OnConnection() {
 						}
 
 						c.SendPeerListRequest()
-						c.LastKnownTip.Store(&tipHash)
 					}
 					if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 						if ban {
@@ -500,8 +506,7 @@ func (c *Client) OnConnection() {
 			c.BroadcastedHashes.Push(tipHash)
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
-
-			c.LastKnownTip.Store(&tipHash)
+			c.LastKnownTip.Store(block)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
@@ -557,7 +562,7 @@ func (c *Client) OnConnection() {
 			entriesToSend := make([]netip.AddrPort, 0, PeerListResponseMaxPeers)
 
 			// Send every 4th peer on average, selected at random
-			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(entriesToSend)/4, 1))
+			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(connectedPeerList)/4, 1))
 			n := 0
 			for _, peer := range connectedPeerList {
 				if peer.AddressPort.Addr().IsLoopback() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
@@ -671,7 +676,7 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 		stop.Store(true)
 	}
 
-	if solution, hash, ok := FindChallengeSolution(challenge, c.Owner.Consensus().Id(), stop); ok {
+	if solution, hash, ok := FindChallengeSolution(challenge, c.Owner.Consensus().Id(), stop); ok || c.IsIncomingConnection {
 
 		var buf [HandshakeChallengeSize + types.HashSize]byte
 		copy(buf[:], hash[:])
@@ -681,6 +686,7 @@ func (c *Client) sendHandshakeSolution(challenge HandshakeChallenge) {
 			MessageId: MessageHandshakeSolution,
 			Buffer:    buf[:],
 		})
+		c.SentHandshakeSolution.Store(true)
 	}
 }
 
@@ -746,6 +752,6 @@ func (c *Client) Close() bool {
 	_ = c.Connection.Close()
 	close(c.closeChannel)
 
-	log.Printf("[P2PClient] Peer %s close", c.AddressPort.String())
+	log.Printf("[P2PClient] Peer %s connection closed", c.AddressPort.String())
 	return true
 }

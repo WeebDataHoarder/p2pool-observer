@@ -135,7 +135,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			Incoming:          client.IsIncomingConnection,
 			BroadcastTime:     client.LastBroadcastTimestamp.Load(),
 			BroadcastHeight:   client.BroadcastMaxHeight.Load(),
-			TipHash:           *client.LastKnownTip.Load(),
+			Tip:               client.LastKnownTip.Load(),
 			Closed:            client.Closed.Load(),
 			AlreadyConnected:  alreadyConnected,
 			HandshakeComplete: client.HandshakeComplete.Load(),

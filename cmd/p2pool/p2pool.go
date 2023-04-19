@@ -37,13 +37,14 @@ func main() {
 	apiBind := flag.String("api-bind", "", "Bind to this address to serve blocks, and other utility methods. If -archive is specified, serve archived blocks.")
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
 	lightMode := flag.Bool("light-mode", false, "Don't allocate RandomX dataset, saves 2GB of RAM")
-	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path")
+	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path. Set to empty to disable")
 	consensusConfigFile := flag.String("consensus-config", "", "Name of the p2pool consensus config file")
 	useMiniSidechain := flag.Bool("mini", false, "Connect to p2pool-mini sidechain. Note that it will also change default p2p port.")
 
 	outPeers := flag.Uint64("out-peers", 10, "Maximum number of outgoing connections for p2p server (any value between 10 and 450)")
 	inPeers := flag.Uint64("in-peers", 10, "Maximum number of incoming connections for p2p server (any value between 10 and 450)")
 	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
+	noDns := flag.Bool("no-dns", false, "Disable DNS queries, use only IP addresses to connect to peers (seed node DNS will be unavailable too)")
 
 	memoryLimitInGiB := flag.Uint64("memory-limit", 0, "Memory limit for go managed sections in GiB, set 0 to disable")
 
@@ -153,6 +154,8 @@ func main() {
 				continue
 			}
 
+			//TODO: dns resolution of hosts
+
 			if addrPort, err := netip.ParseAddrPort(peerAddr); err != nil {
 				log.Panic(err)
 			} else {
@@ -161,7 +164,7 @@ func main() {
 			}
 		}
 
-		if currentConsensus.SeedNode() != "" {
+		if !*noDns && currentConsensus.SeedNode() != "" {
 			log.Printf("Loading seed peers from %s", currentConsensus.SeedNode())
 			ips, _ := net.LookupIP(currentConsensus.SeedNode())
 			for _, seedNodeIp := range ips {
