@@ -64,6 +64,7 @@ type P2PoolConnectionCheckInformation struct {
 	Latency           uint64     `json:"latency"`
 	LastActive        uint64     `json:"last_active"`
 	Incoming          bool       `json:"incoming"`
+	BroadcastTime     uint64     `json:"broadcast_time"`
 	BroadcastHeight   uint64     `json:"broadcast_height"`
 	TipHash           types.Hash `json:"tip_hash"`
 	Closed            bool       `json:"closed"`

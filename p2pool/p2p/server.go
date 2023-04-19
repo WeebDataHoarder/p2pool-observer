@@ -388,7 +388,7 @@ func (s *Server) DownloadMissingBlocks() {
 
 	for _, h := range s.SideChain().GetMissingBlocks() {
 		if b, ok := s.cachedBlocks[h]; ok {
-			if _, err := s.SideChain().AddPoolBlockExternal(b); err == nil {
+			if _, err, _ := s.SideChain().AddPoolBlockExternal(b); err == nil {
 				continue
 			}
 		}

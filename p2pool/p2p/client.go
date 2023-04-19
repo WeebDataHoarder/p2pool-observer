@@ -150,7 +150,7 @@ func (c *Client) SendMissingBlockRequest(hash types.Hash) {
 
 	if b := c.Owner.GetCachedBlock(hash); b != nil {
 		log.Printf("[P2PClient] Using cached block for id = %s", hash.String())
-		if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
+		if missingBlocks, err, _ := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
 			for _, id := range missingBlocks {
 				c.SendMissingBlockRequest(id)
 			}
@@ -389,6 +389,11 @@ func (c *Client) OnConnection() {
 				block = c.Owner.SideChain().GetChainTip()
 			} else {
 				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
+				if block == nil {
+					log.Printf("[P2PClient] Peer %s tip requested id = %s, got nil", c.AddressPort.String(), templateId)
+				} else {
+					log.Printf("[P2PClient] Peer %s tip requested id = %s, got height = %d, main height = %d", c.AddressPort.String(), templateId, block.Side.Height, block.Main.Coinbase.GenHeight)
+				}
 			}
 
 			c.SendBlockResponse(block)
@@ -420,8 +425,8 @@ func (c *Client) OnConnection() {
 					return
 				} else {
 					isChainTipBlockRequest := expectedBlockId == types.ZeroHash
+					tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 					if isChainTipBlockRequest {
-						tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
@@ -434,9 +439,12 @@ func (c *Client) OnConnection() {
 						c.SendPeerListRequest()
 						c.LastKnownTip.Store(&tipHash)
 					}
-					if missingBlocks, err := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
-						//TODO warn
-						c.Ban(DefaultBanTime, err)
+					if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+						if ban {
+							c.Ban(DefaultBanTime, err)
+						} else {
+							log.Printf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
+						}
 						return
 					} else {
 						if !isChainTipBlockRequest && expectedBlockId != block.SideTemplateId(c.Owner.SideChain().Consensus()) {
@@ -530,9 +538,12 @@ func (c *Client) OnConnection() {
 				}
 
 				block.WantBroadcast.Store(true)
-				if missingBlocks, err = c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
-					//TODO warn
-					c.Ban(DefaultBanTime, err)
+				if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
+					if ban {
+						c.Ban(DefaultBanTime, err)
+					} else {
+						log.Printf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
+					}
 					return
 				} else {
 					for _, id := range missingBlocks {
@@ -586,10 +597,13 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
-				c.PingDuration.Store(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTimestamp.Load()))), 0)))
+				firstPeerResponse := c.PingDuration.Swap(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTimestamp.Load()))), 0))) == 0
 				var rawIp [16]byte
 				var port uint16
 
+				if firstPeerResponse {
+					log.Printf("[P2PClient] Peer %s initial PEER_LIST_RESPONSE: num_peers %d", c.AddressPort.String(), numPeers)
+				}
 				for i := uint8(0); i < numPeers; i++ {
 					if isV6, err := c.ReadByte(); err != nil {
 						c.Ban(DefaultBanTime, err)
@@ -731,5 +745,7 @@ func (c *Client) Close() bool {
 
 	_ = c.Connection.Close()
 	close(c.closeChannel)
+
+	log.Printf("[P2PClient] Peer %s close", c.AddressPort.String())
 	return true
 }

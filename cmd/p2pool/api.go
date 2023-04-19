@@ -84,7 +84,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				break
 			}
 		}
-		if client == nil && addrPort.Port() != 0 {
+		if client == nil {
 			if client, err = instance.Server().DirectConnect(addrPort); err != nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusBadRequest)
@@ -133,6 +133,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			ConnectionTime:    uint64(client.ConnectionTime.Unix()),
 			Latency:           uint64(time.Duration(client.PingDuration.Load()).Milliseconds()),
 			Incoming:          client.IsIncomingConnection,
+			BroadcastTime:     client.LastBroadcastTimestamp.Load(),
 			BroadcastHeight:   client.BroadcastMaxHeight.Load(),
 			TipHash:           *client.LastKnownTip.Load(),
 			Closed:            client.Closed.Load(),

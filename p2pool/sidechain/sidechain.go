@@ -135,17 +135,17 @@ func (c *SideChain) getSeedByHeightFunc() mainblock.GetSeedByHeightFunc {
 	}
 }
 
-func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error) {
+func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error, ban bool) {
 	// Technically some p2pool node could keep stuffing block with transactions until reward is less than 0.6 XMR
 	// But default transaction picking algorithm never does that. It's better to just ban such nodes
 	if block.Main.Coinbase.TotalReward < monero.TailEmissionReward {
-		return nil, errors.New("block reward too low")
+		return nil, errors.New("block reward too low"), true
 	}
 
 	// Enforce deterministic tx keys starting from v15
 	if block.Main.MajorVersion >= monero.HardForkViewTagsVersion {
 		if !c.isPoolBlockTransactionKeyIsDeterministic(block) {
-			return nil, errors.New("invalid deterministic transaction keys")
+			return nil, errors.New("invalid deterministic transaction keys"), true
 		}
 	}
 
@@ -154,21 +154,21 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	expectedTxType := block.GetTransactionOutputType()
 
 	if missingBlocks, err = c.PreprocessBlock(block); err != nil {
-		return missingBlocks, err
+		return missingBlocks, err, true
 	}
 	for _, o := range block.Main.Coinbase.Outputs {
 		if o.Type != expectedTxType {
-			return nil, errors.New("unexpected transaction type")
+			return nil, errors.New("unexpected transaction type"), true
 		}
 	}
 
 	templateId := c.Consensus().CalculateSideTemplateId(block)
 	if templateId != block.SideTemplateId(c.Consensus()) {
-		return nil, fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String())
+		return nil, fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String()), true
 	}
 
 	if block.Side.Difficulty.Cmp64(c.Consensus().MinimumDifficulty) < 0 {
-		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty)
+		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty), true
 	}
 
 	//TODO: cache?
@@ -178,7 +178,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	if otherBlock := c.GetPoolBlockByTemplateId(templateId); otherBlock != nil {
 		//already added
 		//TODO: specifically check Main id for nonce changes! p2pool does not do this
-		return nil, nil
+		return nil, nil, false
 	}
 
 	// This is mainly an anti-spam measure, not an actual verification step
@@ -195,20 +195,20 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	}
 
 	if tooLowDiff {
-		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric())
+		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric()), false
 	}
 
 	// This check is not always possible to perform because of mainchain reorgs
 	if data := c.server.GetChainMainByHash(block.Main.PreviousId); data != nil {
 		if (data.Height + 1) != block.Main.Coinbase.GenHeight {
-			return nil, fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1)
+			return nil, fmt.Errorf("wrong mainchain height %d, expected %d", block.Main.Coinbase.GenHeight, data.Height+1), true
 		}
 	} else {
 		//TODO warn unknown block, reorg
 	}
 
 	if _, err := block.PowHashWithError(c.getSeedByHeightFunc()); err != nil {
-		return nil, err
+		return nil, err, false
 	} else {
 		if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
 			log.Printf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
@@ -217,9 +217,9 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 			c.server.SubmitBlock(&block.Main)
 		}
 		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.getSeedByHeightFunc()); err != nil {
-			return nil, err
+			return nil, err, true
 		} else if !isHigher {
-			return nil, fmt.Errorf("not enough PoW for id %s, height = %d, mainchain height %d", templateId.String(), block.Side.Height, block.Main.Coinbase.GenHeight)
+			return nil, fmt.Errorf("not enough PoW for id %s, height = %d, mainchain height %d", templateId.String(), block.Side.Height, block.Main.Coinbase.GenHeight), true
 		}
 	}
 
@@ -239,7 +239,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 			}
 		}
 		return missing
-	}(), c.AddPoolBlock(block)
+	}(), c.AddPoolBlock(block), true
 }
 
 func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
