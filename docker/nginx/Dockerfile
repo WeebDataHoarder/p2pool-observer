@@ -1,4 +1,4 @@
-FROM nginx:mainline
+FROM nginx:1.24-alpine
 
 COPY static /web
 COPY snippets/*.conf /etc/nginx/snippets/
