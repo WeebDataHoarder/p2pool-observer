@@ -2,6 +2,7 @@ FROM nginx:1.24-alpine
 
 COPY static /web
 COPY snippets/*.conf /etc/nginx/snippets/
+COPY http.conf /etc/nginx/conf.d/http.conf
 COPY site.conf /etc/nginx/conf.d/site.conf
 
 ARG TOR_SERVICE_ADDRESS
