@@ -4,7 +4,7 @@
 
 ## Update / Apply new settings
 ```bash
-$ git pull && docker-compose build --pull && docker-compose up -d && sleep 120 && docker-compose restart site
+$ git pull && docker-compose build --pull && docker-compose up -d
 ```
 
 ## Backfill likely sweep transactions
