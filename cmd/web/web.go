@@ -133,7 +133,19 @@ func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
-	basePoolInfo := getFromAPI("pool_info", 5).(map[string]any)
+	var basePoolInfo map[string]any
+
+	for {
+		t := getFromAPI("pool_info")
+		if t == nil {
+			time.Sleep(1)
+			continue
+		}
+		if m, ok := t.(map[string]any); ok {
+			basePoolInfo = m
+			break
+		}
+	}
 
 	consensusData, _ := json.Marshal(basePoolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any))
 	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
