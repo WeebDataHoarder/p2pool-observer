@@ -15,10 +15,28 @@ func IsPeerVersionInformation(addr netip.AddrPort) bool {
 	return bytes.Compare(rawIp[12:], []byte{0xFF, 0xFF, 0xFF, 0xFF}) == 0
 }
 
+type ProtocolFeature int
+
+const (
+	FeatureCompactBroadcast = ProtocolFeature(iota)
+	InternalFeatureFastTemplateHeaderSync
+)
+
 type PeerVersionInformation struct {
 	Protocol        ProtocolVersion
 	SoftwareVersion SoftwareVersion
 	SoftwareId      SoftwareId
+}
+
+func (i *PeerVersionInformation) SupportsFeature(feature ProtocolFeature) bool {
+	switch feature {
+	case FeatureCompactBroadcast:
+		return i.Protocol >= ProtocolVersion_1_1
+	case InternalFeatureFastTemplateHeaderSync:
+		return i.Protocol >= ProtocolVersion_1_1 && i.SoftwareId == SoftwareIdGoObserver && i.SoftwareVersion.Major() == 1 && i.SoftwareVersion >= ((1<<16)|1)
+	default:
+		return false
+	}
 }
 
 func (i *PeerVersionInformation) String() string {
@@ -55,8 +73,6 @@ const (
 	ProtocolVersion_1_1 ProtocolVersion = (1 << 16) | 1
 )
 
-const SupportedProtocolVersion = ProtocolVersion_1_1
-
 type SoftwareVersion SemanticVersion
 
 func (v SoftwareVersion) Major() uint16 {
@@ -70,7 +86,9 @@ func (v SoftwareVersion) String() string {
 	return SemanticVersion(v).String()
 }
 
-const CurrentSoftwareVersion SoftwareVersion = (1 << 16) | 0
+const SupportedProtocolVersion = ProtocolVersion_1_1
+const CurrentSoftwareVersion SoftwareVersion = (1 << 16) | 1
+const CurrentSoftwareId = SoftwareIdGoObserver
 
 type SoftwareId uint32
 

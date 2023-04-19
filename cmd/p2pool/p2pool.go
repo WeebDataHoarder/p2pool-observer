@@ -54,9 +54,9 @@ func main() {
 	flag.Parse()
 
 	if buildInfo, _ := debug.ReadBuildInfo(); buildInfo != nil {
-		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.SoftwareIdGoObserver, types.CurrentSoftwareVersion, buildInfo.GoVersion)
+		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, buildInfo.GoVersion)
 	} else {
-		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.SoftwareIdGoObserver, types.CurrentSoftwareVersion, runtime.Version())
+		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
 	}
 
 	if *debugLog {
@@ -231,6 +231,7 @@ func main() {
 					}
 				}(addrPort)
 			}
+			instance.Server().UpdateClientConnections()
 		}()
 
 		sigHandler := make(chan os.Signal, 1)

@@ -143,6 +143,35 @@ func (c *Client) SendListenPort() {
 	}
 }
 
+func (c *Client) SendMissingBlockRequestAtRandom(hash types.Hash, allowedClients []*Client) []*Client {
+	if hash == types.ZeroHash || c.Owner.SideChain().GetPoolBlockByTemplateId(hash) != nil {
+		return allowedClients
+	}
+
+	if b := c.Owner.GetCachedBlock(hash); b != nil {
+		log.Printf("[P2PClient] Using cached block for id = %s", hash.String())
+		if _, err, _ := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
+			return allowedClients
+		}
+	}
+
+	if len(allowedClients) == 0 {
+		allowedClients = append(allowedClients, c)
+	}
+
+	for len(allowedClients) > 0 {
+		k := unsafeRandom.Intn(len(allowedClients)) % len(allowedClients)
+		client := allowedClients[k]
+		if client.IsGood() && len(client.blockPendingRequests) < 20 {
+			client.SendBlockRequest(hash)
+			break
+		} else {
+			allowedClients = slices.Delete(allowedClients, k, k+1)
+		}
+	}
+	return allowedClients
+}
+
 func (c *Client) SendMissingBlockRequest(hash types.Hash) {
 	if hash == types.ZeroHash || c.Owner.SideChain().GetPoolBlockByTemplateId(hash) != nil {
 		return
@@ -189,13 +218,13 @@ func (c *Client) SendUniqueBlockRequest(hash types.Hash) {
 }
 
 func (c *Client) SendBlockRequest(id types.Hash) {
-
-	c.SendMessage(&ClientMessage{
-		MessageId: MessageBlockRequest,
-		Buffer:    id[:],
-	})
-
-	c.blockPendingRequests <- id
+	if len(c.blockPendingRequests) < 80 {
+		c.blockPendingRequests <- id
+		c.SendMessage(&ClientMessage{
+			MessageId: MessageBlockRequest,
+			Buffer:    id[:],
+		})
+	}
 }
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
@@ -213,6 +242,31 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 			Buffer:    binary.LittleEndian.AppendUint32(nil, 0),
 		})
 	}
+}
+
+func (c *Client) SendInternalFastTemplateHeaderSyncRequest(hash types.Hash) {
+	buf := make([]byte, 0, binary.MaxVarintLen64*2+types.HashSize)
+	buf = binary.AppendUvarint(buf, uint64(InternalMessageFastTemplateHeaderSyncRequest))
+	buf = binary.AppendUvarint(buf, uint64(types.HashSize))
+	buf = append(buf, hash[:]...)
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageInternal,
+		Buffer:    buf,
+	})
+}
+
+func (c *Client) SendInternalFastTemplateHeaderSyncResponse(hashes ...types.Hash) {
+	buf := make([]byte, 0, binary.MaxVarintLen64*2+8+len(hashes)*types.HashSize)
+	buf = binary.AppendUvarint(buf, uint64(InternalMessageFastTemplateHeaderSyncResponse))
+	buf = binary.AppendUvarint(buf, uint64(8+len(hashes)*types.HashSize))
+	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(hashes)))
+	for _, h := range hashes {
+		buf = append(buf, h[:]...)
+	}
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageInternal,
+		Buffer:    buf,
+	})
 }
 
 func (c *Client) SendPeerListRequest() {
@@ -648,6 +702,8 @@ func (c *Client) OnConnection() {
 									c.VersionInformation.SoftwareVersion = p2pooltypes.SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
 									c.VersionInformation.SoftwareId = p2pooltypes.SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
 									log.Printf("[P2PClient] Peer %s version information: %s", c.AddressPort.String(), c.VersionInformation.String())
+
+									c.afterInitialProtocolExchange()
 								}
 								continue
 							}
@@ -659,12 +715,102 @@ func (c *Client) OnConnection() {
 					}
 				}
 			}
+
+		case MessageInternal:
+			internalMessageId, err := binary.ReadUvarint(c)
+			if err != nil {
+				c.Ban(DefaultBanTime, err)
+				return
+			}
+			messageSize, err := binary.ReadUvarint(c)
+			if err != nil {
+				c.Ban(DefaultBanTime, err)
+				return
+			}
+			reader := io.LimitReader(c, int64(messageSize))
+			switch InternalMessageId(internalMessageId) {
+			case InternalMessageFastTemplateHeaderSyncRequest:
+				c.LastBlockRequestTimestamp.Store(uint64(time.Now().Unix()))
+
+				var fromTemplateId types.Hash
+				if err := binary.Read(reader, binary.LittleEndian, &fromTemplateId); err != nil {
+					c.Ban(DefaultBanTime, err)
+					return
+				}
+				log.Printf("[P2PClient] Peer %s: received InternalMessageFastTemplateHeaderSyncRequest for %s", c.AddressPort, fromTemplateId)
+
+				//TODO: this could just be a sample of like 16 blocks
+
+				var blocks, uncles sidechain.UniquePoolBlockSlice
+				if fromTemplateId == types.ZeroHash {
+					tip := c.Owner.SideChain().GetChainTip()
+					if tip != nil {
+						blocks, uncles = c.Owner.SideChain().GetPoolBlocksFromTip(tip.SideTemplateId(c.Owner.Consensus()))
+					}
+				} else {
+					blocks, uncles = c.Owner.SideChain().GetPoolBlocksFromTip(fromTemplateId)
+				}
+
+				hashes := make([]types.Hash, 0, len(blocks)+len(uncles))
+				for _, b := range blocks {
+					hashes = append(hashes, b.SideTemplateId(c.Owner.Consensus()))
+				}
+				for _, u := range uncles {
+					hashes = append(hashes, u.SideTemplateId(c.Owner.Consensus()))
+				}
+				if uint64(len(hashes)) > c.Owner.Consensus().ChainWindowSize*3 {
+					hashes = hashes[:c.Owner.Consensus().ChainWindowSize*3]
+				}
+				//shuffle to have random chances of faster sync
+				unsafeRandom.Shuffle(len(hashes), func(i, j int) {
+					hashes[i], hashes[j] = hashes[j], hashes[i]
+				})
+				c.SendInternalFastTemplateHeaderSyncResponse(hashes...)
+
+			case InternalMessageFastTemplateHeaderSyncResponse:
+				var hashLen uint64
+				if err = binary.Read(c, binary.LittleEndian, &hashLen); err != nil {
+					c.Ban(DefaultBanTime, err)
+					return
+				}
+				if hashLen > c.Owner.Consensus().ChainWindowSize*3 {
+					c.Ban(DefaultBanTime, errors.New("size error"))
+					return
+				}
+				log.Printf("[P2PClient] Peer %s: received InternalMessageFastTemplateHeaderSyncResponse with size %d", c.AddressPort, hashLen)
+				var hash types.Hash
+				clients := c.Owner.Clients()
+				for len(clients) < 64 {
+					clients = c.Owner.Clients()
+					time.Sleep(time.Second * 1)
+				}
+				for i := uint64(0); i < hashLen; i++ {
+					if err := binary.Read(reader, binary.LittleEndian, &hash); err != nil {
+						c.Ban(DefaultBanTime, err)
+						return
+					}
+					clients = c.SendMissingBlockRequestAtRandom(hash, clients)
+				}
+			default:
+				c.Ban(DefaultBanTime, fmt.Errorf("unknown InternalMessageId %d", internalMessageId))
+				return
+			}
 		default:
 			c.Ban(DefaultBanTime, fmt.Errorf("unknown MessageId %d", messageId))
 			return
 		}
 
 		c.LastActiveTimestamp.Store(uint64(time.Now().Unix()))
+	}
+}
+
+func (c *Client) afterInitialProtocolExchange() {
+	if c.VersionInformation.SupportsFeature(p2pooltypes.InternalFeatureFastTemplateHeaderSync) {
+		if tip := c.LastKnownTip.Load(); tip != nil {
+			c.SendInternalFastTemplateHeaderSyncRequest(tip.SideTemplateId(c.Owner.Consensus()))
+		} else {
+			c.SendInternalFastTemplateHeaderSyncRequest(types.ZeroHash)
+		}
 	}
 }
 

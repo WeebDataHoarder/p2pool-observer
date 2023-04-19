@@ -119,7 +119,7 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
 		versionInformation: p2pooltypes.PeerVersionInformation{
-			SoftwareId:      p2pooltypes.SoftwareIdGoObserver,
+			SoftwareId:      p2pooltypes.CurrentSoftwareId,
 			SoftwareVersion: p2pooltypes.CurrentSoftwareVersion,
 			Protocol:        p2pooltypes.SupportedProtocolVersion,
 		},
@@ -203,7 +203,7 @@ func (s *Server) GetFastestClient() *Client {
 	var ping uint64
 	for _, c := range s.Clients() {
 		p := c.PingDuration.Load()
-		if p != 0 && (ping == 0 || p < ping) {
+		if c.IsGood() && p != 0 && (ping == 0 || p < ping) {
 			client = c
 			ping = p
 		}
@@ -212,7 +212,7 @@ func (s *Server) GetFastestClient() *Client {
 	return client
 }
 
-func (s *Server) updatePeerList() {
+func (s *Server) UpdatePeerList() {
 	curTime := uint64(time.Now().Unix())
 	for _, c := range s.Clients() {
 		if c.IsGood() && curTime >= c.NextOutgoingPeerListRequestTimestamp.Load() {
@@ -221,10 +221,7 @@ func (s *Server) updatePeerList() {
 	}
 }
 
-func (s *Server) updateClientConnections() {
-
-	//TODO: remove peers from peerlist not seen in the last hour
-	//TODO: deprecate this
+func (s *Server) UpdateClientConnections() {
 
 	currentTime := uint64(time.Now().Unix())
 	lastUpdated := s.SideChain().LastUpdated()
@@ -418,8 +415,8 @@ func (s *Server) Listen() (err error) {
 					return
 				}
 
-				s.updatePeerList()
-				s.updateClientConnections()
+				s.UpdatePeerList()
+				s.UpdateClientConnections()
 			}
 		}()
 		wg.Add(1)
@@ -575,11 +572,11 @@ func (s *Server) IsBanned(ip netip.Addr) bool {
 
 func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 	go func() {
+		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 		if !ip.IsLoopback() {
 			s.bansLock.Lock()
 			defer s.bansLock.Unlock()
 			s.bans[ip.Unmap().As16()] = uint64(time.Now().Unix()) + uint64(duration.Seconds())
-			log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 			for _, c := range s.GetAddressConnected(ip) {
 				c.Close()
 			}
@@ -612,10 +609,6 @@ func (s *Server) SideChain() *sidechain.SideChain {
 
 func (s *Server) MainChain() *mainchain.MainChain {
 	return s.p2pool.MainChain()
-}
-
-func (s *Server) updateClients() {
-
 }
 
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {
@@ -663,7 +656,7 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 						}
 					}
 
-					if c.VersionInformation.Protocol >= p2pooltypes.ProtocolVersion_1_1 {
+					if c.VersionInformation.SupportsFeature(p2pooltypes.FeatureCompactBroadcast) {
 						c.SendMessage(compactMessage)
 					} else {
 						c.SendMessage(prunedMessage)
