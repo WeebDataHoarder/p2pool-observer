@@ -101,20 +101,20 @@
             <td class="mono" title="{{ block.Nonce|hex }}">{{ block.Nonce }}</td>
             <td class="mono smaller">{{ raw.Side.CumulativeDifficulty }}</td>
             <td class="mono" title="{{ block.ExtraNonce|hex }}">{{ block.ExtraNonce }}</td>
-            <td class="mono">{{ block.MainDifficulty }}</td>
+            <td class="mono">{% if block.MainDifficulty != 0 %}{{ block.MainDifficulty }}{% endif %}</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
             <th>Software</th>
             <th>Version Signaling</th>
             <th>{% if raw.ShareVersion()|str != "v1" %}Template Extra Buffer{% endif %}</th>
-            <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Coinbase Private Key Seed</th>
+            <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Deterministic Private Key Seed</th>
         </tr>
         <tr>
             <td>{{ software_info(raw.Side.ExtraBuffer.SoftwareId, raw.Side.ExtraBuffer.SoftwareVersion) }}</td>
             <td>{{ raw.ShareVersion() }} <span class="small">({% if raw.ShareVersionSignaling()|str != "none" %}signaling {{ raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
             <td class="small">{% if raw.ShareVersion()|str != "v1" %}<span class="mono" title="Random Number">{{ raw.Side.ExtraBuffer.RandomNumber|hex }}</span> / <span class="mono" title="SideChain Extra Nonce">{{ raw.Side.ExtraBuffer.SideChainExtraNonce|hex }}{% endif %}</span></td>
-            <td class="mono smaller">{{ raw.GetPrivateKeySeed() }}</td>
+            <td>{% if not is_zero_hash(raw.GetPrivateKeySeed()) %}<span class="mono smaller">{{ raw.GetPrivateKeySeed() }}</span>{% else %}Not Deterministic{% endif %}</td>
         </tr>
 
     </table>
