@@ -47,13 +47,13 @@ func getFromAPI(method string, cacheTime ...int) any {
 
 }
 
-func getSideBlockFromAPI(method string, cacheTime ...int) *index.SideBlock {
+func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 	cTime := 0
 	if len(cacheTime) > 0 {
 		cTime = cacheTime[0]
 	}
 
-	if sb, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	return cacheResult[*T](method, time.Second*time.Duration(cTime), func() *T {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -63,22 +63,19 @@ func getSideBlockFromAPI(method string, cacheTime ...int) *index.SideBlock {
 		} else {
 			defer response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				var sideBlock index.SideBlock
+				var result T
 				if data, err := io.ReadAll(response.Body); err != nil {
 					return nil
-				} else if json.Unmarshal(data, &sideBlock) != nil {
+				} else if json.Unmarshal(data, &result) != nil {
 					return nil
 				} else {
-					return &sideBlock
+					return &result
 				}
 			} else {
 				return nil
 			}
 		}
-	}).(*index.SideBlock); ok {
-		return sb
-	}
-	return nil
+	})
 }
 
 func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
@@ -87,7 +84,7 @@ func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 		cTime = cacheTime[0]
 	}
 
-	if sb, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	return cacheResult[[]*index.SideBlock](method, time.Second*time.Duration(cTime), func() []*index.SideBlock {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -109,10 +106,7 @@ func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 				return nil
 			}
 		}
-	}).([]*index.SideBlock); ok {
-		return sb
-	}
-	return nil
+	})
 }
 
 func getFromAPIRaw(method string, cacheTime ...int) []byte {
@@ -121,7 +115,7 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 		cTime = cacheTime[0]
 	}
 
-	if b, ok := cacheResult(method, time.Second*time.Duration(cTime), func() any {
+	return cacheResult[[]byte](method, time.Second*time.Duration(cTime), func() []byte {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -140,8 +134,5 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 				return nil
 			}
 		}
-	}).([]byte); ok {
-		return b
-	}
-	return nil
+	})
 }

@@ -1105,9 +1105,9 @@ func main() {
 		var coinbase any
 		var rawBlock any
 		if len(identifier) == 64 {
-			block = getSideBlockFromAPI(fmt.Sprintf("block_by_id/%s", identifier))
+			block = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", identifier))
 		} else {
-			block = getSideBlockFromAPI(fmt.Sprintf("block_by_height/%s", identifier))
+			block = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_height/%s", identifier))
 		}
 
 		if block == nil {
@@ -1212,10 +1212,9 @@ func main() {
 		var raw *sidechain.PoolBlock
 
 		if len(lastShares) > 0 {
-			rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
-			b := &sidechain.PoolBlock{}
-			if json.Unmarshal(rawBlock, b) == nil && b.ShareVersion() != sidechain.ShareVersion_None {
-				raw = b
+			raw = getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
+			if raw == nil || raw.ShareVersion() != sidechain.ShareVersion_None {
+				raw = nil
 			}
 		}
 
@@ -1293,9 +1292,9 @@ func main() {
 
 	serveMux.HandleFunc("/proof/{block:[0-9a-f]+|[0-9]+}/{index:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 		identifier := utils.DecodeHexBinaryNumber(mux.Vars(request)["block"])
-		index := toUint64(mux.Vars(request)["index"])
+		requestIndex := toUint64(mux.Vars(request)["index"])
 
-		block := getSideBlockFromAPI(fmt.Sprintf("block_by_id/%s", identifier))
+		block := getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", identifier))
 
 		if block == nil || !block.MinedMainAtHeight {
 			ctx := make(map[string]stick.Value)
@@ -1307,11 +1306,9 @@ func main() {
 			return
 		}
 
-		var raw *sidechain.PoolBlock
-		rawBlock := getFromAPIRaw(fmt.Sprintf("block_by_id/%s/light", block.MainId))
-		b := &sidechain.PoolBlock{}
-		if json.Unmarshal(rawBlock, b) == nil && b.ShareVersion() != sidechain.ShareVersion_None {
-			raw = b
+		raw := getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", block.MainId))
+		if raw == nil || raw.ShareVersion() != sidechain.ShareVersion_None {
+			raw = nil
 		}
 
 		coinbase := getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
@@ -1327,7 +1324,7 @@ func main() {
 		}
 
 		payouts := coinbase.([]any)
-		if uint64(len(payouts)) <= index {
+		if uint64(len(payouts)) <= requestIndex {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
@@ -1342,7 +1339,7 @@ func main() {
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
 		ctx["raw"] = raw
-		ctx["payout"] = payouts[index]
+		ctx["payout"] = payouts[requestIndex]
 		ctx["pool"] = poolInfo
 
 		render(request, writer, "proof.html", ctx)
