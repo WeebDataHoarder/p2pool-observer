@@ -1223,9 +1223,6 @@ func main() {
 
 		for _, share := range shares {
 			if share.IsUncle() {
-				if share.SideHeight <= wend {
-					continue
-				}
 
 				unclesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
 
