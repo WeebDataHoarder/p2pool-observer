@@ -47,8 +47,6 @@ const (
 	ShareVersion_V2   ShareVersion = 2
 )
 
-const ShareVersion_V2MainNetTimestamp uint64 = 1679173200 // 2023-03-18 21:00 UTC
-
 type UniquePoolBlockSlice []*PoolBlock
 
 func (s UniquePoolBlockSlice) Get(id types.Hash) *PoolBlock {
