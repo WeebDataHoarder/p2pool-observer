@@ -35,7 +35,6 @@ services:
       dockerfile: Dockerfile
       args:
         - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
-        - NET_SERVICE_ADDRESS=${NET_SERVICE_ADDRESS}
     restart: always
     depends_on:
       - api
