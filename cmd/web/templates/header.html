@@ -14,7 +14,7 @@
         </h4>
         {% if (irc_link is defined) and (irc_link != "") %}
         <h4 style="font-size: 16px; margin: 4px 0px 0px; font-weight: normal;">
-            Join chat to talk, ask questions and be notified of upcoming changes on <a href="{{ irc_link }}" target="_blank"><strong>IRC at <code>{{ irc_link_title }}</code></strong></a>{% if matrix_link != "" %} or on <a target="_blank" rel="nofollow" href="{{ matrix_link }}"><strong>Matrix</strong></a>{% endif %}
+            Join chat to talk, ask questions and be notified of upcoming changes on <a href="{{ irc_link }}" target="_blank"><strong>IRC on <code>{{ irc_link_title }}</code></strong></a>{% if matrix_link != "" %}, on <a href="{{ webchat_link }}" target="_blank"><strong>WebIRC</strong></a>{% endif %}{% if matrix_link != "" %}, on <a target="_blank" rel="nofollow" href="{{ matrix_link }}"><strong>Matrix</strong></a>{% endif %}
         </h4>
         {% endif %}
         <h4 style="font-size: 13px; margin: 4px 0px 0px; font-weight: normal;">

@@ -134,7 +134,7 @@ func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
-	var ircLinkTitle, ircLink, matrixLink string
+	var ircLinkTitle, ircLink, webchatLink, matrixLink string
 	ircUrl, err := url.Parse(os.Getenv("SITE_IRC_URL"))
 	if err == nil && ircUrl.Host != "" {
 		ircLink = ircUrl.String()
@@ -143,6 +143,7 @@ func main() {
 		case "irc.libera.chat":
 			humanHost = "libera.chat"
 			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+			webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", ircUrl.Fragment)
 		case "irc.hackint.org":
 			humanHost = "hackint.org"
 			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
@@ -187,6 +188,7 @@ func main() {
 				e["irc_link"] = ircLink
 				e["irc_link_title"] = ircLinkTitle
 				e["matrix_link"] = matrixLink
+				e["webchat_link"] = webchatLink
 				e["donation_address"] = types.DonationAddress
 				e["code"] = http.StatusInternalServerError
 				e["message"] = "Internal Server Error"
@@ -207,6 +209,7 @@ func main() {
 		ctx["irc_link"] = ircLink
 		ctx["irc_link_title"] = ircLinkTitle
 		ctx["matrix_link"] = matrixLink
+		ctx["webchat_link"] = webchatLink
 		ctx["donation_address"] = types.DonationAddress
 
 		if err := env.Execute(template, w, ctx); err != nil {
