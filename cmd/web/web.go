@@ -143,6 +143,9 @@ func main() {
 		case "irc.libera.chat":
 			humanHost = "libera.chat"
 			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+		case "irc.hackint.org":
+			humanHost = "hackint.org"
+			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
 		}
 		ircLinkTitle = fmt.Sprintf("#%s@%s", ircUrl.Fragment, humanHost)
 	}
