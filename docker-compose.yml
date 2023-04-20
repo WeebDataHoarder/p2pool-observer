@@ -156,6 +156,7 @@ services:
       - NET_SERVICE_ADDRESS=${NET_SERVICE_ADDRESS}
       - API_URL=http://api:8080/api/
       - SITE_TITLE=${SITE_TITLE}
+      - SITE_IRC_URL=${SITE_IRC_URL}
     depends_on:
       - api
     security_opt:

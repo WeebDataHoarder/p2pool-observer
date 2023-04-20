@@ -25,6 +25,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -133,6 +134,19 @@ func main() {
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
+	var ircLinkTitle, ircLink, matrixLink string
+	ircUrl, err := url.Parse(os.Getenv("SITE_IRC_URL"))
+	if err == nil && ircUrl.Host != "" {
+		ircLink = ircUrl.String()
+		humanHost := ircUrl.Host
+		switch strings.Split(humanHost, ":")[0] {
+		case "irc.libera.chat":
+			humanHost = "libera.chat"
+			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+		}
+		ircLinkTitle = fmt.Sprintf("#%s@%s", ircUrl.Fragment, humanHost)
+	}
+
 	var basePoolInfo map[string]any
 
 	for {
@@ -165,6 +179,12 @@ func main() {
 				opts := make(map[string]stick.Value)
 				e := make(map[string]stick.Value)
 				opts["error"] = e
+				e["is_onion"] = request.Host == torHost
+				e["consensus"] = consensus
+				e["irc_link"] = ircLink
+				e["irc_link_title"] = ircLinkTitle
+				e["matrix_link"] = matrixLink
+				e["donation_address"] = types.DonationAddress
 				e["code"] = http.StatusInternalServerError
 				e["message"] = "Internal Server Error"
 				e["content"] = "<pre>" + html.EscapeString(fmt.Sprintf("%s", err)) + "</pre>"
@@ -181,6 +201,10 @@ func main() {
 		}
 		ctx["is_onion"] = request.Host == torHost
 		ctx["consensus"] = consensus
+		ctx["irc_link"] = ircLink
+		ctx["irc_link_title"] = ircLinkTitle
+		ctx["matrix_link"] = matrixLink
+		ctx["donation_address"] = types.DonationAddress
 
 		if err := env.Execute(template, w, ctx); err != nil {
 			w = bytes.NewBuffer(nil)
