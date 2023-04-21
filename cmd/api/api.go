@@ -915,7 +915,7 @@ func main() {
 		blockIdStart := c & 0xFFFF
 
 		blockStart := []byte{byte((blockIdStart >> 8) & 0xFF), byte(blockIdStart & 0xFF)}
-		shares := index.ChanToSlice(indexDb.GetSideBlocksByQuery("WHERE side_height = $1;", 1, blockHeight))
+		shares := index.ChanToSlice(indexDb.GetSideBlocksByQuery("WHERE side_height = $1;", blockHeight))
 		var b *index.SideBlock
 		for _, s := range shares {
 			if bytes.Compare(s.MainId[:2], blockStart) == 0 {
