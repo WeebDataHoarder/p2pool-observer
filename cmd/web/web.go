@@ -674,12 +674,7 @@ func main() {
 			value = fmt.Sprintf("%s", value)
 		}
 
-		n := int(toUint64(args[0]))
-		if len(value) <= n*2+3 {
-			return value
-		} else {
-			return value[:n] + "..." + value[len(value)-n:]
-		}
+		return utils.Shorten(value, int(toUint64(args[0])))
 	}
 	env.Filters["intstr"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) stick.Value {
 		return strconv.FormatUint(toUint64(val), 10)

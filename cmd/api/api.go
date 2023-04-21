@@ -918,8 +918,17 @@ func main() {
 		shares := index.ChanToSlice(indexDb.GetSideBlocksByQuery("WHERE side_height = $1;", 1, blockHeight))
 		var b *index.SideBlock
 		for _, s := range shares {
-			if bytes.Compare(s.TemplateId[:2], blockStart) == 0 {
+			if bytes.Compare(s.MainId[:2], blockStart) == 0 {
 				b = s
+				break
+			}
+		}
+		if b == nil {
+			for _, s := range shares {
+				if bytes.Compare(s.TemplateId[:2], blockStart) == 0 {
+					b = s
+					break
+				}
 			}
 		}
 
