@@ -273,6 +273,9 @@ func (b *PoolBlock) ShareVersionSignaling() ShareVersion {
 }
 
 func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
+	if b.Main.Coinbase == nil {
+		return nil
+	}
 	switch tag {
 	case SideExtraNonce:
 		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {

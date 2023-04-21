@@ -1021,10 +1021,10 @@ func main() {
 		for _, b := range indexDb.GetFoundBlocks("", 1) {
 			lastFoundHash = b.MainBlock.SideTemplateId
 		}
-		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", lastFoundHash.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s?%s", lastFoundHash.String(), mux.Vars(request)["kind"], request.URL.RawQuery), http.StatusFound)
 	})
 	serveMux.HandleFunc("/api/redirect/tip{kind:|/raw|/info}", func(writer http.ResponseWriter, request *http.Request) {
-		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s%s", indexDb.GetSideBlockTip().TemplateId.String(), mux.Vars(request)["kind"], request.URL.RequestURI()), http.StatusFound)
+		http.Redirect(writer, request, fmt.Sprintf("/api/block_by_id/%s%s?%s", indexDb.GetSideBlockTip().TemplateId.String(), mux.Vars(request)["kind"], request.URL.RawQuery), http.StatusFound)
 	})
 
 	serveMux.HandleFunc("/api/found_blocks", func(writer http.ResponseWriter, request *http.Request) {

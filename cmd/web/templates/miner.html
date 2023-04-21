@@ -21,9 +21,11 @@
 
         <p>Finding shares is a random process based on your hashrate vs this P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
         <p>Please use the calculator below to find your average share time (with average luck).</p>
+        <p>You can also verify you are reachable by opening ports with the tool below.</p>
         <br/>
 
         <form action="/calculate-share-time" method="get">
+            <h3>Average Share Time Calculator</h3>
             <label for="hashrate">Your Hashrate</label><br/>
             <input type="numeric" name="hashrate" id="hashrate" placeholder="100" size="8" class="mono" value=""/>
             <select name="magnitude">
@@ -34,6 +36,19 @@
             </select>
             <br/>
             <input type="submit" value="Calculate" style="width: 20em; margin: 20px;"/>
+        </form>
+
+
+        <form action="/connectivity-check" method="get">
+            <h3>Connectivity Check</h3>
+            <div>
+                <label for="address">IP Address and Port</label><br/>
+                <input type="text" name="address" id="address" placeholder="5.9.17.234:{{ consensus.DefaultPort() }}" size="20" class="mono" value="{% if (not is_nil(address)) and address.IsValid() %}{{ address.String() }}{% endif %}"/>
+            </div>
+            <br/>
+            <div style="margin-top: 10px">
+                <input type="submit" value="Check" style="width: 20em;"/>
+            </div>
         </form>
     </div>
 

@@ -62,7 +62,7 @@
             <th>Difficulty</th>
         </tr>
         <tr>
-            <td title="{{ utc_date(block.timestamp) }}">{{ date_diff_short(block.Timestamp) }}</td>
+            <td title="{{ utc_date(block.Timestamp) }}">{{ date_diff_short(block.Timestamp) }}</td>
             <td class="mono smaller">{{ block.PowHash }}</td>
             {% set minerAddress = block.MinerAddress.ToBase58() %}
             {% if block.MinerAlias != "" %}

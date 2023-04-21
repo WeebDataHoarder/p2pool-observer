@@ -25,6 +25,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"reflect"
@@ -242,7 +243,11 @@ func main() {
 		return 0
 	}
 	env.Functions["diff_uint"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
-		if d, err := types.DifficultyFromString(args[0].(string)); err == nil {
+		if strVal, ok := args[0].(string); ok {
+			if d, err := types.DifficultyFromString(strVal); err == nil {
+				return d.Lo
+			}
+		} else if d, ok := args[0].(types.Difficulty); ok {
 			return d.Lo
 		}
 		return 0
@@ -445,11 +450,18 @@ func main() {
 		return b
 	}
 
+	env.Functions["block_address"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 1 {
+			return nil
+		}
+		return args[0].(*sidechain.PoolBlock).GetAddress().ToBase58()
+	}
+
 	env.Functions["extra_nonce"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 1 {
 			return nil
 		}
-		return args[0].(*sidechain.PoolBlock).CoinbaseExtra(sidechain.SideExtraNonce)
+		return binary.LittleEndian.Uint32(args[0].(*sidechain.PoolBlock).CoinbaseExtra(sidechain.SideExtraNonce))
 	}
 
 	env.Functions["software_info"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -497,6 +509,12 @@ func main() {
 				return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
 			} else if uncles, ok := sideBlock["uncles"].([]any); ok && len(uncles) > 0 {
 				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(uncles))
+			} else {
+				return "100%"
+			}
+		} else if poolBlock, ok := args[0].(*sidechain.PoolBlock); ok {
+			if len(poolBlock.Side.Uncles) > 0 {
+				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(poolBlock.Side.Uncles))
 			} else {
 				return "100%"
 			}
@@ -740,6 +758,52 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		render(request, writer, "calculate-share-time.html", ctx)
+	})
+
+	serveMux.HandleFunc("/connectivity-check", func(writer http.ResponseWriter, request *http.Request) {
+
+		params := request.URL.Query()
+
+		var addressPort netip.AddrPort
+		var err error
+		if params.Has("address") {
+			addressPort, err = netip.ParseAddrPort(params.Get("address"))
+			if err != nil {
+				addr, err := netip.ParseAddr(params.Get("address"))
+				if err == nil {
+					addressPort = netip.AddrPortFrom(addr, consensus.DefaultPort())
+				}
+			}
+		}
+
+		if addressPort.IsValid() && !addressPort.Addr().IsUnspecified() {
+			checkInformation := getTypeFromAPI[types2.P2PoolConnectionCheckInformation]("consensus/connection_check/" + addressPort.String())
+			var rawTip *sidechain.PoolBlock
+			ourTip := getTypeFromAPI[index.SideBlock]("redirect/tip")
+			var theirTip *index.SideBlock
+			if checkInformation != nil {
+				if buf, err := json.Marshal(checkInformation.Tip); err == nil && checkInformation.Tip != nil {
+					b := sidechain.PoolBlock{}
+					if json.Unmarshal(buf, &b) == nil {
+						rawTip = &b
+						theirTip = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId))))
+					}
+				}
+			}
+			ctx := make(map[string]stick.Value)
+			ctx["address"] = addressPort
+			ctx["your_tip"] = theirTip
+			ctx["your_tip_raw"] = rawTip
+			ctx["our_tip"] = ourTip
+			ctx["check"] = checkInformation
+
+			render(request, writer, "connectivity-check.html", ctx)
+		} else {
+			ctx := make(map[string]stick.Value)
+			ctx["address"] = netip.AddrPort{}
+
+			render(request, writer, "connectivity-check.html", ctx)
+		}
 	})
 
 	serveMux.HandleFunc("/transaction-lookup", func(writer http.ResponseWriter, request *http.Request) {

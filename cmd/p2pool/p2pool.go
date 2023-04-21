@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -224,13 +225,17 @@ func main() {
 				time.Sleep(time.Second * 1)
 			}
 
+			var wg sync.WaitGroup
 			for _, addrPort := range connectList {
+				wg.Add(1)
 				go func(addrPort netip.AddrPort) {
+					defer wg.Done()
 					if err := instance.Server().Connect(addrPort); err != nil {
 						log.Printf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
 					}
 				}(addrPort)
 			}
+			wg.Wait()
 			instance.Server().UpdateClientConnections()
 		}()
 

@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+
+{% block title %} - Connectivity Check{% endblock %}
+
+{% block content %}
+
+<div style="text-align: center">
+    <form action="/connectivity-check" method="get">
+        <h2>Connectivity Check</h2>
+        <p>
+            This tool tries to connect or looks up a running P2Pool node to verify ports have been properly opened.
+            <br/>
+            <small>You need to have external ports opened for this tool to work.</small>
+        </p>
+        <div>
+            <label for="address">IP Address and Port</label><br/>
+            <input type="text" name="address" id="address" placeholder="5.9.17.234:{{ consensus.DefaultPort() }}" size="20" class="mono" value="{% if (not is_nil(address)) and address.IsValid() %}{{ address.String() }}{% endif %}"/>
+        </div>
+        <div style="margin-top: 10px">
+            <input type="submit" value="Check" style="width: 20em;"/>
+        </div>
+    </form>
+</div>
+
+
+
+{% if (not is_nil(address)) and address.IsValid() %}
+<hr/>
+<div style="text-align: center">
+    <h2>Connectivity Check Result</h2>
+    {% if is_nil(check) %}
+        <p style="color:#FF4433">Could not connect to host.</p>
+    {% elseif check.Error != "" and check.Address == "" %}
+        <p style="color:#FF4433">Error connecting to host: <code>{{ check.Error }}</code>.</p>
+        {% if check.Error == "disconnected before finishing handshake" %}
+        <p>This peer is likely running on a different SideChain or is running an incompatible P2Pool software version. Try a different Observer or verify your software.</p>
+        {% elseif check.Error == "not_valid_ip" %}
+        <p>The IP Address you are trying to connect to is not valid or accepted on this tool.</p>
+        {% elseif check.Error == "not_valid_port" %}
+        <p>The Port you are trying to connect to is not valid or accepted on this tool.</p>
+        {% endif %}
+    {% else %}
+    <table class="center" style="max-width: calc(8em + 28em + 8em + 28em + 20em)">
+        <tr style="line-height: 1.5;">
+            <td style="width: 10em"><strong>Peer Address</strong><br/>{{ check.Address }}</td>
+            <td style="width: 10em"><strong>Peer Port</strong><br/>{{ check.Port }}</td>
+            <td style="width: 10em"><strong>Listen Port</strong><br/>{% if check.ListenPort > 0 %}{{ check.Port }}{% else %}-{% endif %}</td>
+            <td style="width: 10em"><strong>Peer Id</strong><br/>{% if check.PeerId > 0 %}{{ check.PeerId }}{% else %}-{% endif %}</td>
+            <td style="width: 10em"><strong>Connection Direction</strong><br/>{% if check.Incoming %}Incoming{% else %}Outgoing{% endif %}</td>
+            <td style="width: 10em"><strong>Connection Status</strong><br/>{% if check.Closed %}Closed{% else %}Active{% endif %}{% if not check.AlreadyConnected %}, new connection{% endif %}{% if check.Banned %} (banned){% endif %}</td>
+        </tr>
+        {% if (not check.Closed) or (check.PeerId > 0) %}
+        <tr style="line-height: 1.5;">
+            <td style="width: 10em"><strong>Peer Software</strong><br/>{{ check.SoftwareId }} {{ check.SoftwareVersion }}</td>
+            <td style="width: 10em"><strong>Peer Protocol</strong><br/>{{ check.ProtocolVersion }}</td>
+            <td style="width: 10em"><strong>Handshake Complete</strong><br/>{% if check.HandshakeComplete %}Yes{% else %}No{% endif %}</td>
+            <td style="width: 10em"><strong>Last Broadcast</strong><br/><span title="{{ utc_date(check.BroadcastTime) }}">{{ time_elapsed_short(check.BroadcastTime) }}</span></td>
+            <td style="width: 10em"><strong>Connection Duration</strong><br/><span title="{{ utc_date(check.ConnectionTime) }}">{{ time_elapsed_short(check.ConnectionTime) }}</span></td>
+            <td style="width: 10em"><strong>Connection Latency</strong><br/>{% if check.Latency > 0 %}{{ check.Latency }}ms{% else %}-{% endif %}</td>
+        </tr>
+        {% endif %}
+        {% if check.Error != "" %}
+        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr><td colspan="6" style="color:#FF4433"><strong>Error:</strong> <code>{{ check.Error }}</code></td></tr>
+        {% if check.Error == "disconnected before finishing handshake" %}
+        <tr><td colspan="6">This peer is likely running on a different SideChain or is running an incompatible P2Pool software version. Try a different Observer or verify your software.</td></tr>
+        {% endif %}
+        {% endif %}
+        {% if not is_nil(check.Tip) %}
+        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr style="line-height: 1.5;">
+            <td style="width: 10em"><strong>Peer SideChain Height</strong><br/><a href="/share/{{ your_tip_raw.SideTemplateId(consensus) }}">{{ your_tip_raw.Side.Height }}</a></td>
+            <td style="width: 10em"><strong>Peer SideChain Id</strong><br/><a href="/share/{{ your_tip_raw.SideTemplateId(consensus) }}" title="{{ your_tip_raw.SideTemplateId(consensus) }}">{{ (your_tip_raw.SideTemplateId(consensus)|str)|shorten(10) }}</a></td>
+            <td style="width: 10em"><strong>Peer MainChain Height</strong><br/>{{ your_tip_raw.Main.Coinbase.GenHeight }}</td>
+            <td style="width: 10em"><strong>Peer Difficulty</strong><br/>{{ diff_uint(your_tip_raw.Side.Difficulty)|si_units(4) }}</td>
+            <td style="width: 10em"><strong>Peer Cumulative Difficulty</strong><br/>{{ diff_uint(your_tip_raw.Side.CumulativeDifficulty)|si_units(4) }}</td>
+            <td style="width: 10em"><strong>Peer Timestamp</strong><br/>{{ utc_date(your_tip_raw.Main.Timestamp) }}</td>
+        </tr>
+        <tr style="line-height: 1.5;">
+            <td style="width: 10em"><strong>Observer SideChain Height</strong><br/><a href="/share/{{ our_tip.TemplateId }}">{{ our_tip.SideHeight }}</a></td>
+            <td style="width: 10em"><strong>Observer SideChain Id</strong><br/><a href="/share/{{ our_tip.TemplateId }}" title="{{ our_tip.TemplateId }}">{{ (our_tip.TemplateId|str)|shorten(10) }}</a></td>
+            <td style="width: 10em"><strong>Observer MainChain Height</strong><br/>{{ our_tip.MainHeight }}</td>
+            <td style="width: 10em"><strong>Observer Difficulty</strong><br/>{{ our_tip.Difficulty|si_units(4) }}</td>
+            <td style="width: 10em"><strong>Observer Cumulative Difficulty</strong><br/>{{ diff_uint(our_tip.CumulativeDifficulty)|si_units(4) }}</td>
+            <td style="width: 10em"><strong>Observer Timestamp</strong><br/>{{ utc_date(our_tip.Timestamp) }}</td>
+        </tr>
+        <tr><th colspan="6">&nbsp;</th></tr>
+        {% if is_nil(your_tip) and ((your_tip_raw.Side.Height < (our_tip.SideHeight-3)) or (your_tip_raw.Side.Height > (our_tip.SideHeight+3))) %}
+        <tr><td colspan="6" style="font-weight: bold; color:#FF4433">Could not find Peer SideChain Tip on Observer.<br/>Either peer node is lagging behind or you are on a forked SideChain.</td></tr>
+        {% else %}
+        <tr><td colspan="6" style="font-weight: bold">The peer is connectable and on the SideChain.<br/>{% if our_tip.TemplateId == your_tip_raw.SideTemplateId(consensus) %}The peer Tip matches exactly the Observer Tip.{% else %}Verify Peer SideChain Height against Observer SideChain Height, so it's not consistently different.{% endif %}</td></tr>
+        {% endif %}
+        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr><td colspan="6">
+
+            <div class="center" style="text-align: center">
+                <table class="center" style="max-width: calc(8em + 28em + 8em + 28em)">
+                    <tr><td colspan="4"><h2>Peer Tip Share information</h2></td></tr>
+                    <tr>
+                        <th style="width: 8em">P2Pool Height</th>
+                        <th style="width: 28em">P2Pool Template Id</th>
+                        <th style="width: 8em">Monero Height</th>
+                        <th style="width: 28em">Monero Id</th>
+                    </tr>
+                    <tr>
+                        <td>{{ your_tip_raw.Side.Height }}</td>
+                        <td class="mono smaller">{{ your_tip_raw.SideTemplateId(consensus) }}</td>
+                        <td>{{ your_tip_raw.Main.Coinbase.GenHeight }}</td>
+                        <td class="mono smaller">{{ your_tip_raw.MainId() }}</td>
+                    </tr>
+                    <tr><td colspan="4">&nbsp;</td></tr>
+                    <tr>
+                        <th>Age <small>[h:m:s]</small></th>
+                        <th>PoW Hash</th>
+                        <th>Found by</th>
+                        <th>Difficulty</th>
+                    </tr>
+                    <tr>
+                        <td title="{{ utc_date(your_tip_raw.Main) }}">{{ date_diff_short(your_tip_raw.Main.Timestamp) }}</td>
+                        <td class="mono smaller">-</td>
+                        {% set minerAddress = block_address(your_tip_raw) %}
+                        <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
+                        <td><span class="mono">{{ diff_uint(your_tip_raw.Side.Difficulty) }}</span></td>
+                    </tr>
+                    <tr><td colspan="4">&nbsp;</td></tr>
+                    <tr>
+                        <th>Valuation</th>
+                        <th>Coinbase Id</th>
+                        <th>Coinbase Reward</th>
+                        <th>Coinbase Private Key</th>
+                    </tr>
+                    {% if your_tip_raw is defined %}
+                    <tr>
+                        <td>{{ side_block_valuation(your_tip_raw) }}</td>
+                        <td class="mono smaller">{{ your_tip_raw.Main.Coinbase.Id() }}</td>
+                        <td class="small">{{ monero_to_xmr(your_tip_raw.Main.Coinbase.TotalReward) }} XMR</td>
+                        <td class="mono smaller">{{ your_tip_raw.Side.CoinbasePrivateKey|hex }}</td>
+                    </tr>
+                    <tr><td colspan="4">&nbsp;</td></tr>
+                    <tr>
+                        <th>Nonce</th>
+                        <th>Cumulative Difficulty</th>
+                        <th>Extra Nonce</th>
+                        <th>Monero Target Difficulty</th>
+                    </tr>
+                    <tr>
+                        <td class="mono" title="{{ your_tip_raw.Main.Nonce|hex }}">{{ your_tip_raw.Main.Nonce }}</td>
+                        <td class="mono smaller">{{ your_tip_raw.Side.CumulativeDifficulty }}</td>
+                        <td class="mono" title="{{ extra_nonce(your_tip_raw)|hex }}">{{ extra_nonce(your_tip_raw) }}</td>
+                        <td class="mono"></td>
+                    </tr>
+                    <tr><td colspan="4">&nbsp;</td></tr>
+                    <tr>
+                        <th>Software</th>
+                        <th>Version Signaling</th>
+                        <th>{% if your_tip_raw.ShareVersion()|str != "v1" %}Template Extra Buffer{% endif %}</th>
+                        <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Deterministic Private Key Seed</th>
+                    </tr>
+                    <tr>
+                        <td>{{ software_info(your_tip_raw.Side.ExtraBuffer.SoftwareId, your_tip_raw.Side.ExtraBuffer.SoftwareVersion) }}</td>
+                        <td>{{ your_tip_raw.ShareVersion() }} <span class="small">({% if your_tip_raw.ShareVersionSignaling()|str != "none" %}signaling {{ your_tip_raw.ShareVersionSignaling() }} support{% else %}no known signaling{% endif %})</span></td>
+                        <td class="small">{% if your_tip_raw.ShareVersion()|str != "v1" %}<span class="mono" title="Random Number">{{ your_tip_raw.Side.ExtraBuffer.RandomNumber|hex }}</span> / <span class="mono" title="SideChain Extra Nonce">{{ your_tip_raw.Side.ExtraBuffer.SideChainExtraNonce|hex }}{% endif %}</span></td>
+                        <td>{% if not is_zero_hash(your_tip_raw.GetPrivateKeySeed()) %}<span class="mono smaller">{{ your_tip_raw.GetPrivateKeySeed() }}</span>{% else %}Not Deterministic{% endif %}</td>
+                    </tr>
+
+                </table>
+            </div>
+            <div class="center" style="text-align: center">
+                {% if your_tip_raw.Side.Uncles|length > 0 %}
+                <h2>Uncle shares</h2>
+                <ul class="mono">
+                    {% for u in your_tip_raw.Side.Uncles %}
+                    <li><a href="/share/{{ u }}">{{ u }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+
+                <h2>Coinbase Transaction</h2>
+
+                    <table class="center" style="max-width: calc(8em + 28em + 10em)">
+                        <tr><td colspan="3" class="mono smaller">{{ coinbase_extra(your_tip_raw)|hex }}</td></tr>
+                        <tr><td colspan="3">&nbsp;</td></tr>
+                        <tr>
+                            <th style="width: 8em">Output Index</th>
+                            <th style="width: 28em">Ephemeral Public Key</th>
+                            <th style="width: 10em">Reward</th>
+                        </tr>
+                        {% for t in your_tip_raw.Main.Coinbase.Outputs %}
+                        <tr>
+                            <td>{{ t.Index }}</td>
+                            <td class="mono smaller">{{ t.EphemeralPublicKey|hex }}</td>
+                            <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
+                        </tr>
+                        {% endfor %}
+                    </table>
+                    {% if your_tip_raw.Main.Transactions|length > 0 %}
+                    <h2>Included Transactions</h2>
+                    <ul class="mono">
+                        {% for t in your_tip_raw.Main.Transactions %}
+                        <li><a href="/t/{{ t|henc }}">{{ t }}</a></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+            </div>
+        </td></tr>
+        {% endif %}
+        {% endif %}
+    </table>
+    {% endif %}
+</div>
+{% endif %}
+
+
+{% endblock %}
