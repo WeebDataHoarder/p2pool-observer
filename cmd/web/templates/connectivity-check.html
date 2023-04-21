@@ -90,6 +90,8 @@
         {% endif %}
         {% if is_nil(your_tip) and ((your_tip_raw.Side.Height < (our_tip.SideHeight-3)) or (your_tip_raw.Side.Height > (our_tip.SideHeight+3))) %}
         <tr><td colspan="6" style="font-weight: bold; color:#FF4433">Could not find Peer SideChain Tip on Observer.<br/>Either peer node is lagging behind or you are on a forked SideChain.</td></tr>
+        {% else if ((your_tip_raw.Side.Height < (our_tip.SideHeight-3)) or (your_tip_raw.Side.Height > (our_tip.SideHeight+3))) %}
+        <tr><td colspan="6" style="font-weight: bold">The peer is connectable and on the SideChain.<br/>Peer SideChain Tip is on a wildly different SideChain height than Observer.<br/>Either peer node is lagging behind or your p2pool is not up to sync.</td></tr>
         {% else %}
         <tr><td colspan="6" style="font-weight: bold">The peer is connectable and on the SideChain.<br/>{% if our_tip.TemplateId == your_tip_raw.SideTemplateId(consensus) %}The peer Tip matches exactly the Observer Tip.{% else %}Verify Peer SideChain Height against Observer SideChain Height, so it's not consistently different.{% endif %}</td></tr>
         {% endif %}
