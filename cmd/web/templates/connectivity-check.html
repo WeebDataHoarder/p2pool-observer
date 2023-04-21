@@ -85,6 +85,9 @@
             <td style="width: 10em"><strong>Observer Timestamp</strong><br/>{{ utc_date(our_tip.Timestamp) }}</td>
         </tr>
         <tr><th colspan="6">&nbsp;</th></tr>
+        {% if ((your_tip_raw.Main.Coinbase.GenHeight < (our_tip.MainHeight-3)) or (your_tip_raw.Main.Coinbase.GenHeight > (our_tip.MainHeight+3))) %}
+        <tr><td colspan="6" style="font-weight: bold; color:#FF4433">Peer Monero node is on a wildly different Monero height than Observer.<br/>Either peer node is lagging behind or your monerod is not up to sync.</td></tr>
+        {% endif %}
         {% if is_nil(your_tip) and ((your_tip_raw.Side.Height < (our_tip.SideHeight-3)) or (your_tip_raw.Side.Height > (our_tip.SideHeight+3))) %}
         <tr><td colspan="6" style="font-weight: bold; color:#FF4433">Could not find Peer SideChain Tip on Observer.<br/>Either peer node is lagging behind or you are on a forked SideChain.</td></tr>
         {% else %}
