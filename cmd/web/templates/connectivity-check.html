@@ -63,7 +63,7 @@
         <tr><th colspan="6">&nbsp;</th></tr>
         <tr><td colspan="6" style="color:#FF4433"><strong>Error:</strong> <code>{{ check.Error }}</code></td></tr>
         {% if check.Error == "disconnected before finishing handshake" %}
-        <tr><td colspan="6">This peer is likely running on a different SideChain or is running an incompatible P2Pool software version. Try a different Observer or verify your software.</td></tr>
+        <tr><td colspan="6">This peer is likely running on a different SideChain or is running an incompatible P2Pool software version. Try a different Observer or verify your software.<br/>Alternatively this peer could have banned the Observer node and we cannot connect properly.</td></tr>
         {% endif %}
         {% endif %}
         {% if not is_nil(check.Tip) %}
