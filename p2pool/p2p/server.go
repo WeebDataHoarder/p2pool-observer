@@ -304,6 +304,9 @@ func (s *Server) UpdateClientConnections() {
 		N = len(peerList)
 	}
 
+	var wg sync.WaitGroup
+	attempts := 0
+
 	for i := s.NumOutgoingConnections.Load() - s.NumIncomingConnections.Load(); int(i) < N && len(peerList) > 0; {
 		k := unsafeRandom.Intn(len(peerList)) % len(peerList)
 		peer := peerList[k]
@@ -311,12 +314,12 @@ func (s *Server) UpdateClientConnections() {
 		if !slices.ContainsFunc(connectedPeers, func(addr netip.Addr) bool {
 			return peer.AddressPort.Addr().Compare(addr) == 0
 		}) {
+			wg.Add(1)
+			attempts++
 			go func() {
+				defer wg.Done()
 				if err := s.Connect(peer.AddressPort); err != nil {
-
 					log.Printf("[P2PServer] Connection to %s rejected (%s)", peer.AddressPort.String(), err.Error())
-				} else {
-					log.Printf("[P2PServer] Outgoing connection to %s", peer.AddressPort.String())
 				}
 			}()
 			i++
@@ -325,7 +328,9 @@ func (s *Server) UpdateClientConnections() {
 		peerList = slices.Delete(peerList, k, k+1)
 	}
 
-	if !hasGoodPeers && len(s.moneroPeerList) == 0 {
+	wg.Wait()
+
+	if attempts == 0 && !hasGoodPeers && len(s.moneroPeerList) == 0 {
 		log.Printf("[P2PServer] No connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
 		if moneroPeerList, err := s.p2pool.ClientRPC().GetPeerList(); err == nil {
 			s.moneroPeerList = make(PeerList, 0, len(moneroPeerList.WhiteList))
@@ -504,6 +509,8 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 		return nil, errors.New("peer is already attempting connection")
 	}
 
+	log.Printf("[P2PServer] Outgoing connection to %s", addrPort.String())
+
 	s.NumOutgoingConnections.Add(1)
 
 	if conn, err := (&net.Dialer{Timeout: time.Second * 5}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
@@ -614,7 +621,11 @@ func (s *Server) MainChain() *mainchain.MainChain {
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 	var message, prunedMessage, compactMessage *ClientMessage
 	if block != nil {
-		blockData, _ := block.MarshalBinary()
+		blockData, err := block.MarshalBinary()
+		if err != nil {
+			log.Panicf("[P2PServer] Tried to broadcast block %s at height %d but received error: %s", block.SideTemplateId(s.Consensus()), block.Side.Height, err)
+			return
+		}
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
 			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),

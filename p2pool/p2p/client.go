@@ -26,8 +26,26 @@ import (
 const DefaultBanTime = time.Second * 600
 const PeerListResponseMaxPeers = 16
 
-// MaxBlockTemplateSize Max P2P message size (128 KB) minus BLOCK_RESPONSE header (5 bytes)
-const MaxBlockTemplateSize = 128*1024 - (1 - 4)
+const MaxBufferSize = 128 * 1024
+
+var smallBufferPool = sync.Pool{
+	New: func() any {
+		return make([]byte, 16384)
+	},
+}
+
+func getBuffer(length int) []byte {
+	if length <= 16384 {
+		return smallBufferPool.Get().([]byte)
+	}
+	return make([]byte, length)
+}
+
+func returnBuffer(x []byte) {
+	if len(x) <= 16384 {
+		smallBufferPool.Put(x)
+	}
+}
 
 type Client struct {
 	// Peer general static-ish information
@@ -229,7 +247,12 @@ func (c *Client) SendBlockRequest(id types.Hash) {
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	if block != nil {
-		blockData, _ := block.MarshalBinary()
+		blockData, err := block.MarshalBinary()
+		if err != nil {
+			log.Printf("[P2PClient] Peer %s tried to respond with a block but received error, disconnecting: %s", c.AddressPort, err)
+			c.Close()
+			return
+		}
 
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockResponse,
@@ -867,11 +890,22 @@ type ClientMessage struct {
 
 func (c *Client) SendMessage(message *ClientMessage) {
 	if !c.Closed.Load() {
+		bufLen := len(message.Buffer) + 1
+		if bufLen > MaxBufferSize {
+			log.Printf("[P2PClient] Peer %s tried to send more than %d bytes, sent %d, disconnecting", c.AddressPort, MaxBufferSize, len(message.Buffer)+1)
+			c.Close()
+			return
+		}
+
+		buf := getBuffer(bufLen)
+		defer returnBuffer(buf)
+		buf[0] = byte(message.MessageId)
+		copy(buf[1:], message.Buffer)
 		//c.sendLock.Lock()
 		//defer c.sendLock.Unlock()
 		if err := c.Connection.SetWriteDeadline(time.Now().Add(time.Second * 5)); err != nil {
 			c.Close()
-		} else if _, err = c.Connection.Write(append([]byte{byte(message.MessageId)}, message.Buffer...)); err != nil {
+		} else if _, err = c.Connection.Write(buf[:bufLen]); err != nil {
 			c.Close()
 		}
 		//_, _ = c.Write(message.Buffer)

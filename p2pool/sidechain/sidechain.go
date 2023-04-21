@@ -251,6 +251,11 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		//TODO WARN
 		return nil
 	}
+
+	if _, err := block.MarshalBinary(); err != nil {
+		return fmt.Errorf("encoding block error: %w", err)
+	}
+
 	c.blocksByTemplateId[block.SideTemplateId(c.Consensus())] = block
 
 	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))

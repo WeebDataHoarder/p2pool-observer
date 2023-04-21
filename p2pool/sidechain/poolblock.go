@@ -30,6 +30,9 @@ const (
 	SideTemplateId        = transaction.TxExtraTagMergeMining
 )
 
+// PoolBlockMaxTemplateSize Max P2P message size (128 KB) minus BLOCK_RESPONSE header (5 bytes)
+const PoolBlockMaxTemplateSize = 128*1024 - (1 + 4)
+
 type ShareVersion int
 
 func (v ShareVersion) String() string {
@@ -417,6 +420,9 @@ func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash t
 }
 
 func (b *PoolBlock) UnmarshalBinary(consensus *Consensus, derivationCache DerivationCacheInterface, data []byte) error {
+	if len(data) > PoolBlockMaxTemplateSize {
+		return errors.New("buffer too large")
+	}
 	reader := bytes.NewReader(data)
 	return b.FromReader(consensus, derivationCache, reader)
 }
@@ -430,6 +436,10 @@ func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 		data := make([]byte, 0, len(mainData)+len(sideData))
 		data = append(data, mainData...)
 		data = append(data, sideData...)
+
+		if len(data) > PoolBlockMaxTemplateSize {
+			return nil, errors.New("buffer too large")
+		}
 		return data, nil
 	}
 }
@@ -443,6 +453,10 @@ func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
 		data := make([]byte, 0, len(mainData)+len(sideData))
 		data = append(data, mainData...)
 		data = append(data, sideData...)
+
+		if len(data) > PoolBlockMaxTemplateSize {
+			return nil, errors.New("buffer too large")
+		}
 		return data, nil
 	}
 }
