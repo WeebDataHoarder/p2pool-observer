@@ -1476,16 +1476,37 @@ func main() {
 			return
 		}
 
+		addrPort = netip.AddrPortFrom(addrPort.Addr().Unmap(), addrPort.Port())
+
+		if !addrPort.IsValid() || addrPort.Addr().IsLoopback() || addrPort.Addr().IsMulticast() || addrPort.Addr().IsInterfaceLocalMulticast() || addrPort.Addr().IsLinkLocalMulticast() || addrPort.Addr().IsPrivate() || addrPort.Addr().IsUnspecified() || addrPort.Addr().IsLinkLocalUnicast() {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_valid_ip",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		if addrPort.Port() != p2api.Consensus().DefaultPort() && addrPort.Port() < 10000 {
+			//do not allow low port numbers to prevent targeting
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_valid_port",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, p2api.ConnectionCheck(addrPort))
 		_, _ = writer.Write(buf)
-		/*
-		checkResult := p2api.ConnectionCheck(addrPort)
-		if checkResult.ListenPort == 0 && checkResult.Error != "" { //failed before it could connect properly. maybe different sidechain, or connection issues
-
-		}
-		*/
 	})
 
 	// p2pool disk / p2pool.io emulation

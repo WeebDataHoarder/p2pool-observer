@@ -358,7 +358,7 @@ func (p *P2PoolApi) PeerList() []byte {
 }
 
 func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2PoolConnectionCheckInformation {
-	if response, err := p.Client.Get(p.Host + "/server/connection_check/"); err != nil {
+	if response, err := p.Client.Get(p.Host + "/server/connection_check/" + addrPort.String()); err != nil {
 		return nil
 	} else {
 		defer response.Body.Close()

@@ -1216,7 +1216,7 @@ func main() {
 
 		if len(lastShares) > 0 {
 			raw = getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
-			if raw == nil || raw.ShareVersion() != sidechain.ShareVersion_None {
+			if raw == nil || raw.ShareVersion() == sidechain.ShareVersion_None {
 				raw = nil
 			}
 		}
@@ -1307,7 +1307,7 @@ func main() {
 		}
 
 		raw := getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", block.MainId))
-		if raw == nil || raw.ShareVersion() != sidechain.ShareVersion_None {
+		if raw == nil || raw.ShareVersion() == sidechain.ShareVersion_None {
 			raw = nil
 		}
 
