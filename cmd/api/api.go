@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -13,7 +12,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -24,7 +22,6 @@ import (
 	"golang.org/x/exp/slices"
 	"io"
 	"log"
-	"lukechampine.com/uint128"
 	"math"
 	"net/http"
 	"net/netip"
@@ -1321,28 +1318,13 @@ func main() {
 
 						sortedAddresses := maps.Keys(addresses)
 
+						//Sort based on addresses
 						slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) bool {
 							return a.Compare(&b) < 0
 						})
 
-						n := len(sortedAddresses)
-
 						//Shuffle shares
-						if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 && n > 1 {
-							h := crypto.PooledKeccak256(poolBlock.Side.CoinbasePrivateKeySeed[:])
-							seed := binary.LittleEndian.Uint64(h[:])
-
-							if seed == 0 {
-								seed = 1
-							}
-
-							for i := 0; i < (n - 1); i++ {
-								seed = utils.XorShift64Star(seed)
-								k := int(uint128.From64(seed).Mul64(uint64(n - i)).Hi)
-								//swap
-								sortedAddresses[i], sortedAddresses[i+k] = sortedAddresses[i+k], sortedAddresses[i]
-							}
-						}
+						sidechain.ShuffleShares(sortedAddresses, poolBlock.ShareVersion(), poolBlock.Side.CoinbasePrivateKeySeed)
 
 						result := make(index.MainCoinbaseOutputs, len(sortedAddresses))
 

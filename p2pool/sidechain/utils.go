@@ -241,11 +241,17 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		return a.Address.Compare(&b.Address) < 0
 	})
 
-	n := len(shares)
-
 	//Shuffle shares
-	if tip.ShareVersion() > ShareVersion_V1 && n > 1 {
-		h := crypto.PooledKeccak256(tip.Side.CoinbasePrivateKeySeed[:])
+	ShuffleShares(shares, tip.ShareVersion(), tip.Side.CoinbasePrivateKeySeed)
+
+	return shares, bottomHeight
+}
+
+// ShuffleShares Sorts shares according to consensus parameters. Requires pre-sorted shares based on address
+func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed types.Hash) {
+	n := len(shares)
+	if shareVersion > ShareVersion_V1 && n > 1 {
+		h := crypto.PooledKeccak256(privateKeySeed[:])
 		seed := binary.LittleEndian.Uint64(h[:])
 
 		if seed == 0 {
@@ -259,8 +265,6 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 			shares[i], shares[i+k] = shares[i+k], shares[i]
 		}
 	}
-
-	return shares, bottomHeight
 }
 
 func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc) types.Difficulty {
