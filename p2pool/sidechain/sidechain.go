@@ -374,10 +374,10 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 	// Deep block
 	//
 	// Blocks in PPLNS window (m_chainWindowSize) require up to m_chainWindowSize earlier blocks to verify
-	// If a block is deeper than m_chainWindowSize * 2 - 1 it can't influence blocks in PPLNS window
+	// If a block is deeper than (m_chainWindowSize - 1) * 2 + UNCLE_BLOCK_DEPTH it can't influence blocks in PPLNS window
 	// Also, having so many blocks on top of this one means it was verified by the network at some point
 	// We skip checks in this case to make pruning possible
-	if block.Depth.Load() >= c.Consensus().ChainWindowSize*2 {
+	if block.Depth.Load() > ((c.Consensus().ChainWindowSize-1)*2 + UncleBlockDepth) {
 		log.Printf("[SideChain] block at height = %d, id = %s skipped verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
 		return nil, nil
 	}
