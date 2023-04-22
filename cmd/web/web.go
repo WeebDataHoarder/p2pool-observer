@@ -22,6 +22,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/html"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -403,7 +404,12 @@ func main() {
 			return nil
 		}
 		if reflect.ValueOf(args[0]).Kind() == reflect.Slice {
-			return reflect.ValueOf(args[0]).Index(int(toUint64(args[1]))).Interface()
+			i := int(toUint64(args[1]))
+			slice := reflect.ValueOf(args[0])
+			if i < 0 || slice.Len() <= i {
+				return nil
+			}
+			return slice.Index(i).Interface()
 		}
 		return nil
 	}
@@ -509,6 +515,16 @@ func main() {
 		return ""
 	}
 
+	env.Functions["found_block_effort"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 2 || args[1] == nil {
+			return nil
+		}
+
+		b := args[0].(*index.FoundBlock)
+		previous := args[1].(*index.FoundBlock)
+		return float64(b.CumulativeDifficulty.SubWrap(previous.CumulativeDifficulty).Mul64(100).Lo) / float64(b.MainBlock.Difficulty)
+	}
+
 	env.Functions["side_block_valuation"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 1 {
 			return nil
@@ -521,16 +537,6 @@ func main() {
 				return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
 			} else if len(sideBlock.Uncles) > 0 {
 				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(sideBlock.Uncles))
-			} else {
-				return "100%"
-			}
-		} else if sideBlock, ok := args[0].(map[string]any); ok {
-			if toUint64(sideBlock["inclusion"]) == uint64(index.InclusionOrphan) {
-				return "0%"
-			} else if sideBlock["uncle_of"].(string) != types.ZeroHash.String() {
-				return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
-			} else if uncles, ok := sideBlock["uncles"].([]any); ok && len(uncles) > 0 {
-				return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(uncles))
 			} else {
 				return "100%"
 			}
@@ -1193,7 +1199,7 @@ func main() {
 
 		var block *index.SideBlock
 		var coinbase index.MainCoinbaseOutputs
-		var rawBlock any
+		var rawBlock []byte
 		if len(identifier) == 64 {
 			block = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", identifier))
 		} else {
@@ -1209,22 +1215,60 @@ func main() {
 			render(request, writer, "error.html", ctx)
 			return
 		}
-		rawBlock = getFromAPI(fmt.Sprintf("block_by_id/%s/raw", block.MainId))
+		rawBlock = getFromAPIRaw(fmt.Sprintf("block_by_id/%s/raw", block.MainId))
 
 		coinbase = getSliceFromAPI[index.MainCoinbaseOutput](fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 
 		poolInfo := getFromAPI("pool_info", 5)
 
 		var raw *sidechain.PoolBlock
-		if s, ok := rawBlock.([]byte); ok && rawBlock != nil {
-			b := &sidechain.PoolBlock{}
-
-			if b.UnmarshalBinary(consensus, &sidechain.NilDerivationCache{}, s) == nil {
-				raw = b
-			}
+		b := &sidechain.PoolBlock{}
+		if b.UnmarshalBinary(consensus, &sidechain.NilDerivationCache{}, rawBlock) == nil {
+			raw = b
 		}
 
 		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
+
+		var likelySweeps [][]*index.MainLikelySweepTransaction
+		if block.MinedMainAtHeight {
+			indices := make([]uint64, len(coinbase))
+			for i, o := range coinbase {
+				indices[i] = o.GlobalOutputIndex
+			}
+			data, _ := json.Marshal(indices)
+			uri, _ := url.Parse(os.Getenv("API_URL") + "sweeps_by_spending_global_output_indices")
+			if response, err := http.DefaultClient.Do(&http.Request{
+				Method: "POST",
+				URL:    uri,
+				Body:   io.NopCloser(bytes.NewReader(data)),
+			}); err == nil {
+				func() {
+					defer response.Body.Close()
+					if response.StatusCode == http.StatusOK {
+						if data, err := io.ReadAll(response.Body); err == nil {
+							r := make([][]*index.MainLikelySweepTransaction, 0, len(indices))
+							if json.Unmarshal(data, &r) == nil && len(r) == len(indices) {
+								likelySweeps = r
+							}
+						}
+					}
+				}()
+			}
+
+			//remove not likely matching outputs
+			for oi, sweeps := range likelySweeps {
+				likelySweeps[oi] = likelySweeps[oi][:0]
+				for _, s := range sweeps {
+					if s == nil {
+						continue
+					}
+					if s.Address.Compare(coinbase[oi].MinerAddress) == 0 {
+						likelySweeps[oi] = append(likelySweeps[oi], s)
+					}
+				}
+			}
+
+		}
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
@@ -1232,6 +1276,7 @@ func main() {
 		ctx["pool"] = poolInfo
 		ctx["payouts"] = payouts
 		ctx["coinbase"] = coinbase
+		ctx["share_sweeps"] = likelySweeps
 
 		render(request, writer, "share.html", ctx)
 	})

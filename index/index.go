@@ -855,22 +855,6 @@ func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, l
 	return out
 }
 
-func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndex(globalOutputIndex uint64) *MainLikelySweepTransaction {
-	var tx MainLikelySweepTransaction
-	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE ARRAY[$1]::bigint[] <@ global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
-		if err := tx.ScanFromRow(i, row); err != nil {
-			return err
-		}
-		return nil
-	}, globalOutputIndex); err != nil {
-		return nil
-	}
-	if tx.Id == types.ZeroHash {
-		return nil
-	}
-	return &tx
-}
-
 type TransactionInputQueryResult struct {
 	Input          client.TransactionInput `json:"input"`
 	MatchedOutputs []*MatchedOutput        `json:"matched_outputs"`
@@ -1027,6 +1011,48 @@ func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
 		return nil
 	}
 	return result
+}
+
+func (i *Index) GetMainLikelySweepTransactionBySpendingGlobalOutputIndices(globalOutputIndices ...uint64) [][]*MainLikelySweepTransaction {
+	entries := make([][]*MainLikelySweepTransaction, len(globalOutputIndices))
+	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && spending_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
+		var tx MainLikelySweepTransaction
+		if err := tx.ScanFromRow(i, row); err != nil {
+			return err
+		}
+		for _, globalOutputIndex := range tx.SpendingOutputIndices {
+			// fill all possible indices
+			if index := slices.Index(globalOutputIndices, globalOutputIndex); index != -1 {
+				entries[index] = append(entries[index], &tx)
+			}
+		}
+		return nil
+	}, pq.Array(globalOutputIndices)); err != nil {
+		return nil
+	}
+	return entries
+}
+
+func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndices(globalOutputIndices ...uint64) []*MainLikelySweepTransaction {
+	entries := make([]*MainLikelySweepTransaction, len(globalOutputIndices))
+	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
+		var tx MainLikelySweepTransaction
+		if err := tx.ScanFromRow(i, row); err != nil {
+			return err
+		}
+		for _, globalOutputIndex := range tx.GlobalOutputIndices {
+			// fill all possible indices
+			if index := slices.Index(globalOutputIndices, globalOutputIndex); index != -1 {
+				if entries[index] == nil {
+					entries[index] = &tx
+				}
+			}
+		}
+		return nil
+	}, pq.Array(globalOutputIndices)); err != nil {
+		return nil
+	}
+	return entries
 }
 
 func (i *Index) InsertOrUpdateMainLikelySweepTransaction(t *MainLikelySweepTransaction) error {

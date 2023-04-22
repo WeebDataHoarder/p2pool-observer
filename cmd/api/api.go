@@ -480,6 +480,51 @@ func main() {
 
 	})
 
+	serveMux.HandleFunc("/api/sweeps_by_spending_global_output_indices", func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != "POST" {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusMethodNotAllowed)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_allowed",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		buf, err := io.ReadAll(request.Body)
+		if err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "bad_request",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+		var indices []uint64
+		if err = json.Unmarshal(buf, &indices); err != nil || len(indices) == 0 {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "bad_request",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ = encodeJson(request, indexDb.GetMainLikelySweepTransactionBySpendingGlobalOutputIndices(indices...))
+		_, _ = writer.Write(buf)
+
+	})
+
 	serveMux.HandleFunc("/api/transaction_lookup/{txid:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
 		txId, err := types.HashFromString(mux.Vars(request)["txid"])
 		if err != nil {

@@ -28,7 +28,7 @@
             {% include('tpl_row_miner.html') %}
         {% endif %}
         <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
-        <td>{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>
+        <td title="{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize) }}">{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>
         <td>{{ side_block_valuation(s) }}</td>
     </tr>
     {% endfor %}

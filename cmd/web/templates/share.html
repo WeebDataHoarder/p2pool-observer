@@ -141,9 +141,9 @@
     <h2>Coinbase Transaction</h2>
 
     {% if block.MinedMainAtHeight %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
-        <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
-        <tr><td colspan="6">&nbsp;</td></tr>
+    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 12em + 8em)">
+        <tr><td colspan="7" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
+        <tr><td colspan="7">&nbsp;</td></tr>
     {% else %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
         <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
@@ -153,14 +153,16 @@
             <th style="width: 8em">Output Index</th>
             <th style="width: 28em">Ephemeral Public Key</th>
             {% if block.MinedMainAtHeight %}
-            <th style="width: 12em">Payout Address</th>
+            <th style="width: 12em">Receiver Address</th>
+            <th style="width: 10em">Reward</th>
             {% else %}
             <th style="width: 12em">Miner Address</th>
+            <th style="width: 10em">Reward Share</th>
             {% endif %}
-            <th style="width: 10em">Reward</th>
             {% if block.MinedMainAtHeight %}
             <th style="width: 10em">Global Output Index</th>
             <th style="width: 8em">Proof</th>
+            <th style="width: 12em">Swept</th>
             {% endif %}
         </tr>
         {% for t in raw.Main.Coinbase.Outputs %}
@@ -173,10 +175,17 @@
             {% set minerAlias = payout.MinerAlias %}
             {% include('tpl_row_miner.html') %}
             {% endif %}
-            <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
+            <td class="small" title="{{ ((t.Reward / raw.Main.Coinbase.TotalReward) * 100)|round(3) }}%">{{ monero_to_xmr(t.Reward) }} XMR</td>
             {% if block.MinedMainAtHeight %}
             <td class="small">{{ payout.GlobalOutputIndex }}</td>
-            <td class="small"><a href="/proof/{{ block.MainId }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>
+            <td class="small"><a href="/proof/{{ block.MainId }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[Payout Proof #{{ t.Index }}]</a></td>
+            {% set sweeps = get_slice_index(share_sweeps, t.Index) %}
+            {% if sweeps|length > 0 %}
+            {% set sweep = get_slice_index(sweeps, 0) %}
+            <td class="smaller" title="{{ utc_date(sweep.Timestamp) }}"><a href="/transaction-lookup?txid={{ sweep.Id }}" class="mono">{{ sweep.Id|shorten(10) }}</a></td>
+            {% else %}
+            <td class="small">Not known</td>
+            {% endif %}
             {% endif %}
         </tr>
         {% endfor %}
