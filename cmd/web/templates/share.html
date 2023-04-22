@@ -183,6 +183,8 @@
             {% if sweeps|length > 0 %}
             {% set sweep = get_slice_index(sweeps, 0) %}
             <td class="smaller" title="{{ utc_date(sweep.Timestamp) }}"><a href="/transaction-lookup?txid={{ sweep.Id }}" class="mono">{{ sweep.Id|shorten(10) }}</a></td>
+            {% elseif add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1) < 60 %}
+            <td class="small">Not unlocked</td>
             {% else %}
             <td class="small">Not known</td>
             {% endif %}

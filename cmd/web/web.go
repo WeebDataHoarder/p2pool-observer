@@ -8,6 +8,7 @@ import (
 	"fmt"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -1219,7 +1220,7 @@ func main() {
 
 		coinbase = getSliceFromAPI[index.MainCoinbaseOutput](fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 
-		poolInfo := getFromAPI("pool_info", 5)
+		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
 
 		var raw *sidechain.PoolBlock
 		b := &sidechain.PoolBlock{}
@@ -1229,8 +1230,9 @@ func main() {
 
 		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
+		//add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1)
 		var likelySweeps [][]*index.MainLikelySweepTransaction
-		if block.MinedMainAtHeight {
+		if block.MinedMainAtHeight && ((toInt64(poolInfo["mainchain"].(map[string]any)["height"])-int64(block.MainHeight))+1) >= monero.MinerRewardUnlockTime {
 			indices := make([]uint64, len(coinbase))
 			for i, o := range coinbase {
 				indices[i] = o.GlobalOutputIndex
