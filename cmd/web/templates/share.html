@@ -148,15 +148,17 @@
         <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
         <tr><td colspan="6">&nbsp;</td></tr>
     {% else %}
-    <table class="center" style="max-width: calc(8em + 28em + 10em)">
-        <tr><td colspan="3" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
-        <tr><td colspan="3">&nbsp;</td></tr>
+    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
+        <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
+        <tr><td colspan="4">&nbsp;</td></tr>
     {% endif %}
         <tr>
             <th style="width: 8em">Output Index</th>
             <th style="width: 28em">Ephemeral Public Key</th>
             {% if block.MinedMainAtHeight %}
             <th style="width: 12em">Payout Address</th>
+            {% else %}
+            <th style="width: 12em">Miner Address</th>
             {% endif %}
             <th style="width: 10em">Reward</th>
             {% if block.MinedMainAtHeight %}
@@ -168,17 +170,18 @@
         <tr>
             <td>{{ t.Index }}</td>
             <td class="mono smaller">{{ t.EphemeralPublicKey|hex }}</td>
-            {% if block.MinedMainAtHeight and attribute(coinbase, t.Index) is defined %}
-            {% set payout = attribute(coinbase, t.Index) %}
-            {% if payout.miner_alias != "" %}
-            <td title="{{ payout.miner_address }} ({{ payout.miner_alias }})" class="mono small"><a href="/miner/{{ payout.miner_address }}">{{ payout.miner_alias|shorten(10) }}</a></td>
+            {% if not is_nil(get_slice_index(coinbase, t.Index)) %}
+            {% set payout = get_slice_index(coinbase, t.Index) %}
+            {% set minerAddress = payout.MinerAddress.ToBase58() %}
+            {% if payout.MinerAlias != "" %}
+            <td title="{{ minerAddress }} ({{ minerAddress }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ payout.MinerAlias|shorten(10) }}</a></td>
             {% else %}
-            <td title="{{ payout.miner_address }}" class="mono small"><a href="/miner/{{ payout.miner_address }}">{{ payout.miner_address|shorten(10) }}</a></td>
+            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% endif %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
             {% if block.MinedMainAtHeight %}
-            <td class="small">{{ payout.global_output_index }}</td>
+            <td class="small">{{ payout.GlobalOutputIndex }}</td>
             <td class="small"><a href="/proof/{{ block.MainId }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[[prove]]</a></td>
             {% endif %}
         </tr>

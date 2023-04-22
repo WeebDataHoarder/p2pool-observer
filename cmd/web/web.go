@@ -387,6 +387,16 @@ func main() {
 		return args[0] == nil || (reflect.ValueOf(args[0]).Kind() == reflect.Pointer && reflect.ValueOf(args[0]).IsNil())
 	}
 
+	env.Functions["get_slice_index"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+		if len(args) != 2 {
+			return nil
+		}
+		if reflect.ValueOf(args[0]).Kind() == reflect.Slice {
+			return reflect.ValueOf(args[0]).Index(int(toUint64(args[1]))).Interface()
+		}
+		return nil
+	}
+
 	env.Functions["is_zero_hash"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 1 {
 			return nil
@@ -1164,7 +1174,7 @@ func main() {
 		identifier := mux.Vars(request)["block"]
 
 		var block *index.SideBlock
-		var coinbase any
+		var coinbase index.MainCoinbaseOutputs
 		var rawBlock any
 		if len(identifier) == 64 {
 			block = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", identifier))
@@ -1183,9 +1193,7 @@ func main() {
 		}
 		rawBlock = getFromAPI(fmt.Sprintf("block_by_id/%s/raw", block.MainId))
 
-		if block.MinedMainAtHeight {
-			coinbase = getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
-		}
+		coinbase = getSliceFromAPI[index.MainCoinbaseOutput](fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 
 		poolInfo := getFromAPI("pool_info", 5)
 

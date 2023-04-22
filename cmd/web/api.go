@@ -78,13 +78,13 @@ func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 	})
 }
 
-func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
+func getSliceFromAPI[T any](method string, cacheTime ...int) []T {
 	cTime := 0
 	if len(cacheTime) > 0 {
 		cTime = cacheTime[0]
 	}
 
-	return cacheResult[[]*index.SideBlock](method, time.Second*time.Duration(cTime), func() []*index.SideBlock {
+	return cacheResult[[]T](method, time.Second*time.Duration(cTime), func() []T {
 		uri, _ := url.Parse(os.Getenv("API_URL") + method)
 		if response, err := http.DefaultClient.Do(&http.Request{
 			Method: "GET",
@@ -94,19 +94,23 @@ func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
 		} else {
 			defer response.Body.Close()
 			if response.StatusCode == http.StatusOK {
-				var sideBlocks []*index.SideBlock
+				var result []T
 				if data, err := io.ReadAll(response.Body); err != nil {
 					return nil
-				} else if json.Unmarshal(data, &sideBlocks) != nil {
+				} else if json.Unmarshal(data, &result) != nil {
 					return nil
 				} else {
-					return sideBlocks
+					return result
 				}
 			} else {
 				return nil
 			}
 		}
 	})
+}
+
+func getSideBlocksFromAPI(method string, cacheTime ...int) []*index.SideBlock {
+	return getSliceFromAPI[*index.SideBlock](method, cacheTime...)
 }
 
 func getFromAPIRaw(method string, cacheTime ...int) []byte {
