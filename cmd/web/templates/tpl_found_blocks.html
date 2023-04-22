@@ -38,12 +38,9 @@
             {% else %}
             <td>unknown</td>
             {% endif %}
-            {% set minerAddress = b.MinerAddress.ToBase58() %}
-            {% if b.MinerAlias != "" %}
-            <td title="{{ minerAddress }} ({{ b.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ b.MinerAlias|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% endif %}
+            {% set minerAddress = b.MinerAddress %}
+            {% set minerAlias = b.MinerAlias %}
+            {% include('tpl_row_miner.html') %}
         {% endif %}
         <td>{{ b.TransactionCount }}</td>
         <th class="small">{{ monero_to_xmr(b.MainBlock.Reward) }} XMR</th>

@@ -22,12 +22,10 @@
         <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
         <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
         {% if (shares_is_miner is not defined) or (not shares_is_miner) %}
-            {% set minerAddress = s.MinerAddress.ToBase58() %}
-            {% if s.MinerAlias != "" %}
-            <td title="{{ minerAddress }} ({{ s.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ s.MinerAlias|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% endif %}
+
+            {% set minerAddress = s.MinerAddress %}
+            {% set minerAlias = s.MinerAlias %}
+            {% include('tpl_row_miner.html') %}
         {% endif %}
         <td>{{ software_info(s.SoftwareId, s.SoftwareVersion) }}</td>
         <td>{{ side_block_weight(s, s.SideHeight, consensus.ChainWindowSize)|si_units(2) }}</td>

@@ -64,12 +64,9 @@
         <tr>
             <td title="{{ utc_date(block.Timestamp) }}">{{ date_diff_short(block.Timestamp) }}</td>
             <td class="mono smaller">{{ block.PowHash }}</td>
-            {% set minerAddress = block.MinerAddress.ToBase58() %}
-            {% if block.MinerAlias != "" %}
-            <td title="{{ minerAddress }} ({{ block.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ block.MinerAlias|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% endif %}
+            {% set minerAddress = block.MinerAddress %}
+            {% set minerAlias = block.MinerAlias %}
+            {% include('tpl_row_miner.html') %}
             <td><span class="mono">{{ block.Difficulty }}</span> / <span class="mono" title="Proof of Work Difficulty">{{ block.PowDifficulty }}</span></td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
@@ -172,12 +169,9 @@
             <td class="mono smaller">{{ t.EphemeralPublicKey|hex }}</td>
             {% if not is_nil(get_slice_index(coinbase, t.Index)) %}
             {% set payout = get_slice_index(coinbase, t.Index) %}
-            {% set minerAddress = payout.MinerAddress.ToBase58() %}
-            {% if payout.MinerAlias != "" %}
-            <td title="{{ minerAddress }} ({{ minerAddress }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ payout.MinerAlias|shorten(10) }}</a></td>
-            {% else %}
-            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
-            {% endif %}
+            {% set minerAddress = payout.MinerAddress %}
+            {% set minerAlias = payout.MinerAlias %}
+            {% include('tpl_row_miner.html') %}
             {% endif %}
             <td class="small">{{ monero_to_xmr(t.Reward) }} XMR</td>
             {% if block.MinedMainAtHeight %}
