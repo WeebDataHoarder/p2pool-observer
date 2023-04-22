@@ -28,6 +28,7 @@ type Cache interface {
 type P2PoolInterface interface {
 	ConsensusProvider
 	Cache
+	UpdateTip(tip *PoolBlock)
 	Broadcast(block *PoolBlock)
 	ClientRPC() *client.Client
 	GetChainMainByHeight(height uint64) *ChainMain
@@ -649,6 +650,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 			//TODO log
 
 			block.WantBroadcast.Store(true)
+			c.server.UpdateTip(block)
 
 			if isAlternative {
 				c.derivationCache.Clear()

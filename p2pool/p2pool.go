@@ -18,11 +18,20 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"golang.org/x/exp/slices"
 	"log"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 )
+
+type EventListener struct {
+	ListenerId uint64
+	Tip        func(tip *sidechain.PoolBlock)
+	Broadcast  func(b *sidechain.PoolBlock)
+	Found      func(data *sidechain.ChainMain, b *sidechain.PoolBlock)
+}
 
 type P2Pool struct {
 	consensus *sidechain.Consensus
@@ -40,9 +49,40 @@ type P2Pool struct {
 
 	recentSubmittedBlocks *utils.CircularBuffer[types.Hash]
 
+	listenersLock  sync.RWMutex
+	listeners      []EventListener
+	nextListenerId uint64
+
 	started    atomic.Bool
 	closeError error
 	closed     chan struct{}
+}
+
+func (p *P2Pool) AddListener(tip func(tip *sidechain.PoolBlock), broadcast func(b *sidechain.PoolBlock), found func(data *sidechain.ChainMain, b *sidechain.PoolBlock)) uint64 {
+	p.listenersLock.Lock()
+	p.listenersLock.Unlock()
+
+	listenerId := p.nextListenerId
+	p.nextListenerId++
+	p.listeners = append(p.listeners, EventListener{
+		ListenerId: listenerId,
+		Tip:        tip,
+		Broadcast:  broadcast,
+		Found:      found,
+	})
+	return listenerId
+}
+
+func (p *P2Pool) RemoveListener(listenerId uint64) bool {
+	p.listenersLock.Lock()
+	p.listenersLock.Unlock()
+	if i := slices.IndexFunc(p.listeners, func(listener EventListener) bool {
+		return listener.ListenerId == listenerId
+	}); i != -1 {
+		p.listeners = slices.Delete(p.listeners, i, i+1)
+		return true
+	}
+	return false
 }
 
 func (p *P2Pool) GetBlob(key []byte) (blob []byte, err error) {
@@ -429,7 +469,14 @@ func (p *P2Pool) Consensus() *sidechain.Consensus {
 
 func (p *P2Pool) UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.PoolBlock) {
 	log.Printf("[P2Pool] BLOCK FOUND: main chain block at height %d, id %s was mined by this p2pool", data.Height, data.Id)
-	//TODO
+
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].Found != nil {
+			p.listeners[i].Found(data, block)
+		}
+	}
 }
 
 func (p *P2Pool) SubmitBlock(b *block.Block) {
@@ -481,6 +528,16 @@ func (p *P2Pool) Started() bool {
 	return p.started.Load()
 }
 
+func (p *P2Pool) UpdateTip(tip *sidechain.PoolBlock) {
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].Tip != nil {
+			p.listeners[i].Tip(tip)
+		}
+	}
+}
+
 func (p *P2Pool) Broadcast(block *sidechain.PoolBlock) {
 	minerData := p.GetMinerDataTip()
 	if (block.Main.Coinbase.GenHeight)+2 < minerData.Height {
@@ -494,4 +551,12 @@ func (p *P2Pool) Broadcast(block *sidechain.PoolBlock) {
 	}
 
 	p.server.Broadcast(block)
+
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].Broadcast != nil {
+			p.listeners[i].Broadcast(block)
+		}
+	}
 }

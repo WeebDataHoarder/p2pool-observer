@@ -129,7 +129,7 @@ func main() {
 				Addr:        *apiBind,
 				ReadTimeout: time.Second * 2,
 				Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-					if request.Method != "GET" && request.Method != "HEAD" {
+					if request.Method != "GET" && request.Method != "HEAD" && request.Method != "POST" {
 						writer.WriteHeader(http.StatusForbidden)
 						return
 					}
