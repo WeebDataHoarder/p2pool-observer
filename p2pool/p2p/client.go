@@ -468,8 +468,10 @@ func (c *Client) OnConnection() {
 			var block *sidechain.PoolBlock
 			//if empty, return chain tip
 			if templateId == types.ZeroHash {
-				//todo: don't return stale
-				block = c.Owner.SideChain().GetChainTip()
+				// Don't return stale chain tip
+				if block = c.Owner.SideChain().GetChainTip(); block != nil && (block.Main.Coinbase.GenHeight+2) < c.Owner.MainChain().GetMinerDataTip().Height {
+					block = nil
+				}
 			} else {
 				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
 				if block == nil {
