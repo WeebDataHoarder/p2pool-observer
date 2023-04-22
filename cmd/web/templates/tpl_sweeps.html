@@ -18,20 +18,20 @@
     </tr>
     {% for s in sweeps %}
     <tr>
-        <td class="mono small"><a href="/transaction-lookup?txid={{ s.id }}">{{ s.id|shorten(10) }}</a></td>
-        <td title="{{ utc_date(s.timestamp) }}">{{ date_diff_short(s.timestamp) }}</td>
+        <td class="mono small"><a href="/transaction-lookup?txid={{ s.Id }}">{{ s.Id|shorten(10) }}</a></td>
+        <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
         {% if (sweeps_is_miner is not defined) or (not sweeps_is_miner) %}
-        <td title="{{ s.address }}" class="mono small"><a href="/miner/{{ s.address }}">{{ s.address|shorten(10) }}</a></td>
+        <td title="{{ s.Address.ToBase58() }}" class="mono small"><a href="/miner/{{ s.Address.ToBase58() }}">{{ s.Address.ToBase58()|shorten(10) }}</a></td>
         {% endif %}
-        <td>{{ s.input_decoy_count }}</td>
-        <td>{{ s.input_count }} / {{ s.global_output_indices|length }}</td>
-        <td>{{ s.miner_count }} ({{(s.miner_ratio*100)|round(2)}}%)</td>
-        <td>{{ s.other_miners_count }} ({{(s.other_miners_ratio*100)|round(2)}}%)</td>
-        <td>{{ s.no_miner_count }} ({{(s.no_miner_ratio*100)|round(2)}}%)</td>
-        {% if s.value == 0 %}
+        <td>{{ s.InputDecoyCount }}</td>
+        <td>{{ s.InputCount }} / {{ s.GlobalOutputIndices|length }}</td>
+        <td>{{ s.MinerCount }} ({{(s.MinerRatio*100)|round(2)}}%)</td>
+        <td>{{ s.OtherMinersCount }} ({{(s.OtherMinersRatio*100)|round(2)}}%)</td>
+        <td>{{ s.NoMinerCount }} ({{(s.NoMinerRatio*100)|round(2)}}%)</td>
+        {% if s.Value == 0 %}
         <td>-</td>
         {% else %}
-        <td class="mono">{{ monero_to_xmr(s.value) }} XMR</td>
+        <td class="mono">{{ monero_to_xmr(s.Value) }} XMR</td>
         {% endif %}
     </tr>
     {% endfor %}

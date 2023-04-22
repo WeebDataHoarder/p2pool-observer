@@ -19,36 +19,37 @@
     </tr>
     {% for b in found_blocks %}
     <tr>
-        <th title="{{ b.main_block.id }}"><a href="/b/{{ b.main_block.height|benc }}">{{ b.main_block.height }}</a></th>
-        {% if not is_zero_hash(b.uncle_of) %}
-        <th title="{{ b.main_block.side_template_id }} is an uncle of height {{ b.effective_height }}, {{ b.uncle_of }}">
-            <a href="/share/{{ b.main_block.side_template_id }}">{{ b.side_height }}*</a>
+        <th title="{{ b.MainBlock.Id }}"><a href="/b/{{ b.MainBlock.Height|benc }}">{{ b.MainBlock.Height }}</a></th>
+        {% if not is_zero_hash(b.UncleOf) %}
+        <th title="{{ b.MainBlock.SideTemplateId }} is an uncle of height {{ b.EffectiveHeight }}, {{ b.UncleOf }}">
+            <a href="/share/{{ b.MainBlock.SideTemplateId }}">{{ b.SideHeight }}*</a>
         </th>
         {% else %}
-        <th title="{{ b.main_block.side_template_id }}">
-            <a href="/share/{{ b.main_block.side_template_id }}">{{ b.side_height }}</a>
+        <th title="{{ b.MainBlock.SideTemplateId }}">
+            <a href="/share/{{ b.MainBlock.SideTemplateId }}">{{ b.SideHeight }}</a>
         </th>
         {% endif %}
-        <td title="{{ utc_date(b.main_block.timestamp) }}">{{ date_diff_short(b.main_block.timestamp) }}</td>
+        <td title="{{ utc_date(b.MainBlock.Timestamp) }}">{{ date_diff_short(b.MainBlock.Timestamp) }}</td>
         {% if (found_blocks_is_miner is not defined) or (not found_blocks_is_miner) %}
-            {% if attribute(pool.sidechain.effort.last, b.main_block.id) is defined %}
-            <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.main_block.id)|effort_color }};">
-                {{ attribute(pool.sidechain.effort.last, b.main_block.id)|round(2) }}%
+            {% if attribute(pool.sidechain.effort.last, b.MainBlock.Id) is defined %}
+            <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.MainBlock.Id)|effort_color }};">
+                {{ attribute(pool.sidechain.effort.last, b.MainBlock.Id)|round(2) }}%
             </td>
             {% else %}
             <td>unknown</td>
             {% endif %}
-            {% if b.miner_alias != "" %}
-            <td title="{{ b.miner_address }} ({{ b.miner_alias }})" class="mono small"><a href="/miner/{{ b.miner_address }}">{{ b.miner_alias|shorten(10) }}</a></td>
+            {% set minerAddress = b.MinerAddress.ToBase58() %}
+            {% if b.MinerAlias != "" %}
+            <td title="{{ minerAddress }} ({{ b.MinerAlias }})" class="mono small"><a href="/miner/{{ minerAddress }}">{{ b.MinerAlias|shorten(10) }}</a></td>
             {% else %}
-            <td title="{{ b.miner_address }}" class="mono small"><a href="/miner/{{ b.miner_address }}">{{ b.miner_address|shorten(10) }}</a></td>
+            <td title="{{ minerAddress }}" class="mono small"><a href="/miner/{{ minerAddress }}">{{ minerAddress|shorten(10) }}</a></td>
             {% endif %}
         {% endif %}
-        <td>{{ b.transaction_count }}</td>
-        <th class="small">{{ monero_to_xmr(b.main_block.reward) }} XMR</th>
-        <td>{{ b.window_outputs }}</td>
-        <td title="{{ b.main_block.coinbase_id }}" class="mono small"><a href="/t/{{ b.main_block.coinbase_id|henc }}">{{ b.main_block.coinbase_id|shorten(10) }}</a></td>
-        <td class="mono smaller">{{ b.main_block.coinbase_private_key }}</td>
+        <td>{{ b.TransactionCount }}</td>
+        <th class="small">{{ monero_to_xmr(b.MainBlock.Reward) }} XMR</th>
+        <td>{{ b.WindowOutputs }}</td>
+        <td title="{{ b.MainBlock.CoinbaseId }}" class="mono small"><a href="/t/{{ b.MainBlock.CoinbaseId|henc }}">{{ b.MainBlock.CoinbaseId|shorten(10) }}</a></td>
+        <td class="mono smaller">{{ b.MainBlock.CoinbasePrivateKey|hex }}</td>
     </tr>
     {% endfor %}
 </table>

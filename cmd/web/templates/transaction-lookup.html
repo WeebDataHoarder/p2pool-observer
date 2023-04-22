@@ -91,11 +91,11 @@
                     {% else %}
                     <tr>
                         <td>{{ index }}</td>
-                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
+                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ input.Input.KeyImage|shorten(10) }}</td>
                     {% endif %}
                     <td class="small">-</td>
                     {% set out = result.Outs[totalInputCount] %}
-                    <td title="{{ out.TransactionId }}" class="mono small"><a href="/t/{{ out.TransactionId|henc }}">{{ (out.TransactionId|hex)|shorten(10) }}</a></td>
+                    <td title="{{ out.TransactionId }}" class="mono small"><a href="/t/{{ out.TransactionId|henc }}">{{ out.TransactionId|shorten(10) }}</a></td>
                     <td class="small">{{ input.Input.KeyOffsets[oindex] }}</td>
                     <td class="small">-</td>
                     <td class="small">-</td>
@@ -106,16 +106,16 @@
                     {% else %}
                     <tr {% if o.Address.ToBase58() == minerAddress %} class="hl-found"{% endif %}>
                         <td>{{ index }}</td>
-                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ (input.Input.KeyImage|hex)|shorten(10) }}</td>
+                        <td class="mono small" title="{{ input.Input.KeyImage }}">{{ input.Input.KeyImage|shorten(10) }}</td>
                     {% endif %}
                     <td title="{{ o.MinerAddress.ToBase58() }}" class="mono small"><a href="/miner/{{ o.Address.ToBase58() }}">{{ o.Address.ToBase58()|shorten(10) }}</a></td>
                     {% if not is_nil(o.Coinbase) %}
-                    <td title="{{ o.Coinbase.Id }}" class="mono small"><a href="/t/{{ o.Coinbase.Id|henc }}">{{ (o.Coinbase.Id|hex)|shorten(10) }}</a> #{{ o.Coinbase.Index }}</td>
+                    <td title="{{ o.Coinbase.Id }}" class="mono small"><a href="/t/{{ o.Coinbase.Id|henc }}">{{ o.Coinbase.Id|shorten(10) }}</a> #{{ o.Coinbase.Index }}</td>
                     <td class="small">{{ o.GlobalOutputIndex }}</td>
                     <td class="small" title="This input was seen as an output to a mined Monero block via P2Pool">Coinbase</td>
                     <td class="small mono">{{ monero_to_xmr(o.Coinbase.Value) }} XMR</td>
                     {% elseif not is_nil(o.Sweep) %}
-                    <td title="{{ o.Sweep.Id }}" class="mono small"><a href="/transaction-lookup?txid={{ o.Sweep.Id }}">{{ (o.Sweep.Id|hex)|shorten(10) }}</a>
+                    <td title="{{ o.Sweep.Id }}" class="mono small"><a href="/transaction-lookup?txid={{ o.Sweep.Id }}">{{ o.Sweep.Id|shorten(10) }}</a>
                     {% for oindex, goi in o.Sweep.GlobalOutputIndices %}
                         {% if goi == o.GlobalOutputIndex %}
                         #{{ oindex }}/{{ o.Sweep.GlobalOutputIndices|length }}

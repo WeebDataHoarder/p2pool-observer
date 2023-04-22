@@ -70,6 +70,17 @@ func toUint64(t any) uint64 {
 	return 0
 }
 
+func toString(t any) string {
+
+	if s, ok := t.(string); ok {
+		return s
+	} else if h, ok := t.(types.Hash); ok {
+		return h.String()
+	}
+
+	return ""
+}
+
 func toInt64(t any) int64 {
 	if x, ok := t.(json.Number); ok {
 		if n, err := x.Int64(); err == nil {
@@ -549,7 +560,7 @@ func main() {
 		if s, ok := args[0].([]any); ok {
 			return s[toUint64(args[1])]
 		} else if m, ok := args[0].(map[string]any); ok {
-			return m[args[1].(string)]
+			return m[toString(args[1])]
 		}
 		return nil
 	}
@@ -633,6 +644,10 @@ func main() {
 			return utils.EncodeHexBinaryNumber(k.String())
 		} else if s, ok := val.(string); ok {
 			return utils.EncodeHexBinaryNumber(s)
+		} else if h, ok := val.(types.Hash); ok {
+			return utils.EncodeHexBinaryNumber(h.String())
+		} else if s, ok := val.(fmt.Stringer); ok {
+			return utils.EncodeHexBinaryNumber(s.String())
 		}
 
 		//TODO: remove this
@@ -676,6 +691,10 @@ func main() {
 		var value string
 		if s, ok := val.(string); ok {
 			value = s
+		} else if h, ok := val.(types.Hash); ok {
+			value = h.String()
+		} else if s, ok := val.(fmt.Stringer); ok {
+			value = s.String()
 		} else {
 			value = fmt.Sprintf("%s", value)
 		}
@@ -711,7 +730,7 @@ func main() {
 
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
-		blocks := getFromAPI(fmt.Sprintf("found_blocks?limit=%d", blocksToFetch), 5).([]any)
+		blocks := getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=%d", blocksToFetch), 5)
 		shares := getSideBlocksFromAPI("side_blocks?limit=50", 5)
 
 		ctx := make(map[string]stick.Value)
@@ -721,7 +740,7 @@ func main() {
 
 		tip := toInt64(poolInfo["sidechain"].(map[string]any)["height"])
 		for _, b := range blocks {
-			blocksFound.Add(int(tip-toInt64(b.(map[string]any)["side_height"])), 1)
+			blocksFound.Add(int(tip-int64(b.SideHeight)), 1)
 		}
 
 		if len(blocks) > 20 {
@@ -824,11 +843,9 @@ func main() {
 		}
 
 		if txId != types.ZeroHash {
-			txResult := getFromAPIRaw(fmt.Sprintf("transaction_lookup/%s", txId.String()))
+			fullResult := getTypeFromAPI[transactionLookupResult](fmt.Sprintf("transaction_lookup/%s", txId.String()))
 
-			var fullResult transactionLookupResult
-
-			if json.Unmarshal(txResult, &fullResult) == nil && fullResult.Id == txId {
+			if fullResult != nil && fullResult.Id == txId {
 				var topMiner *index.TransactionInputQueryResultsMatch
 				for i, m := range fullResult.Match {
 					if m.Address == nil {
@@ -1005,13 +1022,13 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		if miner != nil {
-			blocks := getFromAPI(fmt.Sprintf("sweeps/%d?limit=100", toUint64(miner["id"])))
+			blocks := getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=100", toUint64(miner["id"])))
 			ctx["sweeps"] = blocks
 			ctx["miner"] = miner
 
 			render(request, writer, "sweeps_miner.html", ctx)
 		} else {
-			blocks := getFromAPI("sweeps?limit=100", 30)
+			blocks := getSliceFromAPI[*index.MainLikelySweepTransaction]("sweeps?limit=100", 30)
 			ctx["sweeps"] = blocks
 
 			render(request, writer, "sweeps.html", ctx)
@@ -1047,13 +1064,13 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		if miner != nil {
-			blocks := getFromAPI(fmt.Sprintf("found_blocks?&limit=100&miner=%d", toUint64(miner["id"])))
+			blocks := getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?&limit=100&miner=%d", toUint64(miner["id"])))
 			ctx["blocks_found"] = blocks
 			ctx["miner"] = miner
 
 			render(request, writer, "blocks_miner.html", ctx)
 		} else {
-			blocks := getFromAPI("found_blocks?limit=100", 30)
+			blocks := getSliceFromAPI[*index.FoundBlock]("found_blocks?limit=100", 30)
 			ctx["blocks_found"] = blocks
 
 			render(request, writer, "blocks.html", ctx)
@@ -1202,7 +1219,7 @@ func main() {
 			}
 		}
 
-		payouts := getFromAPI(fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
+		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block
@@ -1253,13 +1270,15 @@ func main() {
 
 		var shares, lastShares []*index.SideBlock
 
-		var payouts, lastFound, sweeps []any
+		var lastFound []*index.FoundBlock
+		var payouts []*index.Payout
+		var sweeps []*index.MainLikelySweepTransaction
 		if toUint64(miner["id"]) != 0 {
 			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", toUint64(miner["id"]), tipHeight, wsize))
-			payouts = getFromAPI(fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"]))).([]any)
+			payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"])))
 			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", toUint64(miner["id"])))
-			lastFound = getFromAPI(fmt.Sprintf("found_blocks?limit=10&miner=%d", toUint64(miner["id"]))).([]any)
-			sweeps = getFromAPI(fmt.Sprintf("sweeps/%d?limit=5", toUint64(miner["id"]))).([]any)
+			lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", toUint64(miner["id"])))
+			sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", toUint64(miner["id"])))
 		}
 
 		sharesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
@@ -1272,7 +1291,7 @@ func main() {
 
 		foundPayout := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		for _, p := range payouts {
-			foundPayout.Add(int(int64(tipHeight)-toInt64(p.(map[string]any)["side_height"])), 1)
+			foundPayout.Add(int(int64(tipHeight)-int64(p.SideHeight)), 1)
 		}
 
 		var raw *sidechain.PoolBlock
@@ -1287,7 +1306,7 @@ func main() {
 		for _, share := range shares {
 			if share.IsUncle() {
 
-				unclesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
+				unclesFound.Add(int(int64(tipHeight)-int64(share.SideHeight)), 1)
 
 				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
 				uncleWeight := share.Difficulty - unclePenalty.Lo
@@ -1432,7 +1451,7 @@ func main() {
 
 		miner := m.(map[string]any)
 
-		payouts := getFromAPI(fmt.Sprintf("payouts/%d?search_limit=0", toUint64(miner["id"]))).([]any)
+		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=0", toUint64(miner["id"])))
 		if len(payouts) == 0 {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
@@ -1450,7 +1469,7 @@ func main() {
 		ctx["payouts"] = payouts
 		ctx["total"] = func() (result uint64) {
 			for _, p := range payouts {
-				result += toUint64(p.(map[string]any)["coinbase_reward"])
+				result += p.Reward
 			}
 			return
 		}()

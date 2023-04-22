@@ -70,7 +70,7 @@
         <tr><th colspan="6">&nbsp;</th></tr>
         <tr style="line-height: 1.5;">
             <td style="width: 10em"><strong>Peer SideChain Height</strong><br/><a href="/share/{{ your_tip_raw.SideTemplateId(consensus) }}">{{ your_tip_raw.Side.Height }}</a></td>
-            <td style="width: 10em"><strong>Peer SideChain Id</strong><br/><a href="/share/{{ your_tip_raw.SideTemplateId(consensus) }}" title="{{ your_tip_raw.SideTemplateId(consensus) }}">{{ (your_tip_raw.SideTemplateId(consensus)|str)|shorten(10) }}</a></td>
+            <td style="width: 10em"><strong>Peer SideChain Id</strong><br/><a href="/share/{{ your_tip_raw.SideTemplateId(consensus) }}" title="{{ your_tip_raw.SideTemplateId(consensus) }}">{{ your_tip_raw.SideTemplateId(consensus)|shorten(10) }}</a></td>
             <td style="width: 10em"><strong>Peer MainChain Height</strong><br/>{{ your_tip_raw.Main.Coinbase.GenHeight }}</td>
             <td style="width: 10em"><strong>Peer Difficulty</strong><br/>{{ diff_uint(your_tip_raw.Side.Difficulty)|si_units(4) }}</td>
             <td style="width: 10em"><strong>Peer Cumulative Difficulty</strong><br/>{{ diff_uint(your_tip_raw.Side.CumulativeDifficulty)|si_units(4) }}</td>
@@ -78,7 +78,7 @@
         </tr>
         <tr style="line-height: 1.5;">
             <td style="width: 10em"><strong>Observer SideChain Height</strong><br/><a href="/share/{{ our_tip.TemplateId }}">{{ our_tip.SideHeight }}</a></td>
-            <td style="width: 10em"><strong>Observer SideChain Id</strong><br/><a href="/share/{{ our_tip.TemplateId }}" title="{{ our_tip.TemplateId }}">{{ (our_tip.TemplateId|str)|shorten(10) }}</a></td>
+            <td style="width: 10em"><strong>Observer SideChain Id</strong><br/><a href="/share/{{ our_tip.TemplateId }}" title="{{ our_tip.TemplateId }}">{{ our_tip.TemplateId|shorten(10) }}</a></td>
             <td style="width: 10em"><strong>Observer MainChain Height</strong><br/>{{ our_tip.MainHeight }}</td>
             <td style="width: 10em"><strong>Observer Difficulty</strong><br/>{{ our_tip.Difficulty|si_units(4) }}</td>
             <td style="width: 10em"><strong>Observer Cumulative Difficulty</strong><br/>{{ diff_uint(our_tip.CumulativeDifficulty)|si_units(4) }}</td>

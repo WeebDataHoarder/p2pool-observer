@@ -18,7 +18,7 @@
     {% for s in shares %}
     <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
         <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
-        <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ (s.TemplateId|str)|shorten(10) }}</a></td>
+        <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ s.TemplateId|shorten(10) }}</a></td>
         <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
         <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
         {% if (shares_is_miner is not defined) or (not shares_is_miner) %}

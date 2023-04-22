@@ -870,6 +870,12 @@ func main() {
 			}
 		}
 
+		if params.Has("limit") {
+			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
+				limit = uint64(i)
+			}
+		}
+
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetPayoutsByMinerId(miner.Id(), limit)))
