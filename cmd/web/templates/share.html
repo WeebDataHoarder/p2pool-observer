@@ -140,10 +140,14 @@
 
     <h2>Coinbase Transaction</h2>
 
-    {% if block.MinedMainAtHeight %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 12em + 8em)">
+    {% if block.MinedMainAtHeight and share_sweeps_count > 0 %}
+    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em + 12em)">
         <tr><td colspan="7" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
         <tr><td colspan="7">&nbsp;</td></tr>
+    {% elseif block.MinedMainAtHeight %}
+        <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
+            <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
+            <tr><td colspan="6">&nbsp;</td></tr>
     {% else %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
         <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
@@ -162,7 +166,9 @@
             {% if block.MinedMainAtHeight %}
             <th style="width: 10em">Global Output Index</th>
             <th style="width: 8em">Proof</th>
+            {% if share_sweeps_count > 0 %}
             <th style="width: 12em">Swept</th>
+            {% endif %}
             {% endif %}
         </tr>
         {% for t in raw.Main.Coinbase.Outputs %}
@@ -179,14 +185,16 @@
             {% if block.MinedMainAtHeight %}
             <td class="small">{{ payout.GlobalOutputIndex }}</td>
             <td class="small"><a href="/proof/{{ block.MainId }}/{{ t.Index }}" title="Prove you have a matching output for this address on this transaction">[Payout Proof #{{ t.Index }}]</a></td>
+            {% if share_sweeps_count > 0 %}
             {% set sweeps = get_slice_index(share_sweeps, t.Index) %}
             {% if sweeps|length > 0 %}
             {% set sweep = get_slice_index(sweeps, 0) %}
-            <td class="smaller" title="{{ utc_date(sweep.Timestamp) }}"><a href="/transaction-lookup?txid={{ sweep.Id }}" class="mono">{{ sweep.Id|shorten(10) }}</a></td>
+            <td class="smaller" title="{{ utc_date(sweep.Timestamp) }}"><a href="/transaction-lookup?txid={{ sweep.Id }}" class="mono">{{ sweep.Id|shorten(10) }} {{ sweep.MinerCount }} / {{ sweep.InputCount }}</a></td>
             {% elseif add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1) < 60 %}
             <td class="small">Not unlocked</td>
             {% else %}
             <td class="small">Not known</td>
+            {% endif %}
             {% endif %}
             {% endif %}
         </tr>

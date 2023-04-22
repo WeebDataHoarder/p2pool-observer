@@ -1197,6 +1197,7 @@ func main() {
 
 	serveMux.HandleFunc("/share/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
 		identifier := mux.Vars(request)["block"]
+		params := request.URL.Query()
 
 		var block *index.SideBlock
 		var coinbase index.MainCoinbaseOutputs
@@ -1230,9 +1231,10 @@ func main() {
 
 		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
+		sweepsCount := 0
 		//add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1)
 		var likelySweeps [][]*index.MainLikelySweepTransaction
-		if block.MinedMainAtHeight && ((toInt64(poolInfo["mainchain"].(map[string]any)["height"])-int64(block.MainHeight))+1) >= monero.MinerRewardUnlockTime {
+		if params.Has("sweeps") && block.MinedMainAtHeight && ((toInt64(poolInfo["mainchain"].(map[string]any)["height"])-int64(block.MainHeight))+1) >= monero.MinerRewardUnlockTime {
 			indices := make([]uint64, len(coinbase))
 			for i, o := range coinbase {
 				indices[i] = o.GlobalOutputIndex
@@ -1266,6 +1268,7 @@ func main() {
 					}
 					if s.Address.Compare(coinbase[oi].MinerAddress) == 0 {
 						likelySweeps[oi] = append(likelySweeps[oi], s)
+						sweepsCount++
 					}
 				}
 			}
@@ -1279,6 +1282,7 @@ func main() {
 		ctx["payouts"] = payouts
 		ctx["coinbase"] = coinbase
 		ctx["share_sweeps"] = likelySweeps
+		ctx["share_sweeps_count"] = sweepsCount
 
 		render(request, writer, "share.html", ctx)
 	})
