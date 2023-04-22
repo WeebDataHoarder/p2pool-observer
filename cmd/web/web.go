@@ -423,32 +423,28 @@ func main() {
 		return (toUint64(args[0]) << n) | toUint64(args[1])
 	}
 
-	env.Functions["get_tx_proof"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
+	env.Functions["get_tx_proof_v2"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 3 {
 			return nil
 		}
-		h, _ := types.HashFromString(args[1].(string))
-		k, _ := types.HashFromString(args[2].(string))
-		keyBytes := crypto.PrivateKeyBytes(k)
-		return address2.GetTxProofV2(address2.FromBase58(args[0].(string)), h, &keyBytes, "")
+		keyBytes := args[2].(crypto.PrivateKeyBytes)
+		return address2.GetTxProofV2(address2.FromBase58(args[0].(string)), args[1].(types.Hash), &keyBytes, "")
 	}
 
 	env.Functions["get_tx_proof_v1"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 3 {
 			return nil
 		}
-		h, _ := types.HashFromString(args[1].(string))
-		k, _ := types.HashFromString(args[2].(string))
-		keyBytes := crypto.PrivateKeyBytes(k)
-		return address2.GetTxProofV1(address2.FromBase58(args[0].(string)), h, &keyBytes, "")
+
+		keyBytes := args[2].(crypto.PrivateKeyBytes)
+		return address2.GetTxProofV1(address2.FromBase58(args[0].(string)), args[1].(types.Hash), &keyBytes, "")
 	}
 
 	env.Functions["get_ephemeral_pubkey"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
 		if len(args) != 3 {
 			return nil
 		}
-		k, _ := types.HashFromString(args[1].(string))
-		keyBytes := crypto.PrivateKeyBytes(k)
+		keyBytes := args[1].(crypto.PrivateKeyBytes)
 		return address2.GetEphemeralPublicKey(address2.FromBase58(args[0].(string)), &keyBytes, toUint64(args[2]))
 	}
 
@@ -1378,9 +1374,9 @@ func main() {
 			raw = nil
 		}
 
-		coinbase := getFromAPI(fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
+		payouts := getSliceFromAPI[index.MainCoinbaseOutput](fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 
-		if raw == nil || coinbase.([]any) == nil {
+		if raw == nil {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
@@ -1390,7 +1386,6 @@ func main() {
 			return
 		}
 
-		payouts := coinbase.([]any)
 		if uint64(len(payouts)) <= requestIndex {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
