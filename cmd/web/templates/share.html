@@ -142,11 +142,11 @@
 
     {% if block.MinedMainAtHeight %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
-        <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
+        <tr><td colspan="6" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
         <tr><td colspan="6">&nbsp;</td></tr>
     {% else %}
     <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
-        <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw)|hex }}</td></tr>
+        <tr><td colspan="4" class="mono smaller">{{ coinbase_extra(raw) }}</td></tr>
         <tr><td colspan="4">&nbsp;</td></tr>
     {% endif %}
         <tr>

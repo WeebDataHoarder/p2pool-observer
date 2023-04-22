@@ -463,8 +463,13 @@ func main() {
 		if len(args) != 1 {
 			return nil
 		}
-		b, _ := args[0].(*sidechain.PoolBlock).Main.Coinbase.Extra.MarshalBinary()
-		return b
+		coinbaseExtra := args[0].(*sidechain.PoolBlock).Main.Coinbase.Extra
+		var result []string
+		for _, t := range coinbaseExtra {
+			buf, _ := t.MarshalBinary()
+			result = append(result, hex.EncodeToString(buf))
+		}
+		return strings.Join(result, " ")
 	}
 
 	env.Functions["block_address"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
