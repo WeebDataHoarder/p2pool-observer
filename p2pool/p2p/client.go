@@ -814,6 +814,10 @@ func (c *Client) OnConnection() {
 				unsafeRandom.Shuffle(len(hashes), func(i, j int) {
 					hashes[i], hashes[j] = hashes[j], hashes[i]
 				})
+				maxLen := (MaxBufferSize - 128) / types.HashSize
+				if len(hashes) > maxLen {
+					hashes = hashes[:maxLen]
+				}
 				c.SendInternalFastTemplateHeaderSyncResponse(hashes...)
 
 			case InternalMessageFastTemplateHeaderSyncResponse:
