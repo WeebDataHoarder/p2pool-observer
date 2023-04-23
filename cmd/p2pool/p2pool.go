@@ -9,6 +9,7 @@ import (
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"net"
 	"net/http"
@@ -235,24 +236,10 @@ func main() {
 		}
 
 		if *addSelf {
-			if ips, err := net.InterfaceAddrs(); err != nil {
-				log.Printf("[P2Pool] Could not get interface addresses: %s", err)
+			if addrs, err := utils.GetOutboundIPv6(); err != nil {
+				log.Printf("[P2Pool] Could not get interface ipv6 addresses: %s", err)
 			} else {
-				var cgnatStart = netip.MustParseAddr("100.64.0.0")
-				var cgnatEnd = netip.MustParseAddr("100.127.255.255")
-				for _, ip := range ips {
-					nets := strings.Split(ip.String(), "/")
-					addr, err := netip.ParseAddr(nets[0])
-					if err != nil {
-						continue
-					}
-
-					if !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.Is4In6() || (addr.Compare(cgnatStart) >= 0 && addr.Compare(cgnatEnd) <= 0) {
-						//skip
-						continue
-					}
-					//should have only public ips at this point
-					log.Printf("[P2Pool] Found interface address %s", addr.String())
+				for _, addr := range addrs {
 					if addr.Is6() {
 						//use own port directly?
 						instance.Server().AddToPeerList(netip.AddrPortFrom(addr, instance.Server().ListenPort()))

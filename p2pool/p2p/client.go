@@ -380,7 +380,7 @@ func (c *Client) OnConnection() {
 				return false, nil
 			}(); ok {
 				c.HandshakeComplete.Store(true)
-				c.SetError(errors.New("already connected"))
+				c.SetError(fmt.Errorf("already connected as %s (%d)", otherClient.AddressPort, otherClient.PeerId.Load()))
 				//same peer
 				log.Printf("[P2PClient] Connected to other same peer: %s (%d) is also %s (%d)", c.AddressPort, c.PeerId.Load(), otherClient.AddressPort, otherClient.PeerId.Load())
 				c.Close()

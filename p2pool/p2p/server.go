@@ -72,6 +72,9 @@ type Server struct {
 	useIPv4 bool
 	useIPv6 bool
 
+	ipv6AddrsLock         sync.RWMutex
+	ipv6OutgoingAddresses []netip.Addr
+
 	close    atomic.Bool
 	listener *net.TCPListener
 
@@ -133,8 +136,26 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
+	s.RefreshOutgoingIPv6()
 
 	return s, nil
+}
+
+func (s *Server) RefreshOutgoingIPv6() {
+	log.Printf("[P2PServer] Refreshing outgoing IPv6")
+	addrs, _ := utils.GetOutboundIPv6()
+	s.ipv6AddrsLock.Lock()
+	defer s.ipv6AddrsLock.Unlock()
+	s.ipv6OutgoingAddresses = addrs
+	for _, a := range addrs {
+		log.Printf("[P2PServer] Outgoing IPv6: %s", a.String())
+	}
+}
+
+func (s *Server) GetOutgoingIPv6() []netip.Addr {
+	s.ipv6AddrsLock.RLock()
+	defer s.ipv6AddrsLock.RUnlock()
+	return s.ipv6OutgoingAddresses
 }
 
 func (s *Server) ListenPort() uint16 {
@@ -470,6 +491,13 @@ func (s *Server) Listen() (err error) {
 				s.DownloadMissingBlocks()
 			}
 		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range time.Tick(time.Hour) {
+				s.RefreshOutgoingIPv6()
+			}
+		}()
 		for !s.close.Load() {
 			if conn, err := s.listener.AcceptTCP(); err != nil {
 				return err
@@ -555,11 +583,28 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 		return nil, errors.New("peer is already attempting connection")
 	}
 
-	log.Printf("[P2PServer] Outgoing connection to %s", addrPort.String())
-
 	s.NumOutgoingConnections.Add(1)
 
-	if conn, err := (&net.Dialer{Timeout: time.Second * 5}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
+	var localAddr net.Addr
+
+	//select IPv6 outgoing address
+	if addr.Is6() {
+		addrs := s.GetOutgoingIPv6()
+		if len(addrs) > 1 {
+			a := addrs[unsafeRandom.Intn(len(addrs))]
+			localAddr = &net.TCPAddr{IP: a.AsSlice(), Zone: a.Zone()}
+		} else if len(addrs) == 1 {
+			localAddr = &net.TCPAddr{IP: addrs[0].AsSlice(), Zone: addrs[0].Zone()}
+		}
+	}
+
+	if localAddr != nil {
+		log.Printf("[P2PServer] Outgoing connection to %s using %s", addrPort.String(), localAddr.String())
+	} else {
+		log.Printf("[P2PServer] Outgoing connection to %s", addrPort.String())
+	}
+
+	if conn, err := (&net.Dialer{Timeout: time.Second * 5, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
 		s.PendingOutgoingConnections.Replace(addrPort.Addr().String(), "")
 		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
