@@ -148,17 +148,10 @@ func (c *Client) getNextBlockRequest() (id types.Hash, ok bool) {
 }
 
 func (c *Client) SendListenPort() {
-	if c.Owner.externalListenPort != 0 {
-		c.SendMessage(&ClientMessage{
-			MessageId: MessageListenPort,
-			Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.externalListenPort)),
-		})
-	} else {
-		c.SendMessage(&ClientMessage{
-			MessageId: MessageListenPort,
-			Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.listenAddress.Port())),
-		})
-	}
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageListenPort,
+		Buffer:    binary.LittleEndian.AppendUint32(nil, uint32(c.Owner.ExternalListenPort())),
+	})
 }
 
 func (c *Client) SendMissingBlockRequestAtRandom(hash types.Hash, allowedClients []*Client) []*Client {
@@ -374,17 +367,18 @@ func (c *Client) OnConnection() {
 
 			c.PeerId.Store(peerId)
 
-			if func() bool {
+			if ok, otherClient := func() (bool, *Client) {
 				c.Owner.clientsLock.RLock()
 				defer c.Owner.clientsLock.RUnlock()
 				for _, client := range c.Owner.clients {
 					if client != c && client.PeerId.Load() == peerId {
-						return true
+						return true, client
 					}
 				}
-				return false
-			}() {
+				return false, nil
+			}(); ok {
 				//same peer
+				log.Printf("[P2PClient] Connected to other same peer: %s (%d) is also %s (%d)", c.AddressPort, c.PeerId.Load(), otherClient.AddressPort, otherClient.PeerId.Load())
 				c.Close()
 				return
 			}
@@ -644,7 +638,7 @@ func (c *Client) OnConnection() {
 			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(connectedPeerList)/4, 1))
 			n := 0
 			for _, peer := range connectedPeerList {
-				if peer.AddressPort.Addr().IsLoopback() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
+				if peer.AddressPort.Addr().IsLoopback() || peer.AddressPort.Addr().IsPrivate() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
 					continue
 				}
 
@@ -682,6 +676,32 @@ func (c *Client) OnConnection() {
 						return addrPort.Addr().Compare(peer.AddressPort.Addr()) == 0
 					}) {
 						entriesToSend = append(entriesToSend, peer.AddressPort)
+					}
+				}
+			}
+
+			var hasIpv6 bool
+			for _, e := range entriesToSend {
+				if e.Addr().Is6() {
+					hasIpv6 = true
+					break
+				}
+			}
+
+			//include one ipv6, if existent
+			if !hasIpv6 {
+				peerList := c.Owner.PeerList()
+				unsafeRandom.Shuffle(len(peerList), func(i, j int) {
+					peerList[i] = peerList[j]
+				})
+				for _, p := range c.Owner.PeerList() {
+					if p.AddressPort.Addr().Is4In6() || p.AddressPort.Addr().Is6() {
+						if len(entriesToSend) < PeerListResponseMaxPeers {
+							entriesToSend = append(entriesToSend, p.AddressPort)
+						} else {
+							entriesToSend[len(entriesToSend)-1] = p.AddressPort
+						}
+						break
 					}
 				}
 			}
@@ -735,7 +755,11 @@ func (c *Client) OnConnection() {
 
 							copy(rawIp[:], make([]byte, 10))
 							rawIp[10], rawIp[11] = 0xFF, 0xFF
+
+						} else {
+							log.Printf("Got IPv6 from peer %s: %s", c.AddressPort, netip.AddrFrom16(rawIp).String())
 						}
+
 						c.Owner.AddToPeerList(netip.AddrPortFrom(netip.AddrFrom16(rawIp).Unmap(), port))
 					}
 				}

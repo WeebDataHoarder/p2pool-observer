@@ -30,27 +30,37 @@ func main() {
 
 	currentConsensus := sidechain.ConsensusDefault
 
+	//monerod related
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
 	moneroZmqPort := flag.Uint("zmq-port", 18083, "monerod ZMQ pub port number")
-	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
-	createArchive := flag.String("archive", "", "If specified, create an archive store of sidechain blocks on this path.")
-	apiBind := flag.String("api-bind", "", "Bind to this address to serve blocks, and other utility methods. If -archive is specified, serve archived blocks.")
-	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
-	lightMode := flag.Bool("light-mode", false, "Don't allocate RandomX dataset, saves 2GB of RAM")
-	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path. Set to empty to disable")
+
+	// consensus related
 	consensusConfigFile := flag.String("consensus-config", "", "Name of the p2pool consensus config file")
 	useMiniSidechain := flag.Bool("mini", false, "Connect to p2pool-mini sidechain. Note that it will also change default p2p port.")
 
+	//p2p peering related
+	p2pListen := flag.String("p2p", fmt.Sprintf("0.0.0.0:%d", currentConsensus.DefaultPort()), "IP:port for p2p server to listen on.")
+	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
 	outPeers := flag.Uint64("out-peers", 10, "Maximum number of outgoing connections for p2p server (any value between 10 and 450)")
 	inPeers := flag.Uint64("in-peers", 10, "Maximum number of incoming connections for p2p server (any value between 10 and 450)")
-	p2pExternalPort := flag.Uint64("p2p-external-port", 0, "Port number that your router uses for mapping to your local p2p port. Use it if you are behind a NAT and still want to accept incoming connections")
-	noDns := flag.Bool("no-dns", false, "Disable DNS queries, use only IP addresses to connect to peers (seed node DNS will be unavailable too)")
+	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
+	addSelf := flag.Bool("add-self-peer", false, "Adds itself to the peer list regularly, based on found local interfaces for IPv4/IPv6")
+	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path. Set to empty to disable")
 
+	//other settings
+	lightMode := flag.Bool("light-mode", false, "Don't allocate RandomX dataset, saves 2GB of RAM")
+	noDns := flag.Bool("no-dns", false, "Disable DNS queries, use only IP addresses to connect to peers (seed node DNS will be unavailable too)")
 	memoryLimitInGiB := flag.Uint64("memory-limit", 0, "Memory limit for go managed sections in GiB, set 0 to disable")
 
+	apiBind := flag.String("api-bind", "", "Bind to this address to serve blocks, and other utility methods. If -archive is specified, serve archived blocks.")
+	createArchive := flag.String("archive", "", "If specified, create an archive store of sidechain blocks on this path.")
 	blockCache := flag.String("block-cache", "p2pool.cache", "Block cache for faster startups. Set to empty to disable")
-	debugLog := flag.Bool("debug", false, "Log more details")
+
+	//testing settings
+	debugLog := flag.Bool("debug", false, "Log more details. Default false")
+	ipv6Only := flag.Bool("ipv6-only", false, "Use only IPv6. Default false")
+
 	//TODO extend verbosity to debug flag
 	flag.Parse()
 
@@ -107,6 +117,10 @@ func main() {
 	settings["out-peers"] = strconv.FormatUint(*outPeers, 10)
 	settings["in-peers"] = strconv.FormatUint(*inPeers, 10)
 	settings["external-port"] = strconv.FormatUint(*p2pExternalPort, 10)
+
+	if *ipv6Only {
+		settings["ipv6-only"] = "true"
+	}
 
 	if *blockCache != "" {
 		settings["cache"] = *blockCache
@@ -169,7 +183,7 @@ func main() {
 			log.Printf("Loading seed peers from %s", currentConsensus.SeedNode())
 			ips, _ := net.LookupIP(currentConsensus.SeedNode())
 			for _, seedNodeIp := range ips {
-				seedNodeAddr := netip.MustParseAddrPort(fmt.Sprintf("%s:%d", seedNodeIp.String(), currentConsensus.DefaultPort()))
+				seedNodeAddr := netip.AddrPortFrom(netip.MustParseAddr(seedNodeIp.String()), currentConsensus.DefaultPort())
 				instance.Server().AddToPeerList(seedNodeAddr)
 			}
 		}
@@ -217,6 +231,35 @@ func main() {
 						}
 					}
 				}()
+			}
+		}
+
+		if *addSelf {
+			if ips, err := net.InterfaceAddrs(); err != nil {
+				log.Printf("[P2Pool] Could not get interface addresses: %s", err)
+			} else {
+				var cgnatStart = netip.MustParseAddr("100.64.0.0")
+				var cgnatEnd = netip.MustParseAddr("100.127.255.255")
+				for _, ip := range ips {
+					nets := strings.Split(ip.String(), "/")
+					addr, err := netip.ParseAddr(nets[0])
+					if err != nil {
+						continue
+					}
+
+					if !addr.IsGlobalUnicast() || addr.IsPrivate() || addr.Is4In6() || (addr.Compare(cgnatStart) >= 0 && addr.Compare(cgnatEnd) <= 0) {
+						//skip
+						continue
+					}
+					//should have only public ips at this point
+					log.Printf("[P2Pool] Found interface address %s", addr.String())
+					if addr.Is6() {
+						//use own port directly?
+						instance.Server().AddToPeerList(netip.AddrPortFrom(addr, instance.Server().ListenPort()))
+					} else {
+						instance.Server().AddToPeerList(netip.AddrPortFrom(addr, instance.Server().ExternalListenPort()))
+					}
+				}
 			}
 		}
 

@@ -201,7 +201,13 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 		externalListenPort, _ = strconv.ParseUint(externalPort, 10, 0)
 	}
 
-	if pool.server, err = p2p.NewServer(pool, listenAddress, uint16(externalListenPort), uint32(maxOutgoingPeers), uint32(maxIncomingPeers), pool.ctx); err != nil {
+	useIPv4, useIPv6 := true, true
+	if b, ok := settings["ipv6-only"]; ok && b == "true" {
+		useIPv4 = false
+		useIPv6 = true
+	}
+
+	if pool.server, err = p2p.NewServer(pool, listenAddress, uint16(externalListenPort), uint32(maxOutgoingPeers), uint32(maxIncomingPeers), useIPv4, useIPv6, pool.ctx); err != nil {
 		return nil, err
 	}
 

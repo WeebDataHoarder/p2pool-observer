@@ -69,6 +69,9 @@ type Server struct {
 	listenAddress      netip.AddrPort
 	externalListenPort uint16
 
+	useIPv4 bool
+	useIPv6 bool
+
 	close    atomic.Bool
 	listener *net.TCPListener
 
@@ -98,7 +101,7 @@ type Server struct {
 	ctx context.Context
 }
 
-func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32, ctx context.Context) (*Server, error) {
+func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort uint16, maxOutgoingPeers, maxIncomingPeers uint32, useIPv4, useIPv6 bool, ctx context.Context) (*Server, error) {
 	peerId := make([]byte, int(unsafe.Sizeof(uint64(0))))
 	_, err := rand.Read(peerId)
 	if err != nil {
@@ -123,8 +126,10 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 			SoftwareVersion: p2pooltypes.CurrentSoftwareVersion,
 			Protocol:        p2pooltypes.SupportedProtocolVersion,
 		},
-		ctx:  ctx,
-		bans: make(map[[16]byte]uint64),
+		useIPv4: useIPv4,
+		useIPv6: useIPv6,
+		ctx:     ctx,
+		bans:    make(map[[16]byte]uint64),
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
@@ -132,11 +137,30 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 	return s, nil
 }
 
+func (s *Server) ListenPort() uint16 {
+	return s.listenAddress.Port()
+}
+
+func (s *Server) ExternalListenPort() uint16 {
+	if s.externalListenPort != 0 {
+		return s.externalListenPort
+	} else {
+		return s.listenAddress.Port()
+	}
+}
+
 func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
 	if addressPort.Addr().IsLoopback() {
 		return
 	}
 	addr := addressPort.Addr().Unmap()
+
+	if !s.useIPv4 && addr.Is4() {
+		return
+	} else if !s.useIPv6 && addr.Is6() {
+		return
+	}
+
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
 	if e := s.peerList.Get(addr); e == nil {
@@ -158,6 +182,12 @@ func (s *Server) UpdateInPeerList(addressPort netip.AddrPort) {
 		return
 	}
 	addr := addressPort.Addr().Unmap()
+
+	if !s.useIPv4 && addr.Is4() {
+		return
+	} else if !s.useIPv6 && addr.Is6() {
+		return
+	}
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
 	if e := s.peerList.Get(addr); e == nil {
@@ -173,10 +203,6 @@ func (s *Server) UpdateInPeerList(addressPort netip.AddrPort) {
 		e.FailedConnections.Store(0)
 		e.LastSeenTimestamp.Store(uint64(time.Now().Unix()))
 	}
-}
-
-func (s *Server) ListenPort() uint16 {
-	return s.externalListenPort
 }
 
 func (s *Server) PeerList() PeerList {
@@ -344,6 +370,11 @@ func (s *Server) UpdateClientConnections() {
 				}
 				e.LastSeenTimestamp.Store(uint64(p.LastSeen))
 				if !s.IsBanned(addr) {
+					if !s.useIPv4 && addr.Is4() {
+						continue
+					} else if !s.useIPv6 && addr.Is6() {
+						continue
+					}
 					s.moneroPeerList = append(s.moneroPeerList, e)
 				}
 			}
@@ -453,6 +484,14 @@ func (s *Server) Listen() (err error) {
 						if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
 							return errors.New("peer is already connected as " + clients[0].AddressPort.String())
 						}
+
+						addr := addrPort.Addr().Unmap()
+
+						if !s.useIPv4 && addr.Is4() {
+							return errors.New("peer is IPv4 but we do not allow it")
+						} else if !s.useIPv6 && addr.Is6() {
+							return errors.New("peer is IPv6 but we do not allow it")
+						}
 					}
 
 					return nil
@@ -501,6 +540,13 @@ func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
 }
 
 func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
+	addr := addrPort.Addr().Unmap()
+	if !s.useIPv4 && addr.Is4() {
+		return nil, errors.New("peer is IPv4 but we do not allow it")
+	} else if !s.useIPv6 && addr.Is6() {
+		return nil, errors.New("peer is IPv6 but we do not allow it")
+	}
+
 	if clients := s.GetAddressConnected(addrPort.Addr()); !addrPort.Addr().IsLoopback() && len(clients) != 0 {
 		return nil, errors.New("peer is already connected as " + clients[0].AddressPort.String())
 	}
