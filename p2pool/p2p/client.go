@@ -117,15 +117,17 @@ func (c *Client) BanError() error {
 	return c.banError
 }
 
+func (c *Client) SetError(err error) {
+	c.banErrorLock.Lock()
+	c.banErrorLock.Unlock()
+	if c.banError == nil {
+		c.banError = err
+	}
+}
+
 func (c *Client) Ban(duration time.Duration, err error) {
 
-	func() {
-		c.banErrorLock.Lock()
-		c.banErrorLock.Unlock()
-		if c.banError == nil {
-			c.banError = err
-		}
-	}()
+	c.SetError(err)
 	c.Owner.Ban(c.AddressPort.Addr(), duration, err)
 	c.Owner.RemoveFromPeerList(c.AddressPort.Addr())
 	c.Close()
@@ -377,6 +379,8 @@ func (c *Client) OnConnection() {
 				}
 				return false, nil
 			}(); ok {
+				c.HandshakeComplete.Store(true)
+				c.SetError(errors.New("already connected"))
 				//same peer
 				log.Printf("[P2PClient] Connected to other same peer: %s (%d) is also %s (%d)", c.AddressPort, c.PeerId.Load(), otherClient.AddressPort, otherClient.PeerId.Load())
 				c.Close()
