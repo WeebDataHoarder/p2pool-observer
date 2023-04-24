@@ -185,12 +185,10 @@ func main() {
 	var listenerLock sync.RWMutex
 	var listenerIdCounter atomic.Uint64
 	type listener struct {
-		ListenerId    uint64
-		SideBlock     func(buf []byte)
-		FoundBlock    func(buf []byte)
-		OrphanedBlock func(buf []byte)
-		Context       context.Context
-		Cancel        func()
+		ListenerId uint64
+		Write      func(buf []byte)
+		Context    context.Context
+		Cancel     func()
 	}
 	var listeners []*listener
 
@@ -223,18 +221,10 @@ func main() {
 				defer listenerLock.Unlock()
 				listeners = append(listeners, &listener{
 					ListenerId: listenerId,
-					SideBlock: func(buf []byte) {
-						if c.Write(ctx, websocket.MessageText, buf) != nil {
-							cancel()
-						}
-					},
-					FoundBlock: func(buf []byte) {
-						if c.Write(ctx, websocket.MessageText, buf) != nil {
-							cancel()
-						}
-					},
-					OrphanedBlock: func(buf []byte) {
-						if c.Write(ctx, websocket.MessageText, buf) != nil {
+					Write: func(buf []byte) {
+						ctx2, cancel2 := context.WithTimeout(ctx, time.Second*5)
+						defer cancel2()
+						if c.Write(ctx2, websocket.MessageText, buf) != nil {
 							cancel()
 						}
 					},
@@ -455,13 +445,10 @@ func main() {
 						continue
 					}
 					for _, l := range listeners {
-						if l.SideBlock == nil {
-							continue
-						}
 						select {
 						case <-l.Context.Done():
 						default:
-							l.SideBlock(buf)
+							l.Write(buf)
 						}
 					}
 				}
@@ -551,13 +538,10 @@ func main() {
 						continue
 					}
 					for _, l := range listeners {
-						if l.OrphanedBlock == nil {
-							continue
-						}
 						select {
 						case <-l.Context.Done():
 						default:
-							l.OrphanedBlock(buf)
+							l.Write(buf)
 						}
 					}
 				}
@@ -576,13 +560,10 @@ func main() {
 						continue
 					}
 					for _, l := range listeners {
-						if l.FoundBlock == nil {
-							continue
-						}
 						select {
 						case <-l.Context.Done():
 						default:
-							l.FoundBlock(buf)
+							l.Write(buf)
 						}
 					}
 				}
