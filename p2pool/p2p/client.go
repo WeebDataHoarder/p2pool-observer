@@ -136,6 +136,7 @@ func (c *Client) Ban(duration time.Duration, err error) {
 func (c *Client) OnAfterHandshake() {
 	c.SendListenPort()
 	c.SendBlockRequest(types.ZeroHash)
+	log.Printf("[P2PClient] Peer %s after handshake complete: sent LISTEN_PORT + tip BLOCK_REQUEST", c.AddressPort.String())
 
 	c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 }
@@ -466,6 +467,7 @@ func (c *Client) OnConnection() {
 			var block *sidechain.PoolBlock
 			//if empty, return chain tip
 			if templateId == types.ZeroHash {
+				log.Printf("[P2PClient] Peer %s requested tip", c.AddressPort.String())
 				// Don't return stale chain tip
 				if block = c.Owner.SideChain().GetChainTip(); block != nil && (block.Main.Coinbase.GenHeight+2) < c.Owner.MainChain().GetMinerDataTip().Height {
 					block = nil
@@ -520,7 +522,9 @@ func (c *Client) OnConnection() {
 							return
 						}
 
-						c.SendPeerListRequest()
+						if time.Now().Unix() >= int64(c.NextOutgoingPeerListRequestTimestamp.Load()) {
+							c.SendPeerListRequest()
+						}
 					}
 					if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 						if ban {
