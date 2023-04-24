@@ -46,17 +46,13 @@ func GetOutboundIPv6() ([]netip.Addr, error) {
 
 			var mngTmpAddr []netip.Addr
 			var noPrefixRouteAddr []netip.Addr
+			var dhcpv6Addr []netip.Addr
 			var tmpAddr []netip.Addr
 
 			for _, a := range addrs {
 				if addr, ok := netip.AddrFromSlice(a.IP); ok && addr.Is6() && !addr.Is4In6() {
 					//Filter undesired addresses
 					if addr.IsUnspecified() || addr.IsLoopback() || addr.IsLinkLocalMulticast() || addr.IsLinkLocalUnicast() || addr.IsInterfaceLocalMulticast() {
-						continue
-					}
-
-					//Filter generated privacy addresses directly
-					if onesCount, _ := a.Mask.Size(); onesCount == 128 {
 						continue
 					}
 
@@ -67,6 +63,13 @@ func GetOutboundIPv6() ([]netip.Addr, error) {
 					if (a.Flags & FlagTemporary) > 0 {
 						continue
 					}
+
+					//This is probably an address given by DHCPv6
+					if onesCount, _ := a.Mask.Size(); onesCount == 128 {
+						dhcpv6Addr = append(dhcpv6Addr, netip.MustParseAddr(a.IP.String()))
+						continue
+					}
+
 					if (a.Flags & FlagManageTempAddress) > 0 {
 						mngTmpAddr = append(mngTmpAddr, netip.MustParseAddr(a.IP.String()))
 					}
@@ -81,6 +84,8 @@ func GetOutboundIPv6() ([]netip.Addr, error) {
 				addresses = append(addresses, mngTmpAddr...)
 			} else if len(noPrefixRouteAddr) > 0 {
 				addresses = append(addresses, noPrefixRouteAddr...)
+			} else if len(dhcpv6Addr) > 0 {
+				addresses = append(addresses, dhcpv6Addr...)
 			} else {
 				addresses = append(addresses, tmpAddr...)
 			}
