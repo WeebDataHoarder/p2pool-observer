@@ -589,7 +589,7 @@ func (c *Client) OnConnection() {
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 			c.LastKnownTip.Store(block)
-			log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
+			//log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
@@ -843,10 +843,6 @@ func (c *Client) OnConnection() {
 				log.Printf("[P2PClient] Peer %s: received InternalMessageFastTemplateHeaderSyncResponse with size %d", c.AddressPort, hashLen)
 				var hash types.Hash
 				clients := c.Owner.Clients()
-				for len(clients) < 64 {
-					clients = c.Owner.Clients()
-					time.Sleep(time.Second * 1)
-				}
 				for i := uint64(0); i < hashLen; i++ {
 					if err := binary.Read(reader, binary.LittleEndian, &hash); err != nil {
 						c.Ban(DefaultBanTime, err)
