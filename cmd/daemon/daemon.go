@@ -469,9 +469,11 @@ func main() {
 				minerData := p2api.MinerData()
 				mainTip := indexDb.GetMainBlockTip()
 				for _, mainId := range foundBlockIdBuffer.Slice() {
-					if indexDb.GetMainBlockById(mainId) == nil {
+					if mainId != types.ZeroHash && indexDb.GetMainBlockById(mainId) == nil {
 						//unfound
-						unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, minerData, indexDb.GetSideBlockByMainId(mainId)))
+						if b := indexDb.GetSideBlockByMainId(mainId); b != nil {
+							unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, minerData, indexDb.GetSideBlockByMainId(mainId)))
+						}
 					}
 				}
 				for _, b := range indexDb.GetFoundBlocks("", 5) {
