@@ -44,6 +44,10 @@ func GetOutboundIPv6() ([]netip.Addr, error) {
 				continue
 			}
 
+			var mngTmpAddr []netip.Addr
+			var noPrefixRouteAddr []netip.Addr
+			var tmpAddr []netip.Addr
+
 			for _, a := range addrs {
 				if addr, ok := netip.AddrFromSlice(a.IP); ok && addr.Is6() && !addr.Is4In6() {
 					//Filter undesired addresses
@@ -57,14 +61,28 @@ func GetOutboundIPv6() ([]netip.Addr, error) {
 					}
 
 					//Filter
-					if (a.Flags & FlagNoPrefixRoute) > 0 {
-						continue
-					}
 					if (a.Flags & FlagDeprecated) > 0 {
 						continue
 					}
-					addresses = append(addresses, netip.MustParseAddr(a.IP.String()))
+					if (a.Flags & FlagTemporary) > 0 {
+						continue
+					}
+					if (a.Flags & FlagManageTempAddress) > 0 {
+						mngTmpAddr = append(mngTmpAddr, netip.MustParseAddr(a.IP.String()))
+					}
+					if (a.Flags & FlagNoPrefixRoute) > 0 {
+						noPrefixRouteAddr = append(noPrefixRouteAddr, netip.MustParseAddr(a.IP.String()))
+					}
+					tmpAddr = append(tmpAddr, netip.MustParseAddr(a.IP.String()))
 				}
+			}
+
+			if len(mngTmpAddr) > 0 {
+				addresses = append(addresses, mngTmpAddr...)
+			} else if len(noPrefixRouteAddr) > 0 {
+				addresses = append(addresses, noPrefixRouteAddr...)
+			} else {
+				addresses = append(addresses, tmpAddr...)
 			}
 		}
 	}
