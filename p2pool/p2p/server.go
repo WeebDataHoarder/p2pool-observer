@@ -520,6 +520,10 @@ func (s *Server) Listen() (err error) {
 						} else if !s.useIPv6 && addr.Is6() {
 							return errors.New("peer is IPv6 but we do not allow it")
 						}
+
+						if s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()) {
+							return errors.New("banned")
+						}
 					}
 
 					return nil
@@ -532,10 +536,6 @@ func (s *Server) Listen() (err error) {
 				}
 
 				func() {
-					if s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()) {
-						log.Printf("[P2PServer] Connection from %s rejected (banned)", conn.RemoteAddr().String())
-						return
-					}
 					log.Printf("[P2PServer] Incoming connection from %s", conn.RemoteAddr().String())
 
 					s.clientsLock.Lock()
@@ -604,7 +604,7 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 		log.Printf("[P2PServer] Outgoing connection to %s", addrPort.String())
 	}
 
-	if conn, err := (&net.Dialer{Timeout: time.Second * 5, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
+	if conn, err := (&net.Dialer{Timeout: 0, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
 		s.PendingOutgoingConnections.Replace(addrPort.Addr().String(), "")
 		if p := s.PeerList().Get(addrPort.Addr()); p != nil {
