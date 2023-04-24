@@ -604,7 +604,7 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 		log.Printf("[P2PServer] Outgoing connection to %s", addrPort.String())
 	}
 
-	if conn, err := (&net.Dialer{Timeout: 0, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
+	if conn, err := (&net.Dialer{Timeout: time.Second * 5, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
 		s.NumOutgoingConnections.Add(-1)
 		s.PendingOutgoingConnections.Replace(addrPort.Addr().String(), "")
 		if p := s.PeerList().Get(addrPort.Addr()); p != nil {

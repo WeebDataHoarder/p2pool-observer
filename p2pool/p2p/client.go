@@ -475,9 +475,9 @@ func (c *Client) OnConnection() {
 			} else {
 				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
 				if block == nil {
-					log.Printf("[P2PClient] Peer %s tip requested id = %s, got nil", c.AddressPort.String(), templateId)
+					log.Printf("[P2PClient] Peer %s requested id = %s, got nil", c.AddressPort.String(), templateId)
 				} else {
-					log.Printf("[P2PClient] Peer %s tip requested id = %s, got height = %d, main height = %d", c.AddressPort.String(), templateId, block.Side.Height, block.Main.Coinbase.GenHeight)
+					log.Printf("[P2PClient] Peer %s requested id = %s, got height = %d, main height = %d", c.AddressPort.String(), templateId, block.Side.Height, block.Main.Coinbase.GenHeight)
 				}
 			}
 
@@ -500,6 +500,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, err)
 				return
 			} else if blockSize == 0 {
+				log.Printf("[P2PClient] Peer %s sent nil BLOCK_RESPONSE to id = %s", c.AddressPort.String(), expectedBlockId)
 				//NOT found
 				//TODO log
 				break
