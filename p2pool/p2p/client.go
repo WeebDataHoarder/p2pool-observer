@@ -589,6 +589,7 @@ func (c *Client) OnConnection() {
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 			c.LastKnownTip.Store(block)
+			log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
