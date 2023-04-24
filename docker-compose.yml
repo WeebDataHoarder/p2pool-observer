@@ -39,6 +39,7 @@ services:
     depends_on:
       - api
       - web
+      - daemon
     tmpfs:
       - /run
       - /var/cache/nginx

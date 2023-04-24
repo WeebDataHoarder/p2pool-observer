@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"golang.org/x/exp/slices"
 	"sync"
 	"sync/atomic"
 )
@@ -50,10 +51,8 @@ func (b *CircularBuffer[T]) PushUnique(value T) bool {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	for _, v := range b.buffer {
-		if value == v {
-			return false
-		}
+	if slices.Contains(b.buffer, value) {
+		return false
 	}
 
 	b.buffer[b.index.Add(1)%uint32(len(b.buffer))] = value
@@ -64,13 +63,8 @@ func (b *CircularBuffer[T]) PushUnique(value T) bool {
 func (b *CircularBuffer[T]) Exists(value T) bool {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
-	for _, v := range b.buffer {
-		if value == v {
-			return true
-		}
-	}
 
-	return false
+	return slices.Contains(b.buffer, value)
 }
 
 func (b *CircularBuffer[T]) Slice() []T {
