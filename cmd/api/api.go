@@ -123,7 +123,7 @@ func main() {
 				}
 			}
 			if fillUncles {
-				for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
+				for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
 					sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
 						TemplateId: u.TemplateId,
 						Miner:      u.Miner,
@@ -1261,6 +1261,68 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks)))
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/main_block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
+
+		var block *index.MainBlock
+		if mux.Vars(request)["by"] == "id" {
+			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
+				if b := indexDb.GetMainBlockById(id); b != nil {
+					block = b
+				}
+			}
+		} else if mux.Vars(request)["by"] == "height" {
+			if height, err := strconv.ParseUint(mux.Vars(request)["block"], 10, 0); err == nil {
+				if b := indexDb.GetMainBlockByHeight(height); b != nil {
+					block = b
+				}
+			}
+		}
+
+		if block == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := json.Marshal(struct {
+				Error string `json:"error"`
+			}{
+				Error: "not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, block)
+		_, _ = writer.Write(buf)
+	})
+
+	serveMux.HandleFunc("/api/main_difficulty_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
+
+		var difficulty types.Difficulty
+		if mux.Vars(request)["by"] == "id" {
+			if id, err := types.HashFromString(mux.Vars(request)["block"]); err == nil {
+				if b := indexDb.GetMainBlockById(id); b != nil {
+					difficulty = types.DifficultyFrom64(b.Difficulty)
+				} else if header := p2api.MainHeaderById(id); header != nil && !header.Difficulty.IsZero() {
+					difficulty = header.Difficulty
+				}
+			}
+		} else if mux.Vars(request)["by"] == "height" {
+			if height, err := strconv.ParseUint(mux.Vars(request)["block"], 10, 0); err == nil {
+				if b := indexDb.GetMainBlockByHeight(height); b != nil {
+					difficulty = types.DifficultyFrom64(b.Difficulty)
+				} else if diff := p2api.MainDifficultyByHeight(height); !diff.IsZero() {
+					difficulty = diff
+				}
+			}
+		}
+
+		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		writer.WriteHeader(http.StatusOK)
+		buf, _ := encodeJson(request, difficulty)
 		_, _ = writer.Write(buf)
 	})
 

@@ -547,7 +547,7 @@ func (i *Index) GetSideBlocksByTemplateId(id types.Hash) chan *SideBlock {
 	return i.GetSideBlocksByQuery("WHERE template_id = $1;", id[:])
 }
 
-func (i *Index) GetSideBlocksByUncleId(id types.Hash) chan *SideBlock {
+func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) chan *SideBlock {
 	return i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByUncleId, id[:])
 }
 

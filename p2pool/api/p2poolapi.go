@@ -417,6 +417,26 @@ func (p *P2PoolApi) MainTip() *block.Header {
 	}
 }
 
+func (p *P2PoolApi) MainHeaderById(id types.Hash) *block.Header {
+	if response, err := p.Client.Get(p.Host + "/mainchain/header_by_id/" + id.String()); err != nil {
+		return nil
+	} else {
+		defer response.Body.Close()
+
+		if buf, err := io.ReadAll(response.Body); err != nil {
+			return nil
+		} else {
+			var result block.Header
+
+			if err = json.Unmarshal(buf, &result); err != nil {
+				return nil
+			}
+
+			return &result
+		}
+	}
+}
+
 func (p *P2PoolApi) MainHeaderByHeight(height uint64) *block.Header {
 	if response, err := p.Client.Get(p.Host + "/mainchain/header_by_height/" + strconv.FormatUint(height, 10)); err != nil {
 		return nil

@@ -115,6 +115,9 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 					}
 					return
 				} else {
+					//Needs to be added regardless - for other consumers
+					curEntry.Uncles = append(curEntry.Uncles, uncle)
+
 					// Skip uncles which are already out of PPLNS window
 					if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
 						continue
@@ -134,7 +137,6 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 					if addWeightFunc != nil {
 						addWeightFunc(uncle, uncleWeight)
 					}
-					curEntry.Uncles = append(curEntry.Uncles, uncle)
 
 					pplnsWeight = newPplnsWeight
 				}

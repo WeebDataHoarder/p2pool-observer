@@ -322,7 +322,7 @@ func main() {
 			break
 		}
 		sideBlockIdBuffer.PushUnique(cur.TemplateId)
-		for u := range indexDb.GetSideBlocksByUncleId(cur.TemplateId) {
+		for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
 			sideBlockIdBuffer.PushUnique(u.TemplateId)
 		}
 	}
@@ -366,7 +366,7 @@ func main() {
 			}
 		}
 
-		for u := range indexDb.GetSideBlocksByUncleId(sideBlock.TemplateId) {
+		for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
 			sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
 				TemplateId: u.TemplateId,
 				Miner:      u.Miner,
@@ -396,7 +396,7 @@ func main() {
 						break
 					}
 					var pushedNew bool
-					for u := range indexDb.GetSideBlocksByUncleId(cur.TemplateId) {
+					for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
 						if sideBlockIdBuffer.PushUnique(u.TemplateId) {
 							//first time seen
 							pushedNew = true
