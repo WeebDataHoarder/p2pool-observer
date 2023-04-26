@@ -32,8 +32,8 @@ func (i *PeerVersionInformation) SupportsFeature(feature ProtocolFeature) bool {
 	switch feature {
 	case FeatureCompactBroadcast:
 		return i.Protocol >= ProtocolVersion_1_1
-	case InternalFeatureFastTemplateHeaderSync:
-		return i.Protocol >= ProtocolVersion_1_1 && i.SoftwareId == SoftwareIdGoObserver && i.SoftwareVersion.Major() == 1 && i.SoftwareVersion >= ((1<<16)|1)
+	/*case InternalFeatureFastTemplateHeaderSync:
+		return i.Protocol >= ProtocolVersion_1_1 && i.SoftwareId == SoftwareIdGoObserver && i.SoftwareVersion.Major() == 1 && i.SoftwareVersion >= ((1<<16)|1)*/
 	default:
 		return false
 	}
@@ -87,7 +87,7 @@ func (v SoftwareVersion) String() string {
 }
 
 const SupportedProtocolVersion = ProtocolVersion_1_1
-const CurrentSoftwareVersion SoftwareVersion = (1 << 16) | 1
+const CurrentSoftwareVersion SoftwareVersion = (2 << 16) | 0
 const CurrentSoftwareId = SoftwareIdGoObserver
 
 type SoftwareId uint32
