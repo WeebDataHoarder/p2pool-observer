@@ -234,7 +234,8 @@ func main() {
 				log.Printf("[WS] Client %d attached", listenerId)
 			}()
 			defer c.Close(websocket.StatusInternalError, "closing")
-			//TODO: read only
+
+			c.CloseRead(context.Background())
 			select {
 			case <-ctx.Done():
 				//wait
