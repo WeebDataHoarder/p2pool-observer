@@ -269,7 +269,7 @@ func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed 
 	}
 }
 
-func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc) types.Difficulty {
+func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc) (difficulty types.Difficulty, verifyError, invalidError error) {
 	difficultyData := make([]DifficultyData, 0, consensus.ChainWindowSize*2)
 	cur := tip
 	var blockDepth uint64
@@ -281,7 +281,7 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := getByTemplateId(uncleId); uncle == nil {
 				//cannot find uncles
-				return types.ZeroDifficulty
+				return types.ZeroDifficulty, fmt.Errorf("could not find uncle %s", uncleId), nil
 			} else {
 				// Skip uncles which are already out of PPLNS window
 				if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
@@ -304,10 +304,11 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 			break
 		}
 
-		cur = getByTemplateId(cur.Side.Parent)
+		parentId := cur.Side.Parent
+		cur = getByTemplateId(parentId)
 
 		if cur == nil {
-			return types.ZeroDifficulty
+			return types.ZeroDifficulty, fmt.Errorf("could not find parent %s", parentId), nil
 		}
 	}
 
@@ -361,7 +362,7 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	if curDifficulty.Cmp64(consensus.MinimumDifficulty) < 0 {
 		curDifficulty = types.DifficultyFrom64(consensus.MinimumDifficulty)
 	}
-	return curDifficulty
+	return curDifficulty, nil, nil
 }
 
 func SplitReward(reward uint64, shares Shares) (rewards []uint64) {

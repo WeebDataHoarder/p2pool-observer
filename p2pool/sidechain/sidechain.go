@@ -514,7 +514,9 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 		if parent == c.GetChainTip() {
 			// built on top of the current chain tip, using current difficulty for verification
 			diff = c.Difficulty()
-		} else if diff = c.getDifficulty(parent); diff == types.ZeroDifficulty {
+		} else if diff, verification, invalid = c.getDifficulty(parent); verification != nil || invalid != nil {
+			return verification, invalid
+		} else if diff == types.ZeroDifficulty {
 			return nil, errors.New("could not get difficulty")
 		}
 		if diff != block.Side.Difficulty {
@@ -644,7 +646,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 	}
 
 	if isLongerChain, isAlternative := c.isLongerChain(tip, block); isLongerChain {
-		if diff := c.getDifficulty(block); diff != types.ZeroDifficulty {
+		if diff, _, _ := c.getDifficulty(block); diff != types.ZeroDifficulty {
 			c.chainTip.Store(block)
 			c.currentDifficulty.Store(&diff)
 			//TODO log
@@ -773,13 +775,13 @@ type DifficultyData struct {
 	Timestamp            uint64
 }
 
-func (c *SideChain) GetDifficulty(tip *PoolBlock) types.Difficulty {
+func (c *SideChain) GetDifficulty(tip *PoolBlock) (difficulty types.Difficulty, verifyError, invalidError error) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
 	return c.getDifficulty(tip)
 }
 
-func (c *SideChain) getDifficulty(tip *PoolBlock) types.Difficulty {
+func (c *SideChain) getDifficulty(tip *PoolBlock) (difficulty types.Difficulty, verifyError, invalidError error) {
 	return GetDifficulty(tip, c.Consensus(), c.getPoolBlockByTemplateId)
 }
 
