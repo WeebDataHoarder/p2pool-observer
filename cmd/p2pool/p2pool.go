@@ -281,7 +281,9 @@ func main() {
 
 		if err := instance.Run(); err != nil {
 			instance.Close(err)
-			instance.WaitUntilClosed()
+			if instance.Started() {
+				instance.WaitUntilClosed()
+			}
 			if closeError := instance.CloseError(); closeError != nil {
 				log.Panic(err)
 			} else {
