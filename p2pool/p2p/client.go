@@ -363,6 +363,8 @@ func (c *Client) OnConnection() {
 			}
 
 			if peerId == c.Owner.PeerId() {
+				c.HandshakeComplete.Store(true)
+				c.SetError(errors.New("connected to self"))
 				//tried to connect to self
 				c.Close()
 				return
