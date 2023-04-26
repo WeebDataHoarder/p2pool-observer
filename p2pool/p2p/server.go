@@ -556,6 +556,17 @@ func (s *Server) Listen() (err error) {
 	return nil
 }
 
+func (s *Server) GetAddressConnectedPrefix(prefix netip.Prefix) (result []*Client) {
+	s.clientsLock.RLock()
+	defer s.clientsLock.RUnlock()
+	for _, c := range s.clients {
+		if prefix.Contains(c.AddressPort.Addr()) {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
 func (s *Server) GetAddressConnected(addr netip.Addr) (result []*Client) {
 	s.clientsLock.RLock()
 	defer s.clientsLock.RUnlock()
@@ -651,9 +662,25 @@ func (s *Server) IsBanned(ip netip.Addr) bool {
 	if ip.IsLoopback() {
 		return false
 	}
+	ip = ip.Unmap()
+	var prefix netip.Prefix
+	if ip.Is6() {
+		//ban the /64
+		prefix, _ = ip.Prefix(64)
+	} else if ip.Is4() {
+		//ban only a single ip, /32
+		prefix, _ = ip.Prefix(32)
+	}
+
+	if !prefix.IsValid() {
+		return false
+	}
+
+	k := prefix.Addr().As16()
+
 	s.bansLock.RLock()
 	defer s.bansLock.RUnlock()
-	k := ip.Unmap().As16()
+
 	if t, ok := s.bans[k]; ok == false {
 		return false
 	} else if uint64(time.Now().Unix()) >= t {
@@ -672,11 +699,23 @@ func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 	go func() {
 		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 		if !ip.IsLoopback() {
-			s.bansLock.Lock()
-			defer s.bansLock.Unlock()
-			s.bans[ip.Unmap().As16()] = uint64(time.Now().Unix()) + uint64(duration.Seconds())
-			for _, c := range s.GetAddressConnected(ip) {
-				c.Close()
+			ip = ip.Unmap()
+			var prefix netip.Prefix
+			if ip.Is6() {
+				//ban the /64
+				prefix, _ = ip.Prefix(64)
+			} else if ip.Is4() {
+				//ban only a single ip, /32
+				prefix, _ = ip.Prefix(32)
+			}
+
+			if prefix.IsValid() {
+				s.bansLock.Lock()
+				defer s.bansLock.Unlock()
+				s.bans[prefix.Addr().As16()] = uint64(time.Now().Unix()) + uint64(duration.Seconds())
+				for _, c := range s.GetAddressConnectedPrefix(prefix) {
+					c.Close()
+				}
 			}
 		}
 	}()
