@@ -6,6 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"golang.org/x/exp/slices"
 )
 
 type GetByTemplateIdFunc func(h types.Hash) *SideBlock
@@ -61,7 +62,11 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 
 			for uncle := range getUnclesByTemplateId(cur.TemplateId) {
 				//Needs to be added regardless - for other consumers
-				curEntry.Uncles = append(curEntry.Uncles, uncle)
+				if !slices.ContainsFunc(curEntry.Uncles, func(sideBlock *SideBlock) bool {
+					return sideBlock.TemplateId == uncle.TemplateId
+				}) {
+					curEntry.Uncles = append(curEntry.Uncles, uncle)
+				}
 
 				// Skip uncles which are already out of PPLNS window
 				if (tip.SideHeight - uncle.SideHeight) >= consensus.ChainWindowSize {
@@ -69,18 +74,18 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 				}
 
 				// Take some % of uncle's weight into this share
-				unclePenalty := (uncle.Difficulty * consensus.UnclePenalty) / 100
-				uncleWeight := uncle.Difficulty - unclePenalty
-				newPplnsWeight := pplnsWeight.Add64(uncleWeight)
+				unclePenalty := types.DifficultyFrom64(uncle.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
+				uncleWeight := types.DifficultyFrom64(uncle.Difficulty).Sub(unclePenalty)
+				newPplnsWeight := pplnsWeight.Add(uncleWeight)
 
 				// Skip uncles that push PPLNS weight above the limit
 				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
 					continue
 				}
-				curWeight = curWeight.Add64(unclePenalty)
+				curWeight = curWeight.Add(unclePenalty)
 
 				if addWeightFunc != nil {
-					addWeightFunc(uncle, types.DifficultyFrom64(uncleWeight))
+					addWeightFunc(uncle, uncleWeight)
 				}
 
 				pplnsWeight = newPplnsWeight

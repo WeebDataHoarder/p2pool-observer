@@ -591,7 +591,7 @@ func (i *Index) GetSideBlockTip() *SideBlock {
 }
 
 func (i *Index) GetSideBlocksInPPLNSWindow(tip *SideBlock) chan *SideBlock {
-	return i.GetSideBlocksByQuery("WHERE effective_height <= $1 AND effective_height > $2 AND inclusion = $3 ORDER BY effective_height DESC, side_height DESC;", tip.SideHeight, tip.SideHeight-uint64(tip.WindowDepth), InclusionInVerifiedChain)
+	return i.GetSideBlocksInWindow(tip.SideHeight, uint64(tip.WindowDepth))
 }
 
 func (i *Index) GetSideBlocksInWindow(startHeight, windowSize uint64) chan *SideBlock {
