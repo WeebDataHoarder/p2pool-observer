@@ -474,6 +474,7 @@ func main() {
 						//unfound
 						if b := indexDb.GetSideBlockByMainId(mainId); b != nil {
 							unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, minerData, indexDb.GetSideBlockByMainId(mainId)))
+							foundBlockIdBuffer.Replace(mainId, types.ZeroHash)
 						}
 					}
 				}
@@ -551,6 +552,8 @@ func main() {
 				for _, b := range blocksToReport {
 					coinbaseOutputs := fillMainCoinbaseOutputs(indexDb.GetMainCoinbaseOutputs(b.MainBlock.CoinbaseId))
 					if len(coinbaseOutputs) == 0 {
+						//report next time
+						foundBlockIdBuffer.Replace(b.MainBlock.Id, types.ZeroHash)
 						continue
 					}
 					buf, err := json.Marshal(&utils2.JSONEvent{
