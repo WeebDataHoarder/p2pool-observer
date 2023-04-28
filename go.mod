@@ -14,12 +14,12 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.2
 	github.com/jxskiss/base62 v1.1.0
-	github.com/lib/pq v1.10.8
+	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.1
 	github.com/tyler-sommer/stick v1.0.6
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.8.0
-	golang.org/x/exp v0.0.0-20230420155640-133eef4313cb
+	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
 	golang.org/x/net v0.9.0
 	golang.org/x/sys v0.7.0
 	lukechampine.com/uint128 v1.3.0
