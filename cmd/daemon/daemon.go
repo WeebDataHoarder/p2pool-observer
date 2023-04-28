@@ -327,9 +327,12 @@ func main() {
 			sideBlockIdBuffer.PushUnique(u.TemplateId)
 		}
 	}
+	sideBlockIdBuffer.Reverse()
+
 	for _, b := range indexDb.GetFoundBlocks("", 5) {
 		foundBlockIdBuffer.PushUnique(b.MainBlock.Id)
 	}
+	foundBlockIdBuffer.Reverse()
 
 	fillMainCoinbaseOutputs := func(outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
 		result = make(index.MainCoinbaseOutputs, 0, len(outputs))

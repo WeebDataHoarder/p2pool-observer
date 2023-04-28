@@ -60,6 +60,15 @@ func (b *CircularBuffer[T]) PushUnique(value T) bool {
 	return true
 }
 
+func (b *CircularBuffer[T]) Reverse() {
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	for i, j := 0, len(b.buffer)-1; i < j; i, j = i+1, j-1 {
+		b.buffer[i], b.buffer[j] = b.buffer[j], b.buffer[i]
+	}
+}
+
 func (b *CircularBuffer[T]) Exists(value T) bool {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
