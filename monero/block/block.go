@@ -311,13 +311,7 @@ func (b *Block) Difficulty(f GetDifficultyByHeightFunc) types.Difficulty {
 	return f(b.Coinbase.GenHeight)
 }
 
-func (b *Block) PowHash(f GetSeedByHeightFunc) types.Hash {
-	//cached by sidechain.Share
-	h, _ := b.PowHashWithError(f)
-	return h
-}
-
-func (b *Block) PowHashWithError(f GetSeedByHeightFunc) (types.Hash, error) {
+func (b *Block) PowHashWithError(hasher randomx.Hasher, f GetSeedByHeightFunc) (types.Hash, error) {
 	//not cached
 	if seed := f(b.Coinbase.GenHeight); seed == types.ZeroHash {
 		return types.ZeroHash, errors.New("could not get seed")
@@ -331,8 +325,6 @@ func (b *Block) Id() types.Hash {
 	buf := b.HashingBlob()
 	return crypto.PooledKeccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf)
 }
-
-var hasher = randomx.NewRandomX()
 
 func keccakl(hasher hash.Hash, dst []byte, data []byte, len int) {
 	hasher.Reset()

@@ -643,7 +643,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				newBlock.Main.Nonce = b.Main.Nonce
 				newBlock.Depth.Store(math.MaxUint64)
 
-				if !newBlock.IsProofHigherThanDifficulty(func(height uint64) (hash types.Hash) {
+				if !newBlock.IsProofHigherThanDifficulty(instance.Consensus().GetHasher(), func(height uint64) (hash types.Hash) {
 					seedHeight := randomx.SeedHeight(height)
 					if h := instance.GetMinimalBlockHeaderByHeight(seedHeight); h != nil {
 						return h.Id

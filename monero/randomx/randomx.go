@@ -6,6 +6,9 @@ import (
 
 type Hasher interface {
 	Hash(key []byte, input []byte) (types.Hash, error)
+	OptionFlags(flags ...Flag) error
+	OptionNumberOfCachedStates(n int) error
+	Close()
 }
 
 func SeedHeights(height uint64) (seedHeight, nextHeight uint64) {
@@ -19,6 +22,14 @@ func SeedHeight(height uint64) uint64 {
 
 	return (height - SeedHashEpochLag - 1) & (^uint64(SeedHashEpochBlocks - 1))
 }
+
+type Flag int
+
+const (
+	FlagLargePages Flag = 1 << iota
+	FlagFullMemory
+	FlagSecure
+)
 
 const (
 	SeedHashEpochLag    = 64

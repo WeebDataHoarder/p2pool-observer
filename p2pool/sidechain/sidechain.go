@@ -208,16 +208,16 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		//TODO warn unknown block, reorg
 	}
 
-	if _, err := block.PowHashWithError(c.getSeedByHeightFunc()); err != nil {
+	if _, err := block.PowHashWithError(c.Consensus().GetHasher(), c.getSeedByHeightFunc()); err != nil {
 		return nil, err, false
 	} else {
-		if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
+		if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.Consensus().GetHasher(), c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
 			log.Printf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
 		} else if isHigherMainChain {
 			log.Printf("[SideChain]: add_external_block: block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
 			c.server.SubmitBlock(&block.Main)
 		}
-		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.getSeedByHeightFunc()); err != nil {
+		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.Consensus().GetHasher(), c.getSeedByHeightFunc()); err != nil {
 			return nil, err, true
 		} else if !isHigher {
 			return nil, fmt.Errorf("not enough PoW for id %s, height = %d, mainchain height %d", templateId.String(), block.Side.Height, block.Main.Coinbase.GenHeight), true

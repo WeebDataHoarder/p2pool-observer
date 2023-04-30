@@ -29,7 +29,6 @@ func main() {
 
 	flag.Parse()
 
-	randomx.UseFullMemory.Store(true)
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 	client.GetDefaultClient().SetThrottle(1000)
 
@@ -37,6 +36,9 @@ func main() {
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
+		log.Panic(err)
+	}
+	if err = consensus.InitHasher(2, randomx.FlagSecure, randomx.FlagFullMemory); err != nil {
 		log.Panic(err)
 	}
 

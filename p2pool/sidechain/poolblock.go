@@ -9,6 +9,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -393,12 +394,12 @@ func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 	}
 }
 
-func (b *PoolBlock) PowHash(f mainblock.GetSeedByHeightFunc) types.Hash {
-	h, _ := b.PowHashWithError(f)
+func (b *PoolBlock) PowHash(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) types.Hash {
+	h, _ := b.PowHashWithError(hasher, f)
 	return h
 }
 
-func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash types.Hash, err error) {
+func (b *PoolBlock) PowHashWithError(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) (powHash types.Hash, err error) {
 	if hash, ok := func() (types.Hash, bool) {
 		b.cache.lock.RLock()
 		defer b.cache.lock.RUnlock()
@@ -413,7 +414,7 @@ func (b *PoolBlock) PowHashWithError(f mainblock.GetSeedByHeightFunc) (powHash t
 		b.cache.lock.Lock()
 		defer b.cache.lock.Unlock()
 		if b.cache.powHash == types.ZeroHash { //check again for race
-			b.cache.powHash, err = b.Main.PowHashWithError(f)
+			b.cache.powHash, err = b.Main.PowHashWithError(hasher, f)
 		}
 		return b.cache.powHash, err
 	}
@@ -598,28 +599,28 @@ func (b *PoolBlock) FillPrivateKeys(derivationCache DerivationCacheInterface) {
 	}
 }
 
-func (b *PoolBlock) IsProofHigherThanMainDifficulty(difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) bool {
-	r, _ := b.IsProofHigherThanMainDifficultyWithError(difficultyFunc, seedFunc)
+func (b *PoolBlock) IsProofHigherThanMainDifficulty(hasher randomx.Hasher, difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) bool {
+	r, _ := b.IsProofHigherThanMainDifficultyWithError(hasher, difficultyFunc, seedFunc)
 	return r
 }
 
-func (b *PoolBlock) IsProofHigherThanMainDifficultyWithError(difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) (bool, error) {
+func (b *PoolBlock) IsProofHigherThanMainDifficultyWithError(hasher randomx.Hasher, difficultyFunc mainblock.GetDifficultyByHeightFunc, seedFunc mainblock.GetSeedByHeightFunc) (bool, error) {
 	if mainDifficulty := b.MainDifficulty(difficultyFunc); mainDifficulty == types.ZeroDifficulty {
 		return false, errors.New("could not get main difficulty")
-	} else if powHash, err := b.PowHashWithError(seedFunc); err != nil {
+	} else if powHash, err := b.PowHashWithError(hasher, seedFunc); err != nil {
 		return false, err
 	} else {
 		return mainDifficulty.CheckPoW(powHash), nil
 	}
 }
 
-func (b *PoolBlock) IsProofHigherThanDifficulty(f mainblock.GetSeedByHeightFunc) bool {
-	r, _ := b.IsProofHigherThanDifficultyWithError(f)
+func (b *PoolBlock) IsProofHigherThanDifficulty(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) bool {
+	r, _ := b.IsProofHigherThanDifficultyWithError(hasher, f)
 	return r
 }
 
-func (b *PoolBlock) IsProofHigherThanDifficultyWithError(f mainblock.GetSeedByHeightFunc) (bool, error) {
-	if powHash, err := b.PowHashWithError(f); err != nil {
+func (b *PoolBlock) IsProofHigherThanDifficultyWithError(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) (bool, error) {
+	if powHash, err := b.PowHashWithError(hasher, f); err != nil {
 		return false, err
 	} else {
 		return b.Side.Difficulty.CheckPoW(powHash), nil

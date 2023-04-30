@@ -81,6 +81,8 @@ type Consensus struct {
 	// HardFork optional hardfork information for p2pool
 	HardForks []HardFork `json:"hard_forks,omitempty"`
 
+	hasher randomx.Hasher
+
 	id types.Hash
 }
 
@@ -209,6 +211,25 @@ func (c *Consensus) SeedNode() string {
 		return "seeds.p2pool.io"
 	}
 	return ""
+}
+
+func (c *Consensus) InitHasher(n int, flags ...randomx.Flag) error {
+	if c.hasher != nil {
+		c.hasher.Close()
+	}
+	var err error
+	c.hasher, err = randomx.NewRandomX(n, flags...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *Consensus) GetHasher() randomx.Hasher {
+	if c.hasher == nil {
+		log.Panic("hasher has not been initialized in consensus")
+	}
+	return c.hasher
 }
 
 func (c *Consensus) CalculateId() types.Hash {

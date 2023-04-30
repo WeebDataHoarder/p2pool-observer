@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
@@ -145,6 +146,17 @@ func (p *P2Pool) Close(err error) {
 }
 
 func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2Pool, error) {
+
+	if settings["full-mode"] == "true" {
+		if err := consensus.InitHasher(2, randomx.FlagSecure, randomx.FlagFullMemory); err != nil {
+			return nil, err
+		}
+	} else {
+		if err := consensus.InitHasher(2, randomx.FlagSecure); err != nil {
+			return nil, err
+		}
+	}
+
 	pool := &P2Pool{
 		consensus:             consensus,
 		recentSubmittedBlocks: utils.NewCircularBuffer[types.Hash](8),

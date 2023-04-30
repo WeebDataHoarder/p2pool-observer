@@ -37,7 +37,6 @@ func main() {
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
 	fullMode := flag.Bool("full-mode", false, "Allocate RandomX dataset, uses 2GB of RAM")
 	flag.Parse()
-	randomx.UseFullMemory.Store(*fullMode)
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 
@@ -49,6 +48,16 @@ func main() {
 	}
 
 	log.Printf("[CHAIN] Consensus id = %s\n", p2api.Consensus().Id())
+
+	if *fullMode {
+		if err := p2api.Consensus().InitHasher(1, randomx.FlagSecure, randomx.FlagFullMemory); err != nil {
+			log.Panic(err)
+		}
+	} else {
+		if err := p2api.Consensus().InitHasher(1, randomx.FlagSecure); err != nil {
+			log.Panic(err)
+		}
+	}
 
 	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {

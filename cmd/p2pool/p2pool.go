@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
@@ -75,8 +74,6 @@ func main() {
 		log.SetFlags(log.Flags() | log.Lshortfile)
 	}
 
-	randomx.UseFullMemory.Store(!*lightMode)
-
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 
 	debug.SetTraceback("all")
@@ -129,6 +126,10 @@ func main() {
 
 	if *createArchive != "" {
 		settings["archive"] = *createArchive
+	}
+
+	if !*lightMode {
+		settings["full-mode"] = "true"
 	}
 
 	if instance, err := p2poolinstance.NewP2Pool(currentConsensus, settings); err != nil {

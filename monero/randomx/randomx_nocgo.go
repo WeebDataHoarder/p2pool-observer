@@ -10,13 +10,13 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 )
 
 type hasher struct {
 	cache *randomx.Randomx_Cache
 	lock  sync.Mutex
+	flags []Flag
 
 	key []byte
 	vm  *randomx.VM
@@ -53,12 +53,18 @@ func ConsensusHash(buf []byte) types.Hash {
 	return crypto.Keccak256(scratchpadTopPtr)
 }
 
-var UseFullMemory atomic.Bool
+func (h *hasher) OptionFlags(flags ...Flag) error {
+	return nil
+}
+func (h *hasher) OptionNumberOfCachedStates(n int) error {
+	return nil
+}
 
-func NewRandomX() Hasher {
+func NewRandomX(n int, flags ...Flag) (Hasher, error) {
 	return &hasher{
+		flags: flags,
 		cache: randomx.Randomx_alloc_cache(0),
-	}
+	}, nil
 }
 
 func (h *hasher) Hash(key []byte, input []byte) (output types.Hash, err error) {

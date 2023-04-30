@@ -10,16 +10,17 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/randomx-go-bindings"
+	"golang.org/x/exp/slices"
 	"log"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 )
 
 type hasherCollection struct {
 	lock  sync.RWMutex
 	index int
+	flags []Flag
 	cache []*hasherState
 }
 
@@ -48,9 +49,40 @@ func (h *hasherCollection) Hash(key []byte, input []byte) (types.Hash, error) {
 	}
 }
 
+func (h *hasherCollection) initStates(size int) (err error) {
+	for _, c := range h.cache {
+		c.Close()
+	}
+	h.cache = make([]*hasherState, size)
+	for i := range h.cache {
+		if h.cache[i], err = newRandomXState(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *hasherCollection) OptionFlags(flags ...Flag) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	if slices.Compare(h.flags, flags) != 0 {
+		h.flags = flags
+		return h.initStates(len(h.cache))
+	}
+	return nil
+}
+func (h *hasherCollection) OptionNumberOfCachedStates(n int) error {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	if len(h.cache) != n {
+		return h.initStates(n)
+	}
+	return nil
+}
+
 func (h *hasherCollection) Close() {
-	h.lock.RLock()
-	defer h.lock.RUnlock()
+	h.lock.Lock()
+	defer h.lock.Unlock()
 	for _, c := range h.cache {
 		c.Close()
 	}
@@ -60,16 +92,17 @@ type hasherState struct {
 	lock    sync.Mutex
 	dataset *randomx.RxDataset
 	vm      *randomx.RxVM
+	flags   randomx.Flag
 	key     []byte
 }
 
 func ConsensusHash(buf []byte) types.Hash {
-	dataset, err := randomx.AllocDataset(randomx.FlagDefault)
+	dataset, err := randomx.AllocDataset(randomx.GetFlags())
 	if err != nil {
 		return types.ZeroHash
 	}
 	defer randomx.ReleaseDataset(dataset)
-	cache, err := randomx.AllocCache(randomx.FlagDefault)
+	cache, err := randomx.AllocCache(randomx.GetFlags())
 	if err != nil {
 		return types.ZeroHash
 	}
@@ -101,27 +134,33 @@ func ConsensusHash(buf []byte) types.Hash {
 	return crypto.Keccak256(scratchpadTopPtr)
 }
 
-var UseFullMemory atomic.Bool
-
-func NewRandomX() Hasher {
+func NewRandomX(n int, flags ...Flag) (Hasher, error) {
 	collection := &hasherCollection{
-		cache: make([]*hasherState, 4),
+		flags: flags,
 	}
 
-	var err error
-
-	for i := range collection.cache {
-		if collection.cache[i], err = newRandomXState(); err != nil {
-			return nil
-		}
+	if err := collection.initStates(n); err != nil {
+		return nil, err
 	}
-	return collection
+	return collection, nil
 }
 
-func newRandomXState() (*hasherState, error) {
+func newRandomXState(flags ...Flag) (*hasherState, error) {
 
-	h := &hasherState{}
-	if dataset, err := randomx.NewRxDataset(randomx.FlagJIT); err != nil {
+	applyFlags := randomx.GetFlags()
+	for _, f := range flags {
+		if f == FlagLargePages {
+			applyFlags |= randomx.FlagLargePages
+		} else if f == FlagFullMemory {
+			applyFlags |= randomx.FlagFullMEM
+		} else if f == FlagSecure {
+			applyFlags |= randomx.FlagSecure
+		}
+	}
+	h := &hasherState{
+		flags: applyFlags,
+	}
+	if dataset, err := randomx.NewRxDataset(h.flags); err != nil {
 		return nil, err
 	} else {
 		h.dataset = dataset
@@ -144,15 +183,10 @@ func (h *hasherState) Init(key []byte) (err error) {
 		h.vm.Close()
 	}
 
-	if UseFullMemory.Load() {
-		if h.vm, err = randomx.NewRxVM(h.dataset, randomx.FlagFullMEM, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
-			return err
-		}
-	} else {
-		if h.vm, err = randomx.NewRxVM(h.dataset, randomx.FlagHardAES, randomx.FlagJIT, randomx.FlagSecure); err != nil {
-			return err
-		}
+	if h.vm, err = randomx.NewRxVM(h.dataset, h.flags); err != nil {
+		return err
 	}
+
 	log.Printf("[RandomX] Initialized to seed %s", hex.EncodeToString(h.key))
 
 	return nil
@@ -168,6 +202,8 @@ func (h *hasherState) Hash(input []byte) (output types.Hash) {
 }
 
 func (h *hasherState) Close() {
+	h.lock.Lock()
+	defer h.lock.Unlock()
 	if h.vm != nil {
 		h.vm.Close()
 	}

@@ -112,7 +112,7 @@ func (b *SideBlock) FromPoolBlock(i *Index, block *sidechain.PoolBlock, getSeedB
 	b.TransactionCount = uint32(len(block.Main.Transactions))
 	b.Difficulty = block.Side.Difficulty.Lo
 	b.CumulativeDifficulty = block.Side.CumulativeDifficulty
-	b.PowHash = block.PowHash(getSeedByHeight)
+	b.PowHash = block.PowHash(i.Consensus().GetHasher(), getSeedByHeight)
 	if b.PowHash == types.ZeroHash {
 		return errors.New("invalid pow hash")
 	}
