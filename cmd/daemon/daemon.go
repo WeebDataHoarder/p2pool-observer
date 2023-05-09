@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
@@ -13,13 +12,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
-	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"log"
-	"net/http"
-	"nhooyr.io/websocket"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +23,8 @@ import (
 func blockId(b *sidechain.PoolBlock) types.Hash {
 	return types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId))
 }
+
+var sideBlocksLock sync.RWMutex
 
 func main() {
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
@@ -187,77 +184,11 @@ func main() {
 		}
 	}
 
+	setupEventHandler(p2api, indexDb)
+
 	var doCheckOfOldBlocks atomic.Bool
 
 	doCheckOfOldBlocks.Store(true)
-
-	var listenerLock sync.RWMutex
-	var listenerIdCounter atomic.Uint64
-	type listener struct {
-		ListenerId uint64
-		Write      func(buf []byte)
-		Context    context.Context
-		Cancel     func()
-	}
-	var listeners []*listener
-
-	server := &http.Server{
-		Addr:        "0.0.0.0:8787",
-		ReadTimeout: time.Second * 2,
-		Handler: http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			requestTime := time.Now()
-			c, err := websocket.Accept(writer, request, nil)
-			if err != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
-				return
-			}
-			listenerId := listenerIdCounter.Add(1)
-			defer func() {
-				listenerLock.Lock()
-				defer listenerLock.Unlock()
-				if i := slices.IndexFunc(listeners, func(listener *listener) bool {
-					return listener.ListenerId == listenerId
-				}); i != -1 {
-					listeners = slices.Delete(listeners, i, i+1)
-				}
-				log.Printf("[WS] Client %d detached after %.02f seconds", listenerId, time.Now().Sub(requestTime).Seconds())
-			}()
-
-			ctx, cancel := context.WithCancel(request.Context())
-			defer cancel()
-			func() {
-				listenerLock.Lock()
-				defer listenerLock.Unlock()
-				listeners = append(listeners, &listener{
-					ListenerId: listenerId,
-					Write: func(buf []byte) {
-						ctx2, cancel2 := context.WithTimeout(ctx, time.Second*5)
-						defer cancel2()
-						if c.Write(ctx2, websocket.MessageText, buf) != nil {
-							cancel()
-						}
-					},
-					Context: ctx,
-					Cancel:  cancel,
-				})
-				log.Printf("[WS] Client %d attached", listenerId)
-			}()
-			defer c.Close(websocket.StatusInternalError, "closing")
-
-			c.CloseRead(context.Background())
-			select {
-			case <-ctx.Done():
-				//wait
-			}
-
-		}),
-	}
-
-	go func() {
-		if err := server.ListenAndServe(); err != nil {
-			log.Panic(err)
-		}
-	}()
 
 	go func() {
 		//do deep scan for any missed main headers or deep reorgs every once in a while
@@ -275,9 +206,13 @@ func main() {
 				if cur == nil {
 					break
 				}
-				if err := scanHeader(*cur); err != nil {
-					log.Panic(err)
-				}
+				go func() {
+					sideBlocksLock.Lock()
+					defer sideBlocksLock.Unlock()
+					if err := scanHeader(*cur); err != nil {
+						log.Panic(err)
+					}
+				}()
 			}
 		}
 	}()
@@ -321,275 +256,7 @@ func main() {
 		}
 	}()
 
-	//remember last few template ids for events
-	sideBlockIdBuffer := utils.NewCircularBuffer[types.Hash](int(p2api.Consensus().ChainWindowSize * 2))
-	//remember last few found main ids for events
-	foundBlockIdBuffer := utils.NewCircularBuffer[types.Hash](10)
-	//initialize
-	tip := indexDb.GetSideBlockTip()
-	for cur := tip; cur != nil; cur = indexDb.GetTipSideBlockByTemplateId(cur.ParentTemplateId) {
-		if (cur.EffectiveHeight + p2api.Consensus().ChainWindowSize) < tip.EffectiveHeight {
-			break
-		}
-		sideBlockIdBuffer.PushUnique(cur.TemplateId)
-		for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
-			sideBlockIdBuffer.PushUnique(u.TemplateId)
-		}
-	}
-	sideBlockIdBuffer.Reverse()
-
-	for _, b := range indexDb.GetFoundBlocks("", 5) {
-		foundBlockIdBuffer.PushUnique(b.MainBlock.Id)
-	}
-	foundBlockIdBuffer.Reverse()
-
-	fillMainCoinbaseOutputs := func(outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
-		result = make(index.MainCoinbaseOutputs, 0, len(outputs))
-		for _, output := range outputs {
-			miner := indexDb.GetMiner(output.Miner)
-			output.MinerAddress = miner.Address()
-			output.MinerAlias = miner.Alias()
-			result = append(result, output)
-		}
-		return result
-	}
-
-	fillFoundBlockResult := func(foundBlock *index.FoundBlock) *index.FoundBlock {
-		miner := indexDb.GetMiner(foundBlock.Miner)
-		foundBlock.MinerAddress = miner.Address()
-		foundBlock.MinerAlias = miner.Alias()
-		return foundBlock
-	}
-
-	fillSideBlockResult := func(mainTip *index.MainBlock, minerData *types2.MinerData, sideBlock *index.SideBlock) *index.SideBlock {
-
-		miner := indexDb.GetMiner(sideBlock.Miner)
-		sideBlock.MinerAddress = miner.Address()
-		sideBlock.MinerAlias = miner.Alias()
-
-		mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
-		if mainTipAtHeight != nil {
-			sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
-			sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
-		} else {
-			if minerData.Height == sideBlock.MainHeight {
-				sideBlock.MainDifficulty = minerData.Difficulty.Lo
-			} else if mainTip.Height == sideBlock.MainHeight {
-				sideBlock.MainDifficulty = mainTip.Difficulty
-			}
-		}
-
-		for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
-			sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
-				TemplateId: u.TemplateId,
-				Miner:      u.Miner,
-				SideHeight: u.SideHeight,
-				Difficulty: u.Difficulty,
-			})
-		}
-		return sideBlock
-
-	}
-
-	var sideBlocksLock sync.RWMutex
-	go func() {
-		var blocksToReport []*index.SideBlock
-		for range time.NewTicker(time.Second * 1).C {
-			//reuse
-			blocksToReport = blocksToReport[:0]
-
-			func() {
-				sideBlocksLock.RLock()
-				defer sideBlocksLock.RUnlock()
-				minerData := p2api.MinerData()
-				mainTip := indexDb.GetMainBlockTip()
-				tip := indexDb.GetSideBlockTip()
-				for cur := tip; cur != nil; cur = indexDb.GetTipSideBlockByTemplateId(cur.ParentTemplateId) {
-					if (cur.EffectiveHeight + p2api.Consensus().ChainWindowSize) < tip.EffectiveHeight {
-						break
-					}
-					var pushedNew bool
-					for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
-						if sideBlockIdBuffer.PushUnique(u.TemplateId) {
-							//first time seen
-							pushedNew = true
-							blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, minerData, u))
-						}
-					}
-					if sideBlockIdBuffer.PushUnique(cur.TemplateId) {
-						//first time seen
-						pushedNew = true
-						blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, minerData, cur))
-					}
-
-					if !pushedNew {
-						break
-					}
-				}
-			}()
-
-			//sort for proper order
-			slices.SortFunc(blocksToReport, func(a, b *index.SideBlock) bool {
-				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
-				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
-				}
-				if a.SideHeight < b.SideHeight {
-					return true
-				} else if a.SideHeight > b.SideHeight {
-					return false
-				}
-				//same height, sort by main id
-				return a.MainId.Compare(b.MainId) < 0
-			})
-
-			func() {
-				listenerLock.RLock()
-				defer listenerLock.RUnlock()
-				for _, b := range blocksToReport {
-					buf, err := json.Marshal(&utils2.JSONEvent{
-						Type:                utils2.JSONEventSideBlock,
-						SideBlock:           b,
-						FoundBlock:          nil,
-						MainCoinbaseOutputs: nil,
-					})
-					if err != nil {
-						continue
-					}
-					for _, l := range listeners {
-						select {
-						case <-l.Context.Done():
-						default:
-							l.Write(buf)
-						}
-					}
-				}
-			}()
-		}
-	}()
-
-	go func() {
-		var blocksToReport []*index.FoundBlock
-		var unfoundBlocksToReport []*index.SideBlock
-		for range time.NewTicker(time.Second * 1).C {
-			//reuse
-			blocksToReport = blocksToReport[:0]
-			unfoundBlocksToReport = unfoundBlocksToReport[:0]
-
-			func() {
-
-				minerData := p2api.MinerData()
-				mainTip := indexDb.GetMainBlockTip()
-				for _, mainId := range foundBlockIdBuffer.Slice() {
-					if mainId != types.ZeroHash && indexDb.GetMainBlockById(mainId) == nil {
-						//unfound
-						if b := indexDb.GetSideBlockByMainId(mainId); b != nil {
-							unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, minerData, indexDb.GetSideBlockByMainId(mainId)))
-							foundBlockIdBuffer.Replace(mainId, types.ZeroHash)
-						}
-					}
-				}
-				for _, b := range indexDb.GetFoundBlocks("", 5) {
-					if foundBlockIdBuffer.PushUnique(b.MainBlock.Id) {
-						//first time seen
-						blocksToReport = append(blocksToReport, fillFoundBlockResult(b))
-					}
-				}
-			}()
-
-			//sort for proper order
-			slices.SortFunc(blocksToReport, func(a, b *index.FoundBlock) bool {
-				if a.MainBlock.Height < b.MainBlock.Height {
-					return true
-				} else if a.MainBlock.Height > b.MainBlock.Height {
-					return false
-				}
-				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
-				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
-				}
-				if a.SideHeight < b.SideHeight {
-					return true
-				} else if a.SideHeight > b.SideHeight {
-					return false
-				}
-				//same height, sort by main id
-				return a.MainBlock.Id.Compare(b.MainBlock.Id) < 0
-			})
-
-			//sort for proper order
-			slices.SortFunc(unfoundBlocksToReport, func(a, b *index.SideBlock) bool {
-				if a.MainHeight < b.MainHeight {
-					return true
-				} else if a.MainHeight > b.MainHeight {
-					return false
-				}
-				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
-				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
-				}
-				if a.SideHeight < b.SideHeight {
-					return true
-				} else if a.SideHeight > b.SideHeight {
-					return false
-				}
-				//same height, sort by main id
-				return a.MainId.Compare(b.MainId) < 0
-			})
-
-			func() {
-				listenerLock.RLock()
-				defer listenerLock.RUnlock()
-				for _, b := range unfoundBlocksToReport {
-					buf, err := json.Marshal(&utils2.JSONEvent{
-						Type:                utils2.JSONEventOrphanedBlock,
-						SideBlock:           b,
-						FoundBlock:          nil,
-						MainCoinbaseOutputs: nil,
-					})
-					if err != nil {
-						continue
-					}
-					for _, l := range listeners {
-						select {
-						case <-l.Context.Done():
-						default:
-							l.Write(buf)
-						}
-					}
-				}
-				for _, b := range blocksToReport {
-					coinbaseOutputs := fillMainCoinbaseOutputs(indexDb.GetMainCoinbaseOutputs(b.MainBlock.CoinbaseId))
-					if len(coinbaseOutputs) == 0 {
-						//report next time
-						foundBlockIdBuffer.Replace(b.MainBlock.Id, types.ZeroHash)
-						continue
-					}
-					buf, err := json.Marshal(&utils2.JSONEvent{
-						Type:                utils2.JSONEventFoundBlock,
-						SideBlock:           nil,
-						FoundBlock:          b,
-						MainCoinbaseOutputs: coinbaseOutputs,
-					})
-					if err != nil {
-						continue
-					}
-					for _, l := range listeners {
-						select {
-						case <-l.Context.Done():
-						default:
-							l.Write(buf)
-						}
-					}
-				}
-			}()
-		}
-	}()
-
-	for {
+	for range time.NewTicker(time.Second * 1).C {
 		currentTip := indexDb.GetSideBlockTip()
 		currentMainTip := indexDb.GetMainBlockTip()
 
@@ -626,16 +293,18 @@ func main() {
 						}
 					}
 					log.Printf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
-					doCheckOfOldBlocks.Store(true)
+					func() {
+						sideBlocksLock.Lock()
+						defer sideBlocksLock.Unlock()
+						doCheckOfOldBlocks.Store(true)
 
-					if err := scanHeader(*cur); err != nil {
-						log.Panic(err)
-					}
-					prevHash, _ = types.HashFromString(cur.PrevHash)
+						if err := scanHeader(*cur); err != nil {
+							log.Panic(err)
+						}
+						prevHash, _ = types.HashFromString(cur.PrevHash)
+					}()
 				}
 			}
 		}
-
-		time.Sleep(time.Second * 1)
 	}
 }
