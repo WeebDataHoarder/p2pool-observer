@@ -55,7 +55,7 @@ func (h *hasherCollection) initStates(size int) (err error) {
 	}
 	h.cache = make([]*hasherState, size)
 	for i := range h.cache {
-		if h.cache[i], err = newRandomXState(); err != nil {
+		if h.cache[i], err = newRandomXState(h.flags...); err != nil {
 			return err
 		}
 	}
