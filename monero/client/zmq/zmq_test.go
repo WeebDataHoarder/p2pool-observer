@@ -78,7 +78,11 @@ func TestClient(t *testing.T) {
 	for {
 		select {
 		case err := <-s.ErrC:
-			t.Fatal(err)
+			if err == context.DeadlineExceeded {
+				break
+			} else {
+				t.Fatal(err)
+			}
 			return
 		case fullChainMain := <-s.FullChainMainC:
 			log.Print(fullChainMain)

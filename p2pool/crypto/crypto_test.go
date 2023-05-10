@@ -16,7 +16,7 @@ func TestDeterministicTransactionPrivateKey(t *testing.T) {
 	p, _ := (&edwards25519.Point{}).SetBytes(publicSpendKeyBytes)
 	spendPublicKey := crypto.PublicKeyFromPoint(p)
 
-	calculatedPrivateKey := GetDeterministicTransactionPrivateKey(spendPublicKey, previousId)
+	calculatedPrivateKey := GetDeterministicTransactionPrivateKey(types.Hash(spendPublicKey.AsBytes()), previousId)
 	if calculatedPrivateKey.String() != expectedPrivateKey {
 		t.Fatalf("got %s, expected %s", calculatedPrivateKey.String(), expectedPrivateKey)
 	}

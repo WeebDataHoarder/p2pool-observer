@@ -10,11 +10,21 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
+	"runtime"
 	"sync/atomic"
 	"testing"
 )
 
 func init() {
+	_, filename, _, _ := runtime.Caller(0)
+	// The ".." may change depending on you folder structure
+	dir := path.Join(path.Dir(filename), "../..")
+	err := os.Chdir(dir)
+	if err != nil {
+		panic(err)
+	}
+
 	_ = ConsensusDefault.InitHasher(2)
 	_ = ConsensusMini.InitHasher(2)
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
