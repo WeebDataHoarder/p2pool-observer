@@ -60,7 +60,7 @@ func BenchmarkCoinbaseDerivation(b *testing.B) {
 	var i atomic.Uint64
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			GetEphemeralPublicKey(packed, txKey, i.Load())
+			GetEphemeralPublicKey(&packed, txKey, i.Load())
 		}
 	})
 }

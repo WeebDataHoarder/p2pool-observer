@@ -1416,7 +1416,7 @@ func main() {
 						addresses := make(map[address.PackedAddress]*index.MainCoinbaseOutput, len(shares))
 						for minerId, amount := range PayoutAmountHint(shares, poolBlock.Main.Coinbase.TotalReward) {
 							miner := indexDb.GetMiner(minerId)
-							addresses[*miner.Address().ToPackedAddress()] = &index.MainCoinbaseOutput{
+							addresses[miner.Address().ToPackedAddress()] = &index.MainCoinbaseOutput{
 								Id:                types.ZeroHash,
 								Miner:             miner.Id(),
 								MinerAddress:      miner.Address(),

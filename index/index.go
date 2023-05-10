@@ -913,7 +913,7 @@ func (r TransactionInputQueryResults) Match() (result TransactionInputQueryResul
 	for _, matchResult := range r {
 		for _, o := range matchResult.MatchedOutputs {
 			if o != nil {
-				pA := *o.Address.ToPackedAddress()
+				pA := o.Address.ToPackedAddress()
 				if _, ok := miners[pA]; !ok {
 					miners[pA] = &TransactionInputQueryResultsMatch{
 						Address:        o.Address,
