@@ -54,12 +54,9 @@ func main() {
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
-	for status := p2api.Status(); !p2api.Status().Synchronized; status = p2api.Status() {
-		log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
-		time.Sleep(time.Second * 5)
+	if err := p2api.WaitSync(); err != nil {
+		log.Panic(err)
 	}
-
-	log.Printf("[CHAIN] Consensus id = %s\n", p2api.Consensus().Id())
 
 	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {

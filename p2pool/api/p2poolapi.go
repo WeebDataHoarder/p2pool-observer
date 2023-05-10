@@ -50,11 +50,11 @@ func (p *P2PoolApi) WaitSync() (err error) {
 		if p == nil {
 			log.Printf("[API] Not synchronized (nil), waiting five seconds")
 		} else {
-			log.Printf("[API] Not synchronized (height %d, id %s), waiting five seconds", status.Height, status.Id)
+			log.Printf("[API] Not synchronized (height %d, id %s, blocks %d), waiting five seconds", status.Height, status.Id, status.Blocks)
 		}
 		time.Sleep(time.Second * 5)
 	}
-	log.Printf("[API] SYNCHRONIZED (height %d, id %s)", status.Height, status.Id)
+	log.Printf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
 	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id())
 	return nil
 }

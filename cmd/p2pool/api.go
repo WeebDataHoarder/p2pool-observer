@@ -477,7 +477,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			Synchronized: instance.SideChain().PreCalcFinished(),
 			Blocks:       instance.SideChain().GetPoolBlockCount(),
 		}
-		tip := instance.SideChain().GetChainTip()
+		tip := instance.SideChain().GetHighestKnownTip()
 
 		if tip != nil {
 			result.Height = tip.Side.Height

@@ -66,6 +66,7 @@ type SideChain struct {
 	blocksByTemplateId map[types.Hash]*PoolBlock
 	blocksByHeight     map[uint64][]*PoolBlock
 
+	syncTip           atomic.Pointer[PoolBlock]
 	chainTip          atomic.Pointer[PoolBlock]
 	currentDifficulty atomic.Pointer[types.Difficulty]
 
@@ -273,6 +274,12 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 	}
 
 	c.updateDepths(block)
+
+	defer func() {
+		if !block.Invalid.Load() && block.Depth.Load() == 0 {
+			c.syncTip.Store(block)
+		}
+	}()
 
 	if block.Verified.Load() {
 		if !block.Invalid.Load() {
@@ -648,6 +655,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 	if isLongerChain, isAlternative := c.isLongerChain(tip, block); isLongerChain {
 		if diff, _, _ := c.getDifficulty(block); diff != types.ZeroDifficulty {
 			c.chainTip.Store(block)
+			c.syncTip.Store(block)
 			c.currentDifficulty.Store(&diff)
 			//TODO log
 
@@ -869,6 +877,13 @@ func (c *SideChain) WatchMainChainBlock(mainData *ChainMain, possibleId types.Ha
 
 	c.watchBlock = mainData
 	c.watchBlockSidechainId = possibleId
+}
+
+func (c *SideChain) GetHighestKnownTip() *PoolBlock {
+	if t := c.chainTip.Load(); t != nil {
+		return t
+	}
+	return c.syncTip.Load()
 }
 
 func (c *SideChain) GetChainTip() *PoolBlock {
