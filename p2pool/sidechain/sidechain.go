@@ -170,7 +170,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	}
 
 	if block.Side.Difficulty.Cmp64(c.Consensus().MinimumDifficulty) < 0 {
-		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty), true
+		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().Reference().ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty), true
 	}
 
 	//TODO: cache?
@@ -197,7 +197,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 	}
 
 	if tooLowDiff {
-		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric()), false
+		return nil, fmt.Errorf("block mined by %s has too low difficulty %s, expected >= %s", block.GetAddress().Reference().ToBase58(), block.Side.Difficulty.StringNumeric(), expectedDifficulty.StringNumeric()), false
 	}
 
 	// This check is not always possible to perform because of mainchain reorgs
@@ -307,7 +307,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 		}
 
 		if verification, invalid := c.verifyBlock(block); invalid != nil {
-			log.Printf("[SideChain] block at height = %d, id = %s, mainchain height = %d, mined by %s is invalid: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), invalid.Error())
+			log.Printf("[SideChain] block at height = %d, id = %s, mainchain height = %d, mined by %s is invalid: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().Reference().ToBase58(), invalid.Error())
 			block.Invalid.Store(true)
 			block.Verified.Store(verification == nil)
 			if block == blockToVerify {
@@ -323,12 +323,12 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			block.Invalid.Store(false)
 
 			if block.ShareVersion() > ShareVersion_V1 {
-				log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s via %s %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), block.Side.ExtraBuffer.SoftwareId, block.Side.ExtraBuffer.SoftwareVersion)
+				log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s via %s %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().Reference().ToBase58(), block.Side.ExtraBuffer.SoftwareId, block.Side.ExtraBuffer.SoftwareVersion)
 			} else {
 				if signalingVersion := block.ShareVersionSignaling(); signalingVersion > ShareVersion_None {
-					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s, signaling v%d", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), signalingVersion)
+					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s, signaling v%d", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().Reference().ToBase58(), signalingVersion)
 				} else {
-					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58())
+					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().Reference().ToBase58())
 				}
 			}
 

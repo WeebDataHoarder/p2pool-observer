@@ -20,6 +20,15 @@ func (h Hash) MarshalJSON() ([]byte, error) {
 	return json.Marshal(h.String())
 }
 
+func MustHashFromString(s string) Hash {
+	if h, err := HashFromString(s); err != nil {
+		panic(err)
+		return ZeroHash
+	} else {
+		return h
+	}
+}
+
 func HashFromString(s string) (Hash, error) {
 	var h Hash
 	if buf, err := hex.DecodeString(s); err != nil {

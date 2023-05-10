@@ -199,14 +199,14 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		return s
 	}
 
-	insertSet := func(weight types.Difficulty, a *address.PackedAddress) {
-		if _, ok := sharesSet[*a]; ok {
-			sharesSet[*a].Weight = sharesSet[*a].Weight.Add(weight)
+	insertSet := func(weight types.Difficulty, a address.PackedAddress) {
+		if _, ok := sharesSet[a]; ok {
+			sharesSet[a].Weight = sharesSet[a].Weight.Add(weight)
 		} else {
 			s := getPreAllocated()
 			s.Weight = weight
-			s.Address = *a
-			sharesSet[*a] = s
+			s.Address = a
+			sharesSet[a] = s
 		}
 	}
 

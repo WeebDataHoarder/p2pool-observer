@@ -119,3 +119,7 @@ func (p *PackedAddress) ToAddress() *Address {
 func (p *PackedAddress) ToBase58() string {
 	return p.ToAddress().ToBase58()
 }
+
+func (p PackedAddress) Reference() *PackedAddress {
+	return &p
+}

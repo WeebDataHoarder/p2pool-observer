@@ -118,7 +118,9 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 	switch version {
 	case 1:
 
-		if _, err = io.ReadFull(reader, b.cache.mainId[:]); err != nil {
+		var mainId types.Hash
+
+		if _, err = io.ReadFull(reader, mainId[:]); err != nil {
 			return nil, err
 		}
 
@@ -126,14 +128,18 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 			return nil, err
 		}
 
-		if err = binary.Read(reader, binary.BigEndian, &b.cache.mainDifficulty.Hi); err != nil {
+		var mainDifficulty types.Difficulty
+
+		if err = binary.Read(reader, binary.BigEndian, &mainDifficulty.Hi); err != nil {
 			return nil, err
 		}
-		if err = binary.Read(reader, binary.BigEndian, &b.cache.mainDifficulty.Lo); err != nil {
+		if err = binary.Read(reader, binary.BigEndian, &mainDifficulty.Lo); err != nil {
 			return nil, err
 		}
 
-		b.cache.mainDifficulty.ReverseBytes()
+		mainDifficulty.ReverseBytes()
+
+		_ = mainDifficulty
 
 		if err = binary.Read(reader, binary.BigEndian, &mainDataSize); err != nil {
 			return nil, err
@@ -205,8 +211,6 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 	b.FillPrivateKeys(cacheInterface)
 
 	//zero cache as it can be wrong
-	b.cache.mainDifficulty = types.ZeroDifficulty
-	b.cache.mainId = types.ZeroHash
 	b.cache.templateId = types.ZeroHash
 	b.cache.powHash = types.ZeroHash
 
@@ -308,24 +312,7 @@ func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
 }
 
 func (b *PoolBlock) MainId() types.Hash {
-	if hash, ok := func() (types.Hash, bool) {
-		b.cache.lock.RLock()
-		defer b.cache.lock.RUnlock()
-
-		if b.cache.mainId != types.ZeroHash {
-			return b.cache.mainId, true
-		}
-		return types.ZeroHash, false
-	}(); ok {
-		return hash
-	} else {
-		b.cache.lock.Lock()
-		defer b.cache.lock.Unlock()
-		if b.cache.mainId == types.ZeroHash { //check again for race
-			b.cache.mainId = b.Main.Id()
-		}
-		return b.cache.mainId
-	}
+	return b.Main.Id()
 }
 
 func (b *PoolBlock) FullId() FullId {
@@ -353,24 +340,7 @@ func (b *PoolBlock) CalculateFullId(consensus *Consensus) FullId {
 }
 
 func (b *PoolBlock) MainDifficulty(f mainblock.GetDifficultyByHeightFunc) types.Difficulty {
-	if difficulty, ok := func() (types.Difficulty, bool) {
-		b.cache.lock.RLock()
-		defer b.cache.lock.RUnlock()
-
-		if b.cache.mainDifficulty != types.ZeroDifficulty {
-			return b.cache.mainDifficulty, true
-		}
-		return types.ZeroDifficulty, false
-	}(); ok {
-		return difficulty
-	} else {
-		b.cache.lock.Lock()
-		defer b.cache.lock.Unlock()
-		if b.cache.mainDifficulty == types.ZeroDifficulty { //check again for race
-			b.cache.mainDifficulty = b.Main.Difficulty(f)
-		}
-		return b.cache.mainDifficulty
-	}
+	return b.Main.Difficulty(f)
 }
 
 func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
@@ -653,9 +623,8 @@ func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
 	return types.Hash(b.Side.PublicSpendKey.AsBytes())
 }
 
-func (b *PoolBlock) GetAddress() *address.PackedAddress {
-	a := address.NewPackedAddressFromBytes(b.Side.PublicSpendKey, b.Side.PublicViewKey)
-	return &a
+func (b *PoolBlock) GetAddress() address.PackedAddress {
+	return address.NewPackedAddressFromBytes(b.Side.PublicSpendKey, b.Side.PublicViewKey)
 }
 
 func (b *PoolBlock) GetTransactionOutputType() uint8 {
@@ -670,12 +639,9 @@ func (b *PoolBlock) GetTransactionOutputType() uint8 {
 }
 
 type poolBlockCache struct {
-	lock           sync.RWMutex
-	mainId         types.Hash
-	mainDifficulty types.Difficulty
-	templateId     types.Hash
-	powHash        types.Hash
-	fullId         FullId
+	lock       sync.RWMutex
+	templateId types.Hash
+	powHash    types.Hash
 }
 
 func (c *poolBlockCache) FromReader(reader readerAndByteReader) (err error) {
@@ -690,21 +656,15 @@ func (c *poolBlockCache) UnmarshalBinary(buf []byte) error {
 	if len(buf) < types.HashSize*3+types.DifficultySize+FullIdSize {
 		return io.ErrUnexpectedEOF
 	}
-	copy(c.mainId[:], buf)
-	c.mainDifficulty = types.DifficultyFromBytes(buf[types.HashSize:])
 	copy(c.templateId[:], buf[types.HashSize+types.DifficultySize:])
 	copy(c.powHash[:], buf[types.HashSize+types.DifficultySize+types.HashSize:])
-	copy(c.fullId[:], buf[types.HashSize+types.DifficultySize+types.HashSize+types.HashSize:])
 	return nil
 }
 
 func (c *poolBlockCache) MarshalBinary() ([]byte, error) {
 	buf := make([]byte, 0, types.HashSize*3+types.DifficultySize+FullIdSize)
-	buf = append(buf, c.mainId[:]...)
-	buf = append(buf, c.mainDifficulty.Bytes()...)
 	buf = append(buf, c.templateId[:]...)
 	buf = append(buf, c.powHash[:]...)
-	buf = append(buf, c.fullId[:]...)
 
 	return buf, nil
 }

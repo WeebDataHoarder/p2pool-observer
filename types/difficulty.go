@@ -195,6 +195,15 @@ func (d Difficulty) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.String())
 }
 
+func MustDifficultyFromString(s string) Difficulty {
+	if d, err := DifficultyFromString(s); err != nil {
+		panic(err)
+		return ZeroDifficulty
+	} else {
+		return d
+	}
+}
+
 func DifficultyFromString(s string) (Difficulty, error) {
 	if strings.HasPrefix(s, "0x") {
 		if buf, err := hex.DecodeString(s[2:]); err != nil {

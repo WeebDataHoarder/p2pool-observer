@@ -196,7 +196,7 @@ func main() {
 				return b
 			}
 		}, func(b *sidechain.PoolBlock, weight types.Difficulty) {
-			miners[indexDb.GetOrCreateMinerPackedAddress(*b.GetAddress()).Id()]++
+			miners[indexDb.GetOrCreateMinerPackedAddress(b.GetAddress()).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
 			if i := slices.IndexFunc(versions, func(entry sideChainVersionEntry) bool {
