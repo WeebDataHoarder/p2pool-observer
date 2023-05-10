@@ -2,6 +2,7 @@ package zmq_test
 
 import (
 	"context"
+	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
 	"log"
 	"os"
@@ -68,7 +69,7 @@ func TestJSONFromFrame(t *testing.T) {
 
 func TestClient(t *testing.T) {
 	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicFullMinerData, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
-	ctx, ctxFunc := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, ctxFunc := context.WithTimeout(context.Background(), time.Second*10)
 	defer ctxFunc()
 	s, err := client.Listen(ctx)
 	if err != nil {
@@ -78,9 +79,7 @@ func TestClient(t *testing.T) {
 	for {
 		select {
 		case err := <-s.ErrC:
-			if err == context.DeadlineExceeded {
-				break
-			} else {
+			if !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatal(err)
 			}
 			return
