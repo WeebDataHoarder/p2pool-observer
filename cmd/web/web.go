@@ -185,6 +185,8 @@ func main() {
 		log.Panic(err)
 	}
 
+	log.Printf("Consensus id = %s", consensus.Id())
+
 	render := func(request *http.Request, writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
 		w := bytes.NewBuffer(nil)
 		defer func() {
