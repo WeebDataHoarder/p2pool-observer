@@ -51,8 +51,7 @@ func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice 
 	ephemeralPublicKeyCache := d.ephemeralPublicKeyCache.Load()
 	if ephemeralPubKey := ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
 		d.ephemeralPublicKeyCacheMisses.Add(1)
-		ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTag(a, txKeyScalar, outputIndex)
-		pKB := ephemeralPubKey.AsBytes()
+		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex)
 		ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag
 	} else {

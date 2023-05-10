@@ -28,10 +28,36 @@ func Keccak256(data ...[]byte) (result types.Hash) {
 	return
 }
 
+func Keccak256Single(data []byte) (result types.Hash) {
+	h := sha3.NewLegacyKeccak256()
+	h.Write(data)
+	HashFastSum(h, result[:])
+
+	return
+}
+
 func HashToScalar(data ...[]byte) *edwards25519.Scalar {
 	h := PooledKeccak256(data...)
 	scReduce32(h[:])
 	c, _ := GetEdwards25519Scalar().SetCanonicalBytes(h[:])
+	return c
+}
+
+func HashToScalarNoAllocate(data ...[]byte) edwards25519.Scalar {
+	h := Keccak256(data...)
+	scReduce32(h[:])
+
+	var c edwards25519.Scalar
+	_, _ = c.SetCanonicalBytes(h[:])
+	return c
+}
+
+func HashToScalarNoAllocateSingle(data []byte) edwards25519.Scalar {
+	h := Keccak256Single(data)
+	scReduce32(h[:])
+
+	var c edwards25519.Scalar
+	_, _ = c.SetCanonicalBytes(h[:])
 	return c
 }
 

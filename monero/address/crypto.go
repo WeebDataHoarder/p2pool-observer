@@ -29,15 +29,20 @@ func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *e
 	derivationAsBytes := p.Bytes()
 	var varIntBuf [binary.MaxVarintLen64]byte
 
-	sharedData := crypto.HashToScalar(derivationAsBytes, varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)])
+	sharedData := crypto.HashToScalarNoAllocate(derivationAsBytes, varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)])
 
 	//public key + add
-	p.ScalarBaseMult(sharedData).Add(p, spendPub)
+	p.ScalarBaseMult(&sharedData).Add(p, spendPub)
 }
 
 func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKey, uint8) {
-	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndex(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
-	return GetPublicKeyForSharedData(a, pK), viewTag
+	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
+	return GetPublicKeyForSharedData(a, crypto.PrivateKeyFromScalar(&pK)), viewTag
+}
+
+func GetEphemeralPublicKeyAndViewTagNoAllocate(a Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
+	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
+	return GetPublicKeyForSharedData(a, crypto.PrivateKeyFromScalar(&pK)).AsBytes(), viewTag
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
