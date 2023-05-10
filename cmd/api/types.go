@@ -28,20 +28,21 @@ type poolInfoResult struct {
 }
 
 type poolInfoResultSideChain struct {
-	Consensus            *sidechain.Consensus          `json:"consensus"`
-	Id                   types.Hash                    `json:"id"`
-	Height               uint64                        `json:"height"`
-	Difficulty           types.Difficulty              `json:"difficulty"`
-	CumulativeDifficulty types.Difficulty              `json:"cumulative_difficulty"`
-	Timestamp            uint64                        `json:"timestamp"`
-	Effort               poolInfoResultSideChainEffort `json:"effort"`
-	Window               poolInfoResultSideChainWindow `json:"window"`
-	WindowSize           int                           `json:"window_size"`
-	MaxWindowSize        int                           `json:"max_window_size"`
-	BlockTime            int                           `json:"block_time"`
-	UnclePenalty         int                           `json:"uncle_penalty"`
-	Found                uint64                        `json:"found"`
-	Miners               uint64                        `json:"miners"`
+	Consensus             *sidechain.Consensus          `json:"consensus"`
+	Id                    types.Hash                    `json:"id"`
+	Height                uint64                        `json:"height"`
+	Difficulty            types.Difficulty              `json:"difficulty"`
+	CumulativeDifficulty  types.Difficulty              `json:"cumulative_difficulty"`
+	SecondsSinceLastBlock int64                         `json:"seconds_since_last_block"`
+	Timestamp             uint64                        `json:"timestamp"`
+	Effort                poolInfoResultSideChainEffort `json:"effort"`
+	Window                poolInfoResultSideChainWindow `json:"window"`
+	WindowSize            int                           `json:"window_size"`
+	MaxWindowSize         int                           `json:"max_window_size"`
+	BlockTime             int                           `json:"block_time"`
+	UnclePenalty          int                           `json:"uncle_penalty"`
+	Found                 uint64                        `json:"found"`
+	Miners                uint64                        `json:"miners"`
 }
 
 type poolInfoResultSideChainEffort struct {

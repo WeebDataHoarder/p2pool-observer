@@ -299,6 +299,7 @@ func main() {
 				Difficulty:           types.DifficultyFrom64(tip.Difficulty),
 				CumulativeDifficulty: tip.CumulativeDifficulty,
 				Timestamp:            tip.Timestamp,
+				SecondsSinceLastBlock: utils.Max(0, time.Now().Unix() - int64(tip.Timestamp)),
 				Effort: poolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),
