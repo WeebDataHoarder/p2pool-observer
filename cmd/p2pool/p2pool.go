@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"golang.org/x/exp/slices"
 	"log"
 	"net"
 	"net/http"
@@ -221,9 +223,13 @@ func main() {
 
 				go func() {
 					contents := make([]byte, 0, 4096)
-					for range time.Tick(time.Minute * 1) {
+					for range time.NewTicker(time.Minute * 1).C {
 						contents = contents[:0]
-						for _, addrPort := range instance.Server().PeerList() {
+						peerListEntries := instance.Server().PeerList()
+						slices.SortFunc(peerListEntries, func(a, b *p2p.PeerListEntry) bool {
+							return a.AddressPort.Addr().Compare(b.AddressPort.Addr()) < 0
+						})
+						for _, addrPort := range peerListEntries {
 							contents = append(contents, []byte(addrPort.AddressPort.String())...)
 							contents = append(contents, '\n')
 						}
