@@ -23,8 +23,12 @@ type DerivationCacheInterface interface {
 }
 
 type DerivationCache struct {
-	deterministicKeyCache   atomic.Pointer[lru.LRU[deterministicTransactionCacheKey, *crypto.KeyPair]]
-	ephemeralPublicKeyCache atomic.Pointer[lru.LRU[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]]
+	deterministicKeyCache         atomic.Pointer[lru.LRU[deterministicTransactionCacheKey, *crypto.KeyPair]]
+	deterministicKeyCacheHits     atomic.Uint64
+	deterministicKeyCacheMisses   atomic.Uint64
+	ephemeralPublicKeyCache       atomic.Pointer[lru.LRU[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]]
+	ephemeralPublicKeyCacheHits   atomic.Uint64
+	ephemeralPublicKeyCacheMisses atomic.Uint64
 }
 
 func NewDerivationCache() *DerivationCache {
@@ -34,7 +38,7 @@ func NewDerivationCache() *DerivationCache {
 }
 
 func (d *DerivationCache) Clear() {
-	d.deterministicKeyCache.Store(lru.New[deterministicTransactionCacheKey, *crypto.KeyPair](50))
+	d.deterministicKeyCache.Store(lru.New[deterministicTransactionCacheKey, *crypto.KeyPair](32))
 	d.ephemeralPublicKeyCache.Store(lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000))
 }
 
@@ -46,11 +50,13 @@ func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice 
 
 	ephemeralPublicKeyCache := d.ephemeralPublicKeyCache.Load()
 	if ephemeralPubKey := ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
+		d.ephemeralPublicKeyCacheMisses.Add(1)
 		ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTag(a, txKeyScalar, outputIndex)
 		pKB := ephemeralPubKey.AsBytes()
 		ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag
 	} else {
+		d.ephemeralPublicKeyCacheHits.Add(1)
 		return ephemeralPubKey.PublicKey, ephemeralPubKey.ViewTag
 	}
 }
@@ -62,10 +68,12 @@ func (d *DerivationCache) GetDeterministicTransactionKey(seed types.Hash, prevId
 
 	deterministicKeyCache := d.deterministicKeyCache.Load()
 	if kp := deterministicKeyCache.Get(key); kp == nil {
+		d.deterministicKeyCacheMisses.Add(1)
 		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
 		deterministicKeyCache.Set(key, data)
 		return data
 	} else {
+		d.deterministicKeyCacheHits.Add(1)
 		return *kp
 	}
 }

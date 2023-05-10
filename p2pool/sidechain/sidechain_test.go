@@ -8,6 +8,7 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
+	"log"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -128,6 +129,14 @@ func TestSideChainMini(t *testing.T) {
 	if tip.Side.Height != 4414446 {
 		t.Fatal()
 	}
+
+	hits, misses := s.DerivationCache().ephemeralPublicKeyCacheHits.Load(), s.DerivationCache().ephemeralPublicKeyCacheMisses.Load()
+	total := hits + misses
+	log.Printf("Ephemeral Public Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+
+	hits, misses = s.DerivationCache().deterministicKeyCacheHits.Load(), s.DerivationCache().deterministicKeyCacheMisses.Load()
+	total = hits + misses
+	log.Printf("Deterministic Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 }
 

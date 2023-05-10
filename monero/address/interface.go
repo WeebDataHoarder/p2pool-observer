@@ -13,7 +13,7 @@ type Interface interface {
 	ViewPublicKey() crypto.PublicKey
 
 	ToAddress() *Address
-	ToPackedAddress() *PackedAddress
+	ToPackedAddress() PackedAddress
 
 	ToBase58() string
 }

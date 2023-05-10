@@ -19,10 +19,6 @@ func NewPackedAddress(spend, view crypto.PublicKey) (result PackedAddress) {
 	return NewPackedAddressFromBytes(spend.AsBytes(), view.AsBytes())
 }
 
-func (p *PackedAddress) Bytes() []byte {
-	return (*[crypto.PublicKeySize * 2]byte)(unsafe.Pointer(p))[:]
-}
-
 func (p *PackedAddress) PublicKeys() (spend, view crypto.PublicKey) {
 	return &(*p)[0], &(*p)[1]
 }
@@ -35,8 +31,8 @@ func (p *PackedAddress) ViewPublicKey() crypto.PublicKey {
 	return &(*p)[1]
 }
 
-func (p *PackedAddress) ToPackedAddress() *PackedAddress {
-	return p
+func (p *PackedAddress) ToPackedAddress() PackedAddress {
+	return *p
 }
 
 // Compare special consensus comparison
@@ -46,7 +42,7 @@ func (p *PackedAddress) Compare(otherI Interface) int {
 	defer runtime.KeepAlive(other)
 	defer runtime.KeepAlive(p)
 	a := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(p))
-	b := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(other))
+	b := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(&other))
 
 	//compare spend key
 
@@ -122,4 +118,8 @@ func (p *PackedAddress) ToBase58() string {
 
 func (p PackedAddress) Reference() *PackedAddress {
 	return &p
+}
+
+func (p PackedAddress) Bytes() []byte {
+	return (*[crypto.PublicKeySize * 2]byte)(unsafe.Pointer(&p))[:]
 }

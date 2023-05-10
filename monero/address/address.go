@@ -19,7 +19,7 @@ type Address struct {
 
 func (a *Address) Compare(b Interface) int {
 	//TODO
-	return a.ToPackedAddress().Compare(b)
+	return a.ToPackedAddress().Reference().Compare(b)
 }
 
 func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {
@@ -38,9 +38,8 @@ func (a *Address) ToAddress() *Address {
 	return a
 }
 
-func (a *Address) ToPackedAddress() *PackedAddress {
-	p := NewPackedAddress(a.SpendPub, a.ViewPub)
-	return &p
+func (a *Address) ToPackedAddress() PackedAddress {
+	return NewPackedAddress(a.SpendPub, a.ViewPub)
 }
 
 func FromBase58(address string) *Address {
