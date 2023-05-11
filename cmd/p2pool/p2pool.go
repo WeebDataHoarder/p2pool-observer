@@ -185,10 +185,21 @@ func main() {
 
 		if !*noDns && currentConsensus.SeedNode() != "" {
 			log.Printf("Loading seed peers from %s", currentConsensus.SeedNode())
-			ips, _ := net.LookupIP(currentConsensus.SeedNode())
-			for _, seedNodeIp := range ips {
-				seedNodeAddr := netip.AddrPortFrom(netip.MustParseAddr(seedNodeIp.String()), currentConsensus.DefaultPort())
-				instance.Server().AddToPeerList(seedNodeAddr)
+			records, _ := net.LookupTXT(currentConsensus.SeedNode())
+			if len(records) > 0 {
+				for _, r := range records {
+					for _, e := range strings.Split(r, ",") {
+						if seedNodeAddr, err := netip.ParseAddrPort(e); err == nil {
+							instance.Server().AddToPeerList(seedNodeAddr)
+						}
+					}
+				}
+			} else {
+				ips, _ := net.LookupIP(currentConsensus.SeedNode())
+				for _, seedNodeIp := range ips {
+					seedNodeAddr := netip.AddrPortFrom(netip.MustParseAddr(seedNodeIp.String()), currentConsensus.DefaultPort())
+					instance.Server().AddToPeerList(seedNodeAddr)
+				}
 			}
 		}
 
