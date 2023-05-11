@@ -6,6 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/floatdrop/lru"
+	"hash"
 	"sync/atomic"
 )
 
@@ -18,7 +19,7 @@ type ephemeralPublicKeyWithViewTag struct {
 }
 
 type DerivationCacheInterface interface {
-	GetEphemeralPublicKey(a address.Interface, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64) (crypto.PublicKeyBytes, uint8)
+	GetEphemeralPublicKey(a *address.PackedAddress, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64, hasher hash.Hash) (crypto.PublicKeyBytes, uint8)
 	GetDeterministicTransactionKey(seed types.Hash, prevId types.Hash) *crypto.KeyPair
 }
 
@@ -42,7 +43,7 @@ func (d *DerivationCache) Clear() {
 	d.ephemeralPublicKeyCache.Store(lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000))
 }
 
-func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
+func (d *DerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64, hasher hash.Hash) (crypto.PublicKeyBytes, uint8) {
 	var key ephemeralPublicKeyCacheKey
 	copy(key[:], txKeySlice)
 	copy(key[crypto.PrivateKeySize:], a.ToPackedAddress().Bytes())
@@ -51,7 +52,7 @@ func (d *DerivationCache) GetEphemeralPublicKey(a address.Interface, txKeySlice 
 	ephemeralPublicKeyCache := d.ephemeralPublicKeyCache.Load()
 	if ephemeralPubKey := ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
 		d.ephemeralPublicKeyCacheMisses.Add(1)
-		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex)
+		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex, hasher)
 		ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag
 	} else {

@@ -7,6 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"hash"
 	"strings"
 )
 
@@ -36,13 +37,28 @@ func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *e
 }
 
 func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKey, uint8) {
-	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
-	return GetPublicKeyForSharedData(a, crypto.PrivateKeyFromScalar(&pK)), viewTag
+	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndex(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
+	return GetPublicKeyForSharedData(a, pK), viewTag
 }
 
-func GetEphemeralPublicKeyAndViewTagNoAllocate(a Interface, txKey crypto.PrivateKey, outputIndex uint64) (crypto.PublicKeyBytes, uint8) {
-	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(txKey.GetDerivationCofactor(a.ViewPublicKey()), outputIndex)
-	return GetPublicKeyForSharedData(a, crypto.PrivateKeyFromScalar(&pK)).AsBytes(), viewTag
+// GetEphemeralPublicKeyAndViewTagNoAllocate Special version of GetEphemeralPublicKeyAndViewTag
+func GetEphemeralPublicKeyAndViewTagNoAllocate(a *PackedAddress, txKey *crypto.PrivateKeyScalar, outputIndex uint64, hasher hash.Hash) (crypto.PublicKeyBytes, uint8) {
+	scalar := txKey.Scalar()
+	var spendPublicKeyPoint, viewPublicKeyPoint, point, cofactor, intermediatePublicKey, ephemeralPublicKey edwards25519.Point
+	_, _ = spendPublicKeyPoint.SetBytes((*a)[0][:])
+	_, _ = viewPublicKeyPoint.SetBytes((*a)[1][:])
+	point.ScalarMult(scalar, &viewPublicKeyPoint)
+	cofactor.MultByCofactor(&point)
+
+	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(crypto.PublicKeyBytes(cofactor.Bytes()), outputIndex, hasher)
+
+	intermediatePublicKey.ScalarBaseMult(&pK)
+	ephemeralPublicKey.Add(&intermediatePublicKey, &spendPublicKeyPoint)
+
+	var ephemeralPublicKeyBytes crypto.PublicKeyBytes
+	copy(ephemeralPublicKeyBytes[:], ephemeralPublicKey.Bytes())
+
+	return ephemeralPublicKeyBytes, viewTag
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {

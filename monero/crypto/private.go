@@ -63,6 +63,7 @@ func (p *PrivateKeyScalar) GetDerivation(public PublicKey) PublicKey {
 func (p *PrivateKeyScalar) GetDerivationCofactor(public PublicKey) PublicKey {
 	return deriveKeyExchangeSecretCofactor(p, public.AsPoint())
 }
+
 func (p *PrivateKeyScalar) String() string {
 	return hex.EncodeToString(p.Scalar().Bytes())
 }

@@ -3,6 +3,8 @@ package crypto
 import (
 	"encoding/binary"
 	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"hash"
 )
 
 func GetDerivationSharedDataForOutputIndex(derivation PublicKey, outputIndex uint64) PrivateKey {
@@ -11,10 +13,12 @@ func GetDerivationSharedDataForOutputIndex(derivation PublicKey, outputIndex uin
 	return PrivateKeyFromScalar(HashToScalar(k[:], varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)]))
 }
 
+var viewTagDomain = []byte("view_tag")
+
 func GetDerivationViewTagForOutputIndex(derivation PublicKey, outputIndex uint64) uint8 {
 	var k = derivation.AsBytes()
 	var varIntBuf [binary.MaxVarintLen64]byte
-	return PooledKeccak256([]byte("view_tag"), k[:], varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)])[0]
+	return PooledKeccak256(viewTagDomain, k[:], varIntBuf[:binary.PutUvarint(varIntBuf[:], outputIndex)])[0]
 }
 
 func GetDerivationSharedDataAndViewTagForOutputIndex(derivation PublicKey, outputIndex uint64) (PrivateKey, uint8) {
@@ -23,16 +27,30 @@ func GetDerivationSharedDataAndViewTagForOutputIndex(derivation PublicKey, outpu
 
 	n := binary.PutUvarint(varIntBuf[:], outputIndex)
 	pK := PrivateKeyFromScalar(HashToScalar(k[:], varIntBuf[:n]))
-	return pK, PooledKeccak256([]byte("view_tag"), k[:], varIntBuf[:n])[0]
+	return pK, PooledKeccak256(viewTagDomain, k[:], varIntBuf[:n])[0]
 }
 
-func GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(derivation PublicKey, outputIndex uint64) (edwards25519.Scalar, uint8) {
+// GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate Special version of GetDerivationSharedDataAndViewTagForOutputIndex
+func GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(k PublicKeyBytes, outputIndex uint64, hasher hash.Hash) (edwards25519.Scalar, uint8) {
 	var buf [PublicKeySize + binary.MaxVarintLen64]byte
-	var k = derivation.AsBytes()
 	copy(buf[:], k[:])
 
 	n := binary.PutUvarint(buf[PublicKeySize:], outputIndex)
-	return HashToScalarNoAllocateSingle(buf[:PublicKeySize+n]), Keccak256([]byte("view_tag"), buf[:PublicKeySize+n])[0]
+	var h types.Hash
+	hasher.Reset()
+	hasher.Write(buf[:PublicKeySize+n])
+	HashFastSum(hasher, h[:])
+	scReduce32(h[:])
+
+	var c edwards25519.Scalar
+	_, _ = c.SetCanonicalBytes(h[:])
+
+	hasher.Reset()
+	hasher.Write(viewTagDomain)
+	hasher.Write(buf[:PublicKeySize+n])
+	HashFastSum(hasher, h[:])
+
+	return c, h[0]
 }
 
 func GetKeyImage(pair *KeyPair) PublicKey {

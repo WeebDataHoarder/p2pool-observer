@@ -12,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
+	"hash"
 	"log"
 	"lukechampine.com/uint128"
 	"math"
@@ -42,18 +43,29 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 	txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 	txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
 
+	var hashers []hash.Hash
+
 	_ = utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
 		output := transaction.Output{
 			Index: workIndex,
 			Type:  txType,
 		}
 		output.Reward = tmpRewards[output.Index]
-		output.EphemeralPublicKey, output.ViewTag = derivationCache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, txPrivateKeySlice, txPrivateKeyScalar, output.Index)
+		output.EphemeralPublicKey, output.ViewTag = derivationCache.GetEphemeralPublicKey(&tmpShares[output.Index].Address, txPrivateKeySlice, txPrivateKeyScalar, output.Index, hashers[workerIndex])
 
 		outputs[output.Index] = output
 
 		return nil
-	}, nil)
+	}, func(routines, routineIndex int) error {
+		hashers = append(hashers, crypto.GetKeccak256Hasher())
+		return nil
+	})
+
+	defer func() {
+		for _, h := range hashers {
+			crypto.PutKeccak256Hasher(h)
+		}
+	}()
 
 	return outputs, bottomHeight
 }

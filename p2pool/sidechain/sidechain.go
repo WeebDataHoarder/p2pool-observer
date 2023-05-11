@@ -7,12 +7,14 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
+	"hash"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -549,19 +551,30 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 			txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
 
+			var hashers []hash.Hash
+
 			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]
 				if rewards[workIndex] != out.Reward {
 					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
 				}
 
-				if ephPublicKey, viewTag := c.derivationCache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex); ephPublicKey != out.EphemeralPublicKey {
+				if ephPublicKey, viewTag := c.derivationCache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex, hashers[workerIndex]); ephPublicKey != out.EphemeralPublicKey {
 					return fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
 				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
 					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
 				}
 				return nil
-			}, nil)
+			}, func(routines, routineIndex int) error {
+				hashers = append(hashers, crypto.GetKeccak256Hasher())
+				return nil
+			})
+
+			defer func() {
+				for _, h := range hashers {
+					crypto.PutKeccak256Hasher(h)
+				}
+			}()
 
 			for i := range results {
 				if results[i] != nil {
