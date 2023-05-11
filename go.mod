@@ -6,7 +6,7 @@ require (
 	filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
-	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20221007140323-a2daa2d5fc48
+	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230430115346-f42f23de8429
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
@@ -19,7 +19,7 @@ require (
 	github.com/tyler-sommer/stick v1.0.6
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/crypto v0.9.0
-	golang.org/x/exp v0.0.0-20230425010034-47ecfdc1ba53
+	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/net v0.10.0
 	golang.org/x/sys v0.8.0
 	lukechampine.com/uint128 v1.3.0

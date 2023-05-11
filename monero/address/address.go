@@ -78,11 +78,10 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	copy(nice[1:], spend.AsSlice())
 	copy(nice[33:], view.AsSlice())
 
-	//TODO: cache checksum?
-	checksum := moneroutil.GetChecksum(nice[:65])
+	checksum := crypto.PooledKeccak256(nice[:65])
 	a := &Address{
 		Network:  nice[0],
-		checksum: checksum[:],
+		checksum: checksum[:4],
 	}
 
 	a.SpendPub = spend
@@ -97,9 +96,9 @@ func (a *Address) ToBase58() string {
 		nice[0] = a.Network
 		copy(nice[1:], a.SpendPub.AsSlice())
 		copy(nice[1+crypto.PublicKeySize:], a.ViewPub.AsSlice())
-		sum := moneroutil.GetChecksum(nice[:65])
+		sum := crypto.PooledKeccak256(nice[:65])
 		//this race is ok
-		a.checksum = sum[:]
+		a.checksum = sum[:4]
 	}
 	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 }

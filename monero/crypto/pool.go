@@ -47,8 +47,7 @@ func PooledKeccak256(data ...[]byte) (result types.Hash) {
 }
 
 func GetEdwards25519Point() *edwards25519.Point {
-	return new(edwards25519.Point)
-	//return pointPool.Get().(*edwards25519.Point)
+	return pointPool.Get().(*edwards25519.Point)
 }
 
 func PutEdwards25519Point(p *edwards25519.Point) {
@@ -56,8 +55,7 @@ func PutEdwards25519Point(p *edwards25519.Point) {
 }
 
 func GetEdwards25519Scalar() *edwards25519.Scalar {
-	return new(edwards25519.Scalar)
-	//return scalarPool.Get().(*edwards25519.Scalar)
+	return scalarPool.Get().(*edwards25519.Scalar)
 }
 
 func PutEdwards25519Scalar(s *edwards25519.Scalar) {
