@@ -21,9 +21,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/floatdrop/lru"
 	"golang.org/x/exp/slices"
-	"hash"
 	"log"
 	"math"
 	"os"
@@ -324,7 +324,7 @@ func main() {
 
 		rctHash := crypto.Keccak256([]byte{0})
 		type partialBlobWork struct {
-			Hashers       [2]hash.Hash
+			Hashers       [2]*sha3.HasherState
 			Tx            *transaction.CoinbaseTransaction
 			EncodedBuffer []byte
 			EncodedOffset int
@@ -388,7 +388,7 @@ func main() {
 				buf, _ := tx.MarshalBinary()
 
 				coinbases[routineIndex] = &partialBlobWork{
-					Hashers:       [2]hash.Hash{crypto.GetKeccak256Hasher(), crypto.GetKeccak256Hasher()},
+					Hashers:       [2]*sha3.HasherState{crypto.GetKeccak256Hasher(), crypto.GetKeccak256Hasher()},
 					Tx:            tx,
 					EncodedBuffer: buf[:len(buf)-1], /* remove RCT */
 					EncodedOffset: len(buf) - 1 - (types.HashSize + 1 + 1 /*Merge mining tag*/) - nonceSize,

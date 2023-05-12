@@ -8,6 +8,7 @@ require (
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230430115346-f42f23de8429
+	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
 	github.com/go-zeromq/zmq4 v0.15.0
@@ -18,7 +19,6 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/tyler-sommer/stick v1.0.6
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/crypto v0.9.0
 	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
 	golang.org/x/net v0.10.0
 	golang.org/x/sys v0.8.0
@@ -33,6 +33,7 @@ require (
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
+	golang.org/x/crypto v0.9.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

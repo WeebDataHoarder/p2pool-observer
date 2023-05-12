@@ -13,8 +13,8 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"golang.org/x/exp/slices"
-	"hash"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -551,7 +551,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 			txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
 
-			var hashers []hash.Hash
+			var hashers []*sha3.HasherState
 
 			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]

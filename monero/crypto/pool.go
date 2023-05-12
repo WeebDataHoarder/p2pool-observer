@@ -3,8 +3,7 @@ package crypto
 import (
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
-	"hash"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"runtime"
 	"sync"
 )
@@ -27,11 +26,11 @@ func init() {
 	}
 }
 
-func GetKeccak256Hasher() hash.Hash {
-	return hasherPool.Get().(hash.Hash)
+func GetKeccak256Hasher() *sha3.HasherState {
+	return hasherPool.Get().(*sha3.HasherState)
 }
 
-func PutKeccak256Hasher(h hash.Hash) {
+func PutKeccak256Hasher(h *sha3.HasherState) {
 	h.Reset()
 	hasherPool.Put(h)
 }

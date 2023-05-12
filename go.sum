@@ -8,6 +8,8 @@ git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec h1:Ui
 git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec/go.mod h1:MpCLC0BvjnQEQW/z6g7F1c3udr3CSikhNoQurSCYGB8=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230430115346-f42f23de8429 h1:c4tIJcMuFzCwRlmv8XjcJhTr1YL0vUgEmw2FAAPYjLk=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230430115346-f42f23de8429/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
+git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f h1:dQc+lJIlbR0acDqoPAtew0lMVVnKVFO0bZpf1/wbo6Y=
+git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f/go.mod h1:6wZ0+whl+HZdcRve4R6Rq6jV1fmL1xCYO8Wty6lR008=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807 h1:w3nrGk00TWs/4iZ3Q0k9c0vL0e/wRziArKU4e++d/nA=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807/go.mod h1:fGnnfniJiO/ajHAVHqMSUSL8sE9LmU9rzclCtoeB+y8=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

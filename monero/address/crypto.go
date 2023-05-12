@@ -7,7 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"hash"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"strings"
 )
 
@@ -42,7 +42,7 @@ func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outpu
 }
 
 // GetEphemeralPublicKeyAndViewTagNoAllocate Special version of GetEphemeralPublicKeyAndViewTag
-func GetEphemeralPublicKeyAndViewTagNoAllocate(a *PackedAddress, txKey *crypto.PrivateKeyScalar, outputIndex uint64, hasher hash.Hash) (crypto.PublicKeyBytes, uint8) {
+func GetEphemeralPublicKeyAndViewTagNoAllocate(a *PackedAddress, txKey *crypto.PrivateKeyScalar, outputIndex uint64, hasher *sha3.HasherState) (crypto.PublicKeyBytes, uint8) {
 	scalar := txKey.Scalar()
 	var spendPublicKeyPoint, viewPublicKeyPoint, point, cofactor, intermediatePublicKey, ephemeralPublicKey edwards25519.Point
 	_, _ = spendPublicKeyPoint.SetBytes((*a)[0][:])

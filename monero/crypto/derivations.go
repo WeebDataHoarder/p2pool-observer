@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"hash"
+	"git.gammaspectra.live/P2Pool/sha3"
 )
 
 func GetDerivationSharedDataForOutputIndex(derivation PublicKey, outputIndex uint64) PrivateKey {
@@ -31,7 +31,7 @@ func GetDerivationSharedDataAndViewTagForOutputIndex(derivation PublicKey, outpu
 }
 
 // GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate Special version of GetDerivationSharedDataAndViewTagForOutputIndex
-func GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(k PublicKeyBytes, outputIndex uint64, hasher hash.Hash) (edwards25519.Scalar, uint8) {
+func GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(k PublicKeyBytes, outputIndex uint64, hasher *sha3.HasherState) (edwards25519.Scalar, uint8) {
 	var buf [PublicKeySize + binary.MaxVarintLen64]byte
 	copy(buf[:], k[:])
 

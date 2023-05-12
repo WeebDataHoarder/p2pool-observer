@@ -78,6 +78,7 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	copy(nice[1:], spend.AsSlice())
 	copy(nice[33:], view.AsSlice())
 
+	//TODO: cache checksum?
 	checksum := crypto.PooledKeccak256(nice[:65])
 	a := &Address{
 		Network:  nice[0],

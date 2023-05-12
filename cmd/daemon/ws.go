@@ -340,8 +340,9 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			unfoundBlocksToReport = unfoundBlocksToReport[:0]
 
 			func() {
-
 				minerData := p2api.MinerData()
+				sideBlocksLock.RLock()
+				defer sideBlocksLock.RUnlock()
 				mainTip := indexDb.GetMainBlockTip()
 				for _, m := range foundBlockBuffer.buf {
 					if m != nil && indexDb.GetMainBlockById(m.MainBlock.Id) == nil {

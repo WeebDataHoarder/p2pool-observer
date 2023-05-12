@@ -4,9 +4,7 @@ import (
 	"filippo.io/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/crypto/sha3"
-	"hash"
-	"io"
+	"git.gammaspectra.live/P2Pool/sha3"
 )
 
 func BytesToScalar(buf []byte) *edwards25519.Scalar {
@@ -62,14 +60,10 @@ func HashToScalarNoAllocateSingle(data []byte) edwards25519.Scalar {
 }
 
 // HashFastSum sha3.Sum clones the state by allocating memory. prevent that. b must be pre-allocated to the expected size, or larger
-func HashFastSum(hash hash.Hash, b []byte) []byte {
+func HashFastSum(hash *sha3.HasherState, b []byte) []byte {
 	_ = b[31] // bounds check hint to compiler; see golang.org/issue/14808
-
-	if r, ok := hash.(io.Reader); ok {
-		_, _ = r.Read(b[:hash.Size()])
-		return b
-	}
-	return hash.Sum(b[:0])
+	_, _ = hash.Read(b[:hash.Size()])
+	return b
 }
 
 func HashToPoint(publicKey PublicKey) *edwards25519.Point {

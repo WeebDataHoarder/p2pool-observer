@@ -10,7 +10,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"hash"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"io"
 )
 
@@ -326,7 +326,7 @@ func (b *Block) Id() types.Hash {
 	return crypto.PooledKeccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf)
 }
 
-func keccakl(hasher hash.Hash, dst []byte, data []byte, len int) {
+func keccakl(hasher *sha3.HasherState, dst []byte, data []byte, len int) {
 	hasher.Reset()
 	hasher.Write(data[:len])
 	crypto.HashFastSum(hasher, dst)

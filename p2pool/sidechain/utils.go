@@ -11,8 +11,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"git.gammaspectra.live/P2Pool/sha3"
 	"golang.org/x/exp/slices"
-	"hash"
 	"log"
 	"lukechampine.com/uint128"
 	"math"
@@ -43,7 +43,7 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 	txPrivateKeySlice := block.Side.CoinbasePrivateKey.AsSlice()
 	txPrivateKeyScalar := block.Side.CoinbasePrivateKey.AsScalar()
 
-	var hashers []hash.Hash
+	var hashers []*sha3.HasherState
 
 	_ = utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
 		output := transaction.Output{
