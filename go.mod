@@ -7,7 +7,7 @@ require (
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec
-	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230430115346-f42f23de8429
+	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
