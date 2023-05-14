@@ -63,8 +63,6 @@ type SideChain struct {
 	watchBlock            *ChainMain
 	watchBlockSidechainId types.Hash
 
-	sharesCache Shares
-
 	blocksByTemplateId map[types.Hash]*PoolBlock
 	blocksByHeight     map[uint64][]*PoolBlock
 
@@ -73,15 +71,25 @@ type SideChain struct {
 	currentDifficulty atomic.Pointer[types.Difficulty]
 
 	precalcFinished atomic.Bool
+
+	preAllocatedShares                Shares
+	preAllocatedSharesPool            sync.Pool
+	preAllocatedDifficultyData        []DifficultyData
+	preAllocatedDifficultyDifferences []uint32
 }
 
 func NewSideChain(server P2PoolInterface) *SideChain {
 	s := &SideChain{
-		derivationCache:    NewDerivationCache(),
-		server:             server,
-		blocksByTemplateId: make(map[types.Hash]*PoolBlock),
-		blocksByHeight:     make(map[uint64][]*PoolBlock),
-		sharesCache:        make(Shares, 0, server.Consensus().ChainWindowSize*2),
+		derivationCache:                   NewDerivationCache(),
+		server:                            server,
+		blocksByTemplateId:                make(map[types.Hash]*PoolBlock),
+		blocksByHeight:                    make(map[uint64][]*PoolBlock),
+		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
+		preAllocatedDifficultyData:        make([]DifficultyData, server.Consensus().ChainWindowSize*2),
+		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
+	}
+	s.preAllocatedSharesPool.New = func() any {
+		return PreAllocateShares(s.Consensus().ChainWindowSize * 2)
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
 	s.currentDifficulty.Store(&minDiff)
@@ -111,7 +119,8 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 		if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
 			block.Main.Coinbase.Outputs = b.Main.Coinbase.Outputs
 		} else {
-			preAllocatedShares = make(Shares, 0, c.Consensus().ChainWindowSize*2)
+			preAllocatedShares = c.preAllocatedSharesPool.Get().(Shares)
+			defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 		}
 	}
 
@@ -532,10 +541,10 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return nil, fmt.Errorf("wrong difficulty, got %s, expected %s", block.Side.Difficulty.StringNumeric(), diff.StringNumeric())
 		}
 
-		if c.sharesCache, _ = c.getShares(block, c.sharesCache); len(c.sharesCache) == 0 {
+		if shares, _ := c.getShares(block, c.preAllocatedShares); len(shares) == 0 {
 			return nil, errors.New("could not get outputs")
-		} else if len(c.sharesCache) != len(block.Main.Coinbase.Outputs) {
-			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(c.sharesCache))
+		} else if len(shares) != len(block.Main.Coinbase.Outputs) {
+			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(shares))
 		} else if totalReward := func() (result uint64) {
 			for _, o := range block.Main.Coinbase.Outputs {
 				result += o.Reward
@@ -543,7 +552,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return
 		}(); totalReward != block.Main.Coinbase.TotalReward {
 			return nil, fmt.Errorf("invalid total reward, got %d, expected %d", block.Main.Coinbase.TotalReward, totalReward)
-		} else if rewards := SplitReward(totalReward, c.sharesCache); len(rewards) != len(block.Main.Coinbase.Outputs) {
+		} else if rewards := SplitReward(totalReward, shares); len(rewards) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
 
@@ -559,7 +568,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
 				}
 
-				if ephPublicKey, viewTag := c.derivationCache.GetEphemeralPublicKey(&c.sharesCache[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex, hashers[workerIndex]); ephPublicKey != out.EphemeralPublicKey {
+				if ephPublicKey, viewTag := c.derivationCache.GetEphemeralPublicKey(&shares[workIndex].Address, txPrivateKeySlice, txPrivateKeyScalar, workIndex, hashers[workerIndex]); ephPublicKey != out.EphemeralPublicKey {
 					return fmt.Errorf("has incorrect eph_public_key at index %d, got %s, expected %s", workIndex, out.EphemeralPublicKey.String(), ephPublicKey.String())
 				} else if out.Type == transaction.TxOutToTaggedKey && viewTag != out.ViewTag {
 					return fmt.Errorf("has incorrect view tag at index %d, got %d, expected %d", workIndex, out.ViewTag, viewTag)
@@ -782,8 +791,8 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 }
 
 func (c *SideChain) calculateOutputs(block *PoolBlock) (outputs transaction.Outputs, bottomHeight uint64) {
-	//TODO: buffer
-	preAllocatedShares := make(Shares, 0, c.Consensus().ChainWindowSize*2)
+	preAllocatedShares := c.preAllocatedSharesPool.Get().(Shares)
+	defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares)
 }
 
@@ -803,7 +812,7 @@ func (c *SideChain) GetDifficulty(tip *PoolBlock) (difficulty types.Difficulty, 
 }
 
 func (c *SideChain) getDifficulty(tip *PoolBlock) (difficulty types.Difficulty, verifyError, invalidError error) {
-	return GetDifficulty(tip, c.Consensus(), c.getPoolBlockByTemplateId)
+	return GetDifficulty(tip, c.Consensus(), c.getPoolBlockByTemplateId, c.preAllocatedDifficultyData, c.preAllocatedDifficultyDifferences)
 }
 
 func (c *SideChain) GetParent(block *PoolBlock) *PoolBlock {

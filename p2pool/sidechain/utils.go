@@ -195,45 +195,25 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 }
 
 func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {
-
-	sharesSet := make(map[address.PackedAddress]*Share, consensus.ChainWindowSize*2)
-
 	index := 0
-	indexGet := 0
 	l := len(preAllocatedShares)
-	getPreAllocated := func() (s *Share) {
-		if indexGet < l {
-			s = preAllocatedShares[indexGet]
-		} else {
-			s = &Share{}
-		}
-		indexGet++
-		return s
-	}
 
-	insertSet := func(weight types.Difficulty, a address.PackedAddress) {
-		if _, ok := sharesSet[a]; ok {
-			sharesSet[a].Weight = sharesSet[a].Weight.Add(weight)
-		} else {
-			s := getPreAllocated()
-			s.Weight = weight
-			s.Address = a
-			sharesSet[a] = s
-		}
-	}
-
-	insertPreAllocated := func(share *Share) {
+	insertShare := func(weight types.Difficulty, a address.PackedAddress) {
 		if index < l {
-			preAllocatedShares[index] = share
+			preAllocatedShares[index].Address = a
+			preAllocatedShares[index].Weight = weight
 		} else {
-			preAllocatedShares = append(preAllocatedShares, share)
+			preAllocatedShares = append(preAllocatedShares, &Share{
+				Address: a,
+				Weight:  weight,
+			})
 		}
 		index++
 	}
 
 	var errorValue error
 	for e := range IterateBlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
-		insertSet(weight, b.GetAddress())
+		insertShare(weight, b.GetAddress())
 	}, func(err error) {
 		errorValue = err
 	}) {
@@ -244,16 +224,29 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 		return nil, 0
 	}
 
-	for _, share := range sharesSet {
-		insertPreAllocated(share)
-	}
-
 	shares = preAllocatedShares[:index]
 
 	// Sort shares based on address
 	slices.SortFunc(shares, func(a *Share, b *Share) bool {
 		return a.Address.Compare(&b.Address) < 0
 	})
+
+	//remove dupes
+	index = 0
+	for i, share := range shares {
+		if i == 0 {
+			continue
+		}
+		if shares[index].Address.Compare(&share.Address) == 0 {
+			shares[index].Weight = shares[index].Weight.Add(share.Weight)
+		} else {
+			index++
+			shares[index].Address = share.Address
+			shares[index].Weight = share.Weight
+		}
+	}
+
+	shares = shares[:index+1]
 
 	//Shuffle shares
 	ShuffleShares(shares, tip.ShareVersion(), tip.Side.CoinbasePrivateKeySeed)
@@ -281,14 +274,29 @@ func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed 
 	}
 }
 
-func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc) (difficulty types.Difficulty, verifyError, invalidError error) {
-	difficultyData := make([]DifficultyData, 0, consensus.ChainWindowSize*2)
+func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, preAllocatedDifficultyData []DifficultyData, preAllocatedTimestampDifferences []uint32) (difficulty types.Difficulty, verifyError, invalidError error) {
+	index := 0
+	l := len(preAllocatedDifficultyData)
+
+	insertDifficultyData := func(cumDiff types.Difficulty, timestamp uint64) {
+		if index < l {
+			preAllocatedDifficultyData[index].CumulativeDifficulty = cumDiff
+			preAllocatedDifficultyData[index].Timestamp = timestamp
+		} else {
+			preAllocatedDifficultyData = append(preAllocatedDifficultyData, DifficultyData{
+				CumulativeDifficulty: cumDiff,
+				Timestamp:            timestamp,
+			})
+		}
+		index++
+	}
+
 	cur := tip
 	var blockDepth uint64
 	var oldestTimestamp uint64 = math.MaxUint64
 	for {
 		oldestTimestamp = utils.Min(oldestTimestamp, cur.Main.Timestamp)
-		difficultyData = append(difficultyData, DifficultyData{CumulativeDifficulty: cur.Side.CumulativeDifficulty, Timestamp: cur.Main.Timestamp})
+		insertDifficultyData(cur.Side.CumulativeDifficulty, cur.Main.Timestamp)
 
 		for _, uncleId := range cur.Side.Uncles {
 			if uncle := getByTemplateId(uncleId); uncle == nil {
@@ -301,7 +309,7 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 				}
 
 				oldestTimestamp = utils.Min(oldestTimestamp, uncle.Main.Timestamp)
-				difficultyData = append(difficultyData, DifficultyData{CumulativeDifficulty: uncle.Side.CumulativeDifficulty, Timestamp: uncle.Main.Timestamp})
+				insertDifficultyData(uncle.Side.CumulativeDifficulty, uncle.Main.Timestamp)
 			}
 		}
 
@@ -324,11 +332,17 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 		}
 	}
 
-	// Discard 10% oldest and 10% newest (by timestamp) blocks
-	tmpTimestamps := make([]uint32, 0, len(difficultyData))
-	for i := range difficultyData {
-		tmpTimestamps = append(tmpTimestamps, uint32(difficultyData[i].Timestamp-oldestTimestamp))
+	difficultyData := preAllocatedDifficultyData[:index]
+
+	if len(difficultyData) > len(preAllocatedTimestampDifferences) {
+		preAllocatedTimestampDifferences = make([]uint32, len(difficultyData))
 	}
+
+	// Discard 10% oldest and 10% newest (by timestamp) blocks
+	for i := range difficultyData {
+		preAllocatedTimestampDifferences[i] = uint32(difficultyData[i].Timestamp - oldestTimestamp)
+	}
+	tmpTimestamps := preAllocatedTimestampDifferences[:len(difficultyData)]
 
 	cutSize := (len(difficultyData) + 9) / 10
 	index1 := cutSize - 1
