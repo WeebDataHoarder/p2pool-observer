@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	pprofHttp "net/http/pprof"
 	"net/netip"
 	"os"
 	"os/signal"
@@ -60,7 +61,7 @@ func main() {
 	blockCache := flag.String("block-cache", "p2pool.cache", "Block cache for faster startups. Set to empty to disable")
 
 	//testing settings
-	debugLog := flag.Bool("debug", false, "Log more details. Default false")
+	doDebug := flag.Bool("debug", false, "Log more details, profile performance over API. Default false")
 	ipv6Only := flag.Bool("ipv6-only", false, "Use only IPv6. Default false")
 
 	//TODO extend verbosity to debug flag
@@ -72,7 +73,7 @@ func main() {
 		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
 	}
 
-	if *debugLog {
+	if *doDebug {
 		log.SetFlags(log.Flags() | log.Lshortfile)
 	}
 
@@ -142,6 +143,14 @@ func main() {
 		if *apiBind != "" {
 
 			serveMux := getServerMux(instance)
+
+			if *doDebug {
+				serveMux.PathPrefix("/debug/pprof/").HandlerFunc(pprofHttp.Index)
+				serveMux.HandleFunc("/debug/pprof/cmdline", pprofHttp.Cmdline)
+				serveMux.HandleFunc("/debug/pprof/profile", pprofHttp.Profile)
+				serveMux.HandleFunc("/debug/pprof/symbol", pprofHttp.Symbol)
+				serveMux.HandleFunc("/debug/pprof/trace", pprofHttp.Trace)
+			}
 
 			server := &http.Server{
 				Addr:        *apiBind,
