@@ -491,6 +491,8 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		_, _ = writer.Write(buf)
 	})
 
+	preAllocatedSharesPool := sidechain.NewPreAllocatedSharesPool(instance.Consensus().ChainWindowSize * 2)
+
 	// ================================= Archive section =================================
 	if archiveCache != nil {
 		serveMux.HandleFunc("/archive/window_from_template_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -536,7 +538,8 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 						return nil
 					}
 
-					preAllocatedShares := sidechain.PreAllocateShares(expectedBlocks * 2)
+					preAllocatedShares := preAllocatedSharesPool.Get()
+					defer preAllocatedSharesPool.Put(preAllocatedShares)
 
 					if _, err = tip.PreProcessBlock(instance.Consensus(), instance.SideChain().DerivationCache(), preAllocatedShares, instance.GetDifficultyByHeight, getByTemplateId); err == nil {
 						result := p2pooltypes.P2PoolSideChainStateResult{

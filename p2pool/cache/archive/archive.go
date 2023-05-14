@@ -19,10 +19,11 @@ import (
 const EpochSize = 32
 
 type Cache struct {
-	db                 *bolt.DB
-	consensus          *sidechain.Consensus
-	difficultyByHeight block.GetDifficultyByHeightFunc
-	derivationCache    sidechain.DerivationCacheInterface
+	db                     *bolt.DB
+	consensus              *sidechain.Consensus
+	difficultyByHeight     block.GetDifficultyByHeightFunc
+	preAllocatedSharesPool *sidechain.PreAllocatedSharesPool
+	derivationCache        sidechain.DerivationCacheInterface
 }
 
 var blocksByMainId = []byte("blocksByMainId")
@@ -49,10 +50,11 @@ func NewCache(path string, consensus *sidechain.Consensus, difficultyByHeight bl
 			return nil, err
 		}
 		return &Cache{
-			db:                 db,
-			consensus:          consensus,
-			difficultyByHeight: difficultyByHeight,
-			derivationCache:    sidechain.NewDerivationCache(),
+			db:                     db,
+			consensus:              consensus,
+			difficultyByHeight:     difficultyByHeight,
+			preAllocatedSharesPool: sidechain.NewPreAllocatedSharesPool(consensus.ChainWindowSize * 2),
+			derivationCache:        sidechain.NewDerivationCache(),
 		}, nil
 	}
 }
@@ -196,7 +198,8 @@ func (c *Cache) ProcessBlock(b *sidechain.PoolBlock) error {
 		}
 		return nil
 	}
-	preAllocatedShares := make(sidechain.Shares, 0, c.consensus.ChainWindowSize*2)
+	preAllocatedShares := c.preAllocatedSharesPool.Get()
+	defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 	_, err := b.PreProcessBlock(c.consensus, c.derivationCache, preAllocatedShares, c.difficultyByHeight, getTemplateById)
 	return err
 }

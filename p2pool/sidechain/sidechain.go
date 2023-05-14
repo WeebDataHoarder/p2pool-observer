@@ -73,7 +73,7 @@ type SideChain struct {
 	precalcFinished atomic.Bool
 
 	preAllocatedShares                Shares
-	preAllocatedSharesPool            sync.Pool
+	preAllocatedSharesPool            *PreAllocatedSharesPool
 	preAllocatedDifficultyData        []DifficultyData
 	preAllocatedDifficultyDifferences []uint32
 }
@@ -87,9 +87,7 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
 		preAllocatedDifficultyData:        make([]DifficultyData, server.Consensus().ChainWindowSize*2),
 		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
-	}
-	s.preAllocatedSharesPool.New = func() any {
-		return PreAllocateShares(s.Consensus().ChainWindowSize * 2)
+		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
 	s.currentDifficulty.Store(&minDiff)
@@ -119,7 +117,7 @@ func (c *SideChain) PreprocessBlock(block *PoolBlock) (missingBlocks []types.Has
 		if b := c.GetPoolBlockByTemplateId(types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))); b != nil {
 			block.Main.Coinbase.Outputs = b.Main.Coinbase.Outputs
 		} else {
-			preAllocatedShares = c.preAllocatedSharesPool.Get().(Shares)
+			preAllocatedShares = c.preAllocatedSharesPool.Get()
 			defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 		}
 	}
@@ -791,7 +789,7 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 }
 
 func (c *SideChain) calculateOutputs(block *PoolBlock) (outputs transaction.Outputs, bottomHeight uint64) {
-	preAllocatedShares := c.preAllocatedSharesPool.Get().(Shares)
+	preAllocatedShares := c.preAllocatedSharesPool.Get()
 	defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares)
 }
