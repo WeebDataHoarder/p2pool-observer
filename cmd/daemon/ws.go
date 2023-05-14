@@ -256,7 +256,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 
 	go func() {
 		var blocksToReport []*index.SideBlock
-		for range time.NewTicker(time.Second * 1).C {
+		for range time.Tick(time.Second * 1) {
 			//reuse
 			blocksToReport = blocksToReport[:0]
 
@@ -334,7 +334,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 	go func() {
 		var blocksToReport []*index.FoundBlock
 		var unfoundBlocksToReport []*index.SideBlock
-		for range time.NewTicker(time.Second * 1).C {
+		for range time.Tick(time.Second * 1) {
 			//reuse
 			blocksToReport = blocksToReport[:0]
 			unfoundBlocksToReport = unfoundBlocksToReport[:0]

@@ -293,13 +293,13 @@ func main() {
 
 		result := &poolInfoResult{
 			SideChain: poolInfoResultSideChain{
-				Consensus:            p2api.Consensus(),
-				Id:                   tip.TemplateId,
-				Height:               tip.SideHeight,
-				Difficulty:           types.DifficultyFrom64(tip.Difficulty),
-				CumulativeDifficulty: tip.CumulativeDifficulty,
-				Timestamp:            tip.Timestamp,
-				SecondsSinceLastBlock: utils.Max(0, time.Now().Unix() - int64(tip.Timestamp)),
+				Consensus:             p2api.Consensus(),
+				Id:                    tip.TemplateId,
+				Height:                tip.SideHeight,
+				Difficulty:            types.DifficultyFrom64(tip.Difficulty),
+				CumulativeDifficulty:  tip.CumulativeDifficulty,
+				Timestamp:             tip.Timestamp,
+				SecondsSinceLastBlock: utils.Max(0, time.Now().Unix()-int64(tip.Timestamp)),
 				Effort: poolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),
@@ -340,7 +340,7 @@ func main() {
 	getPoolInfo()
 
 	go func() {
-		for range time.NewTicker(time.Second * 2).C {
+		for range time.Tick(time.Second * 2) {
 			getPoolInfo()
 		}
 	}()

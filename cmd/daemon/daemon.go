@@ -189,7 +189,7 @@ func main() {
 
 	go func() {
 		//do deep scan for any missed main headers or deep reorgs every once in a while
-		for range time.NewTicker(time.Second * monero.BlockTime).C {
+		for range time.Tick(time.Second * monero.BlockTime) {
 			if !doCheckOfOldBlocks.Load() {
 				continue
 			}
@@ -216,7 +216,7 @@ func main() {
 
 	go func() {
 		//process older full blocks and sweeps
-		for range time.NewTicker(time.Second * monero.BlockTime).C {
+		for range time.Tick(time.Second * monero.BlockTime) {
 
 			actualTip := indexDb.GetMainBlockTip()
 			mainTip := actualTip
@@ -253,7 +253,7 @@ func main() {
 		}
 	}()
 
-	for range time.NewTicker(time.Second * 1).C {
+	for range time.Tick(time.Second * 1) {
 		currentTip := indexDb.GetSideBlockTip()
 		currentMainTip := indexDb.GetMainBlockTip()
 
