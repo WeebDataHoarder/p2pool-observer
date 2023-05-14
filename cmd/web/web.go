@@ -177,6 +177,7 @@ func main() {
 			basePoolInfo = m
 			break
 		}
+		time.Sleep(1)
 	}
 
 	consensusData, _ := json.Marshal(basePoolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any))
