@@ -768,8 +768,6 @@ func (c *Client) OnConnection() {
 							copy(rawIp[:], make([]byte, 10))
 							rawIp[10], rawIp[11] = 0xFF, 0xFF
 
-						} else {
-							log.Printf("Got IPv6 from peer %s: %s", c.AddressPort, netip.AddrFrom16(rawIp).String())
 						}
 
 						c.Owner.AddToPeerList(netip.AddrPortFrom(netip.AddrFrom16(rawIp).Unmap(), port))
