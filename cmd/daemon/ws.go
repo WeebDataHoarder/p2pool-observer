@@ -224,7 +224,18 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 		return foundBlock
 	}
 
-	fillSideBlockResult := func(mainTip *index.MainBlock, minerData *types2.MinerData, sideBlock *index.SideBlock) *index.SideBlock {
+	var minerData *types2.MinerData
+	var minerDataLock sync.Mutex
+	getMinerData := func(expectedHeight uint64) *types2.MinerData {
+		minerDataLock.Lock()
+		defer minerDataLock.Unlock()
+		if minerData == nil || minerData.Height < expectedHeight {
+			minerData = p2api.MinerData()
+		}
+		return minerData
+	}
+
+	fillSideBlockResult := func(mainTip *index.MainBlock, sideBlock *index.SideBlock) *index.SideBlock {
 
 		miner := indexDb.GetMiner(sideBlock.Miner)
 		sideBlock.MinerAddress = miner.Address()
@@ -235,6 +246,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
 			sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
 		} else {
+			minerData := getMinerData(sideBlock.MainHeight)
 			if minerData.Height == sideBlock.MainHeight {
 				sideBlock.MainDifficulty = minerData.Difficulty.Lo
 			} else if mainTip.Height == sideBlock.MainHeight {
@@ -263,7 +275,6 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			func() {
 				sideBlocksLock.RLock()
 				defer sideBlocksLock.RUnlock()
-				minerData := p2api.MinerData()
 				mainTip := indexDb.GetMainBlockTip()
 				tip := indexDb.GetSideBlockTip()
 				for cur := tip; cur != nil; cur = indexDb.GetTipSideBlockByTemplateId(cur.ParentTemplateId) {
@@ -275,13 +286,13 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						if sideBlockBuffer.Insert(u) {
 							//first time seen
 							pushedNew = true
-							blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, minerData, u))
+							blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, u))
 						}
 					}
 					if sideBlockBuffer.Insert(cur) {
 						//first time seen
 						pushedNew = true
-						blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, minerData, cur))
+						blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, cur))
 					}
 
 					if !pushedNew {
@@ -340,7 +351,6 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			unfoundBlocksToReport = unfoundBlocksToReport[:0]
 
 			func() {
-				minerData := p2api.MinerData()
 				sideBlocksLock.RLock()
 				defer sideBlocksLock.RUnlock()
 				mainTip := indexDb.GetMainBlockTip()
@@ -348,7 +358,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 					if m != nil && indexDb.GetMainBlockById(m.MainBlock.Id) == nil {
 						//unfound
 						if b := indexDb.GetSideBlockByMainId(m.MainBlock.Id); b != nil {
-							unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, minerData, indexDb.GetSideBlockByMainId(m.MainBlock.Id)))
+							unfoundBlocksToReport = append(unfoundBlocksToReport, fillSideBlockResult(mainTip, indexDb.GetSideBlockByMainId(m.MainBlock.Id)))
 							foundBlockBuffer.Remove(m)
 						}
 					}
