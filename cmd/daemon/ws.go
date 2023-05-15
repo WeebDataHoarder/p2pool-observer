@@ -176,11 +176,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 		} else if a.MainBlock.Height > b.MainBlock.Height {
 			return 1
 		}
-		if a.EffectiveHeight < b.EffectiveHeight {
-			return -1
-		} else if a.EffectiveHeight > b.EffectiveHeight {
-			return 1
-		}
+
 		if a.SideHeight < b.SideHeight {
 			return -1
 		} else if a.SideHeight > b.SideHeight {
