@@ -215,7 +215,7 @@ func (i *Index) GetMinerByAddress(addr *address.Address) *Miner {
 	default:
 		return nil
 	}
-	spendPub, viewPub := addr.SpendPub.AsBytes(), addr.ViewPub.AsBytes()
+	spendPub, viewPub := addr.SpendPublicKey().AsBytes(), addr.ViewPublicKey().AsBytes()
 	if rows, err := i.statements.GetMinerByAddress.Query(&spendPub, &viewPub); err != nil {
 		return nil
 	} else {
@@ -237,7 +237,7 @@ func (i *Index) GetOrCreateMinerByAddress(addr *address.Address) *Miner {
 	if m := i.GetMinerByAddress(addr); m != nil {
 		return m
 	} else {
-		spendPub, viewPub := addr.SpendPub.AsSlice(), addr.ViewPub.AsSlice()
+		spendPub, viewPub := addr.SpendPublicKey().AsSlice(), addr.ViewPublicKey().AsSlice()
 		if rows, err := i.statements.InsertMiner.Query(&spendPub, &viewPub); err != nil {
 			return nil
 		} else {
@@ -831,7 +831,7 @@ func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, l
 	go func() {
 		defer close(out)
 
-		spendPub, viewPub := addr.SpendPub.AsSlice(), addr.ViewPub.AsSlice()
+		spendPub, viewPub := addr.SpendPublicKey().AsSlice(), addr.ViewPublicKey().AsSlice()
 		scanFunc := func(row RowScanInterface) error {
 			var tx MainLikelySweepTransaction
 			if err := tx.ScanFromRow(i, row); err != nil {
@@ -1059,7 +1059,7 @@ func (i *Index) InsertOrUpdateMainLikelySweepTransaction(t *MainLikelySweepTrans
 
 	resultJson, _ := json.Marshal(t.Result)
 	matchJson, _ := json.Marshal(t.Match)
-	spendPub, viewPub := t.Address.SpendPub.AsSlice(), t.Address.ViewPub.AsSlice()
+	spendPub, viewPub := t.Address.SpendPublicKey().AsSlice(), t.Address.ViewPublicKey().AsSlice()
 
 	if _, err := i.handle.Exec(
 		"INSERT INTO main_likely_sweep_transactions (id, timestamp, result, match, value, spending_output_indices, global_output_indices, input_count, input_decoy_count, miner_count, other_miners_count, no_miner_count, miner_ratio, other_miners_ratio, no_miner_ratio, miner_spend_public_key, miner_view_public_key) VALUES ($1, $2, $3, $4, $5, $6::bigint[], $7::bigint[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) ON CONFLICT (id) DO UPDATE SET result = $3, match = $4, value = $5, miner_count = $10, other_miners_count = $11, no_miner_count = $12, miner_ratio = $13, other_miners_ratio = $14, no_miner_ratio = $15, miner_spend_public_key = $16, miner_view_public_key = $17;",

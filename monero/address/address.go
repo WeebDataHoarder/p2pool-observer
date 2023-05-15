@@ -10,8 +10,8 @@ import (
 
 type Address struct {
 	Network  uint8
-	SpendPub crypto.PublicKey
-	ViewPub  crypto.PublicKey
+	SpendPub crypto.PublicKeyBytes
+	ViewPub  crypto.PublicKeyBytes
 	checksum []byte
 	// IsSubAddress Always false
 	IsSubAddress bool
@@ -23,15 +23,15 @@ func (a *Address) Compare(b Interface) int {
 }
 
 func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {
-	return a.SpendPub, a.ViewPub
+	return &a.SpendPub, &a.ViewPub
 }
 
 func (a *Address) SpendPublicKey() crypto.PublicKey {
-	return a.SpendPub
+	return &a.SpendPub
 }
 
 func (a *Address) ViewPublicKey() crypto.PublicKey {
-	return a.ViewPub
+	return &a.ViewPub
 }
 
 func (a *Address) ToAddress() *Address {
@@ -39,7 +39,7 @@ func (a *Address) ToAddress() *Address {
 }
 
 func (a *Address) ToPackedAddress() PackedAddress {
-	return NewPackedAddress(a.SpendPub, a.ViewPub)
+	return NewPackedAddressFromBytes(a.SpendPub, a.ViewPub)
 }
 
 func FromBase58(address string) *Address {
@@ -63,11 +63,8 @@ func FromBase58(address string) *Address {
 		checksum: checksum[:],
 	}
 
-	var spend, view crypto.PublicKeyBytes
-	copy(spend[:], raw[1:33])
-	copy(view[:], raw[33:65])
-
-	a.SpendPub, a.ViewPub = &spend, &view
+	copy(a.SpendPub[:], raw[1:33])
+	copy(a.ViewPub[:], raw[33:65])
 
 	return a
 }
@@ -85,8 +82,8 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 		checksum: checksum[:4],
 	}
 
-	a.SpendPub = spend
-	a.ViewPub = view
+	a.SpendPub = spend.AsBytes()
+	a.ViewPub = view.AsBytes()
 
 	return a
 }
