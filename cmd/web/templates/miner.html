@@ -68,11 +68,11 @@
     </div>
 
     <hr/>
-    {% elseif (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v1") and (last_raw_share.Side.ExtraBuffer.SoftwareId == "P2Pool") and (last_raw_share.Side.ExtraBuffer.SoftwareVersion != pool.versions.p2pool.version) %}
+    {% elseif (last_raw_share is defined) and (last_raw_share.ShareVersion()|str != "v1") and (last_raw_share.Side.ExtraBuffer.SoftwareId == "P2Pool") and (last_raw_share.Side.ExtraBuffer.SoftwareVersion != pool.Versions.P2Pool.Version) %}
     <div style="border: #d1d1d1 1px dashed;">
         <h3 style="color:#FF4433">Recent shares indicate you are running an older version of P2Pool</h3>
 
-        <p><a href="https://github.com/SChernykh/p2pool/releases/tag/{{ pool.versions.p2pool.version }}">P2Pool {{ pool.versions.p2pool.version }}</a> has been released.</p>
+        <p><a href="https://github.com/SChernykh/p2pool/releases/tag/{{ pool.Versions.P2Pool.Version }}">P2Pool {{ pool.Versions.P2Pool.Version }}</a> has been released.</p>
         <p>Your most recent share indicates are currently running {{ software_info(last_raw_share.Side.ExtraBuffer.SoftwareId, last_raw_share.Side.ExtraBuffer.SoftwareVersion) }}. It is recommended to upgrade.</p>
         <p>After upgrading to this P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
@@ -98,8 +98,8 @@
         <tr>
             <td title="{{ utc_date(miner.last_share_timestamp) }}">{{ time_elapsed_short(miner.last_share_timestamp) }}</td>
             <td>{{ window_count_blocks }} blocks (+{{ window_count_uncles }} uncles)</td>
-            <td>{{ ((window_weight / pool.sidechain.window.weight|diff_int) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
-            <td>{{ (((window_weight / pool.sidechain.window.weight|diff_int))*100)|round(3) }}%</td>
+            <td>{{ ((window_weight / pool.SideChain.Window.Weight|diff_int) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
+            <td>{{ (((window_weight / pool.SideChain.Window.Weight|diff_int))*100)|round(3) }}%</td>
         </tr>
         <tr><td colspan="4">&nbsp;</td></tr>
         <tr>
@@ -111,8 +111,8 @@
         <tr>
             <td>{% if miner.shares is defined %}{{ miner.shares[1].shares }} blocks (+{{ miner.shares[1].uncles }} uncles{% if miner.shares[0].shares > 0 %}, +{{ miner.shares[0].shares }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{{ count_blocks }} blocks (+{{ count_uncles }} uncles)</td>
-            <td>{{ ((weight / ((pool.sidechain.window.weight|diff_int * 4) * (pool.sidechain.max_window_size / pool.sidechain.window_size))) * diff_hashrate(pool.sidechain.difficulty, pool.sidechain.block_time))|si_units(3) }}H/s</td>
-            <td>{{ (((weight / ((pool.sidechain.window.weight|diff_int * 4) * (pool.sidechain.max_window_size / pool.sidechain.window_size))))*100)|round(3) }}%</td>
+            <td>{{ ((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
+            <td>{{ (((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))))*100)|round(3) }}%</td>
         </tr>
     </table>
 </div>
@@ -127,7 +127,7 @@
         <br/>
         Number denotes the amount of shares per slice, with the plus (<code>+</code>) character being more than 9, and dot (<code>.</code>) being none.
         <br/>
-        Each slice accounts for {{ position_resolution }} P2Pool blocks, or around {{ (position_resolution * pool.sidechain.block_time) / 60 }} minutes.
+        Each slice accounts for {{ position_resolution }} P2Pool blocks, or around {{ (position_resolution * pool.SideChain.BlockTime) / 60 }} minutes.
     </p>
     <h3>Shares during last day</h3>
     <code class="mono">{{ position_blocks }}</code>
@@ -159,6 +159,7 @@
 <div style="text-align: center">
     <h2>Most recent shares</h2>
     {% set shares = last_shares %}
+    {% set shares_efforts = last_shares_efforts %}
     {% set shares_is_miner = true %}
     {% include('tpl_shares.html') %}
 </div>
@@ -186,6 +187,25 @@
 
 
 {% if miner.last_share_timestamp != 0 %}
+<hr/>
+
+<div style="text-align: center">
+    <form action="/miner/{{ miner.address }}" method="get">
+        <h3>Effort Calculation</h3>
+        <p>Local hashrate of each P2Pool miner is not known by the network. A guess is calculated based on daily estimation. If you provide a value here, it will be more accurate for effort calculation.</p>
+        <p>This data will not be saved.</p>
+        <label for="hashrate_local">Your Local Hashrate</label><br/>
+        <input type="numeric" name="hashrate" id="hashrate_local" placeholder="100" size="8" class="mono" value="{% if hashrate_local > 0 %}{{ hashrate_local }}{% endif %}"/>
+        <select name="magnitude">
+            <option value="1"{% if magnitude_local == 1 %} selected{% endif %}>H/s</option>
+            <option value="1000"{% if magnitude_local == 1000 %} selected{% endif %}>KH/s</option>
+            <option value="1000000"{% if magnitude_local == 1000000 %} selected{% endif %}>MH/s</option>
+            <option value="1000000000"{% if magnitude_local == 1000000000 %} selected{% endif %}>GH/s</option>
+        </select>
+        <br/>
+        <input type="submit" value="Calculate" style="width: 20em; margin: 20px;"/>
+    </form>
+</div>
 <hr/>
 
 <div style="text-align: center">

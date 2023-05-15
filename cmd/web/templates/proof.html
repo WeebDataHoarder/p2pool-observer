@@ -16,7 +16,7 @@
     {% endif %}
 
     <p>Received <strong>{{ monero_to_xmr(payout.Value) }} XMR</strong> on transaction id <a class="mono small" href="/t/{{ payout.Id|henc }}">{{ payout.Id }}</a> (output index #{{ payout.Index }}, global output index #{{ payout.GlobalOutputIndex }}).</p>
-    <p><strong>{{ add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1) }} confirmation(s)</strong>. Coinbase outputs will unlock after 60 confirmations.</p>
+    <p><strong>{{ add_uint(sub_int(pool.MainChain.Height, block.MainHeight), 1) }} confirmation(s)</strong>. Coinbase outputs will unlock after 60 confirmations.</p>
 
     <p><strong>Stealth Address:</strong> <span class="mono small">{{ get_ephemeral_pubkey(minerAddress, raw.Side.CoinbasePrivateKey, payout.Index) }}</span></p>
     <hr/>

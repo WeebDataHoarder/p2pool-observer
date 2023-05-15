@@ -165,22 +165,22 @@ func main() {
 		ircLinkTitle = fmt.Sprintf("#%s@%s", ircUrl.Fragment, humanHost)
 	}
 
-	var basePoolInfo map[string]any
+	var basePoolInfo *utils2.PoolInfoResult
 
 	for {
-		t := getFromAPI("pool_info")
+		t := getTypeFromAPI[utils2.PoolInfoResult]("pool_info")
 		if t == nil {
 			time.Sleep(1)
 			continue
 		}
-		if m, ok := t.(map[string]any); ok {
-			basePoolInfo = m
+		if t.SideChain.Id != types.ZeroHash {
+			basePoolInfo = t
 			break
 		}
 		time.Sleep(1)
 	}
 
-	consensusData, _ := json.Marshal(basePoolInfo["sidechain"].(map[string]any)["consensus"].(map[string]any))
+	consensusData, _ := json.Marshal(basePoolInfo.SideChain.Consensus)
 	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
 	if err != nil {
 		log.Panic(err)
@@ -253,7 +253,11 @@ func main() {
 		return os.Getenv(args[0].(string))
 	}
 	env.Functions["diff_hashrate"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
-		if d, err := types.DifficultyFromString(args[0].(string)); err == nil {
+		if strVal, ok := args[0].(string); ok {
+			if d, err := types.DifficultyFromString(strVal); err == nil {
+				return d.Div64(toUint64(args[1])).Lo
+			}
+		} else if d, ok := args[0].(types.Difficulty); ok {
 			return d.Div64(toUint64(args[1])).Lo
 		}
 		return 0
@@ -576,6 +580,13 @@ func main() {
 			return s[toUint64(args[1])]
 		} else if m, ok := args[0].(map[string]any); ok {
 			return m[toString(args[1])]
+		} else if ms, ok := args[0].(mapslice.MapSlice); ok {
+			k := toString(args[1])
+			for _, e := range ms {
+				if s, ok := e.Key.(string); ok && s == k {
+					return e.Value
+				}
+			}
 		}
 		return nil
 	}
@@ -737,11 +748,9 @@ func main() {
 			writer.Header().Set("refresh", "120")
 		}
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
-		d1, _ := types.DifficultyFromString(poolInfo["mainchain"].(map[string]any)["difficulty"].(string))
-		d2, _ := types.DifficultyFromString(poolInfo["sidechain"].(map[string]any)["difficulty"].(string))
-		secondsPerBlock := float64(d1.Lo) / float64(d2.Div64(toUint64(poolInfo["sidechain"].(map[string]any)["block_time"])).Lo)
+		secondsPerBlock := float64(poolInfo.MainChain.Difficulty.Lo) / float64(poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo)
 
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
@@ -753,7 +762,7 @@ func main() {
 
 		blocksFound := NewPositionChart(30*4, consensus.ChainWindowSize*4)
 
-		tip := toInt64(poolInfo["sidechain"].(map[string]any)["height"])
+		tip := int64(poolInfo.SideChain.Height)
 		for _, b := range blocks {
 			blocksFound.Add(int(tip-int64(b.SideHeight)), 1)
 		}
@@ -1030,7 +1039,7 @@ func main() {
 			miner = m.(map[string]any)
 		}
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["refresh"] = writer.Header().Get("refresh")
@@ -1072,7 +1081,7 @@ func main() {
 			miner = m.(map[string]any)
 		}
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["refresh"] = writer.Header().Get("refresh")
@@ -1098,11 +1107,11 @@ func main() {
 			writer.Header().Set("refresh", "600")
 		}
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
-		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
+		currentWindowSize := uint64(poolInfo.SideChain.WindowSize)
 		windowSize := currentWindowSize
-		if toUint64(poolInfo["sidechain"].(map[string]any)["height"]) <= windowSize {
+		if poolInfo.SideChain.Height <= windowSize {
 			windowSize = consensus.ChainWindowSize
 		}
 		size := uint64(30)
@@ -1120,7 +1129,7 @@ func main() {
 
 		miners := make(map[uint64]map[string]any, 0)
 
-		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
+		tipHeight := poolInfo.SideChain.Height
 		wend := tipHeight - windowSize
 
 		tip := shares[0]
@@ -1224,7 +1233,7 @@ func main() {
 
 		coinbase = getSliceFromAPI[index.MainCoinbaseOutput](fmt.Sprintf("block_by_id/%s/coinbase", block.MainId))
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
 		var raw *sidechain.PoolBlock
 		b := &sidechain.PoolBlock{}
@@ -1235,9 +1244,9 @@ func main() {
 		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
 		sweepsCount := 0
-		//add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1)
+
 		var likelySweeps [][]*index.MainLikelySweepTransaction
-		if params.Has("sweeps") && block.MinedMainAtHeight && ((toInt64(poolInfo["mainchain"].(map[string]any)["height"])-int64(block.MainHeight))+1) >= monero.MinerRewardUnlockTime {
+		if params.Has("sweeps") && block.MinedMainAtHeight && ((int64(poolInfo.MainChain.Height)-int64(block.MainHeight))+1) >= monero.MinerRewardUnlockTime {
 			indices := make([]uint64, len(coinbase))
 			for i, o := range coinbase {
 				indices[i] = o.GlobalOutputIndex
@@ -1318,14 +1327,14 @@ func main() {
 
 		miner := m.(map[string]any)
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
 		const totalWindows = 4
 		wsize := consensus.ChainWindowSize * totalWindows
 
-		currentWindowSize := toUint64(poolInfo["sidechain"].(map[string]any)["window_size"])
+		currentWindowSize := uint64(poolInfo.SideChain.WindowSize)
 
-		tipHeight := toUint64(poolInfo["sidechain"].(map[string]any)["height"])
+		tipHeight := poolInfo.SideChain.Height
 
 		var shares, lastShares []*index.SideBlock
 
@@ -1419,6 +1428,55 @@ func main() {
 		ctx["position_blocks"] = sharesFound.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
 		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
 		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
+
+		totalWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(uint64(poolInfo.SideChain.MaxWindowSize)).Div64(uint64(poolInfo.SideChain.WindowSize))
+		dailyHashRate := poolInfo.SideChain.Difficulty.Mul(longDiff).Div(totalWeight).Div64(consensus.TargetBlockTime).Lo
+
+		hashRate := float64(0)
+		magnitude := float64(1000)
+
+		if dailyHashRate >= 1000000000 {
+			hashRate = float64(dailyHashRate) / 1000000000
+			magnitude = 1000000000
+		} else if dailyHashRate >= 1000000 {
+			hashRate = float64(dailyHashRate) / 1000000
+			magnitude = 1000000
+		} else if dailyHashRate >= 1000 {
+			hashRate = float64(dailyHashRate) / 1000
+			magnitude = 1000
+		}
+
+		if params.Has("magnitude") {
+			magnitude = toFloat64(params.Get("magnitude"))
+		}
+		if params.Has("hashrate") {
+			hashRate = toFloat64(params.Get("hashrate"))
+
+			if hashRate > 0 && magnitude > 0 {
+				dailyHashRate = uint64(hashRate * magnitude)
+			}
+		}
+
+		ctx["hashrate_local"] = hashRate
+		ctx["magnitude_local"] = magnitude
+
+		efforts := make([]float64, len(lastShares))
+		for i := len(lastShares) - 1; i >= 0; i-- {
+			s := lastShares[i]
+			if i == (len(lastShares) - 1) {
+				efforts[i] = -1
+				continue
+			}
+			previous := lastShares[i+1]
+
+			timeDelta := uint64(utils.Max(int64(s.Timestamp)-int64(previous.Timestamp), 0))
+
+			expectedCumDiff := types.DifficultyFrom64(dailyHashRate).Mul64(timeDelta)
+
+			efforts[i] = float64(expectedCumDiff.Mul64(100).Lo) / float64(s.Difficulty)
+		}
+		ctx["last_shares_efforts"] = efforts
+
 		render(request, writer, "miner.html", ctx)
 	})
 
@@ -1474,7 +1532,7 @@ func main() {
 			return
 		}
 
-		poolInfo := getFromAPI("pool_info", 5).(map[string]any)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
 		ctx := make(map[string]stick.Value)
 		ctx["block"] = block

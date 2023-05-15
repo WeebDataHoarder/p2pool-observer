@@ -64,7 +64,7 @@ func main() {
 	}
 	defer indexDb.Close()
 
-	var lastPoolInfo atomic.Pointer[poolInfoResult]
+	var lastPoolInfo atomic.Pointer[utils2.PoolInfoResult]
 
 	fillMainCoinbaseOutputs := func(params url.Values, outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
 		result = make(index.MainCoinbaseOutputs, 0, len(outputs))
@@ -178,7 +178,7 @@ func main() {
 			}
 		}
 
-		versions := make([]sideChainVersionEntry, 0)
+		versions := make([]utils2.SideChainVersionEntry, 0)
 
 		var pplnsWeight types.Difficulty
 
@@ -199,13 +199,13 @@ func main() {
 			miners[indexDb.GetOrCreateMinerPackedAddress(b.GetAddress()).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
-			if i := slices.IndexFunc(versions, func(entry sideChainVersionEntry) bool {
+			if i := slices.IndexFunc(versions, func(entry utils2.SideChainVersionEntry) bool {
 				return entry.SoftwareId == b.Side.ExtraBuffer.SoftwareId && entry.SoftwareVersion == b.Side.ExtraBuffer.SoftwareVersion
 			}); i != -1 {
 				versions[i].Weight = versions[i].Weight.Add(weight)
 				versions[i].Count++
 			} else {
-				versions = append(versions, sideChainVersionEntry{
+				versions = append(versions, utils2.SideChainVersionEntry{
 					Weight:          weight,
 					Count:           1,
 					SoftwareId:      b.Side.ExtraBuffer.SoftwareId,
@@ -220,7 +220,7 @@ func main() {
 			uncleCount += len(ps.Uncles)
 		}
 
-		slices.SortFunc(versions, func(a, b sideChainVersionEntry) bool {
+		slices.SortFunc(versions, func(a, b utils2.SideChainVersionEntry) bool {
 			return a.Weight.Cmp(b.Weight) > 0
 		})
 
@@ -291,8 +291,8 @@ func main() {
 			return result / float64(maxI)
 		}
 
-		result := &poolInfoResult{
-			SideChain: poolInfoResultSideChain{
+		result := &utils2.PoolInfoResult{
+			SideChain: utils2.PoolInfoResultSideChain{
 				Consensus:             p2api.Consensus(),
 				Id:                    tip.TemplateId,
 				Height:                tip.SideHeight,
@@ -300,14 +300,14 @@ func main() {
 				CumulativeDifficulty:  tip.CumulativeDifficulty,
 				Timestamp:             tip.Timestamp,
 				SecondsSinceLastBlock: utils.Max(0, time.Now().Unix()-int64(tip.Timestamp)),
-				Effort: poolInfoResultSideChainEffort{
+				Effort: utils2.PoolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),
 					Average50:  averageEffort(50),
 					Average200: averageEffort(200),
 					Last:       blockEfforts,
 				},
-				Window: poolInfoResultSideChainWindow{
+				Window: utils2.PoolInfoResultSideChainWindow{
 					Miners:   len(miners),
 					Blocks:   blockCount,
 					Uncles:   uncleCount,
@@ -321,7 +321,7 @@ func main() {
 				Found:         totalKnown.blocksFound,
 				Miners:        totalKnown.minersKnown,
 			},
-			MainChain: poolInfoResultMainChain{
+			MainChain: utils2.PoolInfoResultMainChain{
 				Id:             mainTip.Id,
 				Height:         mainTip.Height,
 				Difficulty:     networkDifficulty,
@@ -329,8 +329,8 @@ func main() {
 				BlockTime:      monero.BlockTime,
 			},
 			Versions: struct {
-				P2Pool versionInfo `json:"p2pool"`
-				Monero versionInfo `json:"monero"`
+				P2Pool utils2.VersionInfo `json:"p2pool"`
+				Monero utils2.VersionInfo `json:"monero"`
 			}{P2Pool: getP2PoolVersion(), Monero: getMoneroVersion()},
 		}
 
@@ -384,9 +384,9 @@ func main() {
 			return
 		}
 
-		var foundBlocksData [index.InclusionAlternateInVerifiedChain + 1]minerInfoBlockData
+		var foundBlocksData [index.InclusionAlternateInVerifiedChain + 1]utils2.MinerInfoBlockData
 		_ = indexDb.Query("SELECT COUNT(*) as count, coalesce(MAX(side_height), 0) as last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
-			var d minerInfoBlockData
+			var d utils2.MinerInfoBlockData
 			var inclusion index.BlockInclusion
 			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
 				return err
@@ -398,7 +398,7 @@ func main() {
 		}, miner.Id())
 
 		_ = indexDb.Query("SELECT COUNT(*) as count, coalesce(MAX(side_height), 0) as last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 AND side_blocks.uncle_of IS NOT NULL GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
-			var d minerInfoBlockData
+			var d utils2.MinerInfoBlockData
 			var inclusion index.BlockInclusion
 			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
 				return err
@@ -422,7 +422,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, minerInfoResult{
+		buf, _ := encodeJson(request, utils2.MinerInfoResult{
 			Id:                 miner.Id(),
 			Address:            miner.Address(),
 			Alias:              miner.Alias(),

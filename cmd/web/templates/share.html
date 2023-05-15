@@ -132,7 +132,7 @@
     <h2>Payouts share was weighted into</h2>
 
     {% include('tpl_payouts.html') %}
-    {% if block.EffectiveHeight > (pool.sidechain.height - pool.sidechain.window_size) %}
+    {% if block.EffectiveHeight > (pool.SideChain.Height - pool.SideChain.WindowSize) %}
     <div class="center"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></div>
     {% else %}
     <div class="center">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</div>
@@ -190,7 +190,7 @@
             {% if sweeps|length > 0 %}
             {% set sweep = get_slice_index(sweeps, 0) %}
             <td class="smaller" title="{{ utc_date(sweep.Timestamp) }}"><a href="/transaction-lookup?txid={{ sweep.Id }}" class="mono">{{ sweep.Id|shorten(10) }} {{ sweep.MinerCount }} / {{ sweep.InputCount }}</a></td>
-            {% elseif add_uint(sub_int(pool.mainchain.height, block.MainHeight), 1) < 60 %}
+            {% elseif add_uint(sub_int(pool.MainChain.Height, block.MainHeight), 1) < 60 %}
             <td class="small">Not unlocked</td>
             {% else %}
             <td class="small">Not known</td>

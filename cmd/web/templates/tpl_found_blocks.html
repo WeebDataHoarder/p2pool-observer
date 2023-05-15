@@ -36,9 +36,9 @@
             <td style="font-weight:bolder; color: {{ found_block_effort(b, previous)|effort_color }};">
                 {{ found_block_effort(b, previous)|round(2) }}%
             </td>
-            {% elseif attribute(pool.sidechain.effort.last, b.MainBlock.Id) is defined %}
-            <td style="font-weight:bolder; color: {{ attribute(pool.sidechain.effort.last, b.MainBlock.Id)|effort_color }};">
-                {{ attribute(pool.sidechain.effort.last, b.MainBlock.Id)|round(2) }}%
+            {% elseif attribute(pool.SideChain.Effort.Last, b.MainBlock.Id) is defined %}
+            <td style="font-weight:bolder; color: {{ attribute(pool.SideChain.Effort.Last, b.MainBlock.Id)|effort_color }};">
+                {{ attribute(pool.SideChain.Effort.Last, b.MainBlock.Id)|round(2) }}%
             </td>
             {% else %}
             <td>unknown</td>
