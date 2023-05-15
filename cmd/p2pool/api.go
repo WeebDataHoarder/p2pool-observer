@@ -20,12 +20,13 @@ import (
 	"time"
 )
 
-func encodeJson(r *http.Request, d any) ([]byte, error) {
+func encodeJson(r *http.Request, w http.ResponseWriter, d any) error {
+	encoder := json.NewEncoder(w)
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
-		return json.MarshalIndent(d, "", "    ")
-	} else {
-		return json.Marshal(d)
+		encoder.SetIndent("", "    ")
 	}
+	encoder.SetEscapeHTML(false)
+	return encoder.Encode(d)
 }
 
 func getServerMux(instance *p2pool.P2Pool) *mux.Router {
@@ -56,8 +57,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		}
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/server/connection_check/{addrPort:.+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -150,8 +150,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, info)
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, info)
 	})
 
 	serveMux.HandleFunc("/server/peerlist", func(writer http.ResponseWriter, request *http.Request) {
@@ -176,8 +175,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, result)
 	})
 
 	// ================================= MainChain section =================================
@@ -190,8 +188,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			}
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -204,8 +201,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			result := instance.GetDifficultyByHeight(height)
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -221,8 +217,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			}
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -238,8 +233,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		}
 	})
 	serveMux.HandleFunc("/mainchain/tip", func(writer http.ResponseWriter, request *http.Request) {
@@ -250,8 +244,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		}
 	})
 
@@ -259,8 +252,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 	serveMux.HandleFunc("/sidechain/consensus", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, instance.Consensus())
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, instance.Consensus())
 	})
 
 	serveMux.HandleFunc("/sidechain/blocks_by_height/{height:[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -281,8 +273,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -302,8 +293,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -349,8 +339,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -396,8 +385,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = encodeJson(request, writer, result)
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -444,8 +432,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
@@ -469,8 +456,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		}
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, result)
 	})
 	serveMux.HandleFunc("/sidechain/status", func(writer http.ResponseWriter, request *http.Request) {
 		result := p2pooltypes.P2PoolSideChainStatusResult{
@@ -487,8 +473,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		}
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+		_ = encodeJson(request, writer, result)
 	})
 
 	preAllocatedSharesPool := sidechain.NewPreAllocatedSharesPool(instance.Consensus().ChainWindowSize * 2)
@@ -598,8 +583,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 						if topError == nil {
 							writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 							writer.WriteHeader(http.StatusOK)
-							buf, _ := encodeJson(request, result)
-							_, _ = writer.Write(buf)
+							_ = encodeJson(request, writer, result)
 							return
 						}
 					}
@@ -685,8 +669,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
@@ -716,8 +699,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
@@ -730,16 +712,14 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				if blocks := archiveCache.LoadByMainChainHeight(height); len(blocks) > 0 {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusOK)
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				} else {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusNotFound)
 					if blocks == nil {
 						blocks = make(sidechain.UniquePoolBlockSlice, 0)
 					}
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				}
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -753,16 +733,14 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				if blocks := archiveCache.LoadBySideChainHeight(height); len(blocks) > 0 {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusOK)
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				} else {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusNotFound)
 					if blocks == nil {
 						blocks = make(sidechain.UniquePoolBlockSlice, 0)
 					}
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				}
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -776,16 +754,14 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				if blocks := archiveCache.LoadByTemplateId(mainId); len(blocks) > 0 {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusOK)
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				} else {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusNotFound)
 					if blocks == nil {
 						blocks = make(sidechain.UniquePoolBlockSlice, 0)
 					}
-					buf, _ := encodeJson(request, blocks)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, blocks)
 				}
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -799,8 +775,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				if b := archiveCache.LoadByMainId(mainId); b != nil {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusOK)
-					buf, _ := encodeJson(request, b)
-					_, _ = writer.Write(buf)
+					_ = encodeJson(request, writer, b)
 				} else {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusNotFound)
@@ -830,8 +805,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
@@ -861,8 +835,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				buf, _ := encodeJson(request, result)
-				_, _ = writer.Write(buf)
+				_ = encodeJson(request, writer, result)
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
