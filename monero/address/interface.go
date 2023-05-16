@@ -12,8 +12,6 @@ type Interface interface {
 	SpendPublicKey() crypto.PublicKey
 	ViewPublicKey() crypto.PublicKey
 
-	ToAddress() *Address
+	ToAddress(network uint8, err ...error) *Address
 	ToPackedAddress() PackedAddress
-
-	ToBase58() string
 }

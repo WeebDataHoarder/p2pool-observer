@@ -490,7 +490,7 @@ func main() {
 		if len(args) != 1 {
 			return nil
 		}
-		return args[0].(*sidechain.PoolBlock).GetAddress().Reference().ToBase58()
+		return args[0].(*sidechain.PoolBlock).GetAddress().Reference().ToAddress(consensus.NetworkType.AddressNetwork()).ToBase58()
 	}
 
 	env.Functions["extra_nonce"] = func(ctx stick.Context, args ...stick.Value) stick.Value {

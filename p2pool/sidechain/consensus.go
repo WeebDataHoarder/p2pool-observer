@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
@@ -41,6 +42,20 @@ func (n NetworkType) String() string {
 		return "stagenet"
 	}
 	return ""
+}
+
+func (n NetworkType) AddressNetwork() (uint8, error) {
+	switch n {
+	case NetworkInvalid:
+		return 0, errors.New("invalid network")
+	case NetworkMainnet:
+		return moneroutil.MainNetwork, nil
+	case NetworkTestnet:
+		return moneroutil.TestNetwork, nil
+	case NetworkStagenet:
+		return 0, errors.New("stagenet not supported")
+	}
+	return 0, errors.New("unknown network")
 }
 
 func (n NetworkType) MarshalJSON() ([]byte, error) {

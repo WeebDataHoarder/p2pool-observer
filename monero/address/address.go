@@ -34,7 +34,10 @@ func (a *Address) ViewPublicKey() crypto.PublicKey {
 	return &a.ViewPub
 }
 
-func (a *Address) ToAddress() *Address {
+func (a *Address) ToAddress(network uint8, err ...error) *Address {
+	if a.Network != network || (len(err) > 0 && err[0] != nil) {
+		return nil
+	}
 	return a
 }
 
@@ -49,8 +52,7 @@ func FromBase58(address string) *Address {
 		return nil
 	}
 
-	if raw[0] != moneroutil.MainNetwork {
-		//TODO: support other chains
+	if raw[0] != moneroutil.MainNetwork && raw[0] != moneroutil.TestNetwork {
 		return nil
 	}
 

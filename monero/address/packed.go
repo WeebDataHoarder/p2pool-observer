@@ -1,7 +1,6 @@
 package address
 
 import (
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"runtime"
 	"unsafe"
@@ -107,13 +106,11 @@ func (p *PackedAddress) Compare(otherI Interface) int {
 	return 0
 }
 
-func (p *PackedAddress) ToAddress() *Address {
-	//TODO: consensus here
-	return FromRawAddress(moneroutil.MainNetwork, p.SpendPublicKey(), p.ViewPublicKey())
-}
-
-func (p *PackedAddress) ToBase58() string {
-	return p.ToAddress().ToBase58()
+func (p *PackedAddress) ToAddress(network uint8, err ...error) *Address {
+	if len(err) > 0 && err[0] != nil {
+		return nil
+	}
+	return FromRawAddress(network, p.SpendPublicKey(), p.ViewPublicKey())
 }
 
 func (p PackedAddress) Reference() *PackedAddress {
