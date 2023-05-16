@@ -3,10 +3,8 @@ package index
 import (
 	"encoding/json"
 	"errors"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"github.com/lib/pq"
 )
@@ -56,13 +54,9 @@ func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface)
 	for j, ix := range globalOutputIndices {
 		t.GlobalOutputIndices[j] = uint64(ix)
 	}
-	var network uint8
-	switch i.consensus.NetworkType {
-	case sidechain.NetworkMainnet:
-		network = moneroutil.MainNetwork
-	case sidechain.NetworkTestnet:
-		network = moneroutil.TestNetwork
-	default:
+
+	network, err := i.consensus.NetworkType.AddressNetwork()
+	if err != nil {
 		return errors.New("unknown network type")
 	}
 

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
@@ -203,18 +202,10 @@ func (i *Index) GetMinerByStringAddress(addr string) *Miner {
 }
 
 func (i *Index) GetMinerByAddress(addr *address.Address) *Miner {
-	switch addr.Network {
-	case moneroutil.MainNetwork:
-		if i.consensus.NetworkType != sidechain.NetworkMainnet {
-			return nil
-		}
-	case moneroutil.TestNetwork:
-		if i.consensus.NetworkType != sidechain.NetworkTestnet {
-			return nil
-		}
-	default:
+	if network, _ := i.consensus.NetworkType.AddressNetwork(); network != addr.Network {
 		return nil
 	}
+
 	spendPub, viewPub := addr.SpendPublicKey().AsBytes(), addr.ViewPublicKey().AsBytes()
 	if rows, err := i.statements.GetMinerByAddress.Query(&spendPub, &viewPub); err != nil {
 		return nil

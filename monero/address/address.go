@@ -13,8 +13,6 @@ type Address struct {
 	SpendPub crypto.PublicKeyBytes
 	ViewPub  crypto.PublicKeyBytes
 	checksum []byte
-	// IsSubAddress Always false
-	IsSubAddress bool
 }
 
 func (a *Address) Compare(b Interface) int {
@@ -52,7 +50,14 @@ func FromBase58(address string) *Address {
 		return nil
 	}
 
-	if raw[0] != moneroutil.MainNetwork && raw[0] != moneroutil.TestNetwork {
+	switch raw[0] {
+	case moneroutil.MainNetwork, moneroutil.TestNetwork, moneroutil.StageNetwork:
+		break
+	case moneroutil.IntegratedMainNetwork, moneroutil.IntegratedTestNetwork, moneroutil.IntegratedStageNetwork:
+		return nil
+	case moneroutil.SubAddressMainNetwork, moneroutil.SubAddressTestNetwork, moneroutil.SubAddressStageNetwork:
+		return nil
+	default:
 		return nil
 	}
 

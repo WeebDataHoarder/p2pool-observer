@@ -4,8 +4,8 @@ git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523 h1:oIJ
 git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523/go.mod h1:TAOAAV972JNDkCzyV5SkbYkKCRvcfhvvFa8LHH4Dg6g=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7 h1:bzHDuu1IgETKqPBOlIdCE2LaZIJ+ZpROSprNn+fnzd8=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7/go.mod h1:3kT0v4AMwT/OdorfH2gRWPwoOrUX/LV03HEeBsaXG1c=
-git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec h1:UiWOF5zOBN1ieip7FGBIhAiWDG/r2bpNAueTIKs3Ois=
-git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230511072107-d4bc15a433ec/go.mod h1:MpCLC0BvjnQEQW/z6g7F1c3udr3CSikhNoQurSCYGB8=
+git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230516052049-a566889a4d3b h1:Z5WJoolkf3Dd+jMPQ/22G21nr/SlcW/D3ucsF272vRc=
+git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230516052049-a566889a4d3b/go.mod h1:MpCLC0BvjnQEQW/z6g7F1c3udr3CSikhNoQurSCYGB8=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71 h1:MgeHHcF+GnCJBWMSzq8XAbc8p/UhNwFruEKCPPJ74YQ=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
 git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f h1:dQc+lJIlbR0acDqoPAtew0lMVVnKVFO0bZpf1/wbo6Y=
@@ -106,8 +106,8 @@ golang.org/x/crypto v0.0.0-20191011191535-87dc89f01550/go.mod h1:yigFU9vqHzYiE8U
 golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9/go.mod h1:LzIPMQfyMNhhGPhUkYOs5KpL4U8rLKemX1yGLhDgUto=
 golang.org/x/crypto v0.9.0 h1:LF6fAI+IutBocDJ2OT0Q1g8plpYljMZ4+lty+dsqw3g=
 golang.org/x/crypto v0.9.0/go.mod h1:yrmDGqONDYtNj3tH8X9dzUun2m2lzPa9ngI6/RUPGR0=
-golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea h1:vLCWI/yYrdEHyN2JzIzPO3aaQJHQdp89IZBA/+azVC4=
-golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea/go.mod h1:V1LtkGg67GoY2N1AnLN78QLrzxkLyJw7RJb1gzOOz9w=
+golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc h1:mCRnTeVUjcrhlRmO0VK8a6k6Rrf6TF9htwo2pJVSjIU=
+golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc/go.mod h1:V1LtkGg67GoY2N1AnLN78QLrzxkLyJw7RJb1gzOOz9w=
 golang.org/x/lint v0.0.0-20210508222113-6edffad5e616/go.mod h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=
 golang.org/x/mod v0.1.1-0.20191105210325-c90efee705ee/go.mod h1:QqPTAvyqsEbceGzBzNggFXnrqF1CaUcvgkdR5Ot7KZg=
 golang.org/x/mod v0.2.0/go.mod h1:s0Qsj1ACt9ePp/hMypM3fl4fZqREWJwdYDEqhRiZZUA=

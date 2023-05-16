@@ -18,7 +18,7 @@
     <p>Received <strong>{{ monero_to_xmr(payout.Value) }} XMR</strong> on transaction id <a class="mono small" href="/t/{{ payout.Id|henc }}">{{ payout.Id }}</a> (output index #{{ payout.Index }}, global output index #{{ payout.GlobalOutputIndex }}).</p>
     <p><strong>{{ add_uint(sub_int(pool.MainChain.Height, block.MainHeight), 1) }} confirmation(s)</strong>. Coinbase outputs will unlock after 60 confirmations.</p>
 
-    <p><strong>Stealth Address:</strong> <span class="mono small">{{ get_ephemeral_pubkey(minerAddress, raw.Side.CoinbasePrivateKey, payout.Index) }}</span></p>
+    <p><strong>Stealth Address:</strong> <span class="mono small">{{ get_ephemeral_pubkey(payout.MinerAddress, raw.Side.CoinbasePrivateKey, payout.Index) }}</span></p>
     <hr/>
     <h3>Payment Proofs</h3>
     <div style="border: #aaaaaa 1px dashed; margin-bottom: 20px">
@@ -33,8 +33,8 @@
 
 
     <div style="border: #aaaaaa 1px dashed">
-        <p><strong>OutProofV2:</strong> <span class="mono smaller">{{ get_tx_proof_v2(minerAddress, payout.Id, raw.Side.CoinbasePrivateKey) }}</span></p>
-        <p><strong>OutProofV1:</strong> <span class="mono smaller">{{ get_tx_proof_v1(minerAddress, payout.Id, raw.Side.CoinbasePrivateKey) }}</span></p>
+        <p><strong>OutProofV2:</strong> <span class="mono smaller">{{ get_tx_proof_v2(payout.MinerAddress, payout.Id, raw.Side.CoinbasePrivateKey) }}</span></p>
+        <p><strong>OutProofV1:</strong> <span class="mono smaller">{{ get_tx_proof_v1(payout.MinerAddress, payout.Id, raw.Side.CoinbasePrivateKey) }}</span></p>
         <p>Verify on Monero GUI <span class="small">(Advanced -> Prove/check -> Check Transaction)</span></p>
     </div>
 </div>

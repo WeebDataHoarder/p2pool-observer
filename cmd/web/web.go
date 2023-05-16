@@ -453,7 +453,7 @@ func main() {
 			return nil
 		}
 		keyBytes := args[2].(crypto.PrivateKeyBytes)
-		return address2.GetTxProofV2(address2.FromBase58(args[0].(string)), args[1].(types.Hash), &keyBytes, "")
+		return address2.GetTxProofV2(args[0].(*address2.Address), args[1].(types.Hash), &keyBytes, "")
 	}
 
 	env.Functions["get_tx_proof_v1"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -462,7 +462,7 @@ func main() {
 		}
 
 		keyBytes := args[2].(crypto.PrivateKeyBytes)
-		return address2.GetTxProofV1(address2.FromBase58(args[0].(string)), args[1].(types.Hash), &keyBytes, "")
+		return address2.GetTxProofV1(args[0].(*address2.Address), args[1].(types.Hash), &keyBytes, "")
 	}
 
 	env.Functions["get_ephemeral_pubkey"] = func(ctx stick.Context, args ...stick.Value) stick.Value {
@@ -470,7 +470,7 @@ func main() {
 			return nil
 		}
 		keyBytes := args[1].(crypto.PrivateKeyBytes)
-		return address2.GetEphemeralPublicKey(address2.FromBase58(args[0].(string)), &keyBytes, toUint64(args[2]))
+		return address2.GetEphemeralPublicKey(args[0].(*address2.Address), &keyBytes, toUint64(args[2]))
 	}
 
 	env.Functions["coinbase_extra"] = func(ctx stick.Context, args ...stick.Value) stick.Value {

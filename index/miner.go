@@ -2,11 +2,8 @@ package index
 
 import (
 	"database/sql"
-	"errors"
-	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 )
 
 const MinerSelectFields = "id, alias, spend_public_key, view_public_key"
@@ -37,16 +34,11 @@ func (m *Miner) ScanFromRow(i *Index, row RowScanInterface) error {
 	if err := row.Scan(&m.id, &m.alias, &spendPub, &viewPub); err != nil {
 		return err
 	}
-	var network uint8
-	switch i.consensus.NetworkType {
-	case sidechain.NetworkMainnet:
-		network = moneroutil.MainNetwork
-	case sidechain.NetworkTestnet:
-		network = moneroutil.TestNetwork
-	default:
-		return errors.New("unknown network type")
-	}
 
+	network, err := i.consensus.NetworkType.AddressNetwork()
+	if err != nil {
+		return err
+	}
 	m.addr = address.FromRawAddress(network, &spendPub, &viewPub)
 	return nil
 }
