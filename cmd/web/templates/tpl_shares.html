@@ -24,7 +24,7 @@
         <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
         {% endif %}
         <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
-        {% if (shares_efforts is defined) and (shares_efforts != false) %}
+        {% if (shares_efforts is defined) %}
             {% set effort = get_slice_index(shares_efforts, i) %}
             {% if effort >= 0 %}
             <td style="font-weight:bolder; color: {{ effort|effort_color }};">

@@ -170,7 +170,7 @@
 <div style="text-align: center">
     <h2>Most recent orphaned shares</h2>
     {% set shares = last_orphaned_shares %}
-    {% set shares_efforts = false %}
+    {% set shares_efforts = undefined %}
     {% set shares_is_miner = true %}
     {% include('tpl_shares.html') %}
 </div>
