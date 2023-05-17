@@ -21,5 +21,6 @@ function download_compressed_test() {
 }
 
 download_test block.dat
+download_test crypto_tests.txt
 download_compressed_test sidechain_dump.dat
 download_compressed_test sidechain_dump_mini.dat
