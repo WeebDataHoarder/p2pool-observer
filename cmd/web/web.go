@@ -784,7 +784,7 @@ func main() {
 	})
 
 	serveMux.HandleFunc("/calculate-share-time", func(writer http.ResponseWriter, request *http.Request) {
-		poolInfo := getFromAPI("pool_info", 5)
+		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 		hashRate := float64(0)
 		magnitude := float64(1000)
 
