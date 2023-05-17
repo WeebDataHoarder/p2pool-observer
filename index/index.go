@@ -370,33 +370,33 @@ func (i *Index) PrepareMainBlocksByQueryStatement(where string) (stmt *sql.Stmt,
 	return i.handle.Prepare(fmt.Sprintf("SELECT "+MainBlockSelectFields+" FROM main_blocks %s;", where))
 }
 
-func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool) chan *SideBlock {
+func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion BlockInclusion) chan *SideBlock {
 	if limit == 0 {
 		if minerId != 0 {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC;", minerId, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC;", minerId, inclusion)
 			} else {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $2  ORDER BY side_height DESC, timestamp DESC;", minerId, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $2  ORDER BY side_height DESC, timestamp DESC;", minerId, inclusion)
 			}
 		} else {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $1 ORDER BY side_height DESC;", InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $1 ORDER BY side_height DESC;", inclusion)
 			} else {
-				return i.GetSideBlocksByQuery("ORDER BY side_height AND inclusion = $1 DESC, timestamp DESC;", InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("ORDER BY side_height AND inclusion = $1 DESC, timestamp DESC;", inclusion)
 			}
 		}
 	} else {
 		if minerId != 0 {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $3 ORDER BY side_height DESC LIMIT $2;", minerId, limit, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND uncle_of IS NULL AND inclusion = $3 ORDER BY side_height DESC LIMIT $2;", minerId, limit, inclusion)
 			} else {
-				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $3 ORDER BY side_height DESC, timestamp DESC LIMIT $2;", minerId, limit, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE miner = $1 AND inclusion = $3 ORDER BY side_height DESC, timestamp DESC LIMIT $2;", minerId, limit, inclusion)
 			}
 		} else {
 			if onlyBlocks {
-				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC LIMIT $1;", limit, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE uncle_of IS NULL AND inclusion = $2 ORDER BY side_height DESC LIMIT $1;", limit, inclusion)
 			} else {
-				return i.GetSideBlocksByQuery("WHERE inclusion = $2 ORDER BY side_height DESC, timestamp DESC LIMIT $1;", limit, InclusionInVerifiedChain)
+				return i.GetSideBlocksByQuery("WHERE inclusion = $2 ORDER BY side_height DESC, timestamp DESC LIMIT $1;", limit, inclusion)
 			}
 		}
 	}

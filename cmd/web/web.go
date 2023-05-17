@@ -1355,7 +1355,7 @@ func main() {
 
 		tipHeight := poolInfo.SideChain.Height
 
-		var shares, lastShares []*index.SideBlock
+		var shares, lastShares, lastOrphanedShares []*index.SideBlock
 
 		var lastFound []*index.FoundBlock
 		var payouts []*index.Payout
@@ -1364,6 +1364,7 @@ func main() {
 			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
 			payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=1000", miner.Id))
 			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", miner.Id))
+			lastOrphanedShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=10&miner=%d&inclusion=%d", miner.Id, index.InclusionOrphan))
 			lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
 			sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
 		}
@@ -1434,6 +1435,7 @@ func main() {
 		}
 		ctx["last_sweeps"] = sweeps
 		ctx["last_shares"] = lastShares
+		ctx["last_orphaned_shares"] = lastOrphanedShares
 		ctx["last_found"] = lastFound
 		ctx["last_payouts"] = payouts
 		ctx["window_weight"] = windowDiff.Lo

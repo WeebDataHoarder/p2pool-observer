@@ -166,6 +166,18 @@
 
 <hr/>
 
+{% if last_orphaned_shares|length > 0 %}
+<div style="text-align: center">
+    <h2>Most recent orphaned shares</h2>
+    {% set shares = last_orphaned_shares %}
+    {% set shares_efforts = false %}
+    {% set shares_is_miner = true %}
+    {% include('tpl_shares.html') %}
+</div>
+
+<hr/>
+{% endif %}
+
 <div style="text-align: center">
     <h2>Most recent Monero blocks found</h2>
     {% set found_blocks = last_found %}

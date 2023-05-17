@@ -1151,9 +1151,15 @@ func main() {
 		params := request.URL.Query()
 
 		var limit uint64 = 50
+		inclusion := index.InclusionInVerifiedChain
 		if params.Has("limit") {
 			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
 				limit = uint64(i)
+			}
+		}
+		if params.Has("inclusion") {
+			if i, err := strconv.Atoi(params.Get("inclusion")); err == nil {
+				inclusion = index.BlockInclusion(i)
 			}
 		}
 
@@ -1197,7 +1203,7 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks))
+		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
@@ -1258,7 +1264,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks)))
+		buf, _ := encodeJson(request, fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain)))
 		_, _ = writer.Write(buf)
 	})
 
