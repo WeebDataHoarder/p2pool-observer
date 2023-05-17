@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %} - Recent Likely Sweeps by {{ miner.address }}{% endblock %}
+{% block title %} - Recent Likely Sweeps by {{ miner.Address.ToBase58() }}{% endblock %}
 
 {% block content %}
 
 <div style="text-align: center">
-    <h2>Recent Likely Sweep Transactions by {{ miner.address }}</h2>
+    <h2>Recent Likely Sweep Transactions by {{ miner.Address.ToBase58() }}</h2>
     {% set sweeps = sweeps %}
     {% set sweeps_is_miner = true %}
     {% include('tpl_sweeps.html') %}

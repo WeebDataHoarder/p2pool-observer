@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %} - Historical miner payouts {{ miner.address }} {% endblock %}
+{% block title %} - Historical miner payouts {{ miner.Address.ToBase58() }} {% endblock %}
 
 {% block content %}
 
 <div style="text-align: center; font-weight: bold;">
     {% if refresh %}
-    <a href="/payouts/{{ miner.address }}">Autorefresh is ON ({{ refresh }} s)</a>
+    <a href="/payouts/{{ miner.Address.ToBase58() }}">Autorefresh is ON ({{ refresh }} s)</a>
     {% else %}
-    <a href="/payouts/{{ miner.address }}?refresh">Autorefresh is OFF</a>
+    <a href="/payouts/{{ miner.Address.ToBase58() }}?refresh">Autorefresh is OFF</a>
     {% endif %}
 </div>
 
 
 <div style="text-align: center">
     <h2>Historical miner payouts</h2>
-    <p><strong>Payout Address:</strong> <a href="/miner/{{ miner.address }}"><span class="mono small">{{ miner.address }}</span></a></p>
+    <p><strong>Payout Address:</strong> <a href="/miner/{{ miner.Address.ToBase58() }}"><span class="mono small">{{ miner.Address.ToBase58() }}</span></a></p>
     <p><strong>Estimated total:</strong> {{ monero_to_xmr(total) }} XMR</p>
     {% include('tpl_payouts.html') %}
 </div>

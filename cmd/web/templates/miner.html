@@ -1,21 +1,21 @@
 {% extends "base.html" %}
 
-{% block title %} - Miner {{ miner.address }} {% endblock %}
+{% block title %} - Miner {{ miner.Address.ToBase58() }} {% endblock %}
 
 {% block content %}
 
 <div style="text-align: center; font-weight: bold;">
     {% if refresh %}
-    <a href="/miner/{{ miner.address }}">Autorefresh is ON ({{ refresh }} s)</a>
+    <a href="/miner/{{ miner.Address.ToBase58() }}">Autorefresh is ON ({{ refresh }} s)</a>
     {% else %}
-    <a href="/miner/{{ miner.address }}?refresh">Autorefresh is OFF</a>
+    <a href="/miner/{{ miner.Address.ToBase58() }}?refresh">Autorefresh is OFF</a>
     {% endif %}
 </div>
 
 
 
 <div style="text-align: center">
-    {% if miner.last_share_timestamp == 0 %}
+    {% if miner.LastShareTimestamp == 0 %}
     <div style="border: #d1d1d1 1px dashed;">
         <h3 style="color:#FF4433">No shares have been reported to this P2Pool network in the past for this miner.</h3>
 
@@ -62,7 +62,7 @@
         <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.2">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
         <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.2 is recommended.</p>
         <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
-        <p>{% if getenv('NET_SERVICE_ADDRESS') == "p2pool.observer" %}After the fork, you can check on <a href="{{ get_url("old.p2pool.observer") }}/miner/{{ miner.address }}">OLD.P2Pool.Observer</a>.{% elseif getenv('NET_SERVICE_ADDRESS') == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{{ get_url("old-mini.p2pool.observer") }}/miner/{{ miner.address }}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
+        <p>{% if getenv('NET_SERVICE_ADDRESS') == "p2pool.observer" %}After the fork, you can check on <a href="{{ get_url("old.p2pool.observer") }}/miner/{{ miner.Address.ToBase58() }}">OLD.P2Pool.Observer</a>.{% elseif getenv('NET_SERVICE_ADDRESS') == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{{ get_url("old-mini.p2pool.observer") }}/miner/{{ miner.Address.ToBase58() }}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
         <p>After upgrading to a supported P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
     </div>
@@ -81,10 +81,10 @@
     <hr/>
     {% endif %}
 
-    <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.address }}</span></p>
+    <p><strong>Payout Address:</strong> <span class="mono small">{{ miner.Address.ToBase58() }}</span></p>
 
-    {% if miner.alias != "" %}
-    <p><strong>Miner Alias:</strong> <span class="mono">{{ miner.alias }}</span></p>
+    {% if miner.Alias != "" %}
+    <p><strong>Miner Alias:</strong> <span class="mono">{{ miner.Alias }}</span></p>
     <p><small>Miner Alias is user content and not verified. This value should only be used for vanity purposes.</small></p>
     {% endif %}
 
@@ -96,7 +96,7 @@
             <th>Pool Share %</th>
         </tr>
         <tr>
-            <td title="{{ utc_date(miner.last_share_timestamp) }}">{{ time_elapsed_short(miner.last_share_timestamp) }}</td>
+            <td title="{{ utc_date(miner.LastShareTimestamp) }}">{{ time_elapsed_short(miner.LastShareTimestamp) }}</td>
             <td>{{ window_count_blocks }} blocks (+{{ window_count_uncles }} uncles)</td>
             <td>{{ ((window_weight / pool.SideChain.Window.Weight|diff_int) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
             <td>{{ (((window_weight / pool.SideChain.Window.Weight|diff_int))*100)|round(3) }}%</td>
@@ -109,7 +109,7 @@
             <th>Day Share %</th>
         </tr>
         <tr>
-            <td>{% if miner.shares is defined %}{{ miner.shares[1].shares }} blocks (+{{ miner.shares[1].uncles }} uncles{% if miner.shares[0].shares > 0 %}, +{{ miner.shares[0].shares }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
+            <td>{% if (last_raw_share is defined) %}{{ miner.Shares[1].ShareCount }} blocks (+{{ miner.Shares[1].UncleCount }} uncles{% if miner.Shares[0].ShareCount > 0 %}, +{{ miner.Shares[0].ShareCount }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{{ count_blocks }} blocks (+{{ count_uncles }} uncles)</td>
             <td>{{ ((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
             <td>{{ (((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))))*100)|round(3) }}%</td>
@@ -151,7 +151,7 @@
     <h2>Most recent payouts</h2>
     {% set payouts = last_payouts %}
     {% include('tpl_payouts.html') %}
-    <div class="center"><a href="/payouts/{{ miner.address }}">[show all historical payouts]</a></div>
+    <div class="center"><a href="/payouts/{{ miner.Address.ToBase58() }}">[show all historical payouts]</a></div>
 </div>
 
 <hr/>
@@ -171,7 +171,7 @@
     {% set found_blocks = last_found %}
     {% set found_blocks_is_miner = true %}
     {% include('tpl_found_blocks.html') %}
-    <div class="center"><a href="/blocks?miner={{ miner.address }}">[show more found blocks]</a></div>
+    <div class="center"><a href="/blocks?miner={{ miner.Address.ToBase58() }}">[show more found blocks]</a></div>
 </div>
 
 <hr/>
@@ -181,16 +181,16 @@
     {% set sweeps = last_sweeps %}
     {% set sweeps_is_miner = true %}
     {% include('tpl_sweeps.html') %}
-    <div class="center"><a href="/sweeps?miner={{ miner.address }}">[show more likely sweeps]</a></div>
+    <div class="center"><a href="/sweeps?miner={{ miner.Address.ToBase58() }}">[show more likely sweeps]</a></div>
 </div>
 
 
 
-{% if miner.last_share_timestamp != 0 %}
+{% if miner.LastShareTimestamp != 0 %}
 <hr/>
 
 <div style="text-align: center">
-    <form action="/miner/{{ miner.address }}" method="get">
+    <form action="/miner/{{ miner.Address.ToBase58() }}" method="get">
         <h3>Effort Calculation</h3>
         <p>Local hashrate of each P2Pool miner is not known by the network. A guess is calculated based on daily estimation. If you provide a value here, it will be more accurate for effort calculation.</p>
         <p>This data will not be saved.</p>
@@ -209,7 +209,7 @@
 <hr/>
 
 <div style="text-align: center">
-    <form action="/api/miner_alias/{{ miner.address }}" method="get" target="_blank">
+    <form action="/api/miner_alias/{{ miner.Address.ToBase58() }}" method="get" target="_blank">
         <h3>Set Miner Alias</h3>
         <p>To set a miner alias you will need to sign a message using your wallet. On the Monero GUI, go to Advanced -> Sign/verify -> Select Mode "Message"</p>
         <p>Enter the desired Miner Alias in Message, then press Sign Message. Copy the Signature and paste it on the field below, along with your chosen Miner Alias.</p>

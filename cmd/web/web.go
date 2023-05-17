@@ -1023,10 +1023,10 @@ func main() {
 			writer.Header().Set("refresh", "600")
 		}
 
-		var miner map[string]any
+		var miner *utils2.MinerInfoResult
 		if params.Has("miner") {
-			m := getFromAPI(fmt.Sprintf("miner_info/%s", params.Get("miner")))
-			if m == nil || m.(map[string]any)["address"] == nil {
+			miner = getTypeFromAPI[utils2.MinerInfoResult](fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			if miner == nil || miner.Address == nil {
 				ctx := make(map[string]stick.Value)
 				error := make(map[string]stick.Value)
 				ctx["error"] = error
@@ -1036,7 +1036,6 @@ func main() {
 				render(request, writer, "error.html", ctx)
 				return
 			}
-			miner = m.(map[string]any)
 		}
 
 		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
@@ -1046,7 +1045,7 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		if miner != nil {
-			blocks := getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=100", toUint64(miner["id"])))
+			blocks := getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=100", miner.Id))
 			ctx["sweeps"] = blocks
 			ctx["miner"] = miner
 
@@ -1065,10 +1064,10 @@ func main() {
 			writer.Header().Set("refresh", "600")
 		}
 
-		var miner map[string]any
+		var miner *utils2.MinerInfoResult
 		if params.Has("miner") {
-			m := getFromAPI(fmt.Sprintf("miner_info/%s", params.Get("miner")))
-			if m == nil || m.(map[string]any)["address"] == nil {
+			miner = getTypeFromAPI[utils2.MinerInfoResult](fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			if miner == nil || miner.Address == nil {
 				ctx := make(map[string]stick.Value)
 				error := make(map[string]stick.Value)
 				ctx["error"] = error
@@ -1078,7 +1077,6 @@ func main() {
 				render(request, writer, "error.html", ctx)
 				return
 			}
-			miner = m.(map[string]any)
 		}
 
 		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
@@ -1088,7 +1086,7 @@ func main() {
 		ctx["pool"] = poolInfo
 
 		if miner != nil {
-			blocks := getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?&limit=100&miner=%d", toUint64(miner["id"])))
+			blocks := getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?&limit=100&miner=%d", miner.Id))
 			ctx["blocks_found"] = blocks
 			ctx["miner"] = miner
 
@@ -1305,15 +1303,15 @@ func main() {
 			writer.Header().Set("refresh", "300")
 		}
 		address := mux.Vars(request)["miner"]
-		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
-		if m == nil || m.(map[string]any)["address"] == nil {
+		miner := getTypeFromAPI[utils2.MinerInfoResult](fmt.Sprintf("miner_info/%s", address))
+		if miner == nil || miner.Address == nil {
 			if addr := address2.FromBase58(address); addr != nil {
-				miner := make(map[string]any)
-				m = miner
-				miner["id"] = uint64(0)
-				miner["address"] = addr.ToBase58()
-				miner["last_share_height"] = uint64(0)
-				miner["last_share_timestamp"] = uint64(0)
+				miner = &utils2.MinerInfoResult{
+					Id:                 0,
+					Address:            addr,
+					LastShareHeight:    0,
+					LastShareTimestamp: 0,
+				}
 			} else {
 				ctx := make(map[string]stick.Value)
 				error := make(map[string]stick.Value)
@@ -1324,8 +1322,6 @@ func main() {
 				return
 			}
 		}
-
-		miner := m.(map[string]any)
 
 		poolInfo := getTypeFromAPI[utils2.PoolInfoResult]("pool_info", 5)
 
@@ -1341,12 +1337,12 @@ func main() {
 		var lastFound []*index.FoundBlock
 		var payouts []*index.Payout
 		var sweeps []*index.MainLikelySweepTransaction
-		if toUint64(miner["id"]) != 0 {
-			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", toUint64(miner["id"]), tipHeight, wsize))
-			payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=1000", toUint64(miner["id"])))
-			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", toUint64(miner["id"])))
-			lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", toUint64(miner["id"])))
-			sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", toUint64(miner["id"])))
+		if miner.Id != 0 {
+			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
+			payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=1000", miner.Id))
+			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", miner.Id))
+			lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
+			sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
 		}
 
 		sharesFound := NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
@@ -1553,9 +1549,9 @@ func main() {
 		if params.Has("address") {
 			address = params.Get("address")
 		}
-		m := getFromAPI(fmt.Sprintf("miner_info/%s", address))
+		miner := getTypeFromAPI[utils2.MinerInfoResult](fmt.Sprintf("miner_info/%s", address))
 
-		if m == nil {
+		if miner == nil || miner.Address == nil {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)
 			ctx["error"] = error
@@ -1566,9 +1562,7 @@ func main() {
 			return
 		}
 
-		miner := m.(map[string]any)
-
-		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=0", toUint64(miner["id"])))
+		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=0", miner.Id))
 		if len(payouts) == 0 {
 			ctx := make(map[string]stick.Value)
 			error := make(map[string]stick.Value)

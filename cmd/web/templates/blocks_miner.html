@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 
-{% block title %} - Found Monero blocks by {{ miner.address }}{% endblock %}
+{% block title %} - Found Monero blocks by {{ miner.Address.ToBase58() }}{% endblock %}
 
 {% block content %}
 
 <div style="text-align: center">
-    <h2>Recent Monero blocks found by {{ miner.address }}</h2>
+    <h2>Recent Monero blocks found by {{ miner.Address.ToBase58() }}</h2>
     {% set found_blocks = blocks_found %}
     {% set found_blocks_is_miner = true %}
     {% include('tpl_found_blocks.html') %}
