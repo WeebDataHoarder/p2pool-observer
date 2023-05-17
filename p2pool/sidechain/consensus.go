@@ -53,7 +53,7 @@ func (n NetworkType) AddressNetwork() (uint8, error) {
 	case NetworkTestnet:
 		return moneroutil.TestNetwork, nil
 	case NetworkStagenet:
-		return 0, errors.New("stagenet not supported")
+		return moneroutil.StageNetwork, nil
 	}
 	return 0, errors.New("unknown network")
 }
