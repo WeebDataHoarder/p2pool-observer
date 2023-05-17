@@ -52,6 +52,31 @@
             <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{{ time_duration_long(diff_uint(pool.MainChain.Difficulty) / diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime)) }}</em></td>
             <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{{ time_duration_long(between_main) }}</em></td>
         </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr style="line-height: 1.5;">
+            <th>Found Effort</th>
+            <th>Found Chance</th>
+            <th>P2Pool Estimate</th>
+            <th>Solo Estimate</th>
+        </tr>
+
+        {% for e in efforts %}
+        <tr>
+            <td style="font-size: 17px; font-weight:bolder; color: {{ e.Effort|effort_color }};">
+                {{ e.Effort|round(2) }}%
+            </td>
+            <td title="Chance share is not found before: {{ (100 - e.Probability)|round(5) }}%">
+                {{ e.Probability|round(5) }}%
+            </td>
+            <td>
+                {{ time_duration_long(e.Between) }}
+            </td>
+            <td>
+                {{ time_duration_long(e.BetweenSolo) }}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr><td></td><td></td></tr>
     </table>
 </div>
 {% endif %}

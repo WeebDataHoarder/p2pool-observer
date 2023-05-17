@@ -801,6 +801,29 @@ func main() {
 		ctx["magnitude"] = magnitude
 		ctx["pool"] = poolInfo
 
+		currentHashRate := magnitude * hashRate
+
+		if currentHashRate > 0 {
+
+			type effortEntry struct {
+				Effort      float64
+				Probability float64
+				Between     float64
+				BetweenSolo float64
+			}
+			var efforts []effortEntry
+
+			for _, v := range []float64{25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000} {
+				efforts = append(efforts, effortEntry{
+					Effort:      v,
+					Probability: (1 - math.Exp(-(v / 100))) * 100,
+					Between:     (float64(poolInfo.SideChain.Difficulty.Lo) * (v / 100)) / currentHashRate,
+					BetweenSolo: (float64(poolInfo.MainChain.Difficulty.Lo) * (v / 100)) / currentHashRate,
+				})
+			}
+			ctx["efforts"] = efforts
+		}
+
 		render(request, writer, "calculate-share-time.html", ctx)
 	})
 
