@@ -143,33 +143,38 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 	return c.MarshalBinaryFlags(false)
 }
 
+func (c *CoinbaseTransaction) BufferLength() int {
+	return 1 + binary.MaxVarintLen64 + 1 + 1 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + c.Outputs.BufferLength() + binary.MaxVarintLen64 + c.Extra.BufferLength() + 1
+}
+
 func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-
-	_ = binary.Write(buf, binary.LittleEndian, c.Version)
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.UnlockTime)])
-	_ = binary.Write(buf, binary.LittleEndian, c.InputCount)
-	_ = binary.Write(buf, binary.LittleEndian, c.InputType)
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
 
 	outputs, _ := c.OutputsBlob()
-	if pruned {
-		//pruned output
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, 0)])
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.TotalReward)])
-		_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(outputs)))])
-	} else {
-		_, _ = buf.Write(outputs)
-	}
 
 	txExtra, _ := c.Extra.MarshalBinary()
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
-	_, _ = buf.Write(txExtra)
-	_ = binary.Write(buf, binary.LittleEndian, c.ExtraBaseRCT)
 
-	return buf.Bytes(), nil
+	buf := make([]byte, 0, c.BufferLength())
+
+	buf = append(buf, c.Version)
+	buf = binary.AppendUvarint(buf, c.UnlockTime)
+	buf = append(buf, c.InputCount)
+	buf = append(buf, c.InputType)
+	buf = binary.AppendUvarint(buf, c.GenHeight)
+
+	if pruned {
+		//pruned output
+		buf = binary.AppendUvarint(buf, 0)
+		buf = binary.AppendUvarint(buf, c.TotalReward)
+		buf = binary.AppendUvarint(buf, uint64(len(outputs)))
+	} else {
+		buf = append(buf, outputs...)
+	}
+
+	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
+	buf = append(buf, txExtra...)
+	buf = append(buf, c.ExtraBaseRCT)
+
+	return buf, nil
 }
 
 func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
@@ -177,25 +182,25 @@ func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
 }
 
 func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	varIntBuf := make([]byte, binary.MaxVarintLen64)
-
-	_ = binary.Write(buf, binary.LittleEndian, c.Version)
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.UnlockTime)])
-	_ = binary.Write(buf, binary.LittleEndian, c.InputCount)
-	_ = binary.Write(buf, binary.LittleEndian, c.InputType)
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, c.GenHeight)])
-
-	outputs, _ := c.Outputs.MarshalBinary()
-	_, _ = buf.Write(outputs)
+	outputs, _ := c.OutputsBlob()
 
 	txExtra, _ := c.Extra.SideChainHashingBlob(zeroTemplateId)
-	_, _ = buf.Write(varIntBuf[:binary.PutUvarint(varIntBuf, uint64(len(txExtra)))])
-	_, _ = buf.Write(txExtra)
-	_ = binary.Write(buf, binary.LittleEndian, c.ExtraBaseRCT)
 
-	return buf.Bytes(), nil
+	buf := make([]byte, 0, c.BufferLength())
+
+	buf = append(buf, c.Version)
+	buf = binary.AppendUvarint(buf, c.UnlockTime)
+	buf = append(buf, c.InputCount)
+	buf = append(buf, c.InputType)
+	buf = binary.AppendUvarint(buf, c.GenHeight)
+
+	buf = append(buf, outputs...)
+
+	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
+	buf = append(buf, txExtra...)
+	buf = append(buf, c.ExtraBaseRCT)
+
+	return buf, nil
 }
 
 func (c *CoinbaseTransaction) Id() types.Hash {
@@ -215,18 +220,16 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 }
 
 func (c *CoinbaseTransaction) CalculateId() (hash types.Hash) {
-	idHasher := crypto.GetKeccak256Hasher()
-	defer crypto.PutKeccak256Hasher(idHasher)
-
 	txBytes, _ := c.MarshalBinary()
-	// remove base RCT
-	idHasher.Write(hashKeccak(txBytes[:len(txBytes)-1]))
-	// Base RCT, single 0 byte in miner tx
-	idHasher.Write(hashKeccak([]byte{c.ExtraBaseRCT}))
-	// Prunable RCT, empty in miner tx
-	idHasher.Write(types.ZeroHash[:])
-	crypto.HashFastSum(idHasher, hash[:])
-	return hash
+
+	return crypto.PooledKeccak256(
+		// remove base RCT
+		hashKeccak(txBytes[:len(txBytes)-1]),
+		// Base RCT, single 0 byte in miner tx
+		hashKeccak([]byte{c.ExtraBaseRCT}),
+		// Prunable RCT, empty in miner tx
+		types.ZeroHash[:],
+	)
 }
 
 func hashKeccak(data ...[]byte) []byte {

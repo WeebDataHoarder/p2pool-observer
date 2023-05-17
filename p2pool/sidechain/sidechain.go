@@ -66,6 +66,8 @@ type SideChain struct {
 	blocksByTemplateId map[types.Hash]*PoolBlock
 	blocksByHeight     map[uint64][]*PoolBlock
 
+	preAllocatedBuffer []byte
+
 	syncTip           atomic.Pointer[PoolBlock]
 	chainTip          atomic.Pointer[PoolBlock]
 	currentDifficulty atomic.Pointer[types.Difficulty]
@@ -88,6 +90,7 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 		preAllocatedDifficultyData:        make([]DifficultyData, server.Consensus().ChainWindowSize*2),
 		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
 		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
+		preAllocatedBuffer:                make([]byte, 0, PoolBlockMaxTemplateSize),
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
 	s.currentDifficulty.Store(&minDiff)
@@ -560,7 +563,15 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 
 			var hashers []*sha3.HasherState
 
-			results := utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
+			var anyErr atomic.Value
+
+			defer func() {
+				for _, h := range hashers {
+					crypto.PutKeccak256Hasher(h)
+				}
+			}()
+
+			if !utils.SplitWork(-2, uint64(len(rewards)), func(workIndex uint64, workerIndex int) error {
 				out := block.Main.Coinbase.Outputs[workIndex]
 				if rewards[workIndex] != out.Reward {
 					return fmt.Errorf("has invalid reward at index %d, got %d, expected %d", workIndex, out.Reward, rewards[workIndex])
@@ -575,18 +586,10 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			}, func(routines, routineIndex int) error {
 				hashers = append(hashers, crypto.GetKeccak256Hasher())
 				return nil
-			})
-
-			defer func() {
-				for _, h := range hashers {
-					crypto.PutKeccak256Hasher(h)
-				}
-			}()
-
-			for i := range results {
-				if results[i] != nil {
-					return nil, results[i]
-				}
+			}, func(routineIndex int, err error) {
+				anyErr.Store(err)
+			}) {
+				return nil, anyErr.Load().(error)
 			}
 		}
 

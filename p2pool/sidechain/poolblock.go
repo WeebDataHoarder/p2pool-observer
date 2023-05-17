@@ -398,13 +398,17 @@ func (b *PoolBlock) UnmarshalBinary(consensus *Consensus, derivationCache Deriva
 	return b.FromReader(consensus, derivationCache, reader)
 }
 
+func (b *PoolBlock) BufferLength() int {
+	return b.Main.BufferLength() + b.Side.BufferLength()
+}
+
 func (b *PoolBlock) MarshalBinary() ([]byte, error) {
 	if mainData, err := b.Main.MarshalBinary(); err != nil {
 		return nil, err
 	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
 		return nil, err
 	} else {
-		data := make([]byte, 0, len(mainData)+len(sideData))
+		data := make([]byte, 0, b.BufferLength())
 		data = append(data, mainData...)
 		data = append(data, sideData...)
 
@@ -421,7 +425,7 @@ func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
 	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
 		return nil, err
 	} else {
-		data := make([]byte, 0, len(mainData)+len(sideData))
+		data := make([]byte, 0, b.BufferLength())
 		data = append(data, mainData...)
 		data = append(data, sideData...)
 

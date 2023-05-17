@@ -36,8 +36,12 @@ type readerAndByteReader interface {
 	io.ByteReader
 }
 
+func (b *SideData) BufferLength() int {
+	return crypto.PublicKeySize + crypto.PublicKeySize + types.HashSize + types.HashSize + binary.MaxVarintLen64 + len(b.Uncles)*types.HashSize + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + 4*4
+}
+
 func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
-	buf = make([]byte, 0, types.HashSize+types.HashSize+types.HashSize+types.HashSize+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+binary.MaxVarintLen64+4*4)
+	buf = make([]byte, 0, b.BufferLength())
 	buf = append(buf, b.PublicSpendKey[:]...)
 	buf = append(buf, b.PublicViewKey[:]...)
 	if version > ShareVersion_V1 {

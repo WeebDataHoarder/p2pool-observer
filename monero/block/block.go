@@ -49,12 +49,16 @@ func (b *Block) MarshalBinary() (buf []byte, err error) {
 	return b.MarshalBinaryFlags(false, false)
 }
 
+func (b *Block) BufferLength() int {
+	return 1 + 1 + binary.MaxVarintLen64 + types.HashSize + 4 + b.Coinbase.BufferLength() + binary.MaxVarintLen64 + types.HashSize*len(b.Transactions)
+}
+
 func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error) {
 	var txBuf []byte
 	if txBuf, err = b.Coinbase.MarshalBinaryFlags(pruned); err != nil {
 		return nil, err
 	}
-	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
+	buf = make([]byte, 0, b.BufferLength())
 	buf = append(buf, b.MajorVersion)
 	if b.MajorVersion > monero.HardForkSupportedVersion {
 		return nil, fmt.Errorf("unsupported version %d", b.MajorVersion)
@@ -214,7 +218,7 @@ func (b *Block) SideChainHashingBlob(zeroTemplateId bool) (buf []byte, err error
 	if txBuf, err = b.Coinbase.SideChainHashingBlob(zeroTemplateId); err != nil {
 		return nil, err
 	}
-	buf = make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+len(txBuf)+binary.MaxVarintLen64+types.HashSize*len(b.Transactions))
+	buf = make([]byte, 0, b.BufferLength())
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)

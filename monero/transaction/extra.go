@@ -38,11 +38,18 @@ func (t *ExtraTags) UnmarshalBinary(data []byte) (err error) {
 	return t.FromReader(reader)
 }
 
+func (t *ExtraTags) BufferLength() (length int) {
+	for _, tag := range *t {
+		length += tag.BufferLength()
+	}
+	return
+}
+
 func (t *ExtraTags) MarshalBinary() ([]byte, error) {
 	if t == nil {
 		return nil, nil
 	}
-	buf := make([]byte, 0, types.HashSize*4)
+	buf := make([]byte, 0, t.BufferLength())
 	for _, tag := range *t {
 		if b, err := tag.MarshalBinary(); err != nil {
 			return nil, err
@@ -58,7 +65,7 @@ func (t *ExtraTags) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
 	if t == nil {
 		return nil, nil
 	}
-	buf := make([]byte, 0, types.HashSize*4)
+	buf := make([]byte, 0, t.BufferLength())
 	for _, tag := range *t {
 		if b, err := tag.SideChainHashingBlob(zeroTemplateId); err != nil {
 			return nil, err
@@ -101,8 +108,12 @@ func (t *ExtraTag) UnmarshalBinary(data []byte) error {
 	return t.FromReader(reader)
 }
 
+func (t *ExtraTag) BufferLength() int {
+	return len(t.Data) + 1 + binary.MaxVarintLen64
+}
+
 func (t *ExtraTag) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 0, len(t.Data)+1+binary.MaxVarintLen64)
+	buf := make([]byte, 0, t.BufferLength())
 	buf = append(buf, t.Tag)
 	if t.HasVarInt {
 		buf = binary.AppendUvarint(buf, t.VarInt)
@@ -112,7 +123,7 @@ func (t *ExtraTag) MarshalBinary() ([]byte, error) {
 }
 
 func (t *ExtraTag) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
-	buf := make([]byte, 0, len(t.Data)+1+binary.MaxVarintLen64)
+	buf := make([]byte, 0, t.BufferLength())
 	buf = append(buf, t.Tag)
 	if t.HasVarInt {
 		buf = binary.AppendUvarint(buf, t.VarInt)

@@ -39,7 +39,7 @@ func PooledKeccak256(data ...[]byte) (result types.Hash) {
 	h := GetKeccak256Hasher()
 	defer PutKeccak256Hasher(h)
 	for _, b := range data {
-		h.Write(b)
+		_, _ = h.Write(b)
 	}
 	HashFastSum(h, result[:])
 	return

@@ -57,8 +57,12 @@ func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
 	return nil
 }
 
+func (s *Outputs) BufferLength() int {
+	return binary.MaxVarintLen64 + len(*s)*(binary.MaxVarintLen64+1+crypto.PublicKeySize+1)
+}
+
 func (s *Outputs) MarshalBinary() (data []byte, err error) {
-	data = make([]byte, 0, binary.MaxVarintLen64+len(*s)*(binary.MaxVarintLen64+1+crypto.PublicKeySize+1))
+	data = make([]byte, 0, s.BufferLength())
 
 	data = binary.AppendUvarint(data, uint64(len(*s)))
 

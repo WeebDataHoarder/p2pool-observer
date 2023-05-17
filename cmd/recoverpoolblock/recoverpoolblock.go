@@ -395,7 +395,7 @@ func main() {
 				}
 
 				return nil
-			})
+			}, nil)
 		}
 		nonceSize := sidechain.SideExtraNonceSize
 

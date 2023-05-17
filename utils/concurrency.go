@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineIndex int) error, init func(routines, routineIndex int) error) []error {
+func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineIndex int) error, init func(routines, routineIndex int) error, errorFunc func(routineIndex int, err error)) bool {
 	if routines <= 0 {
 		routines = Max(runtime.NumCPU()-routines, 4)
 	}
@@ -17,13 +17,16 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 
 	var counter atomic.Uint64
 
-	results := make([]error, routines)
-
 	var wg sync.WaitGroup
+	var allOk atomic.Bool
+	allOk.Store(true)
 	for routineIndex := 0; routineIndex < routines; routineIndex++ {
 		if init != nil {
 			if err := init(routines, routineIndex); err != nil {
-				results[routineIndex] = err
+				if errorFunc != nil {
+					errorFunc(routineIndex, err)
+				}
+				allOk.Store(false)
 				continue
 			}
 		}
@@ -38,7 +41,10 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 				}
 
 				if err = do(workIndex-1, routineIndex); err != nil {
-					results[routineIndex] = err
+					if errorFunc != nil {
+						errorFunc(routineIndex, err)
+						allOk.Store(false)
+					}
 					return
 				}
 			}
@@ -46,5 +52,5 @@ func SplitWork(routines int, workSize uint64, do func(workIndex uint64, routineI
 	}
 	wg.Wait()
 
-	return results
+	return allOk.Load()
 }

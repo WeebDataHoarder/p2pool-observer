@@ -45,7 +45,13 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 
 	var hashers []*sha3.HasherState
 
-	_ = utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
+	defer func() {
+		for _, h := range hashers {
+			crypto.PutKeccak256Hasher(h)
+		}
+	}()
+
+	utils.SplitWork(-2, n, func(workIndex uint64, workerIndex int) error {
 		output := transaction.Output{
 			Index: workIndex,
 			Type:  txType,
@@ -59,13 +65,7 @@ func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight
 	}, func(routines, routineIndex int) error {
 		hashers = append(hashers, crypto.GetKeccak256Hasher())
 		return nil
-	})
-
-	defer func() {
-		for _, h := range hashers {
-			crypto.PutKeccak256Hasher(h)
-		}
-	}()
+	}, nil)
 
 	return outputs, bottomHeight
 }
