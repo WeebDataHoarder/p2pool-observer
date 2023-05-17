@@ -55,7 +55,7 @@
                 /
                 <span class="small" style="color: {{ pool.SideChain.Effort.Average200|effort_color }};" title="Last 200 found blocks">{{ pool.SideChain.Effort.Average200|round(2) }}%</span>
             </td>
-            <td>{{ time_duration_long(diff_uint(pool.MainChain.difficulty) / diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime)) }}</td>
+            <td>{{ time_duration_long(diff_uint(pool.MainChain.Difficulty) / diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime)) }}</td>
             <td title="{{ utc_date(blocks_found[0].MainBlock.Timestamp) }}">{{ time_elapsed_short(blocks_found[0].MainBlock.Timestamp) }}</td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
