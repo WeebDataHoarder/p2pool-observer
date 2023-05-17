@@ -18,7 +18,11 @@
     <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
         <th><a href="/share/{{ s.TemplateId }}">{{ s.SideHeight }}</a></th>
         <td class="mono smaller"><a href="/share/{{ s.TemplateId }}">{{ s.TemplateId|shorten(10) }}</a></td>
+        {% if s.MinedMainAtHeight %}
+        <th title="{{ s.MainId }}"><a href="/b/{{ s.MainHeight|benc }}">{{ s.MainHeight }}</a></th>
+        {% else %}
         <td title="{{ s.MainId }}">{{ s.MainHeight }}</td>
+        {% endif %}
         <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
         {% if (shares_efforts is defined) %}
             {% set effort = get_slice_index(shares_efforts, i) %}
