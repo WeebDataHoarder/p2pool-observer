@@ -41,7 +41,11 @@ func (b *SideData) BufferLength() int {
 }
 
 func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
-	buf = make([]byte, 0, b.BufferLength())
+	return b.AppendBinary(make([]byte, 0, b.BufferLength()), version)
+}
+
+func (b *SideData) AppendBinary(preAllocatedBuf []byte, version ShareVersion) (buf []byte, err error) {
+	buf = preAllocatedBuf
 	buf = append(buf, b.PublicSpendKey[:]...)
 	buf = append(buf, b.PublicViewKey[:]...)
 	if version > ShareVersion_V1 {

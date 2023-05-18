@@ -266,7 +266,7 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		return nil
 	}
 
-	if _, err := block.MarshalBinary(); err != nil {
+	if _, err := block.AppendBinaryFlags(c.preAllocatedBuffer, false, false); err != nil {
 		return fmt.Errorf("encoding block error: %w", err)
 	}
 

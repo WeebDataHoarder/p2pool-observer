@@ -50,7 +50,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	if c.loadingInProgress.Load() {
 		return
 	}
-	if blob, err := block.MarshalBinary(); err != nil {
+	if blob, err := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), false, false); err != nil {
 		return
 	} else {
 		if (len(blob) + 4) > blockSize {

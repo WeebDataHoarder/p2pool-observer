@@ -259,7 +259,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		if height, err := strconv.ParseUint(mux.Vars(request)["height"], 10, 0); err == nil {
 			result := make([]p2pooltypes.P2PoolBinaryBlockResult, 0, 1)
 			for _, b := range instance.SideChain().GetPoolBlocksByHeight(height) {
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result = append(result, p2pooltypes.P2PoolBinaryBlockResult{
 						Version: int(b.ShareVersion()),
 						Error:   err.Error(),
@@ -285,7 +285,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			var result p2pooltypes.P2PoolBinaryBlockResult
 			if b := instance.SideChain().GetPoolBlockByTemplateId(templateId); b != nil {
 				result.Version = int(b.ShareVersion())
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result.Error = err.Error()
 				} else {
 					result.Blob = blob
@@ -312,7 +312,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				Uncles:    make([]p2pooltypes.P2PoolBinaryBlockResult, 0, len(uncles)),
 			}
 			for _, b := range chain {
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
 						Version: int(b.ShareVersion()),
 						Error:   err.Error(),
@@ -325,7 +325,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 			}
 			for _, b := range uncles {
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
 						Version: int(b.ShareVersion()),
 						Error:   err.Error(),
@@ -358,7 +358,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				Uncles:    make([]p2pooltypes.P2PoolBinaryBlockResult, 0, len(uncles)),
 			}
 			for _, b := range chain {
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
 						Version: int(b.ShareVersion()),
 						Error:   err.Error(),
@@ -371,7 +371,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 				}
 			}
 			for _, b := range uncles {
-				if blob, err := b.MarshalBinary(); err != nil {
+				if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 					result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
 						Version: int(b.ShareVersion()),
 						Error:   err.Error(),
@@ -405,7 +405,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 					Uncles:    make([]p2pooltypes.P2PoolBinaryBlockResult, 0, len(uncles)),
 				}
 				for _, b := range chain {
-					if blob, err := b.MarshalBinary(); err != nil {
+					if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 						result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
@@ -418,7 +418,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 					}
 				}
 				for _, b := range uncles {
-					if blob, err := b.MarshalBinary(); err != nil {
+					if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 						result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
@@ -448,7 +448,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		var result p2pooltypes.P2PoolBinaryBlockResult
 		if b := instance.SideChain().GetChainTip(); b != nil {
 			result.Version = int(b.ShareVersion())
-			if blob, err := b.MarshalBinary(); err != nil {
+			if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 				result.Error = err.Error()
 			} else {
 				result.Blob = blob
@@ -545,7 +545,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 									Version: int(e.Block.ShareVersion()),
 									Error:   err.Error(),
 								})
-							} else if blob, err := e.Block.MarshalBinary(); err != nil {
+							} else if blob, err := e.Block.AppendBinaryFlags(make([]byte, 0, e.Block.BufferLength()), false, false); err != nil {
 								topError = err
 								result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
 									Version: int(e.Block.ShareVersion()),
@@ -565,7 +565,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 										Version: int(u.ShareVersion()),
 										Error:   err.Error(),
 									})
-								} else if blob, err := u.MarshalBinary(); err != nil {
+								} else if blob, err := u.AppendBinaryFlags(make([]byte, 0, u.BufferLength()), false, false); err != nil {
 									topError = err
 									result.Uncles = append(result.Uncles, p2pooltypes.P2PoolBinaryBlockResult{
 										Version: int(u.ShareVersion()),
@@ -655,7 +655,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
 						})
-					} else if blob, err := b.MarshalBinary(); err != nil {
+					} else if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 						result = append(result, p2pooltypes.P2PoolBinaryBlockResult{
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
@@ -685,7 +685,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
 						})
-					} else if blob, err := b.MarshalBinary(); err != nil {
+					} else if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 						result = append(result, p2pooltypes.P2PoolBinaryBlockResult{
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
@@ -796,7 +796,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 					if err := archiveCache.ProcessBlock(b); err != nil {
 						result.Error = err.Error()
 					} else {
-						if blob, err := b.MarshalBinary(); err != nil {
+						if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 							result.Error = err.Error()
 						} else {
 							result.Blob = blob
@@ -821,7 +821,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),
 						})
-					} else if blob, err := b.MarshalBinary(); err != nil {
+					} else if blob, err := b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), false, false); err != nil {
 						result = append(result, p2pooltypes.P2PoolBinaryBlockResult{
 							Version: int(b.ShareVersion()),
 							Error:   err.Error(),

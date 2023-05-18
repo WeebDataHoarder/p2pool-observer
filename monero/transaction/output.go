@@ -62,7 +62,11 @@ func (s *Outputs) BufferLength() int {
 }
 
 func (s *Outputs) MarshalBinary() (data []byte, err error) {
-	data = make([]byte, 0, s.BufferLength())
+	return s.AppendBinary(make([]byte, 0, s.BufferLength()))
+}
+
+func (s *Outputs) AppendBinary(preAllocatedBuf []byte) (data []byte, err error) {
+	data = preAllocatedBuf
 
 	data = binary.AppendUvarint(data, uint64(len(*s)))
 

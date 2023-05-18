@@ -144,16 +144,15 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 }
 
 func (c *CoinbaseTransaction) BufferLength() int {
-	return 1 + binary.MaxVarintLen64 + 1 + 1 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + c.Outputs.BufferLength() + binary.MaxVarintLen64 + c.Extra.BufferLength() + 1
+	return 1 + binary.MaxVarintLen64 + 1 + 1 + binary.MaxVarintLen64 + c.Outputs.BufferLength() + binary.MaxVarintLen64 + c.Extra.BufferLength() + 1
 }
 
 func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
+	return c.AppendBinaryFlags(make([]byte, 0, c.BufferLength()), pruned)
+}
 
-	outputs, _ := c.OutputsBlob()
-
-	txExtra, _ := c.Extra.MarshalBinary()
-
-	buf := make([]byte, 0, c.BufferLength())
+func (c *CoinbaseTransaction) AppendBinaryFlags(preAllocatedBuf []byte, pruned bool) ([]byte, error) {
+	buf := preAllocatedBuf
 
 	buf = append(buf, c.Version)
 	buf = binary.AppendUvarint(buf, c.UnlockTime)
@@ -165,10 +164,15 @@ func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
 		//pruned output
 		buf = binary.AppendUvarint(buf, 0)
 		buf = binary.AppendUvarint(buf, c.TotalReward)
+		outputs := make([]byte, 0, c.Outputs.BufferLength())
+		outputs, _ = c.Outputs.AppendBinary(outputs)
 		buf = binary.AppendUvarint(buf, uint64(len(outputs)))
 	} else {
-		buf = append(buf, outputs...)
+		buf, _ = c.Outputs.AppendBinary(buf)
 	}
+
+	txExtra := make([]byte, 0, c.Extra.BufferLength())
+	txExtra, _ = c.Extra.AppendBinary(txExtra)
 
 	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
 	buf = append(buf, txExtra...)
@@ -181,12 +185,8 @@ func (c *CoinbaseTransaction) OutputsBlob() ([]byte, error) {
 	return c.Outputs.MarshalBinary()
 }
 
-func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
-	outputs, _ := c.OutputsBlob()
-
-	txExtra, _ := c.Extra.SideChainHashingBlob(zeroTemplateId)
-
-	buf := make([]byte, 0, c.BufferLength())
+func (c *CoinbaseTransaction) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId bool) ([]byte, error) {
+	buf := preAllocatedBuf
 
 	buf = append(buf, c.Version)
 	buf = binary.AppendUvarint(buf, c.UnlockTime)
@@ -194,8 +194,10 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(zeroTemplateId bool) ([]byte,
 	buf = append(buf, c.InputType)
 	buf = binary.AppendUvarint(buf, c.GenHeight)
 
-	buf = append(buf, outputs...)
+	buf, _ = c.Outputs.AppendBinary(buf)
 
+	txExtra := make([]byte, 0, c.Extra.BufferLength())
+	txExtra, _ = c.Extra.SideChainHashingBlob(txExtra, zeroTemplateId)
 	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
 	buf = append(buf, txExtra...)
 	buf = append(buf, c.ExtraBaseRCT)
@@ -220,7 +222,8 @@ func (c *CoinbaseTransaction) Id() types.Hash {
 }
 
 func (c *CoinbaseTransaction) CalculateId() (hash types.Hash) {
-	txBytes, _ := c.MarshalBinary()
+
+	txBytes, _ := c.AppendBinaryFlags(make([]byte, 0, c.BufferLength()), false)
 
 	return crypto.PooledKeccak256(
 		// remove base RCT

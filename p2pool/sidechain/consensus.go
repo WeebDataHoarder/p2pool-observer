@@ -182,11 +182,11 @@ func (c *Consensus) verify() bool {
 }
 
 func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) types.Hash {
+	buf := make([]byte, 0, share.BufferLength())
+	buf, _ = share.Main.SideChainHashingBlob(buf, true)
+	buf, _ = share.Side.AppendBinary(buf, share.ShareVersion())
 
-	mainData, _ := share.Main.SideChainHashingBlob(true)
-	sideData, _ := share.Side.MarshalBinary(share.ShareVersion())
-
-	return c.CalculateSideChainIdFromBlobs(mainData, sideData)
+	return crypto.PooledKeccak256(buf, c.id[:])
 }
 
 func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {

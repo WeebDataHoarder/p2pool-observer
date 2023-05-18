@@ -42,35 +42,36 @@ func (t *ExtraTags) BufferLength() (length int) {
 	for _, tag := range *t {
 		length += tag.BufferLength()
 	}
-	return
+	return length
 }
 
 func (t *ExtraTags) MarshalBinary() ([]byte, error) {
+
+	return t.AppendBinary(make([]byte, 0, t.BufferLength()))
+}
+
+func (t *ExtraTags) AppendBinary(preAllocatedBuf []byte) (buf []byte, err error) {
 	if t == nil {
 		return nil, nil
 	}
-	buf := make([]byte, 0, t.BufferLength())
+	buf = preAllocatedBuf
 	for _, tag := range *t {
-		if b, err := tag.MarshalBinary(); err != nil {
+		if buf, err = tag.AppendBinary(buf); err != nil {
 			return nil, err
-		} else {
-			buf = append(buf, b...)
 		}
 	}
 
 	return buf, nil
 }
 
-func (t *ExtraTags) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
+func (t *ExtraTags) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId bool) (buf []byte, err error) {
 	if t == nil {
 		return nil, nil
 	}
-	buf := make([]byte, 0, t.BufferLength())
+	buf = preAllocatedBuf
 	for _, tag := range *t {
-		if b, err := tag.SideChainHashingBlob(zeroTemplateId); err != nil {
+		if buf, err = tag.SideChainHashingBlob(buf, zeroTemplateId); err != nil {
 			return nil, err
-		} else {
-			buf = append(buf, b...)
 		}
 	}
 
@@ -113,7 +114,11 @@ func (t *ExtraTag) BufferLength() int {
 }
 
 func (t *ExtraTag) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 0, t.BufferLength())
+	return t.AppendBinary(make([]byte, 0, t.BufferLength()))
+}
+
+func (t *ExtraTag) AppendBinary(preAllocatedBuf []byte) ([]byte, error) {
+	buf := preAllocatedBuf
 	buf = append(buf, t.Tag)
 	if t.HasVarInt {
 		buf = binary.AppendUvarint(buf, t.VarInt)
@@ -122,8 +127,8 @@ func (t *ExtraTag) MarshalBinary() ([]byte, error) {
 	return buf, nil
 }
 
-func (t *ExtraTag) SideChainHashingBlob(zeroTemplateId bool) ([]byte, error) {
-	buf := make([]byte, 0, t.BufferLength())
+func (t *ExtraTag) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId bool) ([]byte, error) {
+	buf := preAllocatedBuf
 	buf = append(buf, t.Tag)
 	if t.HasVarInt {
 		buf = binary.AppendUvarint(buf, t.VarInt)

@@ -403,36 +403,25 @@ func (b *PoolBlock) BufferLength() int {
 }
 
 func (b *PoolBlock) MarshalBinary() ([]byte, error) {
-	if mainData, err := b.Main.MarshalBinary(); err != nil {
-		return nil, err
-	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
-		return nil, err
-	} else {
-		data := make([]byte, 0, b.BufferLength())
-		data = append(data, mainData...)
-		data = append(data, sideData...)
-
-		if len(data) > PoolBlockMaxTemplateSize {
-			return nil, errors.New("buffer too large")
-		}
-		return data, nil
-	}
+	return b.MarshalBinaryFlags(false, false)
 }
 
 func (b *PoolBlock) MarshalBinaryFlags(pruned, compact bool) ([]byte, error) {
-	if mainData, err := b.Main.MarshalBinaryFlags(pruned, compact); err != nil {
+	return b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), pruned, compact)
+}
+
+func (b *PoolBlock) AppendBinaryFlags(preAllocatedBuf []byte, pruned, compact bool) (buf []byte, err error) {
+	buf = preAllocatedBuf
+
+	if buf, err = b.Main.AppendBinaryFlags(buf, pruned, compact); err != nil {
 		return nil, err
-	} else if sideData, err := b.Side.MarshalBinary(b.ShareVersion()); err != nil {
+	} else if buf, err = b.Side.AppendBinary(buf, b.ShareVersion()); err != nil {
 		return nil, err
 	} else {
-		data := make([]byte, 0, b.BufferLength())
-		data = append(data, mainData...)
-		data = append(data, sideData...)
-
-		if len(data) > PoolBlockMaxTemplateSize {
+		if len(buf) > PoolBlockMaxTemplateSize {
 			return nil, errors.New("buffer too large")
 		}
-		return data, nil
+		return buf, nil
 	}
 }
 
@@ -547,7 +536,7 @@ func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache Deriva
 			b.Main.Coinbase.Outputs = outputs
 		}
 
-		if outputBlob, err := b.Main.Coinbase.OutputsBlob(); err != nil {
+		if outputBlob, err := b.Main.Coinbase.Outputs.AppendBinary(make([]byte, 0, b.Main.Coinbase.Outputs.BufferLength())); err != nil {
 			return nil, fmt.Errorf("error filling outputs for block: %s", err)
 		} else if uint64(len(outputBlob)) != b.Main.Coinbase.OutputsBlobSize {
 			return nil, fmt.Errorf("error filling outputs for block: invalid output blob size, got %d, expected %d", b.Main.Coinbase.OutputsBlobSize, len(outputBlob))
@@ -616,8 +605,8 @@ func (b *PoolBlock) GetPrivateKeySeed() types.Hash {
 
 func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
 	if b.ShareVersion() > ShareVersion_V1 {
-		mainData, _ := b.Main.SideChainHashingBlob(false)
-		sideData, _ := b.Side.MarshalBinary(b.ShareVersion())
+		mainData, _ := b.Main.SideChainHashingBlob(make([]byte, 0, b.Main.BufferLength()), false)
+		sideData, _ := b.Side.AppendBinary(make([]byte, 0, b.Side.BufferLength()), b.ShareVersion())
 		return p2poolcrypto.CalculateTransactionPrivateKeySeed(
 			mainData,
 			sideData,

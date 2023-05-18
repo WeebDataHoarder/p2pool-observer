@@ -54,11 +54,11 @@ func (b *Block) BufferLength() int {
 }
 
 func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error) {
-	var txBuf []byte
-	if txBuf, err = b.Coinbase.MarshalBinaryFlags(pruned); err != nil {
-		return nil, err
-	}
-	buf = make([]byte, 0, b.BufferLength())
+	return b.AppendBinaryFlags(make([]byte, 0, b.BufferLength()), pruned, compact)
+}
+
+func (b *Block) AppendBinaryFlags(preAllocatedBuf []byte, pruned, compact bool) (buf []byte, err error) {
+	buf = preAllocatedBuf
 	buf = append(buf, b.MajorVersion)
 	if b.MajorVersion > monero.HardForkSupportedVersion {
 		return nil, fmt.Errorf("unsupported version %d", b.MajorVersion)
@@ -71,7 +71,9 @@ func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error)
 	buf = append(buf, b.PreviousId[:]...)
 	buf = binary.LittleEndian.AppendUint32(buf, b.Nonce)
 
-	buf = append(buf, txBuf[:]...)
+	if buf, err = b.Coinbase.AppendBinaryFlags(buf, pruned); err != nil {
+		return nil, err
+	}
 
 	buf = binary.AppendUvarint(buf, uint64(len(b.Transactions)))
 	if compact {
@@ -199,9 +201,12 @@ func (b *Block) Header() *Header {
 	}
 }
 
-func (b *Block) HeaderBlob() []byte {
-	//TODO: cache
-	buf := make([]byte, 0, 1+1+binary.MaxVarintLen64+types.HashSize+4+types.HashSize+binary.MaxVarintLen64) //predict its use on HashingBlob
+func (b *Block) HeaderBlobBufferLength() int {
+	return 1 + 1 + binary.MaxVarintLen64 + types.HashSize + 4
+}
+
+func (b *Block) HeaderBlob(preAllocatedBuf []byte) []byte {
+	buf := preAllocatedBuf
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)
@@ -211,21 +216,18 @@ func (b *Block) HeaderBlob() []byte {
 	return buf
 }
 
-// SideChainHashingBlob Same as MarshalBinary but with nonce set to 0
-func (b *Block) SideChainHashingBlob(zeroTemplateId bool) (buf []byte, err error) {
-
-	var txBuf []byte
-	if txBuf, err = b.Coinbase.SideChainHashingBlob(zeroTemplateId); err != nil {
-		return nil, err
-	}
-	buf = make([]byte, 0, b.BufferLength())
+// SideChainHashingBlob Same as MarshalBinary but with nonce or template id set to 0
+func (b *Block) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId bool) (buf []byte, err error) {
+	buf = preAllocatedBuf
 	buf = append(buf, b.MajorVersion)
 	buf = append(buf, b.MinorVersion)
 	buf = binary.AppendUvarint(buf, b.Timestamp)
 	buf = append(buf, b.PreviousId[:]...)
 	buf = binary.LittleEndian.AppendUint32(buf, 0) //replaced
 
-	buf = append(buf, txBuf[:]...)
+	if buf, err = b.Coinbase.SideChainHashingBlob(buf, zeroTemplateId); err != nil {
+		return nil, err
+	}
 
 	buf = binary.AppendUvarint(buf, uint64(len(b.Transactions)))
 	for _, txId := range b.Transactions {
@@ -235,9 +237,12 @@ func (b *Block) SideChainHashingBlob(zeroTemplateId bool) (buf []byte, err error
 	return buf, nil
 }
 
-func (b *Block) HashingBlob() []byte {
-	//TODO: cache
-	buf := b.HeaderBlob()
+func (b *Block) HashingBlobBufferLength() int {
+	return b.HeaderBlobBufferLength() + types.HashSize + binary.MaxVarintLen64
+}
+
+func (b *Block) HashingBlob(preAllocatedBuf []byte) []byte {
+	buf := b.HeaderBlob(preAllocatedBuf)
 
 	txTreeHash := b.TxTreeHash()
 	buf = append(buf, txTreeHash[:]...)
@@ -320,18 +325,19 @@ func (b *Block) PowHashWithError(hasher randomx.Hasher, f GetSeedByHeightFunc) (
 	if seed := f(b.Coinbase.GenHeight); seed == types.ZeroHash {
 		return types.ZeroHash, errors.New("could not get seed")
 	} else {
-		return hasher.Hash(seed[:], b.HashingBlob())
+		return hasher.Hash(seed[:], b.HashingBlob(make([]byte, 0, b.HashingBlobBufferLength())))
 	}
 }
 
 func (b *Block) Id() types.Hash {
 	//cached by sidechain.Share
-	buf := b.HashingBlob()
-	return crypto.PooledKeccak256(binary.AppendUvarint(nil, uint64(len(buf))), buf)
+	var varIntBuf [binary.MaxVarintLen64]byte
+	buf := b.HashingBlob(make([]byte, 0, b.HashingBlobBufferLength()))
+	return crypto.PooledKeccak256(varIntBuf[:binary.PutUvarint(varIntBuf[:], uint64(len(buf)))], buf)
 }
 
 func keccakl(hasher *sha3.HasherState, dst []byte, data []byte, len int) {
 	hasher.Reset()
-	hasher.Write(data[:len])
+	_, _ = hasher.Write(data[:len])
 	crypto.HashFastSum(hasher, dst)
 }

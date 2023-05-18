@@ -243,7 +243,7 @@ func (c *Client) SendBlockRequest(id types.Hash) {
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	if block != nil {
-		blockData, err := block.MarshalBinary()
+		blockData, err := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), false, false)
 		if err != nil {
 			log.Printf("[P2PClient] Peer %s tried to respond with a block but received error, disconnecting: %s", c.AddressPort, err)
 			c.Close()
