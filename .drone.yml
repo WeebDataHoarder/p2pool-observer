@@ -17,8 +17,6 @@ environment:
   LD_LIBRARY_PATH: "/drone/src/build_deps/lib"
   CGO_CFLAGS: "-I/drone/src/build_deps/include"
   CGO_LDFLAGS: "-L/drone/src/build_deps/lib"
-  MONEROD_RPC_URL: "http://p2pmd.xmrvsbeast.com:18081"
-  MONEROD_ZMQ_URL: "tcp://p2pmd.xmrvsbeast.com:18083"
 
 workspace:
   path: /drone/src
@@ -41,6 +39,11 @@ steps:
     depends_on:
       - init-tests
       - build-sources
+    environment:
+      MONEROD_RPC_URL:
+        from_secret: MONEROD_RPC_URL
+      MONEROD_ZMQ_URL:
+        from_secret: MONEROD_ZMQ_URL
     commands:
       - apk update
       - apk add --no-cache git gcc g++ musl-dev pkgconfig
