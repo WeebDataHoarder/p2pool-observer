@@ -38,7 +38,7 @@
 
     <table class="center" style="max-width: calc(15em + 15em + 15em + 15em);">
         {% set between = (diff_uint(pool.SideChain.Difficulty) / (hashrate * magnitude)) %}
-        {% set between_main = (diff_uint(pool.SideChain.Difficulty) / (hashrate * magnitude)) %}
+        {% set between_solo = (diff_uint(pool.MainChain.Difficulty) / (hashrate * magnitude)) %}
         <tr style="line-height: 1.5;">
             <td style="width: 15em"><strong>P2Pool Difficulty</strong><br/>{{ diff_uint(pool.SideChain.Difficulty)|si_units(2) }}</td>
             <td style="width: 15em"><strong>P2Pool Hashrate</strong><br/>{{ diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime)|si_units(2) }}H/s</td>
@@ -50,7 +50,7 @@
             <td><strong>Monero Difficulty</strong><br/>{{ diff_uint(pool.MainChain.Difficulty)|si_units(2) }}</td>
             <td><strong>Monero Hashrate</strong><br/>{{ diff_hashrate(pool.MainChain.Difficulty, pool.MainChain.BlockTime)|si_units(2) }}H/s</td>
             <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{{ time_duration_long(diff_uint(pool.MainChain.Difficulty) / diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime)) }}</em></td>
-            <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{{ time_duration_long(between_main) }}</em></td>
+            <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{{ time_duration_long(between_solo) }}</em></td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
         <tr style="line-height: 1.5;">
