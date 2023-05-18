@@ -496,6 +496,8 @@ func (c *Client) OnConnection() {
 				return
 			}
 
+			isChainTipBlockRequest := expectedBlockId == types.ZeroHash
+
 			var blockSize uint32
 			if err := binary.Read(c, binary.LittleEndian, &blockSize); err != nil {
 				//TODO warn
@@ -503,8 +505,9 @@ func (c *Client) OnConnection() {
 				return
 			} else if blockSize == 0 {
 				log.Printf("[P2PClient] Peer %s sent nil BLOCK_RESPONSE to id = %s", c.AddressPort.String(), expectedBlockId)
-				//NOT found
-				//TODO log
+				if isChainTipBlockRequest && time.Now().Unix() >= int64(c.NextOutgoingPeerListRequestTimestamp.Load()) {
+					c.SendPeerListRequest()
+				}
 				break
 			} else {
 				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
@@ -512,7 +515,6 @@ func (c *Client) OnConnection() {
 					c.Ban(DefaultBanTime, err)
 					return
 				} else {
-					isChainTipBlockRequest := expectedBlockId == types.ZeroHash
 					tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 					if isChainTipBlockRequest {
 						c.LastKnownTip.Store(block)
