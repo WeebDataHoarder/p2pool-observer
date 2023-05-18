@@ -822,6 +822,10 @@ func main() {
 				})
 			}
 			ctx["efforts"] = efforts
+
+			longWeight := types.DifficultyFrom64(uint64(currentHashRate)).Mul64(3600 * 24)
+			expectedRewardPerDay := longWeight.Mul64(poolInfo.MainChain.BaseReward).Div(poolInfo.MainChain.NextDifficulty).Lo
+			ctx["estimated_reward_per_day"] = expectedRewardPerDay
 		}
 
 		render(request, writer, "calculate-share-time.html", ctx)

@@ -94,7 +94,7 @@
             <th>Current Shares</th>
             <th>Estimated Hashrate</th>
             <th>Pool Share %</th>
-            <th>Expected Window Reward</th>
+            <th>Estimated Window Reward</th>
         </tr>
         <tr>
             <td title="{{ utc_date(miner.LastShareTimestamp) }}">{{ time_elapsed_short(miner.LastShareTimestamp) }}</td>
@@ -109,7 +109,7 @@
             <th>Day Shares</th>
             <th>Day Hashrate</th>
             <th>Day Share %</th>
-            <th>Expected Daily Reward</th>
+            <th>Estimated Daily Reward</th>
         </tr>
         <tr>
             <td>{% if (last_raw_share is defined) %}{{ miner.Shares[1].ShareCount }} blocks (+{{ miner.Shares[1].UncleCount }} uncles{% if miner.Shares[0].ShareCount > 0 %}, +{{ miner.Shares[0].ShareCount }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
