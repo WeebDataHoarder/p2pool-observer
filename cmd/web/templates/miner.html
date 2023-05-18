@@ -88,31 +88,35 @@
     <p><small>Miner Alias is user content and not verified. This value should only be used for vanity purposes.</small></p>
     {% endif %}
 
-    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em + 15em)">
         <tr>
             <th>Last Share</th>
             <th>Current Shares</th>
             <th>Estimated Hashrate</th>
             <th>Pool Share %</th>
+            <th>Expected Window Reward</th>
         </tr>
         <tr>
             <td title="{{ utc_date(miner.LastShareTimestamp) }}">{{ time_elapsed_short(miner.LastShareTimestamp) }}</td>
             <td>{{ window_count_blocks }} blocks (+{{ window_count_uncles }} uncles)</td>
             <td>{{ ((window_weight / pool.SideChain.Window.Weight|diff_int) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
             <td>{{ (((window_weight / pool.SideChain.Window.Weight|diff_int))*100)|round(3) }}%</td>
+            <td>{{ monero_to_xmr(expected_reward_per_window) }} XMR</td>
         </tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
+        <tr><td colspan="5">&nbsp;</td></tr>
         <tr>
             <th>Total Shares</th>
             <th>Day Shares</th>
             <th>Day Hashrate</th>
             <th>Day Share %</th>
+            <th>Expected Daily Reward</th>
         </tr>
         <tr>
             <td>{% if (last_raw_share is defined) %}{{ miner.Shares[1].ShareCount }} blocks (+{{ miner.Shares[1].UncleCount }} uncles{% if miner.Shares[0].ShareCount > 0 %}, +{{ miner.Shares[0].ShareCount }} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{{ count_blocks }} blocks (+{{ count_uncles }} uncles)</td>
             <td>{{ ((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))) * diff_hashrate(pool.SideChain.Difficulty, pool.SideChain.BlockTime))|si_units(3) }}H/s</td>
             <td>{{ (((weight / ((pool.SideChain.Window.Weight|diff_int * 4) * (pool.SideChain.MaxWindowSize / pool.SideChain.WindowSize))))*100)|round(3) }}%</td>
+            <td>{{ monero_to_xmr(expected_reward_per_day) }} XMR</td>
         </tr>
     </table>
 </div>

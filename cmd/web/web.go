@@ -1148,7 +1148,7 @@ func main() {
 
 		shares := getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window?window=%d&noMainStatus&noUncles", windowSize), cacheTime)
 
-		miners := make(map[uint64]map[string]any, 0)
+		miners := make(map[uint64]map[string]any)
 
 		tipHeight := poolInfo.SideChain.Height
 		wend := tipHeight - windowSize
@@ -1436,6 +1436,16 @@ func main() {
 		ctx["last_sweeps"] = sweeps
 		ctx["last_shares"] = lastShares
 		ctx["last_orphaned_shares"] = lastOrphanedShares
+
+		if windowDiff.Cmp64(0) > 0 {
+			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(uint64(poolInfo.SideChain.MaxWindowSize)).Div64(uint64(poolInfo.SideChain.WindowSize))
+			averageRewardPerBlock := longDiff.Mul64(poolInfo.MainChain.BaseReward).Div(longWindowWeight).Lo
+			expectedRewardPerDay := longWindowWeight.Mul64(averageRewardPerBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
+			ctx["expected_reward_per_day"] = expectedRewardPerDay
+			expectedRewardNextBlock := windowDiff.Mul64(poolInfo.MainChain.BaseReward).Div(poolInfo.SideChain.Window.Weight).Lo
+			expectedRewardPerWindow := poolInfo.SideChain.Window.Weight.Mul64(expectedRewardNextBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
+			ctx["expected_reward_per_window"] = expectedRewardPerWindow
+		}
 		ctx["last_found"] = lastFound
 		ctx["last_payouts"] = payouts
 		ctx["window_weight"] = windowDiff.Lo

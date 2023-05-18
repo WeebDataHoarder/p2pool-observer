@@ -59,6 +59,7 @@ type PoolInfoResultSideChain struct {
 	Consensus             *sidechain.Consensus          `json:"consensus"`
 	Id                    types.Hash                    `json:"id"`
 	Height                uint64                        `json:"height"`
+	Version               sidechain.ShareVersion        `json:"version"`
 	Difficulty            types.Difficulty              `json:"difficulty"`
 	CumulativeDifficulty  types.Difficulty              `json:"cumulative_difficulty"`
 	SecondsSinceLastBlock int64                         `json:"seconds_since_last_block"`
@@ -92,6 +93,8 @@ type PoolInfoResultMainChain struct {
 	Id             types.Hash       `json:"id"`
 	Height         uint64           `json:"height"`
 	Difficulty     types.Difficulty `json:"difficulty"`
+	Reward         uint64           `json:"reward"`
+	BaseReward     uint64           `json:"base_reward"`
 	NextDifficulty types.Difficulty `json:"next_difficulty"`
 	BlockTime      int              `json:"block_time"`
 }

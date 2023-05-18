@@ -11,6 +11,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
@@ -248,7 +249,9 @@ func main() {
 
 		mainTip := indexDb.GetMainBlockTip()
 		networkDifficulty := types.DifficultyFrom64(mainTip.Difficulty)
-		minerDifficulty := p2api.MinerData().Difficulty
+		minerData := p2api.MinerData()
+		expectedBaseBlockReward := block.GetBlockReward(minerData.MedianWeight, minerData.MedianWeight, minerData.AlreadyGeneratedCoins, minerData.MajorVersion)
+		minerDifficulty := minerData.Difficulty
 
 		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
 			return float64(blockCumulativeDifficulty.SubWrap(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
@@ -296,6 +299,7 @@ func main() {
 				Consensus:             p2api.Consensus(),
 				Id:                    tip.TemplateId,
 				Height:                tip.SideHeight,
+				Version:               sidechain.P2PoolShareVersion(p2api.Consensus(), tip.Timestamp),
 				Difficulty:            types.DifficultyFrom64(tip.Difficulty),
 				CumulativeDifficulty:  tip.CumulativeDifficulty,
 				Timestamp:             tip.Timestamp,
@@ -325,6 +329,8 @@ func main() {
 				Id:             mainTip.Id,
 				Height:         mainTip.Height,
 				Difficulty:     networkDifficulty,
+				Reward:         mainTip.Reward,
+				BaseReward:     expectedBaseBlockReward,
 				NextDifficulty: minerDifficulty,
 				BlockTime:      monero.BlockTime,
 			},
