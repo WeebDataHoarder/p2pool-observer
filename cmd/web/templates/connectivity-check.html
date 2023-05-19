@@ -59,6 +59,10 @@
             <td style="width: 10em"><strong>Connection Latency</strong><br/>{% if check.Latency > 0 %}{{ check.Latency }}ms{% else %}-{% endif %}</td>
         </tr>
         {% endif %}
+        {% if check.BanError != "" %}
+        <tr><th colspan="6">&nbsp;</th></tr>
+        <tr><td colspan="6" style="color:#FF4433"><strong>Previous Ban Error:</strong> <code>{{ check.BanError }}</code></td></tr>
+        {% endif %}
         {% if check.Error != "" %}
         <tr><th colspan="6">&nbsp;</th></tr>
         <tr><td colspan="6" style="color:#FF4433"><strong>Error:</strong> <code>{{ check.Error }}</code></td></tr>

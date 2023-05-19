@@ -73,4 +73,5 @@ type P2PoolConnectionCheckInformation struct {
 	HandshakeComplete bool   `json:"handshake_complete"`
 	Banned            bool   `json:"banned"`
 	Error             string `json:"error,omitempty"`
+	BanError          string `json:"ban_error,omitempty"`
 }

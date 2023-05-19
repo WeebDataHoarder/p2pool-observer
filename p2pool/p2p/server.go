@@ -60,6 +60,11 @@ func (l PeerList) Delete(addr netip.Addr) PeerList {
 	return ret
 }
 
+type BanEntry struct {
+	Expiration uint64
+	Error      error
+}
+
 type Server struct {
 	p2pool P2PoolInterface
 
@@ -93,7 +98,7 @@ type Server struct {
 	moneroPeerList PeerList
 
 	bansLock sync.RWMutex
-	bans     map[[16]byte]uint64
+	bans     map[[16]byte]BanEntry
 
 	clientsLock sync.RWMutex
 	clients     []*Client
@@ -132,7 +137,7 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		useIPv4: useIPv4,
 		useIPv6: useIPv6,
 		ctx:     ctx,
-		bans:    make(map[[16]byte]uint64),
+		bans:    make(map[[16]byte]BanEntry),
 	}
 
 	s.PendingOutgoingConnections = utils.NewCircularBuffer[string](int(s.MaxOutgoingPeers))
@@ -185,7 +190,7 @@ func (s *Server) AddToPeerList(addressPort netip.AddrPort) {
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
 	if e := s.peerList.Get(addr); e == nil {
-		if s.IsBanned(addr) {
+		if ok, _ := s.IsBanned(addr); ok {
 			return
 		}
 		e = &PeerListEntry{
@@ -212,7 +217,7 @@ func (s *Server) UpdateInPeerList(addressPort netip.AddrPort) {
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
 	if e := s.peerList.Get(addr); e == nil {
-		if s.IsBanned(addr) {
+		if ok, _ := s.IsBanned(addr); ok {
 			return
 		}
 		e = &PeerListEntry{
@@ -390,7 +395,7 @@ func (s *Server) UpdateClientConnections() {
 					AddressPort: netip.AddrPortFrom(addr, s.Consensus().DefaultPort()),
 				}
 				e.LastSeenTimestamp.Store(uint64(p.LastSeen))
-				if !s.IsBanned(addr) {
+				if ok, _ := s.IsBanned(addr); !ok {
 					if !s.useIPv4 && addr.Is4() {
 						continue
 					} else if !s.useIPv6 && addr.Is6() {
@@ -521,8 +526,8 @@ func (s *Server) Listen() (err error) {
 							return errors.New("peer is IPv6 but we do not allow it")
 						}
 
-						if s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()) {
-							return errors.New("banned")
+						if ok, b := s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()); ok {
+							return fmt.Errorf("peer is banned: %w", b.Error)
 						}
 					}
 
@@ -644,8 +649,8 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 }
 
 func (s *Server) Connect(addrPort netip.AddrPort) error {
-	if s.IsBanned(addrPort.Addr()) {
-		return fmt.Errorf("peer is banned")
+	if ok, b := s.IsBanned(addrPort.Addr()); ok {
+		return fmt.Errorf("peer is banned: %w", b.Error)
 	}
 
 	_, err := s.DirectConnect(addrPort)
@@ -658,9 +663,9 @@ func (s *Server) Clients() []*Client {
 	return slices.Clone(s.clients)
 }
 
-func (s *Server) IsBanned(ip netip.Addr) bool {
+func (s *Server) IsBanned(ip netip.Addr) (bool, *BanEntry) {
 	if ip.IsLoopback() {
-		return false
+		return false, nil
 	}
 	ip = ip.Unmap()
 	var prefix netip.Prefix
@@ -673,7 +678,7 @@ func (s *Server) IsBanned(ip netip.Addr) bool {
 	}
 
 	if !prefix.IsValid() {
-		return false
+		return false, nil
 	}
 
 	k := prefix.Addr().As16()
@@ -681,21 +686,25 @@ func (s *Server) IsBanned(ip netip.Addr) bool {
 	s.bansLock.RLock()
 	defer s.bansLock.RUnlock()
 
-	if t, ok := s.bans[k]; ok == false {
-		return false
-	} else if uint64(time.Now().Unix()) >= t {
+	if b, ok := s.bans[k]; ok == false {
+		return false, nil
+	} else if uint64(time.Now().Unix()) >= b.Expiration {
 		go func() {
 			//HACK: delay via goroutine
 			s.bansLock.Lock()
 			defer s.bansLock.Unlock()
 			delete(s.bans, k)
 		}()
-		return false
+		return false, nil
+	} else {
+		return true, &b
 	}
-	return true
 }
 
 func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
+	if ok, _ := s.IsBanned(ip); ok {
+		return
+	}
 	go func() {
 		log.Printf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 		if !ip.IsLoopback() {
@@ -712,7 +721,10 @@ func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 			if prefix.IsValid() {
 				s.bansLock.Lock()
 				defer s.bansLock.Unlock()
-				s.bans[prefix.Addr().As16()] = uint64(time.Now().Unix()) + uint64(duration.Seconds())
+				s.bans[prefix.Addr().As16()] = BanEntry{
+					Error:      err,
+					Expiration: uint64(time.Now().Unix()) + uint64(duration.Seconds()),
+				}
 				for _, c := range s.GetAddressConnectedPrefix(prefix) {
 					c.Close()
 				}

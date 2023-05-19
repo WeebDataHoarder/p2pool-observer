@@ -76,7 +76,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 
 		var client *p2p.Client
 		var alreadyConnected bool
-		isBanned := instance.Server().IsBanned(addrPort.Addr())
+		isBanned, banEntry := instance.Server().IsBanned(addrPort.Addr())
 		for _, c := range instance.Server().Clients() {
 			if c.AddressPort.Addr().Compare(addrPort.Addr()) == 0 && uint16(c.ListenPort.Load()) == addrPort.Port() {
 				client = c
@@ -117,9 +117,14 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			time.Sleep(time.Second * 1)
 		}
 
+		banError := ""
 		errorStr := ""
 		if err := client.BanError(); err != nil {
 			errorStr = err.Error()
+		}
+
+		if banEntry != nil && banEntry.Error != nil {
+			banError = banEntry.Error.Error()
 		}
 
 		info := p2pooltypes.P2PoolConnectionCheckInformation{
@@ -142,6 +147,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			LastActive:        client.LastActiveTimestamp.Load(),
 			Banned:            isBanned,
 			Error:             errorStr,
+			BanError:          banError,
 		}
 
 		if isBanned {
