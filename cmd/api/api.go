@@ -159,49 +159,26 @@ func main() {
 
 		tip := indexDb.GetSideBlockTip()
 
-		blockCount := 0
-		uncleCount := 0
-
-		miners := make(map[uint64]uint64)
-
 		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.TemplateId {
 			//no changes!
 			return
 		}
 
-		window, windowUncles := p2api.StateFromTemplateId(tip.TemplateId)
+		blockCount := 0
+		uncleCount := 0
 
-		if len(window) == 0 {
-			window, windowUncles = p2api.WindowFromTemplateId(tip.TemplateId)
-			if len(window) == 0 {
-				//err
-				log.Panic("empty window")
-			}
-		}
+		miners := make(map[uint64]uint64)
 
 		versions := make([]utils2.SideChainVersionEntry, 0)
 
 		var pplnsWeight types.Difficulty
 
-		for ps := range sidechain.IterateBlocksInPPLNSWindow(window[0], p2api.Consensus(), indexDb.GetDifficultyByHeight, func(h types.Hash) *sidechain.PoolBlock {
-			if b := window.Get(h); b == nil {
-				if b = windowUncles.Get(h); b == nil {
-					if bs := p2api.LightByTemplateId(h); len(bs) > 0 {
-						return bs[0]
-					}
-					return nil
-				} else {
-					return b
-				}
-			} else {
-				return b
-			}
-		}, func(b *sidechain.PoolBlock, weight types.Difficulty) {
-			miners[indexDb.GetOrCreateMinerPackedAddress(b.GetAddress()).Id()]++
+		for ps := range index.IterateSideBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
+			miners[indexDb.GetMiner(b.Miner).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
 			if i := slices.IndexFunc(versions, func(entry utils2.SideChainVersionEntry) bool {
-				return entry.SoftwareId == b.Side.ExtraBuffer.SoftwareId && entry.SoftwareVersion == b.Side.ExtraBuffer.SoftwareVersion
+				return entry.SoftwareId == b.SoftwareId && entry.SoftwareVersion == b.SoftwareVersion
 			}); i != -1 {
 				versions[i].Weight = versions[i].Weight.Add(weight)
 				versions[i].Count++
@@ -209,9 +186,9 @@ func main() {
 				versions = append(versions, utils2.SideChainVersionEntry{
 					Weight:          weight,
 					Count:           1,
-					SoftwareId:      b.Side.ExtraBuffer.SoftwareId,
-					SoftwareVersion: b.Side.ExtraBuffer.SoftwareVersion,
-					SoftwareString:  fmt.Sprintf("%s %s", b.Side.ExtraBuffer.SoftwareId, b.Side.ExtraBuffer.SoftwareVersion),
+					SoftwareId:      b.SoftwareId,
+					SoftwareVersion: b.SoftwareVersion,
+					SoftwareString:  fmt.Sprintf("%s %s", b.SoftwareId, b.SoftwareVersion),
 				})
 			}
 		}, func(err error) {
