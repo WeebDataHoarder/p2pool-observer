@@ -367,14 +367,14 @@ func main() {
 			return
 		}
 
-		var foundBlocksData [index.InclusionAlternateInVerifiedChain + 1]utils2.MinerInfoBlockData
+		var foundBlocksData [index.InclusionCount]utils2.MinerInfoBlockData
 		_ = indexDb.Query("SELECT COUNT(*) as count, coalesce(MAX(side_height), 0) as last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
 			var d utils2.MinerInfoBlockData
 			var inclusion index.BlockInclusion
 			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
 				return err
 			}
-			if inclusion < 3 {
+			if inclusion < index.InclusionCount {
 				foundBlocksData[inclusion] = d
 			}
 			return nil
@@ -386,7 +386,7 @@ func main() {
 			if err := row.Scan(&d.ShareCount, &d.LastShareHeight, &inclusion); err != nil {
 				return err
 			}
-			if inclusion <= index.InclusionAlternateInVerifiedChain {
+			if inclusion < index.InclusionCount {
 				foundBlocksData[inclusion].ShareCount -= d.ShareCount
 				foundBlocksData[inclusion].UncleCount = d.ShareCount
 			}

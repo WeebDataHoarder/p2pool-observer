@@ -21,6 +21,8 @@ const (
 	InclusionInVerifiedChain
 	// InclusionAlternateInVerifiedChain alternate in-verified-chain (uncle or main), for example when duplicate nonce happens
 	InclusionAlternateInVerifiedChain
+
+	InclusionCount
 )
 
 const SideBlockSelectFields = "main_id, main_height, template_id, side_height, parent_template_id, miner, uncle_of, effective_height, nonce, extra_nonce, timestamp, software_id, software_version, window_depth, window_outputs, transaction_count, difficulty, cumulative_difficulty, pow_difficulty, pow_hash, inclusion"

@@ -1442,7 +1442,7 @@ func main() {
 		ctx["last_orphaned_shares"] = lastOrphanedShares
 
 		if windowDiff.Cmp64(0) > 0 {
-			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(uint64(poolInfo.SideChain.MaxWindowSize)).Div64(uint64(poolInfo.SideChain.WindowSize))
+			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.WindowSize))
 			averageRewardPerBlock := longDiff.Mul64(poolInfo.MainChain.BaseReward).Div(longWindowWeight).Lo
 			expectedRewardPerDay := longWindowWeight.Mul64(averageRewardPerBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
 			ctx["expected_reward_per_day"] = expectedRewardPerDay
@@ -1464,7 +1464,7 @@ func main() {
 		ctx["position_uncles"] = unclesFound.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
 		ctx["position_payouts"] = foundPayout.StringWithSeparator(int(consensus.ChainWindowSize*totalWindows - currentWindowSize))
 
-		totalWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(uint64(poolInfo.SideChain.MaxWindowSize)).Div64(uint64(poolInfo.SideChain.WindowSize))
+		totalWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.WindowSize))
 		dailyHashRate := poolInfo.SideChain.Difficulty.Mul(longDiff).Div(totalWeight).Div64(consensus.TargetBlockTime).Lo
 
 		hashRate := float64(0)

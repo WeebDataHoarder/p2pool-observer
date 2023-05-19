@@ -67,11 +67,20 @@ type PoolInfoResultSideChain struct {
 	Effort                PoolInfoResultSideChainEffort `json:"effort"`
 	Window                PoolInfoResultSideChainWindow `json:"window"`
 	WindowSize            int                           `json:"window_size"`
-	MaxWindowSize         int                           `json:"max_window_size"`
-	BlockTime             int                           `json:"block_time"`
-	UnclePenalty          int                           `json:"uncle_penalty"`
 	Found                 uint64                        `json:"found"`
 	Miners                uint64                        `json:"miners"`
+
+	// MaxWindowSize Available on Consensus
+	// Deprecated
+	MaxWindowSize int `json:"max_window_size"`
+
+	// BlockTime Available on Consensus
+	// Deprecated
+	BlockTime int `json:"block_time"`
+
+	// UnclePenalty Available on Consensus
+	// Deprecated
+	UnclePenalty int `json:"uncle_penalty"`
 }
 
 type PoolInfoResultSideChainEffort struct {
@@ -106,10 +115,10 @@ type MinerInfoBlockData struct {
 }
 
 type MinerInfoResult struct {
-	Id                 uint64                                                          `json:"id"`
-	Address            *address.Address                                                `json:"address"`
-	Alias              string                                                          `json:"alias,omitempty"`
-	Shares             [index.InclusionAlternateInVerifiedChain + 1]MinerInfoBlockData `json:"shares"`
-	LastShareHeight    uint64                                                          `json:"last_share_height"`
-	LastShareTimestamp uint64                                                          `json:"last_share_timestamp"`
+	Id                 uint64                                   `json:"id"`
+	Address            *address.Address                         `json:"address"`
+	Alias              string                                   `json:"alias,omitempty"`
+	Shares             [index.InclusionCount]MinerInfoBlockData `json:"shares"`
+	LastShareHeight    uint64                                   `json:"last_share_height"`
+	LastShareTimestamp uint64                                   `json:"last_share_timestamp"`
 }
