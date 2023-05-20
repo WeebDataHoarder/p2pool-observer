@@ -100,6 +100,8 @@ func main() {
 		}
 	}
 
+	var backfillScan []types.Hash
+
 	for len(window) > 0 {
 		log.Printf("[CHAIN] Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
 		for _, b := range window {
@@ -120,6 +122,16 @@ func main() {
 			}
 			if err := indexDb.InsertOrUpdatePoolBlock(b, index.InclusionInVerifiedChain); err != nil {
 				log.Panic(err)
+			}
+
+			if b.IsProofHigherThanMainDifficulty(p2api.Consensus().GetHasher(), indexDb.GetDifficultyByHeight, indexDb.GetSeedByHeight) {
+				backfillScan = append(backfillScan, b.MainId())
+			}
+
+			for _, uncleId := range b.Side.Uncles {
+				if u := uncles.Get(uncleId); u != nil && u.IsProofHigherThanMainDifficulty(p2api.Consensus().GetHasher(), indexDb.GetDifficultyByHeight, indexDb.GetSeedByHeight) {
+					backfillScan = append(backfillScan, u.MainId())
+				}
 			}
 		}
 
@@ -177,6 +189,19 @@ func main() {
 					log.Panic(err)
 					continue
 				}
+			}
+		}
+	}
+
+	// backfill any missing headers when p2pool was down
+	for _, mainId := range backfillScan {
+		log.Printf("checking backfill %s", mainId)
+		if header, err := client.GetDefaultClient().GetBlockHeaderByHash(mainId, ctx); err != nil {
+			log.Printf("not found %s", mainId)
+		} else {
+			if err := scanHeader(*header); err != nil {
+				log.Panic(err)
+				continue
 			}
 		}
 	}
