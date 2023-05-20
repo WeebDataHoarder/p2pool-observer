@@ -60,7 +60,7 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 		getDifficultyByHeight: difficultyByHeight,
 		getSeedByHeight:       getSeedByHeight,
 		getByTemplateId:       getByTemplateId,
-		derivationCache:       sidechain.NewDerivationCache(),
+		derivationCache:       sidechain.NewDerivationLRUCache(),
 		blockCache:            lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4)),
 	}
 	if index.handle, err = sql.Open("postgres", connStr); err != nil {

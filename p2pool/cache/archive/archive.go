@@ -54,7 +54,7 @@ func NewCache(path string, consensus *sidechain.Consensus, difficultyByHeight bl
 			consensus:              consensus,
 			difficultyByHeight:     difficultyByHeight,
 			preAllocatedSharesPool: sidechain.NewPreAllocatedSharesPool(consensus.ChainWindowSize * 2),
-			derivationCache:        sidechain.NewDerivationCache(),
+			derivationCache:        sidechain.NewDerivationLRUCache(),
 		}, nil
 	}
 }

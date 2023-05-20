@@ -2,7 +2,7 @@ package address
 
 import (
 	"encoding/binary"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
@@ -25,7 +25,7 @@ func GetEphemeralPublicKey(a Interface, txKey crypto.PrivateKey, outputIndex uin
 
 func getEphemeralPublicKeyInline(spendPub, viewPub *edwards25519.Point, txKey *edwards25519.Scalar, outputIndex uint64, p *edwards25519.Point) {
 	//derivation
-	p.ScalarMult(txKey, viewPub).MultByCofactor(p)
+	p.UnsafeVarTimeScalarMult(txKey, viewPub).MultByCofactor(p)
 
 	derivationAsBytes := p.Bytes()
 	var varIntBuf [binary.MaxVarintLen64]byte
@@ -47,7 +47,7 @@ func GetEphemeralPublicKeyAndViewTagNoAllocate(a *PackedAddress, txKey *crypto.P
 	var spendPublicKeyPoint, viewPublicKeyPoint, point, cofactor, intermediatePublicKey, ephemeralPublicKey edwards25519.Point
 	_, _ = spendPublicKeyPoint.SetBytes((*a)[0][:])
 	_, _ = viewPublicKeyPoint.SetBytes((*a)[1][:])
-	point.ScalarMult(scalar, &viewPublicKeyPoint)
+	point.UnsafeVarTimeScalarMult(scalar, &viewPublicKeyPoint)
 	cofactor.MultByCofactor(&point)
 
 	pK, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(crypto.PublicKeyBytes(cofactor.Bytes()), outputIndex, hasher)

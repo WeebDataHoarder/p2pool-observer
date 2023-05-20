@@ -2,7 +2,6 @@ package address
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"runtime"
 	"unsafe"
 )
 
@@ -22,11 +21,11 @@ func (p *PackedAddress) PublicKeys() (spend, view crypto.PublicKey) {
 	return &(*p)[0], &(*p)[1]
 }
 
-func (p *PackedAddress) SpendPublicKey() crypto.PublicKey {
+func (p *PackedAddress) SpendPublicKey() *crypto.PublicKeyBytes {
 	return &(*p)[0]
 }
 
-func (p *PackedAddress) ViewPublicKey() crypto.PublicKey {
+func (p *PackedAddress) ViewPublicKey() *crypto.PublicKeyBytes {
 	return &(*p)[1]
 }
 
@@ -35,75 +34,28 @@ func (p *PackedAddress) ToPackedAddress() PackedAddress {
 }
 
 // Compare special consensus comparison
-func (p *PackedAddress) Compare(otherI Interface) int {
-	other := otherI.ToPackedAddress()
-	//golang might free other otherwise
-	defer runtime.KeepAlive(other)
-	defer runtime.KeepAlive(p)
-	a := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(p))
-	b := (*[(2 * crypto.PublicKeySize) / 8]uint64)(unsafe.Pointer(&other))
-
+func (p *PackedAddress) Compare(b Interface) int {
 	//compare spend key
 
-	if a[3] < b[3] {
-		return -1
-	}
-	if a[3] > b[3] {
-		return 1
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(p[0], *b.SpendPublicKey())
+	if resultSpendKey != 0 {
+		return resultSpendKey
 	}
 
-	if a[2] < b[2] {
-		return -1
-	}
-	if a[2] > b[2] {
-		return 1
+	// compare view key
+	return crypto.CompareConsensusPublicKeyBytes(p[1], *b.ViewPublicKey())
+}
+
+func (p PackedAddress) ComparePacked(other PackedAddress) int {
+	//compare spend key
+
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(p[0], other[0])
+	if resultSpendKey != 0 {
+		return resultSpendKey
 	}
 
-	if a[1] < b[1] {
-		return -1
-	}
-	if a[1] > b[1] {
-		return 1
-	}
-
-	if a[0] < b[0] {
-		return -1
-	}
-	if a[0] > b[0] {
-		return 1
-	}
-
-	//compare view key
-
-	if a[4+3] < b[4+3] {
-		return -1
-	}
-	if a[4+3] > b[4+3] {
-		return 1
-	}
-
-	if a[4+2] < b[4+2] {
-		return -1
-	}
-	if a[4+2] > b[4+2] {
-		return 1
-	}
-
-	if a[4+1] < b[4+1] {
-		return -1
-	}
-	if a[4+1] > b[4+1] {
-		return 1
-	}
-
-	if a[4+0] < b[4+0] {
-		return -1
-	}
-	if a[4+0] > b[4+0] {
-		return 1
-	}
-
-	return 0
+	// compare view key
+	return crypto.CompareConsensusPublicKeyBytes(p[1], other[1])
 }
 
 func (p *PackedAddress) ToAddress(network uint8, err ...error) *Address {

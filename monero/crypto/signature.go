@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 

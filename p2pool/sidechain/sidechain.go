@@ -82,7 +82,7 @@ type SideChain struct {
 
 func NewSideChain(server P2PoolInterface) *SideChain {
 	s := &SideChain{
-		derivationCache:                   NewDerivationCache(),
+		derivationCache:                   NewDerivationMapCache(),
 		server:                            server,
 		blocksByTemplateId:                make(map[types.Hash]*PoolBlock),
 		blocksByHeight:                    make(map[uint64][]*PoolBlock),

@@ -59,7 +59,7 @@ func main() {
 	}
 	defer outputCache.Close()
 
-	derivationCache := sidechain.NewDerivationCache()
+	derivationCache := sidechain.NewDerivationLRUCache()
 
 	blockCache := lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4))
 

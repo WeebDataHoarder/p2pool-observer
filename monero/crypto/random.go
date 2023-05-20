@@ -3,7 +3,7 @@ package crypto
 import (
 	"crypto/rand"
 	"encoding/binary"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"unsafe"
 )

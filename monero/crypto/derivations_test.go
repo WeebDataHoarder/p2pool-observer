@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"encoding/hex"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"testing"
 )
 

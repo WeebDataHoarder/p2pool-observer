@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 )
 
 type PrivateKey interface {

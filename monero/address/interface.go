@@ -9,8 +9,8 @@ type Interface interface {
 
 	PublicKeys() (spend, view crypto.PublicKey)
 
-	SpendPublicKey() crypto.PublicKey
-	ViewPublicKey() crypto.PublicKey
+	SpendPublicKey() *crypto.PublicKeyBytes
+	ViewPublicKey() *crypto.PublicKeyBytes
 
 	ToAddress(network uint8, err ...error) *Address
 	ToPackedAddress() PackedAddress

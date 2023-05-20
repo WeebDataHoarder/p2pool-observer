@@ -34,7 +34,7 @@ func NewP2PoolApi(host string) *P2PoolApi {
 		Client: &http.Client{
 			Timeout: time.Second * 15,
 		},
-		derivationCache:         sidechain.NewDerivationCache(),
+		derivationCache:         sidechain.NewDerivationLRUCache(),
 		difficultyByHeightCache: lru.New[uint64, types.Difficulty](1024),
 	}
 }

@@ -228,7 +228,7 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 
 	// Sort shares based on address
 	slices.SortFunc(shares, func(a *Share, b *Share) bool {
-		return a.Address.Compare(&b.Address) < 0
+		return a.Address.ComparePacked(b.Address) < 0
 	})
 
 	//remove dupes

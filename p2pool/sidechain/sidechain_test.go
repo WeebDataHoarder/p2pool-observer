@@ -140,14 +140,13 @@ func TestSideChainMini(t *testing.T) {
 		t.Fatal()
 	}
 
-	hits, misses := s.DerivationCache().ephemeralPublicKeyCacheHits.Load(), s.DerivationCache().ephemeralPublicKeyCacheMisses.Load()
+	hits, misses := s.DerivationCache().ephemeralPublicKeyCache.Stats()
 	total := hits + misses
 	log.Printf("Ephemeral Public Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
-	hits, misses = s.DerivationCache().deterministicKeyCacheHits.Load(), s.DerivationCache().deterministicKeyCacheMisses.Load()
+	hits, misses = s.DerivationCache().deterministicKeyCache.Stats()
 	total = hits + misses
 	log.Printf("Deterministic Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
-
 }
 
 type fakeServer struct {

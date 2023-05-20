@@ -2,7 +2,7 @@ package crypto
 
 import (
 	"encoding/binary"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/sha3"
 )

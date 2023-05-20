@@ -5,9 +5,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
-	"github.com/floatdrop/lru"
-	"sync/atomic"
 )
 
 type deterministicTransactionCacheKey [crypto.PublicKeySize + types.HashSize]byte
@@ -24,23 +23,29 @@ type DerivationCacheInterface interface {
 }
 
 type DerivationCache struct {
-	deterministicKeyCache         atomic.Pointer[lru.LRU[deterministicTransactionCacheKey, *crypto.KeyPair]]
-	deterministicKeyCacheHits     atomic.Uint64
-	deterministicKeyCacheMisses   atomic.Uint64
-	ephemeralPublicKeyCache       atomic.Pointer[lru.LRU[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]]
-	ephemeralPublicKeyCacheHits   atomic.Uint64
-	ephemeralPublicKeyCacheMisses atomic.Uint64
+	deterministicKeyCache   utils.Cache[deterministicTransactionCacheKey, *crypto.KeyPair]
+	ephemeralPublicKeyCache utils.Cache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]
 }
 
-func NewDerivationCache() *DerivationCache {
-	d := &DerivationCache{}
-	d.Clear()
+func NewDerivationLRUCache() *DerivationCache {
+	d := &DerivationCache{
+		deterministicKeyCache:   utils.NewLRUCache[deterministicTransactionCacheKey, *crypto.KeyPair](32),
+		ephemeralPublicKeyCache: utils.NewLRUCache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000),
+	}
+	return d
+}
+
+func NewDerivationMapCache() *DerivationCache {
+	d := &DerivationCache{
+		deterministicKeyCache:   utils.NewMapCache[deterministicTransactionCacheKey, *crypto.KeyPair](32),
+		ephemeralPublicKeyCache: utils.NewMapCache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000),
+	}
 	return d
 }
 
 func (d *DerivationCache) Clear() {
-	d.deterministicKeyCache.Store(lru.New[deterministicTransactionCacheKey, *crypto.KeyPair](32))
-	d.ephemeralPublicKeyCache.Store(lru.New[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000))
+	d.deterministicKeyCache.Clear()
+	d.ephemeralPublicKeyCache.Clear()
 }
 
 func (d *DerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, txKeySlice crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64, hasher *sha3.HasherState) (crypto.PublicKeyBytes, uint8) {
@@ -49,15 +54,12 @@ func (d *DerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, txKeyS
 	copy(key[crypto.PrivateKeySize:], a.ToPackedAddress().Bytes())
 	binary.LittleEndian.PutUint64(key[crypto.PrivateKeySize+crypto.PublicKeySize*2:], outputIndex)
 
-	ephemeralPublicKeyCache := d.ephemeralPublicKeyCache.Load()
-	if ephemeralPubKey := ephemeralPublicKeyCache.Get(key); ephemeralPubKey == nil {
-		d.ephemeralPublicKeyCacheMisses.Add(1)
-		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex, hasher)
-		ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
-		return pKB, viewTag
-	} else {
-		d.ephemeralPublicKeyCacheHits.Add(1)
+	if ephemeralPubKey, ok := d.ephemeralPublicKeyCache.Get(key); ok {
 		return ephemeralPubKey.PublicKey, ephemeralPubKey.ViewTag
+	} else {
+		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex, hasher)
+		d.ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
+		return pKB, viewTag
 	}
 }
 
@@ -66,14 +68,11 @@ func (d *DerivationCache) GetDeterministicTransactionKey(seed types.Hash, prevId
 	copy(key[:], seed[:])
 	copy(key[types.HashSize:], prevId[:])
 
-	deterministicKeyCache := d.deterministicKeyCache.Load()
-	if kp := deterministicKeyCache.Get(key); kp == nil {
-		d.deterministicKeyCacheMisses.Add(1)
-		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
-		deterministicKeyCache.Set(key, data)
-		return data
+	if kp, ok := d.deterministicKeyCache.Get(key); ok {
+		return kp
 	} else {
-		d.deterministicKeyCacheHits.Add(1)
-		return *kp
+		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
+		d.deterministicKeyCache.Set(key, data)
+		return data
 	}
 }

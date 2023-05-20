@@ -463,6 +463,11 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 
 		log.Printf("[MainChain] new miner data: major_version = %d, height = %d, prev_id = %s, seed_hash = %s, difficulty = %s", minerData.MajorVersion, minerData.Height, minerData.PrevId.String(), minerData.SeedHash.String(), minerData.Difficulty.StringNumeric())
 
+		// Tx secret keys from all miners change every block, so cache can be cleared here
+		if c.sidechain.PreCalcFinished() {
+			c.sidechain.DerivationCache().Clear()
+		}
+
 		if c.p2pool.Started() {
 			for h := minerData.Height; h > 0 && (h+BlockHeadersRequired) > minerData.Height; h-- {
 				if d, ok := c.mainchainByHeight[h]; !ok || d.Difficulty.Equals(types.ZeroDifficulty) {

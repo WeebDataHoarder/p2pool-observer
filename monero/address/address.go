@@ -16,19 +16,26 @@ type Address struct {
 }
 
 func (a *Address) Compare(b Interface) int {
-	//TODO
-	return a.ToPackedAddress().Reference().Compare(b)
+	//compare spend key
+
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(a.SpendPub, *b.SpendPublicKey())
+	if resultSpendKey != 0 {
+		return resultSpendKey
+	}
+
+	// compare view key
+	return crypto.CompareConsensusPublicKeyBytes(a.ViewPub, *b.ViewPublicKey())
 }
 
 func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {
 	return &a.SpendPub, &a.ViewPub
 }
 
-func (a *Address) SpendPublicKey() crypto.PublicKey {
+func (a *Address) SpendPublicKey() *crypto.PublicKeyBytes {
 	return &a.SpendPub
 }
 
-func (a *Address) ViewPublicKey() crypto.PublicKey {
+func (a *Address) ViewPublicKey() *crypto.PublicKeyBytes {
 	return &a.ViewPub
 }
 

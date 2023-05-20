@@ -3,7 +3,7 @@ package address
 import (
 	"bytes"
 	"encoding/hex"
-	"filippo.io/edwards25519"
+	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
@@ -60,7 +60,7 @@ func BenchmarkCoinbaseDerivation(b *testing.B) {
 	var i atomic.Uint64
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			GetEphemeralPublicKey(&packed, txKey, i.Load())
+			GetEphemeralPublicKeyAndViewTag(&packed, txKey, i.Load())
 		}
 	})
 }
@@ -74,6 +74,21 @@ func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 		p := new(edwards25519.Point)
 		for pb.Next() {
 			getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, i.Load(), p)
+		}
+	})
+}
+
+func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
+	packed := testAddress3.ToPackedAddress()
+
+	txKey := (*crypto.PrivateKeyScalar)(privateKey)
+
+	var i atomic.Uint64
+	b.RunParallel(func(pb *testing.PB) {
+		hasher := crypto.GetKeccak256Hasher()
+		defer crypto.PutKeccak256Hasher(hasher)
+		for pb.Next() {
+			GetEphemeralPublicKeyAndViewTagNoAllocate(&packed, txKey, i.Load(), hasher)
 		}
 	})
 }

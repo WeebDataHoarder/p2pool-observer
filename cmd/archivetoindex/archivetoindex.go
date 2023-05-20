@@ -101,7 +101,7 @@ func main() {
 
 	blockCache := lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4))
 
-	derivationCache := sidechain.NewDerivationCache()
+	derivationCache := sidechain.NewDerivationLRUCache()
 	getByTemplateIdDirect := func(h types.Hash) *sidechain.PoolBlock {
 		if v := blockCache.Get(h); v == nil {
 			if bs := archiveCache.LoadByTemplateId(h); len(bs) != 0 {

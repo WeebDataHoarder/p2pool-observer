@@ -3,7 +3,7 @@ module git.gammaspectra.live/P2Pool/p2pool-observer
 go 1.20
 
 require (
-	filippo.io/edwards25519 v1.0.1-0.20220803165937-8c58ed0e3550
+	git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20230520084036-0f06fa066019
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230516052049-a566889a4d3b
