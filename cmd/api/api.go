@@ -161,6 +161,9 @@ func main() {
 
 		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.TemplateId {
 			//no changes!
+
+			//this race is ok
+			oldPoolInfo.SideChain.SecondsSinceLastBlock = utils.Max(0, time.Now().Unix()-int64(tip.Timestamp))
 			return
 		}
 
