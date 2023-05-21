@@ -31,6 +31,9 @@ COPY . .
 
 ARG BUILD_BINARY
 
-RUN go build -buildvcs=false -trimpath -v -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
+
+COPY pgo-data/pgo-profile-latest.pprof /tmp/
+
+RUN go build -buildvcs=false -trimpath -v -pgo=/tmp/pgo-profile-latest.pprof -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
 
 WORKDIR /data

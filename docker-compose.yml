@@ -109,6 +109,7 @@ services:
       - ${P2POOL_PORT}:${P2POOL_PORT}
     command: >-
       /usr/bin/p2pool
+      -debug-listen 0.0.0.0:6060
       -out-peers ${P2POOL_OUT_PEERS}
       -in-peers ${P2POOL_IN_PEERS}
       -host ${MONEROD_HOST}
@@ -138,6 +139,7 @@ services:
       - p2pool-observer
     command: >-
       /usr/bin/api
+      -debug-listen 0.0.0.0:6060
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
@@ -164,6 +166,7 @@ services:
       - p2pool-observer
     command: >-
       /usr/bin/web
+      -debug-listen 0.0.0.0:6060
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
   daemon:
@@ -186,7 +189,33 @@ services:
       - p2pool-observer
     command: >-
       /usr/bin/daemon
+      -debug-listen 0.0.0.0:6060
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
       -db="host=db port=5432 dbname=p2pool user=p2pool password=p2pool sslmode=disable"
+  pgo-collector:
+    image: golang:1.20-alpine
+    restart: always
+    environment:
+      - GOPROXY=${GOPROXY}
+    depends_on:
+      - p2pool
+      - api
+      - web
+      - daemon
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./pgo-data:/data:rw
+    networks:
+      - p2pool-observer
+    command: >-
+      go run git.gammaspectra.live/P2Pool/pgo-collector@b322f65c8bf4f022a79b4551f2ecf51bcbf255b2
+      -profile-interval 1h
+      -profile-duration 60s
+      -profile-directory /data
+      -endpoint http://p2pool:6060
+      -endpoint http://daemon:6060
+      -endpoint http://api:6060
+      -endpoint http://web:6060
