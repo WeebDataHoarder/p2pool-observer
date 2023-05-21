@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
@@ -27,6 +28,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	_ "net/http/pprof"
 	"net/netip"
 	"net/url"
 	"os"
@@ -144,7 +146,16 @@ func toFloat64(t any) float64 {
 }
 
 func main() {
-	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
+
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+
+	//monerod related
+	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
+	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
+	debugListen := flag.String("debug-listen", "", "Provide a bind address and port to expose a pprof HTTP API on it.")
+	flag.Parse()
+
+	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	env := twig.New(&loader{})
 
@@ -1639,6 +1650,14 @@ func main() {
 
 			serveMux.ServeHTTP(writer, request)
 		}),
+	}
+
+	if *debugListen != "" {
+		go func() {
+			if err := http.ListenAndServe(*debugListen, nil); err != nil {
+				log.Panic(err)
+			}
+		}()
 	}
 
 	if err := server.ListenAndServe(); err != nil {

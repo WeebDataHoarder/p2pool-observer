@@ -15,6 +15,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,12 +29,15 @@ func blockId(b *sidechain.PoolBlock) types.Hash {
 var sideBlocksLock sync.RWMutex
 
 func main() {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
 	startFromHeight := flag.Uint64("from", 0, "Start sync from this height")
 	dbString := flag.String("db", "", "")
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
 	fullMode := flag.Bool("full-mode", false, "Allocate RandomX dataset, uses 2GB of RAM")
+	debugListen := flag.String("debug-listen", "", "Provide a bind address and port to expose a pprof HTTP API on it.")
 	flag.Parse()
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
@@ -277,6 +282,14 @@ func main() {
 			}
 		}
 	}()
+
+	if *debugListen != "" {
+		go func() {
+			if err := http.ListenAndServe(*debugListen, nil); err != nil {
+				log.Panic(err)
+			}
+		}()
+	}
 
 	for range time.Tick(time.Second * 1) {
 		currentTip := indexDb.GetSideBlockTip()

@@ -151,7 +151,6 @@ services:
         - GOPROXY=${GOPROXY}
     restart: always
     environment:
-      - MONEROD_RPC_URL=http://${MONEROD_HOST}:${MONEROD_RPC_PORT}
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
       - NET_SERVICE_ADDRESS=${NET_SERVICE_ADDRESS}
       - API_URL=http://api:8080/api/
@@ -165,6 +164,8 @@ services:
       - p2pool-observer
     command: >-
       /usr/bin/web
+      -host ${MONEROD_HOST}
+      -rpc-port ${MONEROD_RPC_PORT}
   daemon:
     build:
       context: ./
