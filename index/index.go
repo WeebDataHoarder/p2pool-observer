@@ -38,8 +38,10 @@ type Index struct {
 		GetMinerByAddress       *sql.Stmt
 		GetMinerByAlias         *sql.Stmt
 		InsertMiner             *sql.Stmt
+		TipSideBlock            *sql.Stmt
 		TipSideBlocksTemplateId *sql.Stmt
 		InsertOrUpdateSideBlock *sql.Stmt
+		TipMainBlock            *sql.Stmt
 		GetMainBlockByHeight    *sql.Stmt
 		GetMainBlockById        *sql.Stmt
 		GetSideBlockByMainId    *sql.Stmt
@@ -114,6 +116,14 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 	}
 
 	if index.statements.GetSideBlockByUncleId, err = index.PrepareSideBlocksByQueryStatement("WHERE uncle_of = $1;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.TipSideBlock, err = index.PrepareSideBlocksByQueryStatement("WHERE inclusion = $1 ORDER BY side_height DESC LIMIT 1;"); err != nil {
+		return nil, err
+	}
+
+	if index.statements.TipMainBlock, err = index.PrepareMainBlocksByQueryStatement("ORDER BY height DESC LIMIT 1;"); err != nil {
 		return nil, err
 	}
 
@@ -485,7 +495,7 @@ func (i *Index) GetMainBlockById(id types.Hash) *MainBlock {
 }
 
 func (i *Index) GetMainBlockTip() *MainBlock {
-	r := i.GetMainBlocksByQuery("ORDER BY height DESC LIMIT 1;")
+	r := i.GetMainBlocksByQueryStatement(i.statements.TipMainBlock)
 	defer func() {
 		for range r {
 
@@ -571,8 +581,7 @@ func (i *Index) GetTipSideBlockByHeight(height uint64) *SideBlock {
 }
 
 func (i *Index) GetSideBlockTip() *SideBlock {
-	//TODO: check performance of inclusion here
-	r := i.GetSideBlocksByQuery("WHERE inclusion = $1 ORDER BY side_height DESC LIMIT 1;", InclusionInVerifiedChain)
+	r := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlock, InclusionInVerifiedChain)
 	defer func() {
 		for range r {
 
