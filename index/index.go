@@ -486,61 +486,37 @@ func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) cha
 
 func (i *Index) GetMainBlockById(id types.Hash) *MainBlock {
 	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockById, id[:])
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetMainBlockTip() *MainBlock {
 	r := i.GetMainBlocksByQueryStatement(i.statements.TipMainBlock)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) *MainBlock {
 	r := i.GetMainBlocksByQuery("WHERE coinbase_id = $1;", id[:])
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) *MainBlock {
 	r := i.GetMainBlocksByQuery("WHERE coinbase_id = (SELECT id FROM main_coinbase_outputs WHERE global_output_index = $1 LIMIT 1);", globalOutputIndex)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetMainBlockByHeight(height uint64) *MainBlock {
 	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockByHeight, height)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetSideBlockByMainId(id types.Hash) *SideBlock {
 	r := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByMainId, id[:])
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
@@ -554,11 +530,7 @@ func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) chan *SideBlock {
 
 func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) *SideBlock {
 	r := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
@@ -572,21 +544,13 @@ func (i *Index) GetSideBlocksByHeight(height uint64) chan *SideBlock {
 
 func (i *Index) GetTipSideBlockByHeight(height uint64) *SideBlock {
 	r := i.GetSideBlocksByQuery("WHERE side_height = $1 AND effective_height = $2 AND inclusion = $3;", height, height, InclusionInVerifiedChain)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
 func (i *Index) GetSideBlockTip() *SideBlock {
 	r := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlock, InclusionInVerifiedChain)
-	defer func() {
-		for range r {
-
-		}
-	}()
+	defer ChanConsume(r)
 	return <-r
 }
 
@@ -1257,6 +1221,12 @@ func (i *Index) InsertOrUpdatePoolBlock(b *sidechain.PoolBlock, inclusion BlockI
 	}
 
 	return nil
+}
+
+func ChanConsume[T any](s chan T) {
+	for range s {
+
+	}
 }
 
 func ChanToSlice[T any](s chan T) (r []T) {
