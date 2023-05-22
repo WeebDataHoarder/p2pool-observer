@@ -274,10 +274,18 @@ func (b *PoolBlock) ShareVersion() ShareVersion {
 }
 
 func (b *PoolBlock) ShareVersionSignaling() ShareVersion {
-	if b.ShareVersion() == ShareVersion_V1 && ((binary.LittleEndian.Uint32(b.CoinbaseExtra(SideExtraNonce)))&0xFF000000 == 0xFF000000) {
+	if b.ShareVersion() == ShareVersion_V1 && (b.ExtraNonce()&0xFF000000 == 0xFF000000) {
 		return ShareVersion_V2
 	}
 	return ShareVersion_None
+}
+
+func (b *PoolBlock) ExtraNonce() uint32 {
+	extraNonce := b.CoinbaseExtra(SideExtraNonce)
+	if len(extraNonce) < SideExtraNonceSize {
+		return 0
+	}
+	return binary.LittleEndian.Uint32(extraNonce)
 }
 
 func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {

@@ -106,7 +106,7 @@ func (b *SideBlock) FromPoolBlock(i *Index, block *sidechain.PoolBlock, getSeedB
 	b.ParentTemplateId = block.Side.Parent
 	b.Miner = i.GetOrCreateMinerPackedAddress(block.GetAddress()).id
 	b.Nonce = block.Main.Nonce
-	b.ExtraNonce = binary.LittleEndian.Uint32(block.CoinbaseExtra(sidechain.SideExtraNonce))
+	b.ExtraNonce = block.ExtraNonce()
 	b.Timestamp = block.Main.Timestamp
 	b.SoftwareId = block.Side.ExtraBuffer.SoftwareId
 	b.SoftwareVersion = block.Side.ExtraBuffer.SoftwareVersion

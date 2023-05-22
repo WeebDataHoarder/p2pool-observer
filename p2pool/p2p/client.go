@@ -531,13 +531,18 @@ func (c *Client) OnConnection() {
 							c.SendPeerListRequest()
 						}
 					}
+					if c.Owner.SideChain().BlockSeen(block) {
+						//log.Printf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
+						break
+					}
 					if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
 						if ban {
 							c.Ban(DefaultBanTime, err)
+							return
 						} else {
 							log.Printf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
+							break
 						}
-						return
 					} else {
 						if !isChainTipBlockRequest && expectedBlockId != block.SideTemplateId(c.Owner.SideChain().Consensus()) {
 							c.Ban(DefaultBanTime, fmt.Errorf("expected block id = %s, got %s", expectedBlockId.String(), block.SideTemplateId(c.Owner.SideChain().Consensus()).String()))
@@ -600,7 +605,7 @@ func (c *Client) OnConnection() {
 					c.SendMissingBlockRequest(id)
 				}
 				//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
-				return
+				break
 			} else {
 				ourMinerData := c.Owner.MainChain().GetMinerDataTip()
 
@@ -627,6 +632,11 @@ func (c *Client) OnConnection() {
 					} else {
 						log.Printf("[P2PClient] Peer %s is mining on an alternative mainchain tip (mainchain height %d, previous_id = %s)", c.AddressPort.String(), peerHeight, block.Main.PreviousId)
 					}
+				}
+
+				if c.Owner.SideChain().BlockSeen(block) {
+					//log.Printf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
+					break
 				}
 
 				block.WantBroadcast.Store(true)
