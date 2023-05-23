@@ -14,8 +14,8 @@ import (
 	"git.gammaspectra.live/P2Pool/sha3"
 	"golang.org/x/exp/slices"
 	"log"
-	"lukechampine.com/uint128"
 	"math"
+	"math/bits"
 )
 
 type GetByMainIdFunc func(h types.Hash) *PoolBlock
@@ -256,7 +256,7 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 
 // ShuffleShares Sorts shares according to consensus parameters. Requires pre-sorted shares based on address
 func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed types.Hash) {
-	n := len(shares)
+	n := uint64(len(shares))
 	if shareVersion > ShareVersion_V1 && n > 1 {
 		h := crypto.PooledKeccak256(privateKeySeed[:])
 		seed := binary.LittleEndian.Uint64(h[:])
@@ -265,9 +265,9 @@ func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed 
 			seed = 1
 		}
 
-		for i := 0; i < (n - 1); i++ {
+		for i := uint64(0); i < (n - 1); i++ {
 			seed = utils.XorShift64Star(seed)
-			k := int(uint128.From64(seed).Mul64(uint64(n - i)).Hi)
+			k, _ := bits.Mul64(seed, n-i)
 			//swap
 			shares[i], shares[i+k] = shares[i+k], shares[i]
 		}

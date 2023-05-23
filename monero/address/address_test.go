@@ -60,7 +60,7 @@ func BenchmarkCoinbaseDerivation(b *testing.B) {
 	var i atomic.Uint64
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			GetEphemeralPublicKeyAndViewTag(&packed, txKey, i.Load())
+			GetEphemeralPublicKeyAndViewTag(&packed, txKey, i.Add(1))
 		}
 	})
 }
@@ -73,7 +73,7 @@ func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		p := new(edwards25519.Point)
 		for pb.Next() {
-			getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, i.Load(), p)
+			getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, i.Add(1), p)
 		}
 	})
 }
@@ -81,14 +81,16 @@ func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
 	packed := testAddress3.ToPackedAddress()
 
-	txKey := (*crypto.PrivateKeyScalar)(privateKey)
+	spendPub, viewPub := packed.SpendPublicKey().AsPoint().Point(), packed.ViewPublicKey().AsPoint().Point()
+
+	txKey := privateKey
 
 	var i atomic.Uint64
 	b.RunParallel(func(pb *testing.PB) {
 		hasher := crypto.GetKeccak256Hasher()
 		defer crypto.PutKeccak256Hasher(hasher)
 		for pb.Next() {
-			GetEphemeralPublicKeyAndViewTagNoAllocate(&packed, txKey, i.Load(), hasher)
+			GetEphemeralPublicKeyAndViewTagNoAllocate(spendPub, viewPub, txKey, i.Add(1), hasher)
 		}
 	})
 }

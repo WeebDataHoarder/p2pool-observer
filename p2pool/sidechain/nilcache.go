@@ -15,7 +15,7 @@ func (d *NilDerivationCache) Clear() {
 }
 
 func (d *NilDerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, _ crypto.PrivateKeySlice, txKeyScalar *crypto.PrivateKeyScalar, outputIndex uint64, hasher *sha3.HasherState) (crypto.PublicKeyBytes, uint8) {
-	ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a, txKeyScalar, outputIndex, hasher)
+	ephemeralPubKey, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(a.SpendPublicKey().AsPoint().Point(), a.ViewPublicKey().AsPoint().Point(), txKeyScalar.Scalar(), outputIndex, hasher)
 
 	return ephemeralPubKey.AsBytes(), viewTag
 }
