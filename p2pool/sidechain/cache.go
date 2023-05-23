@@ -12,6 +12,7 @@ import (
 
 type deterministicTransactionCacheKey [crypto.PublicKeySize + types.HashSize]byte
 type ephemeralPublicKeyCacheKey [crypto.PrivateKeySize + crypto.PublicKeySize*2 + 8]byte
+type derivationCacheKey [crypto.PrivateKeySize + crypto.PublicKeySize]byte
 
 type ephemeralPublicKeyWithViewTag struct {
 	PublicKey crypto.PublicKeyBytes
@@ -25,6 +26,7 @@ type DerivationCacheInterface interface {
 
 type DerivationCache struct {
 	deterministicKeyCache   utils.Cache[deterministicTransactionCacheKey, *crypto.KeyPair]
+	derivationCache         utils.Cache[derivationCacheKey, crypto.PublicKeyBytes]
 	ephemeralPublicKeyCache utils.Cache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag]
 	pubKeyToPointCache      utils.Cache[crypto.PublicKeyBytes, *edwards25519.Point]
 }
@@ -33,6 +35,7 @@ func NewDerivationLRUCache() *DerivationCache {
 	d := &DerivationCache{
 		deterministicKeyCache:   utils.NewLRUCache[deterministicTransactionCacheKey, *crypto.KeyPair](32),
 		ephemeralPublicKeyCache: utils.NewLRUCache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000),
+		derivationCache:         utils.NewLRUCache[derivationCacheKey, crypto.PublicKeyBytes](2000),
 		pubKeyToPointCache:      utils.NewLRUCache[crypto.PublicKeyBytes, *edwards25519.Point](2000),
 	}
 	return d
@@ -42,7 +45,8 @@ func NewDerivationMapCache() *DerivationCache {
 	d := &DerivationCache{
 		deterministicKeyCache:   utils.NewMapCache[deterministicTransactionCacheKey, *crypto.KeyPair](32),
 		ephemeralPublicKeyCache: utils.NewMapCache[ephemeralPublicKeyCacheKey, ephemeralPublicKeyWithViewTag](2000),
-		pubKeyToPointCache:      utils.NewLRUCache[crypto.PublicKeyBytes, *edwards25519.Point](2000),
+		derivationCache:         utils.NewMapCache[derivationCacheKey, crypto.PublicKeyBytes](2000),
+		pubKeyToPointCache:      utils.NewMapCache[crypto.PublicKeyBytes, *edwards25519.Point](2000),
 	}
 	return d
 }
@@ -50,6 +54,7 @@ func NewDerivationMapCache() *DerivationCache {
 func (d *DerivationCache) Clear() {
 	d.deterministicKeyCache.Clear()
 	d.ephemeralPublicKeyCache.Clear()
+	d.derivationCache.Clear()
 	d.pubKeyToPointCache.Clear()
 }
 
@@ -62,7 +67,7 @@ func (d *DerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, txKeyS
 	if ephemeralPubKey, ok := d.ephemeralPublicKeyCache.Get(key); ok {
 		return ephemeralPubKey.PublicKey, ephemeralPubKey.ViewTag
 	} else {
-		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(d.getPublicKeyPoint(*a.SpendPublicKey()), d.getPublicKeyPoint(*a.ViewPublicKey()), txKeyScalar.Scalar(), outputIndex, hasher)
+		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(d.getPublicKeyPoint(*a.SpendPublicKey()), d.getDerivation(*a.ViewPublicKey(), txKeySlice, d.getPublicKeyPoint(*a.ViewPublicKey()), txKeyScalar.Scalar()), txKeyScalar.Scalar(), outputIndex, hasher)
 		d.ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag
 	}
@@ -79,6 +84,20 @@ func (d *DerivationCache) GetDeterministicTransactionKey(seed types.Hash, prevId
 		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
 		d.deterministicKeyCache.Set(key, data)
 		return data
+	}
+}
+
+func (d *DerivationCache) getDerivation(viewPublicKeyBytes crypto.PublicKeyBytes, txKeySlice crypto.PrivateKeySlice, viewPublicKeyPoint *edwards25519.Point, txKey *edwards25519.Scalar) crypto.PublicKeyBytes {
+	var key derivationCacheKey
+	copy(key[:], viewPublicKeyBytes[:])
+	copy(key[crypto.PublicKeySize:], txKeySlice[:])
+
+	if derivation, ok := d.derivationCache.Get(key); ok {
+		return derivation
+	} else {
+		derivation = address.GetDerivationNoAllocate(viewPublicKeyPoint, txKey)
+		d.derivationCache.Set(key, derivation)
+		return derivation
 	}
 }
 

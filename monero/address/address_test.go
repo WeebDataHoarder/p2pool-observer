@@ -66,8 +66,7 @@ func BenchmarkCoinbaseDerivation(b *testing.B) {
 }
 
 func BenchmarkCoinbaseDerivationInline(b *testing.B) {
-	packed := testAddress3.ToPackedAddress()
-	spendPub, viewPub := packed.SpendPublicKey().AsPoint().Point(), packed.ViewPublicKey().AsPoint().Point()
+	spendPub, viewPub := testAddress3.SpendPublicKey().AsPoint().Point(), testAddress3.ViewPublicKey().AsPoint().Point()
 
 	var i atomic.Uint64
 	b.RunParallel(func(pb *testing.PB) {
@@ -79,9 +78,8 @@ func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 }
 
 func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
-	packed := testAddress3.ToPackedAddress()
 
-	spendPub, viewPub := packed.SpendPublicKey().AsPoint().Point(), packed.ViewPublicKey().AsPoint().Point()
+	spendPub, viewPub := testAddress3.SpendPublicKey().AsPoint().Point(), testAddress3.ViewPublicKey().AsPoint().Point()
 
 	txKey := privateKey
 
@@ -90,7 +88,7 @@ func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
 		hasher := crypto.GetKeccak256Hasher()
 		defer crypto.PutKeccak256Hasher(hasher)
 		for pb.Next() {
-			GetEphemeralPublicKeyAndViewTagNoAllocate(spendPub, viewPub, txKey, i.Add(1), hasher)
+			GetEphemeralPublicKeyAndViewTagNoAllocate(spendPub, GetDerivationNoAllocate(viewPub, txKey), txKey, i.Add(1), hasher)
 		}
 	})
 }

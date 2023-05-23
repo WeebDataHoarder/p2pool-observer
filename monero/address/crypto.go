@@ -42,12 +42,9 @@ func GetEphemeralPublicKeyAndViewTag(a Interface, txKey crypto.PrivateKey, outpu
 }
 
 // GetEphemeralPublicKeyAndViewTagNoAllocate Special version of GetEphemeralPublicKeyAndViewTag
-func GetEphemeralPublicKeyAndViewTagNoAllocate(spendPublicKeyPoint, viewPublicKeyPoint *edwards25519.Point, txKey *edwards25519.Scalar, outputIndex uint64, hasher *sha3.HasherState) (crypto.PublicKeyBytes, uint8) {
-	var point, cofactor, intermediatePublicKey, ephemeralPublicKey edwards25519.Point
-	point.UnsafeVarTimeScalarMult(txKey, viewPublicKeyPoint)
-	cofactor.MultByCofactor(&point)
-
-	derivationSharedData, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(crypto.PublicKeyBytes(cofactor.Bytes()), outputIndex, hasher)
+func GetEphemeralPublicKeyAndViewTagNoAllocate(spendPublicKeyPoint *edwards25519.Point, derivation crypto.PublicKeyBytes, txKey *edwards25519.Scalar, outputIndex uint64, hasher *sha3.HasherState) (crypto.PublicKeyBytes, uint8) {
+	var intermediatePublicKey, ephemeralPublicKey edwards25519.Point
+	derivationSharedData, viewTag := crypto.GetDerivationSharedDataAndViewTagForOutputIndexNoAllocate(derivation, outputIndex, hasher)
 
 	intermediatePublicKey.ScalarBaseMult(&derivationSharedData)
 	ephemeralPublicKey.Add(&intermediatePublicKey, spendPublicKeyPoint)
@@ -56,6 +53,15 @@ func GetEphemeralPublicKeyAndViewTagNoAllocate(spendPublicKeyPoint, viewPublicKe
 	copy(ephemeralPublicKeyBytes[:], ephemeralPublicKey.Bytes())
 
 	return ephemeralPublicKeyBytes, viewTag
+}
+
+// GetDerivationNoAllocate Special version
+func GetDerivationNoAllocate(viewPublicKeyPoint *edwards25519.Point, txKey *edwards25519.Scalar) crypto.PublicKeyBytes {
+	var point, derivation edwards25519.Point
+	point.UnsafeVarTimeScalarMult(txKey, viewPublicKeyPoint)
+	derivation.MultByCofactor(&point)
+
+	return crypto.PublicKeyBytes(derivation.Bytes())
 }
 
 func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
