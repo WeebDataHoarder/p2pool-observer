@@ -232,7 +232,6 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 			//specifically check Main id for nonce changes! p2pool does not do this
 
 			if _, err := block.PowHashWithError(c.Consensus().GetHasher(), c.getSeedByHeightFunc()); err != nil {
-				c.BlockUnsee(block)
 				return nil, err, false
 			} else {
 				if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.Consensus().GetHasher(), c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
@@ -246,25 +245,27 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 				} else if !isHigher {
 					return nil, fmt.Errorf("not enough PoW for id %s, height = %d, mainchain height %d", templateId.String(), block.Side.Height, block.Main.Coinbase.GenHeight), true
 				}
-				c.sidechainLock.Lock()
-				defer c.sidechainLock.Unlock()
 
-				log.Printf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
+				{
+					c.sidechainLock.Lock()
+					defer c.sidechainLock.Unlock()
 
-				block.Verified.Store(true)
-				block.Invalid.Store(false)
-				if block.SideTemplateId(c.Consensus()) == c.watchBlockSidechainId {
-					c.server.UpdateBlockFound(c.watchBlock, block)
-					c.watchBlockSidechainId = types.ZeroHash
+					log.Printf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
+
+					block.Verified.Store(true)
+					block.Invalid.Store(false)
+					if block.SideTemplateId(c.Consensus()) == c.watchBlockSidechainId {
+						c.server.UpdateBlockFound(c.watchBlock, block)
+						c.watchBlockSidechainId = types.ZeroHash
+					}
+
+					block.Depth.Store(otherBlock.Depth.Load())
+					if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
+						//re-broadcast alternate blocks
+						c.server.Broadcast(block)
+					}
+					c.server.Store(block)
 				}
-
-				block.Depth.Store(otherBlock.Depth.Load())
-				if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
-					//re-broadcast alternate blocks
-					c.server.Broadcast(block)
-				}
-				c.server.Store(block)
-
 			}
 		}
 		return nil, nil, false
@@ -810,7 +811,6 @@ func (c *SideChain) pruneOldBlocks() {
 			if block.Depth.Load() >= pruneDistance || (curTime >= (block.LocalTimestamp + pruneDelay)) {
 				if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
 					delete(c.blocksByTemplateId, block.SideTemplateId(c.Consensus()))
-					c.BlockUnsee(block)
 					numBlocksPruned++
 				} else {
 					log.Printf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
@@ -831,7 +831,22 @@ func (c *SideChain) pruneOldBlocks() {
 		if !c.precalcFinished.Swap(true) {
 			c.derivationCache.Clear()
 		}
+
+		numSeenBlocksPruned := c.cleanupSeenBlocks()
+		if numSeenBlocksPruned > 0 {
+			//log.Printf("[SideChain] pruned %d seen blocks", numBlocksPruned)
+		}
 	}
+}
+
+func (c *SideChain) cleanupSeenBlocks() (cleaned int) {
+	for k, _ := range c.seenBlocks {
+		if c.getPoolBlockByTemplateId(k.TemplateId()) == nil {
+			delete(c.seenBlocks, k)
+			cleaned++
+		}
+	}
+	return cleaned
 }
 
 func (c *SideChain) GetMissingBlocks() []types.Hash {

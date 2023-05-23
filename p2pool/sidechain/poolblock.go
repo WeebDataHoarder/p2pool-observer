@@ -338,6 +338,18 @@ var zeroFullId FullId
 
 type FullId [FullIdSize]byte
 
+func (id FullId) TemplateId() (h types.Hash) {
+	return types.Hash(h[:types.HashSize])
+}
+
+func (id FullId) Nonce() uint32 {
+	return binary.LittleEndian.Uint32(id[types.HashSize:])
+}
+
+func (id FullId) ExtraNonce() uint32 {
+	return binary.LittleEndian.Uint32(id[types.HashSize+unsafe.Sizeof(uint32(0)):])
+}
+
 func (b *PoolBlock) CalculateFullId(consensus *Consensus) FullId {
 	var buf FullId
 	sidechainId := b.SideTemplateId(consensus)
