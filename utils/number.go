@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"github.com/jxskiss/base62"
 	"golang.org/x/exp/constraints"
+	"math/bits"
 	"strconv"
 	"strings"
 )
@@ -82,4 +83,11 @@ func Max[T constraints.Ordered](v0 T, values ...T) (result T) {
 		}
 	}
 	return
+}
+
+func PreviousPowerOfTwo(x uint64) int {
+	if x == 0 {
+		return 0
+	}
+	return 1 << (64 - bits.LeadingZeros64(x) - 1)
 }

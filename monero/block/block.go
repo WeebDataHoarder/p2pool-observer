@@ -10,7 +10,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"git.gammaspectra.live/P2Pool/sha3"
 	"io"
 )
 
@@ -244,75 +243,15 @@ func (b *Block) HashingBlobBufferLength() int {
 func (b *Block) HashingBlob(preAllocatedBuf []byte) []byte {
 	buf := b.HeaderBlob(preAllocatedBuf)
 
-	txTreeHash := b.TxTreeHash()
+	merkleTree := make(crypto.BinaryTreeHash, len(b.Transactions)+1)
+	merkleTree[0] = b.Coinbase.Id()
+	copy(merkleTree[1:], b.Transactions)
+	txTreeHash := merkleTree.RootHash()
 	buf = append(buf, txTreeHash[:]...)
 
 	buf = binary.AppendUvarint(buf, uint64(len(b.Transactions)+1))
 
 	return buf
-}
-
-func (b *Block) TxTreeHash() (rootHash types.Hash) {
-	//TODO: cache
-	//transaction hashes
-	h := make([]byte, 0, types.HashSize*len(b.Transactions)+types.HashSize)
-	coinbaseTxId := b.Coinbase.Id()
-
-	h = append(h, coinbaseTxId[:]...)
-	for _, txId := range b.Transactions {
-		h = append(h, txId[:]...)
-	}
-
-	count := len(b.Transactions) + 1
-	if count == 1 {
-		rootHash = types.HashFromBytes(h)
-	} else if count == 2 {
-		rootHash = crypto.PooledKeccak256(h)
-	} else {
-		hashInstance := crypto.GetKeccak256Hasher()
-		defer crypto.PutKeccak256Hasher(hashInstance)
-		var cnt int
-
-		{
-			//TODO: expand this loop properly
-			//find closest low power of two
-			for cnt = 1; cnt <= count; cnt <<= 1 {
-			}
-			cnt >>= 1
-		}
-
-		ints := make([]byte, cnt*types.HashSize)
-		copy(ints, h[:(cnt*2-count)*types.HashSize])
-
-		{
-			i := cnt*2 - count
-			j := cnt*2 - count
-			for j < cnt {
-				keccakl(hashInstance, ints[j*types.HashSize:], h[i*types.HashSize:], types.HashSize*2)
-				i += 2
-				j++
-			}
-		}
-
-		for cnt > 2 {
-			cnt >>= 1
-			{
-				i := 0
-				j := 0
-
-				for j < cnt {
-					keccakl(hashInstance, ints[j*types.HashSize:], ints[i*types.HashSize:], types.HashSize*2)
-
-					i += 2
-					j++
-				}
-			}
-		}
-
-		keccakl(hashInstance, rootHash[:], ints, types.HashSize*2)
-	}
-
-	return
 }
 
 func (b *Block) Difficulty(f GetDifficultyByHeightFunc) types.Difficulty {
@@ -334,10 +273,4 @@ func (b *Block) Id() types.Hash {
 	var varIntBuf [binary.MaxVarintLen64]byte
 	buf := b.HashingBlob(make([]byte, 0, b.HashingBlobBufferLength()))
 	return crypto.PooledKeccak256(varIntBuf[:binary.PutUvarint(varIntBuf[:], uint64(len(buf)))], buf)
-}
-
-func keccakl(hasher *sha3.HasherState, dst []byte, data []byte, len int) {
-	hasher.Reset()
-	_, _ = hasher.Write(data[:len])
-	crypto.HashFastSum(hasher, dst)
 }
