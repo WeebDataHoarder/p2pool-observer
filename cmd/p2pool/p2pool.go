@@ -245,7 +245,7 @@ func main() {
 
 				go func() {
 					contents := make([]byte, 0, 4096)
-					for range time.Tick(time.Minute * 1) {
+					for range utils.ContextTick(instance.Context(), time.Minute*1) {
 						contents = contents[:0]
 						peerListEntries := instance.Server().PeerList()
 						slices.SortFunc(peerListEntries, func(a, b *p2p.PeerListEntry) bool {

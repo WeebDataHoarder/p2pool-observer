@@ -472,11 +472,7 @@ func (s *Server) Listen() (err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range time.Tick(time.Second * 5) {
-				if s.close.Load() {
-					return
-				}
-
+			for range utils.ContextTick(s.ctx, time.Second*5) {
 				s.UpdatePeerList()
 				s.UpdateClientConnections()
 			}
@@ -484,11 +480,7 @@ func (s *Server) Listen() (err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range time.Tick(time.Second) {
-				if s.close.Load() {
-					return
-				}
-
+			for range utils.ContextTick(s.ctx, time.Second) {
 				if s.SideChain().PreCalcFinished() {
 					s.ClearCachedBlocks()
 				}
@@ -499,7 +491,7 @@ func (s *Server) Listen() (err error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for range time.Tick(time.Hour) {
+			for range utils.ContextTick(s.ctx, time.Hour) {
 				s.RefreshOutgoingIPv6()
 			}
 		}()
