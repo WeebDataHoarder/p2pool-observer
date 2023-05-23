@@ -978,20 +978,22 @@ func (c *Client) Close() bool {
 		c.Ban(DefaultBanTime, errors.New("disconnected before finishing handshake"))
 	}
 
-	c.Owner.clientsLock.Lock()
-	defer c.Owner.clientsLock.Unlock()
-	if c.Owner.fastestPeer == c {
-		c.Owner.fastestPeer = nil
-	}
-	if i := slices.Index(c.Owner.clients, c); i != -1 {
-		c.Owner.clients = slices.Delete(c.Owner.clients, i, i+1)
-		if c.IsIncomingConnection {
-			c.Owner.NumIncomingConnections.Add(-1)
-		} else {
-			c.Owner.NumOutgoingConnections.Add(-1)
-			c.Owner.PendingOutgoingConnections.Replace(c.AddressPort.Addr().String(), "")
+	func() {
+		c.Owner.clientsLock.Lock()
+		defer c.Owner.clientsLock.Unlock()
+		if c.Owner.fastestPeer == c {
+			c.Owner.fastestPeer = nil
 		}
-	}
+		if i := slices.Index(c.Owner.clients, c); i != -1 {
+			c.Owner.clients = slices.Delete(c.Owner.clients, i, i+1)
+			if c.IsIncomingConnection {
+				c.Owner.NumIncomingConnections.Add(-1)
+			} else {
+				c.Owner.NumOutgoingConnections.Add(-1)
+				c.Owner.PendingOutgoingConnections.Replace(c.AddressPort.Addr().String(), "")
+			}
+		}
+	}()
 
 	_ = c.Connection.Close()
 	close(c.closeChannel)
