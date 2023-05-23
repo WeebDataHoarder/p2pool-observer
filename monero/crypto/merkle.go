@@ -14,14 +14,13 @@ func (t BinaryTreeHash) leafHash(hasher *sha3.HasherState) (rootHash types.Hash)
 		panic("unsupported length")
 	case 1:
 		return t[0]
-	case 2:
+	default:
+		//only hash the next two items
 		hasher.Reset()
 		_, _ = hasher.Write(t[0][:])
 		_, _ = hasher.Write(t[1][:])
 		HashFastSum(hasher, rootHash[:])
 		return rootHash
-	default:
-		panic("unsupported length")
 	}
 }
 
@@ -34,24 +33,24 @@ func (t BinaryTreeHash) RootHash() (rootHash types.Hash) {
 		return t.leafHash(hasher)
 	}
 
-	cnt := utils.PreviousPowerOfTwo(uint64(len(t)))
+	pow2cnt := utils.PreviousPowerOfTwo(uint64(count))
+	offset := pow2cnt*2 - count
 
-	temporaryTree := make(BinaryTreeHash, cnt)
-	copy(temporaryTree, t[:cnt*2-count])
+	temporaryTree := make(BinaryTreeHash, pow2cnt)
+	copy(temporaryTree, t[:offset])
 
-	offset := cnt*2 - count
-	for i := 0; (i + offset) < cnt; i++ {
-		temporaryTree[offset+i] = t[offset+i*2 : offset+i*2+2].leafHash(hasher)
+	offsetTree := temporaryTree[offset:]
+	for i := range offsetTree {
+		offsetTree[i] = t[offset+i*2:].leafHash(hasher)
 	}
 
-	for cnt > 2 {
-		cnt >>= 1
-		for i := 0; i < cnt; i++ {
-			temporaryTree[i] = temporaryTree[i*2 : i*2+2].leafHash(hasher)
+	for pow2cnt >>= 1; pow2cnt > 1; pow2cnt >>= 1 {
+		for i := range temporaryTree[:pow2cnt] {
+			temporaryTree[i] = temporaryTree[i*2:].leafHash(hasher)
 		}
 	}
 
-	rootHash = temporaryTree[:2].leafHash(hasher)
+	rootHash = temporaryTree.leafHash(hasher)
 
 	return
 }
