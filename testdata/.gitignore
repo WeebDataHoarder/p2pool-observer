@@ -4,3 +4,8 @@ sidechain_dump.dat.gz
 sidechain_dump_mini.dat.gz
 sidechain_dump.dat
 sidechain_dump_mini.dat
+
+# old pre-v2 hardfork testdata
+old_mainnet_test2_block.dat
+old_sidechain_dump.dat
+old_sidechain_dump_mini.dat

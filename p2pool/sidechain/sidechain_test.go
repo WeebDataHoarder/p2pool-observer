@@ -30,31 +30,32 @@ func init() {
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
 }
 
-func TestSideChainDefault(t *testing.T) {
-
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusDefault,
-	})
-
-	f, err := os.Open("testdata/sidechain_dump.dat")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mainHeight uint64, patchedBlocks ...[]byte) {
+	var err error
 	buf := make([]byte, PoolBlockMaxTemplateSize)
 	for {
 		buf = buf[:0]
 		var blockLen uint32
-		if err = binary.Read(f, binary.LittleEndian, &blockLen); err == io.EOF {
+		if err = binary.Read(reader, binary.LittleEndian, &blockLen); err == io.EOF {
 			break
 		} else if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = io.ReadFull(f, buf[:blockLen]); err != nil {
+		if _, err = io.ReadFull(reader, buf[:blockLen]); err != nil {
 			t.Fatal(err)
 		}
 		b := &PoolBlock{}
 		if err = b.UnmarshalBinary(s.Consensus(), s.DerivationCache(), buf[:blockLen]); err != nil {
+			t.Fatal(err)
+		}
+		if err = s.AddPoolBlock(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for _, buf := range patchedBlocks {
+		b := &PoolBlock{}
+		if err = b.UnmarshalBinary(s.Consensus(), s.DerivationCache(), buf); err != nil {
 			t.Fatal(err)
 		}
 		if err = s.AddPoolBlock(b); err != nil {
@@ -76,67 +77,11 @@ func TestSideChainDefault(t *testing.T) {
 		t.Fatal()
 	}
 
-	if tip.Main.Coinbase.GenHeight != 2870010 {
+	if tip.Main.Coinbase.GenHeight != mainHeight {
 		t.Fatal()
 	}
 
-	if tip.Side.Height != 4957203 {
-		t.Fatal()
-	}
-
-}
-
-func TestSideChainMini(t *testing.T) {
-
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusMini,
-	})
-
-	f, err := os.Open("testdata/sidechain_dump_mini.dat")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	buf := make([]byte, PoolBlockMaxTemplateSize)
-	for {
-		buf = buf[:0]
-		var blockLen uint32
-		if err = binary.Read(f, binary.LittleEndian, &blockLen); err == io.EOF {
-			break
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = io.ReadFull(f, buf[:blockLen]); err != nil {
-			t.Fatal(err)
-		}
-		b := &PoolBlock{}
-		if err = b.UnmarshalBinary(s.Consensus(), s.DerivationCache(), buf[:blockLen]); err != nil {
-			t.Fatal(err)
-		}
-		if err = s.AddPoolBlock(b); err != nil {
-			t.Fatal(err)
-		}
-	}
-
-	tip := s.GetChainTip()
-
-	if tip == nil {
-		t.Fatal()
-	}
-
-	if !tip.Verified.Load() {
-		t.Fatal()
-	}
-
-	if tip.Invalid.Load() {
-		t.Fatal()
-	}
-
-	if tip.Main.Coinbase.GenHeight != 2870010 {
-		t.Fatal()
-	}
-
-	if tip.Side.Height != 4414446 {
+	if tip.Side.Height != sideHeight {
 		t.Fatal()
 	}
 
@@ -155,6 +100,77 @@ func TestSideChainMini(t *testing.T) {
 	hits, misses = s.DerivationCache().pubKeyToPointCache.Stats()
 	total = hits + misses
 	log.Printf("PubKeyToPoint Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+}
+
+func TestSideChainDefault(t *testing.T) {
+
+	s := NewSideChain(&fakeServer{
+		consensus: ConsensusDefault,
+	})
+
+	f, err := os.Open("testdata/sidechain_dump.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	testSideChain(s, t, f, 4957203, 2870010)
+}
+
+func TestSideChainDefaultPreFork(t *testing.T) {
+
+	s := NewSideChain(&fakeServer{
+		consensus: ConsensusDefault,
+	})
+
+	f, err := os.Open("testdata/old_sidechain_dump.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	testSideChain(s, t, f, 522805, 2483901)
+}
+
+func TestSideChainMini(t *testing.T) {
+
+	s := NewSideChain(&fakeServer{
+		consensus: ConsensusMini,
+	})
+
+	f, err := os.Open("testdata/sidechain_dump_mini.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	testSideChain(s, t, f, 4414446, 2870010)
+}
+
+func TestSideChainMiniPreFork(t *testing.T) {
+
+	s := NewSideChain(&fakeServer{
+		consensus: ConsensusMini,
+	})
+
+	f, err := os.Open("testdata/old_sidechain_dump_mini.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	//patch in missing blocks that are needed to newer reach sync range
+	block2420028, err := os.ReadFile("testdata/old_sidechain_dump_mini_2420028.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block2420027, err := os.ReadFile("testdata/old_sidechain_dump_mini_2420027.dat")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testSideChain(s, t, f, 2424349, 2696040, block2420028, block2420027)
 }
 
 type fakeServer struct {
