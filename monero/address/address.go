@@ -83,6 +83,35 @@ func FromBase58(address string) *Address {
 	return a
 }
 
+func FromBase58NoChecksumCheck(address string) *Address {
+	raw := moneroutil.DecodeMoneroBase58(address)
+
+	if len(raw) != 69 {
+		return nil
+	}
+
+	switch raw[0] {
+	case moneroutil.MainNetwork, moneroutil.TestNetwork, moneroutil.StageNetwork:
+		break
+	case moneroutil.IntegratedMainNetwork, moneroutil.IntegratedTestNetwork, moneroutil.IntegratedStageNetwork:
+		return nil
+	case moneroutil.SubAddressMainNetwork, moneroutil.SubAddressTestNetwork, moneroutil.SubAddressStageNetwork:
+		return nil
+	default:
+		return nil
+	}
+
+	a := &Address{
+		Network:  raw[0],
+		checksum: raw[65:],
+	}
+
+	copy(a.SpendPub[:], raw[1:33])
+	copy(a.ViewPub[:], raw[33:65])
+
+	return a
+}
+
 func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	var nice [69]byte
 	nice[0] = network
@@ -125,7 +154,7 @@ func (a *Address) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
-	if addr := FromBase58(s); addr != nil {
+	if addr := FromBase58NoChecksumCheck(s); addr != nil {
 		a.Network = addr.Network
 		a.SpendPub = addr.SpendPub
 		a.ViewPub = addr.ViewPub

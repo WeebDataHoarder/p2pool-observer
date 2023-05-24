@@ -150,19 +150,17 @@ func (k *PrivateKeyBytes) Value() (driver.Value, error) {
 }
 
 func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
+	if len(b) == 0 || len(b) == 2 {
+		return nil
 	}
 
-	if buf, err := hex.DecodeString(s); err != nil {
+	if len(b) != PrivateKeySize*2+2 {
+		return errors.New("wrong key size")
+	}
+
+	if _, err := hex.Decode(k[:], b[1:len(b)-1]); err != nil {
 		return err
 	} else {
-		if len(buf) != PrivateKeySize {
-			return errors.New("wrong key size")
-		}
-
-		copy((*k)[:], buf)
 		return nil
 	}
 }

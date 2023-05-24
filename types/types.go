@@ -122,19 +122,17 @@ func (h *Hash) Value() (driver.Value, error) {
 }
 
 func (h *Hash) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
+	if len(b) == 0 || len(b) == 2 {
+		return nil
 	}
 
-	if buf, err := hex.DecodeString(s); err != nil {
+	if len(b) != HashSize*2+2 {
+		return errors.New("wrong hash size")
+	}
+
+	if _, err := hex.Decode(h[:], b[1:len(b)-1]); err != nil {
 		return err
 	} else {
-		if len(buf) != HashSize {
-			return errors.New("wrong hash size")
-		}
-
-		copy(h[:], buf)
 		return nil
 	}
 }
