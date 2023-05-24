@@ -840,6 +840,9 @@ func (c *SideChain) pruneOldBlocks() {
 }
 
 func (c *SideChain) cleanupSeenBlocks() (cleaned int) {
+	c.seenBlocksLock.Lock()
+	defer c.seenBlocksLock.Unlock()
+
 	for k, _ := range c.seenBlocks {
 		if c.getPoolBlockByTemplateId(k.TemplateId()) == nil {
 			delete(c.seenBlocks, k)
