@@ -43,6 +43,8 @@ type P2PoolInterface interface {
 	ClientZMQ() *zmq.Client
 	Context() context.Context
 	Started() bool
+	UpdateMainData(data *sidechain.ChainMain)
+	UpdateMinerData(data *p2pooltypes.MinerData)
 	UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.PoolBlock)
 }
 
@@ -289,6 +291,8 @@ func (c *MainChain) HandleChainMain(mainData *sidechain.ChainMain, extra []byte)
 		c.updateMedianTimestamp()
 	}()
 
+	c.p2pool.UpdateMainData(mainData)
+
 	var tags transaction.ExtraTags
 	if err := tags.UnmarshalBinary(extra); err != nil {
 		return
@@ -477,6 +481,8 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 			}
 		}
 	}()
+
+	c.p2pool.UpdateMinerData(minerData)
 
 	var wg sync.WaitGroup
 	for _, h := range missingHeights {

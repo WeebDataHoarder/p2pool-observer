@@ -32,6 +32,8 @@ type EventListener struct {
 	Tip        func(tip *sidechain.PoolBlock)
 	Broadcast  func(b *sidechain.PoolBlock)
 	Found      func(data *sidechain.ChainMain, b *sidechain.PoolBlock)
+	MainData   func(data *sidechain.ChainMain)
+	MinerData  func(data *p2pooltypes.MinerData)
 }
 
 type P2Pool struct {
@@ -59,17 +61,21 @@ type P2Pool struct {
 	closed     chan struct{}
 }
 
-func (p *P2Pool) AddListener(tip func(tip *sidechain.PoolBlock), broadcast func(b *sidechain.PoolBlock), found func(data *sidechain.ChainMain, b *sidechain.PoolBlock)) uint64 {
+// AddListener Registers listener to several events produced centrally.
+// Note that you should process events called as fast as possible, or spawn a new goroutine to not block
+func (p *P2Pool) AddListener(tip func(tip *sidechain.PoolBlock), broadcast func(b *sidechain.PoolBlock), found func(data *sidechain.ChainMain, b *sidechain.PoolBlock), mainData func(data *sidechain.ChainMain), minerData func(data *p2pooltypes.MinerData)) (listenerId uint64) {
 	p.listenersLock.Lock()
 	p.listenersLock.Unlock()
 
-	listenerId := p.nextListenerId
+	listenerId = p.nextListenerId
 	p.nextListenerId++
 	p.listeners = append(p.listeners, EventListener{
 		ListenerId: listenerId,
 		Tip:        tip,
 		Broadcast:  broadcast,
 		Found:      found,
+		MainData:   mainData,
+		MinerData:  minerData,
 	})
 	return listenerId
 }
@@ -483,6 +489,26 @@ func (p *P2Pool) getMinerData() error {
 
 func (p *P2Pool) Consensus() *sidechain.Consensus {
 	return p.consensus
+}
+
+func (p *P2Pool) UpdateMainData(data *sidechain.ChainMain) {
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].MainData != nil {
+			p.listeners[i].MainData(data)
+		}
+	}
+}
+
+func (p *P2Pool) UpdateMinerData(data *p2pooltypes.MinerData) {
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].MinerData != nil {
+			p.listeners[i].MinerData(data)
+		}
+	}
 }
 
 func (p *P2Pool) UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.PoolBlock) {
