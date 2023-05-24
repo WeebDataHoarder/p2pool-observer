@@ -1332,6 +1332,12 @@ func main() {
 		ctx["share_sweeps"] = likelySweeps
 		ctx["share_sweeps_count"] = sweepsCount
 
+		if block.Timestamp < uint64(time.Now().Unix()-60) {
+			writer.Header().Set("cache-control", "public; max-age=604800")
+		} else {
+			writer.Header().Set("cache-control", "public; max-age=60")
+		}
+
 		render(request, writer, "share.html", ctx)
 	})
 

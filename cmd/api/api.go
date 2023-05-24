@@ -411,6 +411,13 @@ func main() {
 		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+		if lastShareTimestamp < uint64(time.Now().Unix()-3600) {
+			writer.Header().Set("cache-control", "public; max-age=600")
+		} else {
+			writer.Header().Set("cache-control", "public; max-age=60")
+		}
+
 		writer.WriteHeader(http.StatusOK)
 		buf, _ := encodeJson(request, utils2.MinerInfoResult{
 			Id:                 miner.Id(),
