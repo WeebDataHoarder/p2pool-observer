@@ -6,6 +6,7 @@ import (
 	"errors"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"golang.org/x/exp/slices"
 )
 
 type Address struct {
@@ -51,7 +52,8 @@ func (a *Address) ToPackedAddress() PackedAddress {
 }
 
 func FromBase58(address string) *Address {
-	raw := moneroutil.DecodeMoneroBase58(address)
+	preAllocatedBuf := make([]byte, 0, 69)
+	raw := moneroutil.DecodeMoneroBase58PreAllocated(preAllocatedBuf, address)
 
 	if len(raw) != 69 {
 		return nil
@@ -84,7 +86,8 @@ func FromBase58(address string) *Address {
 }
 
 func FromBase58NoChecksumCheck(address string) *Address {
-	raw := moneroutil.DecodeMoneroBase58(address)
+	preAllocatedBuf := make([]byte, 0, 69)
+	raw := moneroutil.DecodeMoneroBase58PreAllocated(preAllocatedBuf, address)
 
 	if len(raw) != 69 {
 		return nil
@@ -103,7 +106,7 @@ func FromBase58NoChecksumCheck(address string) *Address {
 
 	a := &Address{
 		Network:  raw[0],
-		checksum: raw[65:],
+		checksum: slices.Clone(raw[65:]),
 	}
 
 	copy(a.SpendPub[:], raw[1:33])
@@ -149,12 +152,11 @@ func (a *Address) MarshalJSON() ([]byte, error) {
 }
 
 func (a *Address) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
-		return err
+	if len(b) < 2 {
+		return errors.New("unsupported length")
 	}
 
-	if addr := FromBase58NoChecksumCheck(s); addr != nil {
+	if addr := FromBase58NoChecksumCheck(string(b[1 : len(b)-1])); addr != nil {
 		a.Network = addr.Network
 		a.SpendPub = addr.SpendPub
 		a.ViewPub = addr.ViewPub

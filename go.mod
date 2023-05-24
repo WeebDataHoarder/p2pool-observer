@@ -6,7 +6,7 @@ require (
 	git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20230520084036-0f06fa066019
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
-	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230516052049-a566889a4d3b
+	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230524141534-113843a69ced
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
@@ -19,7 +19,7 @@ require (
 	github.com/stretchr/testify v1.8.1
 	github.com/tyler-sommer/stick v1.0.6
 	go.etcd.io/bbolt v1.3.7
-	golang.org/x/exp v0.0.0-20230515195305-f3d0a9c9a5cc
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/net v0.10.0
 	golang.org/x/sys v0.8.0
 	lukechampine.com/uint128 v1.3.0
