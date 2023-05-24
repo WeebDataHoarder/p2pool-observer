@@ -40,6 +40,11 @@ func testPoolBlock(b *PoolBlock, t *testing.T, expectedBufferLength int, majorVe
 		t.Fatal()
 	}
 
+	if b.FullId().TemplateId() != templateId {
+		t.Logf("%s != %s", b.FullId().TemplateId(), templateId)
+		t.Fatal()
+	}
+
 	if b.MainId() != mainId {
 		t.Fatal()
 	}

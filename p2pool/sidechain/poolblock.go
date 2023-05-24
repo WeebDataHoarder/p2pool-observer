@@ -339,7 +339,7 @@ var zeroFullId FullId
 type FullId [FullIdSize]byte
 
 func (id FullId) TemplateId() (h types.Hash) {
-	return types.Hash(h[:types.HashSize])
+	return types.Hash(id[:types.HashSize])
 }
 
 func (id FullId) Nonce() uint32 {
