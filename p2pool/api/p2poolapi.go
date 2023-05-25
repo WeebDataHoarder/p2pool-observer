@@ -59,6 +59,29 @@ func (p *P2PoolApi) WaitSync() (err error) {
 	return nil
 }
 
+func (p *P2PoolApi) WaitSyncStart() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = errors.New("panicked")
+		}
+	}()
+	status := p.Status()
+	for ; p == nil || !p.Status().Synchronized; status = p.Status() {
+		if p == nil {
+			log.Printf("[API] Not synchronized (nil), waiting one seconds")
+		} else {
+			log.Printf("[API] Not synchronized (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
+			break
+		}
+		time.Sleep(time.Second * 1)
+	}
+	if status.Synchronized {
+		log.Printf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
+	}
+	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id())
+	return nil
+}
+
 func (p *P2PoolApi) InsertAlternate(b *sidechain.PoolBlock) {
 	buf, _ := b.MarshalBinary()
 	uri, _ := url.Parse(p.Host + "/archive/insert_alternate")

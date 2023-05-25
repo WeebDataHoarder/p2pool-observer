@@ -59,11 +59,12 @@ func main() {
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
-	if err := p2api.WaitSync(); err != nil {
+	if err := p2api.WaitSyncStart(); err != nil {
 		log.Panic(err)
 	}
+	consensus := p2api.Consensus()
 
-	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
+	indexDb, err := index.OpenIndex(*dbString, consensus, p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -180,7 +181,7 @@ func main() {
 
 		var pplnsWeight types.Difficulty
 
-		for ps := range index.IterateSideBlocksInPPLNSWindow(tip, p2api.Consensus(), indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
+		for ps := range index.IterateSideBlocksInPPLNSWindow(tip, consensus, indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
 			miners[indexDb.GetMiner(b.Miner).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
@@ -280,10 +281,10 @@ func main() {
 
 		result := &utils2.PoolInfoResult{
 			SideChain: utils2.PoolInfoResultSideChain{
-				Consensus:             p2api.Consensus(),
+				Consensus:             consensus,
 				Id:                    tip.TemplateId,
 				Height:                tip.SideHeight,
-				Version:               sidechain.P2PoolShareVersion(p2api.Consensus(), tip.Timestamp),
+				Version:               sidechain.P2PoolShareVersion(consensus, tip.Timestamp),
 				Difficulty:            types.DifficultyFrom64(tip.Difficulty),
 				CumulativeDifficulty:  tip.CumulativeDifficulty,
 				Timestamp:             tip.Timestamp,
@@ -303,9 +304,9 @@ func main() {
 					Versions: versions,
 				},
 				WindowSize:    blockCount,
-				MaxWindowSize: int(p2api.Consensus().ChainWindowSize),
-				BlockTime:     int(p2api.Consensus().TargetBlockTime),
-				UnclePenalty:  int(p2api.Consensus().UnclePenalty),
+				MaxWindowSize: int(consensus.ChainWindowSize),
+				BlockTime:     int(consensus.TargetBlockTime),
+				UnclePenalty:  int(consensus.UnclePenalty),
 				Found:         totalKnown.blocksFound,
 				Miners:        totalKnown.minersKnown,
 			},
@@ -722,7 +723,7 @@ func main() {
 		window := uint64(tip.WindowDepth)
 		if params.Has("window") {
 			if i, err := strconv.Atoi(params.Get("window")); err == nil {
-				if i <= int(p2api.Consensus().ChainWindowSize*4*7) {
+				if i <= int(consensus.ChainWindowSize*4*7) {
 					window = uint64(i)
 				}
 			}
@@ -781,7 +782,7 @@ func main() {
 		window := uint64(tip.WindowDepth)
 		if params.Has("window") {
 			if i, err := strconv.Atoi(params.Get("window")); err == nil {
-				if i <= int(p2api.Consensus().ChainWindowSize*4*7) {
+				if i <= int(consensus.ChainWindowSize*4*7) {
 					window = uint64(i)
 				}
 			}
@@ -992,7 +993,7 @@ func main() {
 
 	serveMux.HandleFunc("/api/redirect/prove/{height_index:[0-9]+|.[0-9A-Za-z]+}", func(writer http.ResponseWriter, request *http.Request) {
 		i := utils.DecodeBinaryNumber(mux.Vars(request)["height_index"])
-		n := uint64(math.Ceil(math.Log2(float64(p2api.Consensus().ChainWindowSize * 4))))
+		n := uint64(math.Ceil(math.Log2(float64(consensus.ChainWindowSize * 4))))
 
 		height := i >> n
 		outputIndex := i & ((1 << n) - 1)
@@ -1160,8 +1161,8 @@ func main() {
 			}
 		}
 
-		if limit > p2api.Consensus().ChainWindowSize*4*7 {
-			limit = p2api.Consensus().ChainWindowSize * 4 * 7
+		if limit > consensus.ChainWindowSize*4*7 {
+			limit = consensus.ChainWindowSize * 4 * 7
 		}
 		if limit == 0 {
 			limit = 50
@@ -1219,8 +1220,8 @@ func main() {
 			}
 		}
 
-		if limit > p2api.Consensus().ChainWindowSize*4*7 {
-			limit = p2api.Consensus().ChainWindowSize * 4 * 7
+		if limit > consensus.ChainWindowSize*4*7 {
+			limit = consensus.ChainWindowSize * 4 * 7
 		}
 		if limit == 0 {
 			limit = 50
@@ -1512,7 +1513,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, 3600/p2api.Consensus().TargetBlockTime)
+			}, 3600/consensus.TargetBlockTime)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -1531,7 +1532,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, (3600*24)/p2api.Consensus().TargetBlockTime, (3600*24*7)/p2api.Consensus().TargetBlockTime)
+			}, (3600*24)/consensus.TargetBlockTime, (3600*24*7)/consensus.TargetBlockTime)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -1550,7 +1551,7 @@ func main() {
 
 				result = append(result, r)
 				return nil
-			}, p2api.Consensus().ChainWindowSize, p2api.Consensus().ChainWindowSize)
+			}, consensus.ChainWindowSize, consensus.ChainWindowSize)
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
@@ -1595,7 +1596,7 @@ func main() {
 			return
 		}
 
-		if addrPort.Port() != p2api.Consensus().DefaultPort() && addrPort.Port() < 10000 {
+		if addrPort.Port() != consensus.DefaultPort() && addrPort.Port() < 10000 {
 			//do not allow low port numbers to prevent targeting
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
@@ -1702,7 +1703,7 @@ func main() {
 				SidechainDifficulty uint64 `json:"sidechainDifficulty"`
 				SidechainHeight     uint64 `json:"sidechainHeight"`
 			}{
-				HashRate:            poolInfo.SideChain.Difficulty.Div64(p2api.Consensus().TargetBlockTime).Lo,
+				HashRate:            poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo,
 				Miners:              poolInfo.SideChain.Miners,
 				TotalHashes:         poolInfo.SideChain.CumulativeDifficulty.Lo,
 				LastBlockFound:      lastBlockFound,
@@ -1740,7 +1741,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(fmt.Sprintf("{\"config\":{\"ports\":[{\"port\":3333,\"tls\":false}],\"fee\":0,\"minPaymentThreshold\":300000000},\"network\":{\"height\":%d},\"pool\":{\"stats\":{\"lastBlockFound\":\"%d\"},\"blocks\":[\"%s...%s:%d\",\"%d\"],\"miners\":%d,\"hashrate\":%d,\"roundHashes\":%d}}", mainTip.Height, lastBlockFoundTime*1000, hex.EncodeToString(lastBlockFoundHash[:2]), hex.EncodeToString(lastBlockFoundHash[types.HashSize-2:]), lastBlockFoundTime, lastBlockFound, poolInfo.SideChain.Miners, poolInfo.SideChain.Difficulty.Div64(p2api.Consensus().TargetBlockTime).Lo, poolInfo.SideChain.CumulativeDifficulty.Sub(lastBlockCumulativeDifficulty).Lo)))
+		_, _ = writer.Write([]byte(fmt.Sprintf("{\"config\":{\"ports\":[{\"port\":3333,\"tls\":false}],\"fee\":0,\"minPaymentThreshold\":300000000},\"network\":{\"height\":%d},\"pool\":{\"stats\":{\"lastBlockFound\":\"%d\"},\"blocks\":[\"%s...%s:%d\",\"%d\"],\"miners\":%d,\"hashrate\":%d,\"roundHashes\":%d}}", mainTip.Height, lastBlockFoundTime*1000, hex.EncodeToString(lastBlockFoundHash[:2]), hex.EncodeToString(lastBlockFoundHash[types.HashSize-2:]), lastBlockFoundTime, lastBlockFound, poolInfo.SideChain.Miners, poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo, poolInfo.SideChain.CumulativeDifficulty.Sub(lastBlockCumulativeDifficulty).Lo)))
 	})
 
 	server := &http.Server{
