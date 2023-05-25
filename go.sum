@@ -10,6 +10,8 @@ git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
 git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f h1:dQc+lJIlbR0acDqoPAtew0lMVVnKVFO0bZpf1/wbo6Y=
 git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f/go.mod h1:6wZ0+whl+HZdcRve4R6Rq6jV1fmL1xCYO8Wty6lR008=
+git.gammaspectra.live/P2Pool/stick v0.0.0-20230525075314-e93c177d0cbb h1:tOoegXmrlmBZCZP7fvEY2ShDshrrdO9kMjWRSiuYweg=
+git.gammaspectra.live/P2Pool/stick v0.0.0-20230525075314-e93c177d0cbb/go.mod h1:jnNt/Xb5o4iSrtBwcIwSXbQ2VvwECKzc3CgNJXC5G6Q=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807 h1:w3nrGk00TWs/4iZ3Q0k9c0vL0e/wRziArKU4e++d/nA=
 github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807/go.mod h1:fGnnfniJiO/ajHAVHqMSUSL8sE9LmU9rzclCtoeB+y8=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
@@ -78,7 +80,6 @@ github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWb
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sclevine/spec v1.4.0 h1:z/Q9idDcay5m5irkZ28M7PtQM4aOISzOpj4bUPkDee8=
-github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24/go.mod h1:M+9NzErvs504Cn4c5DxATwIqPbtswREoFCre64PpcG4=
 github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5gKV8=
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
@@ -90,8 +91,6 @@ github.com/stretchr/testify v1.7.1/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/
 github.com/stretchr/testify v1.8.0/go.mod h1:yNjHg4UonilssWZ8iaSj1OCr/vHnekPRkoO+kdMU+MU=
 github.com/stretchr/testify v1.8.1 h1:w7B6lhMri9wdJUVmEZPGGhZzrYTPvgJArz7wNPgYKsk=
 github.com/stretchr/testify v1.8.1/go.mod h1:w2LPCIKwWwSfY2zedu0+kehJoqGctiVI29o6fzry7u4=
-github.com/tyler-sommer/stick v1.0.6 h1:LLdJ8oGotXCsAuVx2BRZZT6s3bYXHe0ImQ+azF4HtJg=
-github.com/tyler-sommer/stick v1.0.6/go.mod h1:rjBy3zi6GwoxExa6OSRPPPaLqUEKNsBxTeWckhIX1us=
 github.com/ugorji/go v1.1.7 h1:/68gy2h+1mWMrwZFeD1kQialdSzAb432dtpeJ42ovdo=
 github.com/ugorji/go v1.1.7/go.mod h1:kZn38zHttfInRq0xu/PH0az30d+z6vm202qpg1oXVMw=
 github.com/ugorji/go/codec v1.1.7 h1:2SvQaVZ1ouYrrKKwoSk2pzd4A9evlKJb9oTL+OaLUSs=

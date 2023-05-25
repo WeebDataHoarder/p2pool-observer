@@ -38,3 +38,5 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/tyler-sommer/stick v1.0.6 => git.gammaspectra.live/P2Pool/stick v0.0.0-20230525075314-e93c177d0cbb
