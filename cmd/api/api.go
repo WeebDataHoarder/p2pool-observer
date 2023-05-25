@@ -181,6 +181,8 @@ func main() {
 
 		var pplnsWeight types.Difficulty
 
+		var errord bool
+
 		for ps := range index.IterateSideBlocksInPPLNSWindow(tip, consensus, indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
 			miners[indexDb.GetMiner(b.Miner).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
@@ -200,10 +202,21 @@ func main() {
 				})
 			}
 		}, func(err error) {
-			log.Panicf("error scanning PPLNS window: %s", err)
+			log.Printf("error scanning PPLNS window: %s", err)
+			errord = true
 		}) {
 			blockCount++
 			uncleCount += len(ps.Uncles)
+		}
+
+		if errord {
+			if oldPoolInfo != nil {
+				// got error, just update last pool
+
+				//this race is ok
+				oldPoolInfo.SideChain.SecondsSinceLastBlock = utils.Max(0, time.Now().Unix()-int64(tip.Timestamp))
+			}
+			return
 		}
 
 		slices.SortFunc(versions, func(a, b utils2.SideChainVersionEntry) bool {
