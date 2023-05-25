@@ -35,6 +35,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -147,6 +148,11 @@ func toFloat64(t any) float64 {
 
 func main() {
 
+	var responseBufferPool sync.Pool
+	responseBufferPool.New = func() any {
+		return make([]byte, 0, 1024*1024) //1 MiB allocations
+	}
+
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	//monerod related
@@ -200,8 +206,9 @@ func main() {
 	log.Printf("Consensus id = %s", consensus.Id())
 
 	render := func(request *http.Request, writer http.ResponseWriter, template string, ctx map[string]stick.Value) {
-		w := bytes.NewBuffer(nil)
+		w := bytes.NewBuffer(responseBufferPool.Get().([]byte))
 		defer func() {
+			defer responseBufferPool.Put(w.Bytes()[:0])
 			_, _ = writer.Write(w.Bytes())
 		}()
 		defer func() {
