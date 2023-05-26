@@ -211,7 +211,7 @@
         <p>Local hashrate of each P2Pool miner is not known by the network. A guess is calculated based on daily estimation. If you provide a value here, it will be more accurate for effort calculation.</p>
         <p>This data will not be saved.</p>
         <label for="hashrate_local">Your Local Hashrate</label><br/>
-        <input type="numeric" name="hashrate" id="hashrate_local" placeholder="100" size="8" class="mono" value="{% if hashrate_local > 0 %}{{ hashrate_local }}{% endif %}"/>
+        <input type="numeric" name="hashrate" id="hashrate_local" placeholder="100" size="8" class="mono" value="{% if hashrate_local > 0 %}{{ hashrate_local|str }}{% endif %}"/>
         <select name="magnitude">
             <option value="1"{% if magnitude_local == 1 %} selected{% endif %}>H/s</option>
             <option value="1000"{% if magnitude_local == 1000 %} selected{% endif %}>KH/s</option>

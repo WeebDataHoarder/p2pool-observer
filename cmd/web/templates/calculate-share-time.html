@@ -16,7 +16,7 @@
         </p>
         <div>
             <label for="hashrate">Your Hashrate</label><br/>
-            <input type="numeric" name="hashrate" id="hashrate" placeholder="100" size="8" class="mono" value="{% if hashrate > 0 %}{{ hashrate }}{% endif %}"/>
+            <input type="numeric" name="hashrate" id="hashrate" placeholder="100" size="8" class="mono" value="{% if hashrate > 0 %}{{ hashrate|str }}{% endif %}"/>
             <select name="magnitude">
                 <option value="1"{% if magnitude == 1 %} selected{% endif %}>H/s</option>
                 <option value="1000"{% if magnitude == 1000 %} selected{% endif %}>KH/s</option>

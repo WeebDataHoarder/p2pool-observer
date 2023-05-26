@@ -752,7 +752,12 @@ func main() {
 		if strVal, ok := val.(fmt.Stringer); ok {
 			return strVal.String()
 		}
-		return strconv.FormatUint(toUint64(val), 10)
+		switch val.(type) {
+		case float64, float32:
+			return strconv.FormatFloat(toFloat64(val), 'f', -1, 64)
+		default:
+			return strconv.FormatUint(toUint64(val), 10)
+		}
 	}
 	env.Tests["defined"] = func(ctx stick.Context, val stick.Value, args ...stick.Value) bool {
 		return val != nil
