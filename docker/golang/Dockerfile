@@ -29,10 +29,11 @@ RUN go mod download -x && go mod verify
 
 COPY . .
 
-ARG BUILD_BINARY
-
-
 COPY pgo-data/pgo-profile-latest.pprof /tmp/
+
+RUN go generate -v ./...
+
+ARG BUILD_BINARY
 
 RUN go build -buildvcs=false -trimpath -v -pgo=/tmp/pgo-profile-latest.pprof -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
 

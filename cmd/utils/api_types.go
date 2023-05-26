@@ -3,6 +3,7 @@ package utils
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -121,4 +122,11 @@ type MinerInfoResult struct {
 	Shares             [index.InclusionCount]MinerInfoBlockData `json:"shares"`
 	LastShareHeight    uint64                                   `json:"last_share_height"`
 	LastShareTimestamp uint64                                   `json:"last_share_timestamp"`
+}
+
+type TransactionLookupResult struct {
+	Id     types.Hash                                `json:"id"`
+	Inputs index.TransactionInputQueryResults        `json:"inputs"`
+	Outs   []client.Output                           `json:"outs"`
+	Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
 }

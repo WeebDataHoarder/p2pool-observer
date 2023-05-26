@@ -1,0 +1,10 @@
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address" %}
+
+{% func TemplateRowMiner(addr *address.Address, alias string) %}
+    {% code encodedMinerAddress := addr.ToBase58() %}
+    {% if alias != "" %}
+    <td title="{%s encodedMinerAddress %} ({%s alias %})" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s shorten(alias, 10) %}</a></td>
+    {% else %}
+    <td title="{%s encodedMinerAddress %}" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s shorten(encodedMinerAddress, 10) %}</a></td>
+    {% endif %}
+{% endfunc %}

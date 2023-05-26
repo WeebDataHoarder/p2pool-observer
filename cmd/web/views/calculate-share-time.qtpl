@@ -1,0 +1,106 @@
+{% code
+type CalculateShareTimePage struct {
+	// inherit from base page, so its' title is used in error page.
+	BasePage
+
+	Hashrate float64
+	Magnitude float64
+	Efforts []CalculateShareTimePageEffortEntry
+	EstimatedRewardPerDay uint64
+}
+%}
+
+{% code 
+type CalculateShareTimePageEffortEntry struct {
+    Effort      float64
+    Probability float64
+    Between     float64
+    BetweenSolo float64
+}
+%}
+
+{% func (p *CalculateShareTimePage) Title() %}
+{%= p.BasePage.Title() %} - Average Share Time Calculator
+{% endfunc %}
+
+{% func (p *CalculateShareTimePage) Content() %}
+
+<div style="text-align: center">
+    <form action="/calculate-share-time" method="get">
+        <h2>Average Share Time Calculator</h2>
+        <p>
+            This tool calculates your average expected time between shares on the pool at current difficulty.
+            <br/>
+            <small>Do note this time will vary (can get shares sooner, or later, even way later), depending on your luck, and changing difficulty of the pool due to increase / reductions in hashrate.</small>
+            <br/>
+            For lower hashrate, this average is what statistically will be achieved long term.
+        </p>
+        <div>
+            <label for="hashrate">Your Hashrate</label><br/>
+            <input type="numeric" name="hashrate" id="hashrate" placeholder="100" size="8" class="mono" value="{% if p.Hashrate > 0 %}{%s str(p.Hashrate) %}{% endif %}"/>
+            <select name="magnitude">
+                <option value="1"{% if p.Magnitude == 1 %} selected{% endif %}>H/s</option>
+                <option value="1000"{% if p.Magnitude == 1000 %} selected{% endif %}>KH/s</option>
+                <option value="1000000"{% if p.Magnitude == 1000000 %} selected{% endif %}>MH/s</option>
+                <option value="1000000000"{% if p.Magnitude == 1000000000 %} selected{% endif %}>GH/s</option>
+            </select>
+        </div>
+        <div style="margin-top: 10px">
+            <input type="submit" value="Calculate" style="width: 20em;"/>
+        </div>
+    </form>
+</div>
+
+
+
+{% if p.Hashrate > 0 %}
+<hr/>
+<div style="text-align: center">
+
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em);">
+        {% code between := (float64(p.Context().Pool.SideChain.Difficulty.Lo) / (p.Hashrate * p.Magnitude)) %}
+        {% code between_solo := (float64(p.Context().Pool.MainChain.Difficulty.Lo) / (p.Hashrate * p.Magnitude)) %}
+        <tr style="line-height: 1.5;">
+            <td style="width: 15em"><strong>P2Pool Difficulty</strong><br/>{%s si_units(p.Context().Pool.SideChain.Difficulty.Lo, 2) %}</td>
+            <td style="width: 15em"><strong>P2Pool Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
+            <td style="width: 15em"><strong>Your Hashrate</strong><br/>{%s si_units(p.Hashrate * p.Magnitude, 2) %}H/s</td>
+            <td title="Mean frequency between P2Pool shares" style="width: 15em; border: #ff6600 dashed 1px;"><strong>Your Share Mean<br/>{%s time_duration_long(between) %}</strong></td>
+        </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr style="line-height: 1.5;">
+            <td><strong>Monero Difficulty</strong><br/>{%s si_units(p.Context().Pool.MainChain.Difficulty.Lo, 2) %}</td>
+            <td><strong>Monero Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.BlockTime)), 2) %}H/s</td>
+            <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{%s time_duration_long(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime))) %}</em></td>
+            <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{%s time_duration_long(between_solo) %}</em></td>
+        </tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr style="line-height: 1.5; font-size: 21px;"><td></td><td colspan="2" style="border: #ff6600 dashed 1px;"><strong>Your Estimated Daily Reward</strong><br/>{%s monero_to_xmr(p.EstimatedRewardPerDay) %} XMR</td><td></td></tr>
+        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr style="line-height: 1.5;">
+            <th>Found Effort</th>
+            <th>Found Chance</th>
+            <th>P2Pool Estimate</th>
+            <th>Solo Estimate</th>
+        </tr>
+
+        {% for _, e := range p.Efforts %}
+        <tr>
+            <td style="font-size: 17px; font-weight:bolder; color: {%s effort_color(e.Effort) %};">
+                {%f.2 e.Effort %}%
+            </td>
+            <td title="Chance share is not found before: {%f.5 100 - e.Probability %}%">
+                {%f.5 e.Probability %}%
+            </td>
+            <td>
+                {%s time_duration_long(e.Between) %}
+            </td>
+            <td>
+                {%s time_duration_long(e.BetweenSolo) %}
+            </td>
+        </tr>
+        {% endfor %}
+        <tr><td></td><td></td></tr>
+    </table>
+</div>
+{% endif %}
+{% endfunc %}

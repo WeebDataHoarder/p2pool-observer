@@ -1,6 +1,0 @@
-{% set encodedMinerAddress = minerAddress.ToBase58() %}
-{% if minerAlias != "" %}
-<td title="{{ encodedMinerAddress }} ({{ minerAlias }})" class="mono small"><a href="/miner/{{ encodedMinerAddress }}">{{ minerAlias|shorten(10) }}</a></td>
-{% else %}
-<td title="{{ encodedMinerAddress }}" class="mono small"><a href="/miner/{{ encodedMinerAddress }}">{{ encodedMinerAddress|shorten(10) }}</a></td>
-{% endif %}

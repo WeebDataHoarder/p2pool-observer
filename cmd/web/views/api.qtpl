@@ -1,24 +1,30 @@
-{% extends "base.html" %}
+{% code
+type ApiPage struct {
+	// inherit from base page, so its' title is used in error page.
+	BasePage
+}
+%}
 
-{% block title %} - API Documentation {% endblock %}
-
-{% block style %}
-{{ parent() }}
-
+{% func (p *ApiPage) Style() %}
+{%= p.BasePage.Style() %}
 pre {
     padding: 2px;
     border: 1px dashed #BBB;
 }
-{% endblock %}
+{% endfunc %}
 
-{% block content %}
+{% func (p *ApiPage) Title() %}
+{%= p.BasePage.Title() %} - API Documentation
+{% endfunc %}
+
+{% func (p *ApiPage) Content() %}
 
 <div class="center" style="min-width: 800px; width: 50%">
     <div>
         <h2>API Documentation</h2>
         <p>This site and API is in development. As such, returned data could be different, or methods be deprecated / replaced anytime. Though it will be avoided if possible :)</p>
         <p>All the data showed on this site comes from the API or Monero. So if new features are added on site, it's possible to do so via the API.</p>
-        <p>At the moment there is no broad rate-limiting. If abuse is detected, temporary rate limits can be put in place. You can always run your own instance of this site / API / consensus, see <a href="{{ get_url("git.gammaspectra.live") }}/P2Pool/p2pool-observer">source code</a>.</p>
+        <p>At the moment there is no broad rate-limiting. If abuse is detected, temporary rate limits can be put in place. You can always run your own instance of this site / API / consensus, see <a href="{%s p.Context().GetUrl("git.gammaspectra.live") %}/P2Pool/p2pool-observer">source code</a>.</p>
         <p>Some historical data could be incomplete. These values have been replaced with all 0's / null bytes or 255 / 0xFF bytes depending on value. Some raw block records do not exist.</p>
         <p>In general, mandatory parameters are specified on the path, optional parameters on query.</p>
         <p><strong>Knowledge of P2Pool internals is strongly advised.</strong> Feel free to ask questions on IRC.</p>
@@ -33,7 +39,7 @@ pre {
         <p><em>.sidechain.effort.last</em> keys are Monero block id effort for last found blocks.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/pool_info
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/pool_info
 {
     "sidechain": {
         "consensus": {
@@ -133,7 +139,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/pool_info
         <h3 class="mono">/api/miner_info/&lt;id|address&gt;</h3>
         <p>Response contains general information on a specific miner, referred by its internal <em>id</em> or known Monero <em>address</em>.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/miner_info/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/miner_info/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
 {
     "id": 3,
     "address": "47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw",
@@ -168,7 +174,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/miner_info/47ab14E
         <p>By default it will return current window blocks, from current tip.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_window
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/side_blocks_in_window
 [
     {
         "main_id": "61c6463961c31584617f2ffd322fd32f91cef4a956b3ac431c128ab1ef8342c8",
@@ -290,7 +296,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_win
         <p>By default it will return current window blocks, from current tip.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_window/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/side_blocks_in_window/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
 [
         {
         "main_id": "b41a9e78f11b9f7eaed30a4211f43ae7201f7c77031839f3e484b59c32088028",
@@ -412,7 +418,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/side_blocks_in_win
         <p><em>.[].coinbase_private_key</em> can be used to prove the payout is correct.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/payouts/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
 [
     {
         "template_id": "b87002e6b77723aaf9bd23f5425bd4d1e5d59a5f964b611dbcac44cf87d5fd3e",
@@ -463,7 +469,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/payouts/47ab14EokG
         <h3 class="mono">/api/found_blocks?limit=[limit]&miner=[id|address]</h3>
         <p>Response contains last found block records on the Monero network by P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max 1000. Additionally, you can pass the <em>miner</em> parameter to select blocks from that miner only. <em>coinbase</em> parameter can also be used here to decode coinbase outputs.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/found_blocks?limit=2
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/found_blocks?limit=2
 [
     {
         "main_block": {
@@ -524,7 +530,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/found_blocks?limit
         <h3 class="mono">/api/shares?limit=[limit]&miner=[id|address][&onlyBlocks][&noMainStatus][&noUncles][&noMiners]</h3>
         <p>Response contains last found SideChain block records on P2Pool. Optional parameters are <em>limit</em>, maximum amount of records to return, defaults to 50, max SIDECHAIN_PPLNS_WINDOW. Additionally, you can pass the <em>miner</em> parameter to select shares from that miner only. <em>onlyBlocks</em> can be set to not receive uncle share entries.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/shares?limit=2
 [
     {
         "main_id": "e99f4f86db66e7f037e2108e25a0344d0a96eccba02f1ec13e50b3991141b7c5",
@@ -589,7 +595,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/shares?limit=2
         <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
         <p>Using <em>/coinbase</em> you can query all possible outputs and ownership for found and not found blocks.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/179cf9d77c7d198dc4d9a5deb03561b6121336fe9ea72fbda00fbf6eea34a34d
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/block_by_id/179cf9d77c7d198dc4d9a5deb03561b6121336fe9ea72fbda00fbf6eea34a34d
 {
     "main_id": "abf18da3388c1c5c8ca372ac4804c6b1b2adb511d6a6cc5f781d883211568eb0",
     "main_height": 2863113,
@@ -629,7 +635,7 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_id/179cf9
         <p>Using <em>/payouts</em> you can query all payouts that include weights by this share.</p>
         <p>Using <em>/coinbase</em> you can query all possible outputs and ownership for found and not found blocks.</p>
         <pre class="smaller">
-curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_height/4868351
+curl --silent https://{%s p.Context().NetServiceAddress %}/api/block_by_height/4868351
 {
     "main_id": "5b468e062dc4aa1570f956e6314f6d0634a772aa8d2905d8ab9c83026a7ac6af",
     "main_height": 2862309,
@@ -1290,4 +1296,4 @@ curl --silent https://{{ getenv('NET_SERVICE_ADDRESS') }}/api/block_by_height/48
     </div>
 </div>
 
-{% endblock %}
+{% endfunc %}

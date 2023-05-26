@@ -602,13 +602,6 @@ func main() {
 			return
 		}
 
-		type transactionLookupResult struct {
-			Id     types.Hash                                `json:"id"`
-			Inputs index.TransactionInputQueryResults        `json:"inputs"`
-			Outs   []client.Output                           `json:"outs"`
-			Match  []index.TransactionInputQueryResultsMatch `json:"matches"`
-		}
-
 		indicesToLookup := make([]uint64, 0, len(results[0]))
 		for _, i := range results[0] {
 			indicesToLookup = append(indicesToLookup, i.Input.KeyOffsets...)
@@ -632,7 +625,7 @@ func main() {
 					outs[i].Timestamp = mb.Timestamp
 				}
 			}
-			buf, _ := encodeJson(request, transactionLookupResult{
+			buf, _ := encodeJson(request, utils2.TransactionLookupResult{
 				Id:     txId,
 				Inputs: results[0],
 				Outs:   outs,

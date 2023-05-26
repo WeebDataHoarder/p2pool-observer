@@ -1,4 +1,7 @@
-{% if (sweeps_is_miner is defined) and (sweeps_is_miner) %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/index" %}
+
+{% func TemplateSweeps(ctx *GlobalRequestContext, sweeps []*index.MainLikelySweepTransaction, isMiner bool) %}
+{% if isMiner %}
 <table class="center datatable" style="max-width: calc(12em + 10em + 10em + 8em + 10em + 10em + 10em + 12em)">
 {% else %}
 <table class="center datatable" style="max-width: calc(12em + 10em + 12em + 8em + 10em + 10em + 10em + 10em + 12em)">
@@ -6,7 +9,7 @@
     <tr>
         <th style="width: 12em;">Transaction Id</th>
         <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-        {% if (sweeps_is_miner is not defined) or (not sweeps_is_miner) %}
+        {% if !isMiner %}
         <th style="width: 12em;" title="The P2Pool miner who likely produced this sweep">Owned by</th>
         {% endif %}
         <th style="width: 8em;" title="The number of decoys each input has">Decoys per Input</th>
@@ -16,23 +19,24 @@
         <th style="width: 10em;" title="The number and ratio of decoy inputs not owned by miners on this sweep">Unknown Decoys</th>
         <th style="width: 10em;" title="The value known from Coinbase sources">Swept Coinbase Value</th>
     </tr>
-    {% for s in sweeps %}
+    {% for _, s := range sweeps %}
     <tr>
-        <td class="mono small"><a href="/transaction-lookup?txid={{ s.Id }}">{{ s.Id|shorten(10) }}</a></td>
-        <td title="{{ utc_date(s.Timestamp) }}">{{ date_diff_short(s.Timestamp) }}</td>
-        {% if (sweeps_is_miner is not defined) or (not sweeps_is_miner) %}
-        <td title="{{ s.Address.ToBase58() }}" class="mono small"><a href="/miner/{{ s.Address.ToBase58() }}">{{ s.Address.ToBase58()|shorten(10) }}</a></td>
+        <td class="mono small"><a href="/transaction-lookup?txid={%s hex(s.Id) %}">{%s shorten(hex(s.Id), 10) %}</a></td>
+        <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
+        {% if !isMiner %}
+        <td title="{%s s.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s s.Address.ToBase58() %}">{%s shorten(s.Address.ToBase58(), 10) %}</a></td>
         {% endif %}
-        <td>{{ s.InputDecoyCount }}</td>
-        <td>{{ s.InputCount }} / {{ s.GlobalOutputIndices|length }}</td>
-        <td>{{ s.MinerCount }} ({{(s.MinerRatio*100)|round(2)}}%)</td>
-        <td>{{ s.OtherMinersCount }} ({{(s.OtherMinersRatio*100)|round(2)}}%)</td>
-        <td>{{ s.NoMinerCount }} ({{(s.NoMinerRatio*100)|round(2)}}%)</td>
+        <td>{%d s.InputDecoyCount %}</td>
+        <td>{%d s.InputCount %} / {%d len(s.GlobalOutputIndices) %}</td>
+        <td>{%d s.MinerCount %} ({%f.2 float64(s.MinerRatio)*100 %}%)</td>
+        <td>{%d s.OtherMinersCount %} ({%f.2 float64(s.OtherMinersRatio)*100 %}%)</td>
+        <td>{%d s.NoMinerCount %} ({%f.2 float64(s.NoMinerRatio)*100 %}%)</td>
         {% if s.Value == 0 %}
         <td>-</td>
         {% else %}
-        <td class="mono">{{ monero_to_xmr(s.Value) }} XMR</td>
+        <td class="mono">{%s monero_to_xmr(s.Value) %} XMR</td>
         {% endif %}
     </tr>
     {% endfor %}
 </table>
+{% endfunc %}
