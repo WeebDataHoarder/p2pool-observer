@@ -26,7 +26,7 @@
         </h4>
         {% if pool.Versions is defined %}
 
-            {% if (pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.Timestamp or (pool.Versions.Monero.Timestamp+3600*24*7) > pool.Sidechain.Timestamp %}
+            {% if (pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.Timestamp or (pool.Versions.Monero.Timestamp+3600*24*7) > pool.SideChain.Timestamp %}
             <h4 style="font-size: 15px; margin: 4px 0px 0px; color:yellow;">
             {% else %}
             <h4 style="font-size: 13px; margin-top: 5px; ">
