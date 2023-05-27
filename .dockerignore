@@ -2,6 +2,7 @@
 .env
 .env.example
 .gitignore
+testdata/
 docker/nginx
 docker-compose.override.yml
 p2pool.cache
