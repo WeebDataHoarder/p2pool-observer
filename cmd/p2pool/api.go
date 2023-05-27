@@ -25,7 +25,7 @@ func encodeJson(r *http.Request, w http.ResponseWriter, d any) error {
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
 		encoder.SetIndent("", "    ")
 	}
-	return encoder.Encode(d)
+	return encoder.EncodeWithOption(d, utils.JsonEncodeOptions...)
 }
 
 func getServerMux(instance *p2pool.P2Pool) *mux.Router {

@@ -1,33 +1,28 @@
 package utils
 
 import (
-	jsoniter "github.com/json-iterator/go"
+	gojson "github.com/goccy/go-json"
 	"io"
 )
 
-var jsonConfig = jsoniter.Config{
-	EscapeHTML:              false,
-	SortMapKeys:             true,
-	ValidateJsonRawMessage:  true,
-	MarshalFloatWith6Digits: true,
-}.Froze()
+var JsonEncodeOptions = []gojson.EncodeOptionFunc{gojson.DisableHTMLEscape(), gojson.DisableNormalizeUTF8()}
 
 func MarshalJSON(val any) ([]byte, error) {
-	return jsonConfig.Marshal(val)
+	return gojson.MarshalWithOption(val, JsonEncodeOptions...)
 }
 
 func MarshalJSONIndent(val any, indent string) ([]byte, error) {
-	return jsonConfig.MarshalIndent(val, "", indent)
+	return gojson.MarshalIndentWithOption(val, "", indent, JsonEncodeOptions...)
 }
 
 func UnmarshalJSON(data []byte, val any) error {
-	return jsonConfig.Unmarshal(data, val)
+	return gojson.UnmarshalWithOption(data, val)
 }
 
-func NewJSONEncoder(writer io.Writer) *jsoniter.Encoder {
-	return jsonConfig.NewEncoder(writer)
+func NewJSONEncoder(writer io.Writer) *gojson.Encoder {
+	return gojson.NewEncoder(writer)
 }
 
-func NewJSONDecoder(reader io.Reader) *jsoniter.Decoder {
-	return jsonConfig.NewDecoder(reader)
+func NewJSONDecoder(reader io.Reader) *gojson.Decoder {
+	return gojson.NewDecoder(reader)
 }

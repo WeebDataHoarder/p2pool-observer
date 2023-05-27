@@ -353,7 +353,7 @@ func main() {
 			if checkInformation != nil {
 				if buf, err := utils.MarshalJSON(checkInformation.Tip); err == nil && checkInformation.Tip != nil {
 					b := sidechain.PoolBlock{}
-					if json.Unmarshal(buf, &b) == nil {
+					if utils.UnmarshalJSON(buf, &b) == nil {
 						rawTip = &b
 						theirTip = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId))))
 					}
@@ -765,7 +765,7 @@ func main() {
 					if response.StatusCode == http.StatusOK {
 						if data, err := io.ReadAll(response.Body); err == nil {
 							r := make([][]*index.MainLikelySweepTransaction, 0, len(indices))
-							if json.Unmarshal(data, &r) == nil && len(r) == len(indices) {
+							if utils.UnmarshalJSON(data, &r) == nil && len(r) == len(indices) {
 								likelySweeps = r
 							}
 						}

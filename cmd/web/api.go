@@ -10,10 +10,6 @@ import (
 	"time"
 )
 
-import jsoniter "github.com/json-iterator/go"
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
 func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 	cTime := 0
 	if len(cacheTime) > 0 {

@@ -6,15 +6,15 @@ require (
 	git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20230520084036-0f06fa066019
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
-	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527120933-71018b5b4ddf
+	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527152251-7b24ed2d11ce
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
 	github.com/go-zeromq/zmq4 v0.15.0
+	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.2
-	github.com/json-iterator/go v1.1.12
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.1
@@ -31,8 +31,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
-	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect
