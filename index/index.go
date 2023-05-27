@@ -323,7 +323,7 @@ func (i *Index) PrepareSideBlocksByQueryStatement(where string) (stmt *sql.Stmt,
 
 func (i *Index) GetSideBlocksByQuery(where string, params ...any) chan *SideBlock {
 	if stmt, err := i.PrepareSideBlocksByQueryStatement(where); err != nil {
-		returnChannel := make(chan *SideBlock)
+		returnChannel := make(chan *SideBlock, 1)
 		close(returnChannel)
 		return returnChannel
 	} else {
@@ -332,7 +332,7 @@ func (i *Index) GetSideBlocksByQuery(where string, params ...any) chan *SideBloc
 }
 
 func (i *Index) getSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *SideBlock {
-	returnChannel := make(chan *SideBlock)
+	returnChannel := make(chan *SideBlock, 1)
 	go func() {
 		defer stmt.Close()
 		defer close(returnChannel)
@@ -355,7 +355,7 @@ func (i *Index) getSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) cha
 }
 
 func (i *Index) GetSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *SideBlock {
-	returnChannel := make(chan *SideBlock)
+	returnChannel := make(chan *SideBlock, 1)
 	go func() {
 		defer close(returnChannel)
 		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
@@ -431,7 +431,7 @@ func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) []*Fou
 
 func (i *Index) GetMainBlocksByQuery(where string, params ...any) chan *MainBlock {
 	if stmt, err := i.PrepareMainBlocksByQueryStatement(where); err != nil {
-		returnChannel := make(chan *MainBlock)
+		returnChannel := make(chan *MainBlock, 1)
 		close(returnChannel)
 		return returnChannel
 	} else {
@@ -440,7 +440,7 @@ func (i *Index) GetMainBlocksByQuery(where string, params ...any) chan *MainBloc
 }
 
 func (i *Index) getMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *MainBlock {
-	returnChannel := make(chan *MainBlock)
+	returnChannel := make(chan *MainBlock, 1)
 	go func() {
 		defer stmt.Close()
 		defer close(returnChannel)
@@ -463,7 +463,7 @@ func (i *Index) getMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) cha
 }
 
 func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *MainBlock {
-	returnChannel := make(chan *MainBlock)
+	returnChannel := make(chan *MainBlock, 1)
 	go func() {
 		defer close(returnChannel)
 		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
@@ -663,7 +663,7 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 }
 
 func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
-	out := make(chan *Payout)
+	out := make(chan *Payout, 1)
 
 	go func() {
 		defer close(out)
@@ -692,7 +692,7 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 }
 
 func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
-	out := make(chan *Payout)
+	out := make(chan *Payout, 1)
 
 	go func() {
 		defer close(out)
@@ -762,7 +762,7 @@ func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint6
 }
 
 func (i *Index) GetMainLikelySweepTransactions(limit uint64) chan *MainLikelySweepTransaction {
-	out := make(chan *MainLikelySweepTransaction)
+	out := make(chan *MainLikelySweepTransaction, 1)
 
 	go func() {
 		defer close(out)
@@ -790,7 +790,7 @@ func (i *Index) GetMainLikelySweepTransactions(limit uint64) chan *MainLikelySwe
 }
 
 func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, limit uint64) chan *MainLikelySweepTransaction {
-	out := make(chan *MainLikelySweepTransaction)
+	out := make(chan *MainLikelySweepTransaction, 1)
 
 	go func() {
 		defer close(out)
