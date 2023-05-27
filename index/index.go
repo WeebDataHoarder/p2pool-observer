@@ -69,6 +69,8 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 		return nil, err
 	}
 
+	index.handle.SetMaxIdleConns(8)
+
 	tx, err := index.handle.BeginTx(context.Background(), nil)
 	if err != nil {
 		return nil, err
