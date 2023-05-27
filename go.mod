@@ -6,7 +6,7 @@ require (
 	git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20230520084036-0f06fa066019
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7
-	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230524141534-113843a69ced
+	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527114844-7d37dcb5aedf
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807

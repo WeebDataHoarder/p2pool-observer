@@ -4,8 +4,8 @@ git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523 h1:oIJ
 git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523/go.mod h1:TAOAAV972JNDkCzyV5SkbYkKCRvcfhvvFa8LHH4Dg6g=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7 h1:bzHDuu1IgETKqPBOlIdCE2LaZIJ+ZpROSprNn+fnzd8=
 git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7/go.mod h1:3kT0v4AMwT/OdorfH2gRWPwoOrUX/LV03HEeBsaXG1c=
-git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230524141534-113843a69ced h1:nbJrfS6uYZCgpXZVRNt67MKhe1KuagllPTeYyQovF/M=
-git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230524141534-113843a69ced/go.mod h1:MpCLC0BvjnQEQW/z6g7F1c3udr3CSikhNoQurSCYGB8=
+git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527114844-7d37dcb5aedf h1:vSmNE0/W22+CyYD2Trwig8sDtrD+YfIGFLlPS4oKQZk=
+git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527114844-7d37dcb5aedf/go.mod h1:MpCLC0BvjnQEQW/z6g7F1c3udr3CSikhNoQurSCYGB8=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71 h1:MgeHHcF+GnCJBWMSzq8XAbc8p/UhNwFruEKCPPJ74YQ=
 git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71/go.mod h1:KQaYHIxGXNHNMQELC7xGLu8xouwvP/dN7iGk681BXmk=
 git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230512064207-dde79576dc2f h1:dQc+lJIlbR0acDqoPAtew0lMVVnKVFO0bZpf1/wbo6Y=
