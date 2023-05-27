@@ -17,7 +17,11 @@ type Hash [HashSize]byte
 var ZeroHash Hash
 
 func (h Hash) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(h.String())
+	var buf [HashSize*2 + 2]byte
+	buf[0] = '"'
+	buf[HashSize*2+1] = '"'
+	hex.Encode(buf[1:], h[:])
+	return buf[:], nil
 }
 
 func MustHashFromString(s string) Hash {
@@ -140,7 +144,11 @@ func (h *Hash) UnmarshalJSON(b []byte) error {
 type Bytes []byte
 
 func (b Bytes) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(b.String())
+	buf := make([]byte, len(b)*2+2)
+	buf[0] = '"'
+	buf[len(buf)-1] = '"'
+	hex.Encode(buf[1:], b)
+	return buf, nil
 }
 func (b Bytes) String() string {
 	return hex.EncodeToString(b)

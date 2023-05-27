@@ -663,7 +663,8 @@ func main() {
 		}
 
 		var totalWeight types.Difficulty
-		for _, share := range shares {
+		var uncleShareIndex int
+		for i, share := range shares {
 			miner := share.Miner
 
 			if share.IsUncle() {
@@ -676,10 +677,8 @@ func main() {
 				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
 				uncleWeight := share.Difficulty - unclePenalty.Lo
 
-				if i := slices.IndexFunc(shares, func(block *index.SideBlock) bool {
-					return block.TemplateId == share.UncleOf
-				}); i != -1 {
-					parent := shares[i]
+				if shares[uncleShareIndex].TemplateId == share.UncleOf {
+					parent := shares[uncleShareIndex]
 					createMiner(parent.Miner, parent)
 					miners[parent.Miner].Weight = miners[parent.Miner].Weight.Add64(unclePenalty.Lo)
 				}
@@ -687,6 +686,7 @@ func main() {
 
 				totalWeight = totalWeight.Add64(share.Difficulty)
 			} else {
+				uncleShareIndex = i
 				createMiner(share.Miner, share)
 				miners[miner].Shares.Add(int(int64(tip.SideHeight)-int64(share.SideHeight)), 1)
 				miners[miner].Weight = miners[miner].Weight.Add64(share.Difficulty)

@@ -81,11 +81,7 @@ type MinersPageMinerEntry struct {
         {% for i, m := range p.Miners %}
         <tr style="padding-bottom: 10px; border-bottom: solid #aaa 1px">
             <td style="vertical-align: middle">{%d i+1 %}</td>
-            {% if m.Alias != "" %}
-            <th title="{%s m.Address.ToBase58() %} ({%s m.Alias %})" class="mono small"><a href="/miner/{%s m.Address.ToBase58() %}">{%s shorten(m.Alias, 10) %}</a></th>
-            {% else %}
-            <th title="{%s m.Address.ToBase58() %}" class="mono small" style="vertical-align: middle"><a href="/miner/{%s m.Address.ToBase58() %}">{%s shorten(m.Address.ToBase58(), 10) %}</a></th>
-            {% endif %}
+            {%= TemplateRowMinerWithTag(m.Address, m.Alias, "th") %}
             <td style="vertical-align: middle">{%s software_info(m.SoftwareId, m.SoftwareVersion) %}</td>
             {% code minerRatio := float64(m.Weight.Lo) / float64(p.WindowWeight.Lo) %}
             <td style="vertical-align: middle">{%f.3 minerRatio*100 %}%</td>

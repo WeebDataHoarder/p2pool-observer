@@ -192,7 +192,14 @@ func (d Difficulty) Big() *big.Int {
 }
 
 func (d Difficulty) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(d.String())
+	var encodeBuf [DifficultySize]byte
+	d.PutBytesBE(encodeBuf[:])
+
+	var buf [DifficultySize*2 + 2]byte
+	buf[0] = '"'
+	buf[DifficultySize*2+1] = '"'
+	hex.Encode(buf[1:], encodeBuf[:])
+	return buf[:], nil
 }
 
 func MustDifficultyFromString(s string) Difficulty {
@@ -255,9 +262,9 @@ func (d *Difficulty) UnmarshalJSON(b []byte) error {
 }
 
 func (d Difficulty) Bytes() []byte {
-	buf := make([]byte, DifficultySize)
-	d.PutBytesBE(buf)
-	return buf
+	var buf [DifficultySize]byte
+	d.PutBytesBE(buf[:])
+	return buf[:]
 }
 
 func (d Difficulty) String() string {
