@@ -13,7 +13,7 @@ type PayoutsPage struct {
 %}
 
 {% func (p *PayoutsPage) Title() %}
-{%= p.BasePage.Title() %} - Historical miner payouts {{ p.Miner.ToBase58() }}
+{%= p.BasePage.Title() %} - Historical miner payouts {%s p.Miner.ToBase58() %}
 {% endfunc %}
 
 {% func (p *PayoutsPage) Content() %}

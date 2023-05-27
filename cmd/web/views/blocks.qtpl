@@ -23,7 +23,7 @@ type BlocksPage struct {
 {% if p.Miner == nil %}
     <div style="text-align: center; font-weight: bold;">
     {% if p.Refresh > 0 %}
-    <a href="/blocks">Autorefresh is ON ({%d p.Refresh %}} s)</a>
+    <a href="/blocks">Autorefresh is ON ({%d p.Refresh %} s)</a>
     {% else %}
     <a href="/blocks?refresh">Autorefresh is OFF</a>
     {% endif %}

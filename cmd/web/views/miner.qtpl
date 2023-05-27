@@ -37,7 +37,7 @@ type MinerPage struct {
 %}
 
 {% func (p *MinerPage) Title() %}
-{%= p.BasePage.Title() %} - Miner {{ p.Miner.Address.ToBase58() %}
+{%= p.BasePage.Title() %} - Miner {%s p.Miner.Address.ToBase58() %}
 {% endfunc %}
 
 {% func (p *MinerPage) Content() %}

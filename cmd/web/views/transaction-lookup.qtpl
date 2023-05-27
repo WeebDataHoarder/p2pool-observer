@@ -75,9 +75,9 @@ type TransactionLookupPage struct {
     <table class="center" style="max-width: calc(8em + 15em + 15em + 15em + 15em + 15em + 15em);">
         <tr>
             <td colspan="7">
-                <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{{ henc(p.TransactionId) %}">{%s hex(p.TransactionId) %}</a></p>
+                <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{%s henc(p.TransactionId) %}">{%s hex(p.TransactionId) %}</a></p>
                 {% code minerAddress := p.Miner.Address.ToBase58() %}
-                <p><strong>Miner Payout Address:</strong> <a href="/miner/{{ minerAddress %}"><span class="mono small">{%s minerAddress %}</span></a></p>
+                <p><strong>Miner Payout Address:</strong> <a href="/miner/{%s minerAddress %}"><span class="mono small">{%s minerAddress %}</span></a></p>
                 <p><strong>Likely:</strong> {% if p.LikelyMiner %}Yes{% else %}Not likely{% endif %}</p>
             </td>
         </tr>

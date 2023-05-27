@@ -23,7 +23,7 @@ type SweepsPage struct {
 {% if p.Miner == nil %}
     <div style="text-align: center; font-weight: bold;">
     {% if p.Refresh > 0 %}
-    <a href="/sweeps">Autorefresh is ON ({%d p.Refresh %}} s)</a>
+    <a href="/sweeps">Autorefresh is ON ({%d p.Refresh %} s)</a>
     {% else %}
     <a href="/sweeps?refresh">Autorefresh is OFF</a>
     {% endif %}
