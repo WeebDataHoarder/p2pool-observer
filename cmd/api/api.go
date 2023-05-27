@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
@@ -38,9 +37,9 @@ import (
 
 func encodeJson(r *http.Request, d any) ([]byte, error) {
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
-		return json.MarshalIndent(d, "", "    ")
+		return utils.MarshalJSONIndent(d, "    ")
 	} else {
-		return json.Marshal(d)
+		return utils.MarshalJSON(d)
 	}
 }
 
@@ -379,7 +378,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -448,7 +447,7 @@ func main() {
 		if request.Method != "POST" {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusMethodNotAllowed)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_allowed",
@@ -461,7 +460,7 @@ func main() {
 		if err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "bad_request",
@@ -470,10 +469,10 @@ func main() {
 			return
 		}
 		var indices []uint64
-		if err = json.Unmarshal(buf, &indices); err != nil || len(indices) == 0 {
+		if err = utils.UnmarshalJSON(buf, &indices); err != nil || len(indices) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "bad_request",
@@ -493,7 +492,7 @@ func main() {
 		if request.Method != "POST" {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusMethodNotAllowed)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_allowed",
@@ -506,7 +505,7 @@ func main() {
 		if err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "bad_request",
@@ -515,10 +514,10 @@ func main() {
 			return
 		}
 		var indices []uint64
-		if err = json.Unmarshal(buf, &indices); err != nil || len(indices) == 0 {
+		if err = utils.UnmarshalJSON(buf, &indices); err != nil || len(indices) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "bad_request",
@@ -539,7 +538,7 @@ func main() {
 		if err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -552,7 +551,7 @@ func main() {
 
 		if os.Getenv("TRANSACTION_LOOKUP_OTHER") != "" {
 			otherLookupHostFunc = func(ctx context.Context, indices []uint64) (result []*index.MatchedOutput) {
-				data, _ := json.Marshal(indices)
+				data, _ := utils.MarshalJSON(indices)
 
 				result = make([]*index.MatchedOutput, len(indices))
 
@@ -572,7 +571,7 @@ func main() {
 							if response.StatusCode == http.StatusOK {
 								if data, err := io.ReadAll(response.Body); err == nil {
 									r := make([]*index.MatchedOutput, 0, len(indices))
-									if json.Unmarshal(data, &r) == nil && len(r) == len(indices) {
+									if utils.UnmarshalJSON(data, &r) == nil && len(r) == len(indices) {
 										for i := range r {
 											if result[i] == nil {
 												result[i] = r[i]
@@ -593,7 +592,7 @@ func main() {
 		if len(results) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -610,7 +609,7 @@ func main() {
 		if outs, err := client.GetDefaultClient().GetOuts(indicesToLookup...); err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "bad_request",
@@ -643,7 +642,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -669,7 +668,7 @@ func main() {
 		}() || !unicode.IsLetter(rune(message[0])) {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "invalid_message",
@@ -686,7 +685,7 @@ func main() {
 			if indexDb.SetMinerAlias(miner.Id(), message) != nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusBadRequest)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "duplicate_message",
@@ -701,7 +700,7 @@ func main() {
 		} else if result == address.ResultSuccessView {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "view_signature",
@@ -711,7 +710,7 @@ func main() {
 		} else {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "invalid_signature",
@@ -772,7 +771,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -856,7 +855,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -898,7 +897,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -947,7 +946,7 @@ func main() {
 		if len(foundTargets) == 0 {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -985,7 +984,7 @@ func main() {
 		if b == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1013,7 +1012,7 @@ func main() {
 		if len(b) == 0 || tx == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1031,7 +1030,7 @@ func main() {
 		if len(b) == 0 || miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1045,7 +1044,7 @@ func main() {
 		if tx == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1062,7 +1061,7 @@ func main() {
 		if miner == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1116,7 +1115,7 @@ func main() {
 			if miner == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1195,7 +1194,7 @@ func main() {
 			if miner == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1254,7 +1253,7 @@ func main() {
 			if miner == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1292,7 +1291,7 @@ func main() {
 		if block == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1364,7 +1363,7 @@ func main() {
 		if block == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_found",
@@ -1380,7 +1379,7 @@ func main() {
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1391,7 +1390,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := json.Marshal(raw)
+			buf, _ := utils.MarshalJSON(raw)
 			_, _ = writer.Write(buf)
 		case "/raw":
 			raw := p2api.ByMainId(block.MainId)
@@ -1399,7 +1398,7 @@ func main() {
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1464,7 +1463,7 @@ func main() {
 
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusNotFound)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
@@ -1579,7 +1578,7 @@ func main() {
 		if err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: err.Error(),
@@ -1593,7 +1592,7 @@ func main() {
 		if !addrPort.IsValid() || addrPort.Addr().IsLoopback() || addrPort.Addr().IsMulticast() || addrPort.Addr().IsInterfaceLocalMulticast() || addrPort.Addr().IsLinkLocalMulticast() || addrPort.Addr().IsPrivate() || addrPort.Addr().IsUnspecified() || addrPort.Addr().IsLinkLocalUnicast() {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_valid_ip",
@@ -1606,7 +1605,7 @@ func main() {
 			//do not allow low port numbers to prevent targeting
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "not_valid_port",

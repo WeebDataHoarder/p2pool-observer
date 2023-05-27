@@ -1,20 +1,20 @@
 package index
 
 import (
-	"encoding/json"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 )
 
 const MainBlockSelectFields = "id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key"
 
 type MainBlock struct {
 	Id         types.Hash `json:"id"`
-	Height     uint64 `json:"height"`
-	Timestamp  uint64 `json:"timestamp"`
-	Reward     uint64 `json:"reward"`
+	Height     uint64     `json:"height"`
+	Timestamp  uint64     `json:"timestamp"`
+	Reward     uint64     `json:"reward"`
 	CoinbaseId types.Hash `json:"coinbase_id"`
-	Difficulty uint64 `json:"difficulty"`
+	Difficulty uint64     `json:"difficulty"`
 
 	// Metadata should be jsonb blob, can be NULL. metadata such as pool ownership, links to other p2pool networks, and other interesting data
 	Metadata map[string]any `json:"metadata"`
@@ -39,7 +39,7 @@ func (b *MainBlock) ScanFromRow(i *Index, row RowScanInterface) error {
 	b.Metadata = make(map[string]any)
 	if err := row.Scan(&b.Id, &b.Height, &b.Timestamp, &b.Reward, &b.CoinbaseId, &b.Difficulty, &metadataBuf, &b.SideTemplateId, &b.CoinbasePrivateKey); err != nil {
 		return err
-	} else if err = json.Unmarshal(metadataBuf, &b.Metadata); err != nil {
+	} else if err = utils.UnmarshalJSON(metadataBuf, &b.Metadata); err != nil {
 		return err
 	}
 	return nil

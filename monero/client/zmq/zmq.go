@@ -3,8 +3,8 @@ package zmq
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"strings"
 
@@ -163,7 +163,7 @@ func (c *Client) ingestFrameArray(stream *Stream, frame []byte) error {
 func (c *Client) transmitFullChainMain(stream *Stream, gson []byte) error {
 	var arr []*FullChainMain
 
-	if err := json.Unmarshal(gson, &arr); err != nil {
+	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	for _, element := range arr {
@@ -176,7 +176,7 @@ func (c *Client) transmitFullChainMain(stream *Stream, gson []byte) error {
 func (c *Client) transmitFullTxPoolAdd(stream *Stream, gson []byte) error {
 	var arr []*FullTxPoolAdd
 
-	if err := json.Unmarshal(gson, &arr); err != nil {
+	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	for _, element := range arr {
@@ -189,7 +189,7 @@ func (c *Client) transmitFullTxPoolAdd(stream *Stream, gson []byte) error {
 func (c *Client) transmitFullMinerData(stream *Stream, gson []byte) error {
 	element := &FullMinerData{}
 
-	if err := json.Unmarshal(gson, element); err != nil {
+	if err := utils.UnmarshalJSON(gson, element); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	stream.FullMinerDataC <- element
@@ -199,7 +199,7 @@ func (c *Client) transmitFullMinerData(stream *Stream, gson []byte) error {
 func (c *Client) transmitMinimalChainMain(stream *Stream, gson []byte) error {
 	element := &MinimalChainMain{}
 
-	if err := json.Unmarshal(gson, element); err != nil {
+	if err := utils.UnmarshalJSON(gson, element); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	stream.MinimalChainMainC <- element
@@ -209,7 +209,7 @@ func (c *Client) transmitMinimalChainMain(stream *Stream, gson []byte) error {
 func (c *Client) transmitMinimalTxPoolAdd(stream *Stream, gson []byte) error {
 	var arr []*MinimalTxPoolAdd
 
-	if err := json.Unmarshal(gson, &arr); err != nil {
+	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	for _, element := range arr {

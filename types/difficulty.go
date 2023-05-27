@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/holiman/uint256"
 	"lukechampine.com/uint128"
 	"math/big"
@@ -192,7 +192,7 @@ func (d Difficulty) Big() *big.Int {
 }
 
 func (d Difficulty) MarshalJSON() ([]byte, error) {
-	return json.Marshal(d.String())
+	return utils.MarshalJSON(d.String())
 }
 
 func MustDifficultyFromString(s string) Difficulty {
@@ -241,7 +241,7 @@ func DifficultyFrom64(v uint64) Difficulty {
 
 func (d *Difficulty) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := utils.UnmarshalJSON(b, &s); err != nil {
 		return err
 	}
 

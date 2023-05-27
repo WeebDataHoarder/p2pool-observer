@@ -1,14 +1,18 @@
 package main
 
 import (
-	"encoding/json"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
 )
+
+import jsoniter "github.com/json-iterator/go"
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 	cTime := 0
@@ -27,9 +31,8 @@ func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 			defer response.Body.Close()
 			if response.StatusCode == http.StatusOK {
 				var result T
-				if data, err := io.ReadAll(response.Body); err != nil {
-					return nil
-				} else if json.Unmarshal(data, &result) != nil {
+				decoder := utils.NewJSONDecoder(response.Body)
+				if decoder.Decode(&result) != nil {
 					return nil
 				} else {
 					return &result
@@ -58,9 +61,8 @@ func getSliceFromAPI[T any](method string, cacheTime ...int) []T {
 			defer response.Body.Close()
 			if response.StatusCode == http.StatusOK {
 				var result []T
-				if data, err := io.ReadAll(response.Body); err != nil {
-					return nil
-				} else if json.Unmarshal(data, &result) != nil {
+				decoder := utils.NewJSONDecoder(response.Body)
+				if decoder.Decode(&result) != nil {
 					return nil
 				} else {
 					return result

@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"runtime"
 	"unsafe"
 )
@@ -17,7 +17,7 @@ type Hash [HashSize]byte
 var ZeroHash Hash
 
 func (h Hash) MarshalJSON() ([]byte, error) {
-	return json.Marshal(h.String())
+	return utils.MarshalJSON(h.String())
 }
 
 func MustHashFromString(s string) Hash {
@@ -140,14 +140,14 @@ func (h *Hash) UnmarshalJSON(b []byte) error {
 type Bytes []byte
 
 func (b Bytes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(b.String())
+	return utils.MarshalJSON(b.String())
 }
 func (b Bytes) String() string {
 	return hex.EncodeToString(b)
 }
 func (b *Bytes) UnmarshalJSON(buf []byte) error {
 	var s string
-	if err := json.Unmarshal(buf, &s); err != nil {
+	if err := utils.UnmarshalJSON(buf, &s); err != nil {
 		return err
 	}
 

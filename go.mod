@@ -14,6 +14,7 @@ require (
 	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/gorilla/mux v1.8.0
 	github.com/holiman/uint256 v1.2.2
+	github.com/json-iterator/go v1.1.12
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.1
@@ -30,6 +31,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421 // indirect
+	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	golang.org/x/crypto v0.9.0 // indirect

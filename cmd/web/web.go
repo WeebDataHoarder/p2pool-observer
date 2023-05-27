@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
@@ -35,12 +34,6 @@ import (
 )
 
 func toUint64(t any) uint64 {
-	if x, ok := t.(json.Number); ok {
-		if n, err := x.Int64(); err == nil {
-			return uint64(n)
-		}
-	}
-
 	if x, ok := t.(uint64); ok {
 		return x
 	} else if x, ok := t.(int64); ok {
@@ -82,12 +75,6 @@ func toString(t any) string {
 }
 
 func toInt64(t any) int64 {
-	if x, ok := t.(json.Number); ok {
-		if n, err := x.Int64(); err == nil {
-			return n
-		}
-	}
-
 	if x, ok := t.(uint64); ok {
 		return int64(x)
 	} else if x, ok := t.(int64); ok {
@@ -114,12 +101,6 @@ func toInt64(t any) int64 {
 }
 
 func toFloat64(t any) float64 {
-	if x, ok := t.(json.Number); ok {
-		if n, err := x.Float64(); err == nil {
-			return n
-		}
-	}
-
 	if x, ok := t.(float64); ok {
 		return x
 	} else if x, ok := t.(float32); ok {
@@ -191,7 +172,7 @@ func main() {
 		time.Sleep(1)
 	}
 
-	consensusData, _ := json.Marshal(basePoolInfo.SideChain.Consensus)
+	consensusData, _ := utils.MarshalJSON(basePoolInfo.SideChain.Consensus)
 	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
 	if err != nil {
 		log.Panic(err)
@@ -370,7 +351,7 @@ func main() {
 			ourTip := getTypeFromAPI[index.SideBlock]("redirect/tip")
 			var theirTip *index.SideBlock
 			if checkInformation != nil {
-				if buf, err := json.Marshal(checkInformation.Tip); err == nil && checkInformation.Tip != nil {
+				if buf, err := utils.MarshalJSON(checkInformation.Tip); err == nil && checkInformation.Tip != nil {
 					b := sidechain.PoolBlock{}
 					if json.Unmarshal(buf, &b) == nil {
 						rawTip = &b
@@ -772,7 +753,7 @@ func main() {
 			for i, o := range coinbase {
 				indices[i] = o.GlobalOutputIndex
 			}
-			data, _ := json.Marshal(indices)
+			data, _ := utils.MarshalJSON(indices)
 			uri, _ := url.Parse(os.Getenv("API_URL") + "sweeps_by_spending_global_output_indices")
 			if response, err := http.DefaultClient.Do(&http.Request{
 				Method: "POST",

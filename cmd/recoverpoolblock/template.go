@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 )
 
 type JsonBlock2 struct {
@@ -84,19 +84,19 @@ type versionBlock struct {
 func JSONFromTemplate(data []byte) (any, error) {
 	var version versionBlock
 
-	if err := json.Unmarshal(data, &version); err != nil {
+	if err := utils.UnmarshalJSON(data, &version); err != nil {
 		return nil, err
 	} else {
 		if version.Version == 2 {
 			var b JsonBlock2
-			if err = json.Unmarshal(data, &b); err != nil {
+			if err = utils.UnmarshalJSON(data, &b); err != nil {
 				return nil, err
 			}
 			return b, nil
 		} else if version.Version == 0 || version.Version == 1 {
 
 			var b JsonBlock1
-			if err = json.Unmarshal(data, &b); err != nil {
+			if err = utils.UnmarshalJSON(data, &b); err != nil {
 				return nil, err
 			}
 			return b, nil

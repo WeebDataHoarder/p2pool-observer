@@ -1,11 +1,11 @@
 package index
 
 import (
-	"encoding/json"
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/lib/pq"
 )
 
@@ -41,9 +41,9 @@ func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface)
 	var spendingOutputIndices, globalOutputIndices pq.Int64Array
 	if err := row.Scan(&t.Id, &t.Timestamp, &resultBuf, &matchBuf, &t.Value, &spendingOutputIndices, &globalOutputIndices, &t.InputCount, &t.InputDecoyCount, &t.MinerCount, &t.OtherMinersCount, &t.NoMinerCount, &t.MinerRatio, &t.OtherMinersRatio, &t.NoMinerRatio, &spendPub, &viewPub); err != nil {
 		return err
-	} else if err = json.Unmarshal(resultBuf, &t.Result); err != nil {
+	} else if err = utils.UnmarshalJSON(resultBuf, &t.Result); err != nil {
 		return err
-	} else if err = json.Unmarshal(resultBuf, &t.Match); err != nil {
+	} else if err = utils.UnmarshalJSON(resultBuf, &t.Match); err != nil {
 		return err
 	}
 	t.SpendingOutputIndices = make([]uint64, len(spendingOutputIndices))

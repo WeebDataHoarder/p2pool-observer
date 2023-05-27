@@ -1,20 +1,20 @@
 package main
 
 import (
-	"encoding/json"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 	"net/http"
 	"sync"
 	"time"
 )
 
-var moneroVersion, p2poolVersion utils.VersionInfo
+var moneroVersion, p2poolVersion cmdutils.VersionInfo
 var moneroVersionLock, p2poolVersionLock sync.Mutex
 
 const versionCheckInterval = 3600
 
-func getMoneroVersion() utils.VersionInfo {
+func getMoneroVersion() cmdutils.VersionInfo {
 	moneroVersionLock.Lock()
 	defer moneroVersionLock.Unlock()
 	now := time.Now().Unix()
@@ -27,10 +27,10 @@ func getMoneroVersion() utils.VersionInfo {
 	}
 	defer response.Body.Close()
 
-	var releaseData utils.ReleaseDataJson
+	var releaseData cmdutils.ReleaseDataJson
 	if data, err := io.ReadAll(response.Body); err != nil {
 		return moneroVersion
-	} else if err = json.Unmarshal(data, &releaseData); err != nil {
+	} else if err = utils.UnmarshalJSON(data, &releaseData); err != nil {
 		return moneroVersion
 	} else {
 		moneroVersion.Version = releaseData.TagName
@@ -42,7 +42,7 @@ func getMoneroVersion() utils.VersionInfo {
 	return moneroVersion
 }
 
-func getP2PoolVersion() utils.VersionInfo {
+func getP2PoolVersion() cmdutils.VersionInfo {
 	p2poolVersionLock.Lock()
 	defer p2poolVersionLock.Unlock()
 	now := time.Now().Unix()
@@ -55,10 +55,10 @@ func getP2PoolVersion() utils.VersionInfo {
 	}
 	defer response.Body.Close()
 
-	var releaseData utils.ReleaseDataJson
+	var releaseData cmdutils.ReleaseDataJson
 	if data, err := io.ReadAll(response.Body); err != nil {
 		return p2poolVersion
-	} else if err = json.Unmarshal(data, &releaseData); err != nil {
+	} else if err = utils.UnmarshalJSON(data, &releaseData); err != nil {
 		return p2poolVersion
 	} else {
 		p2poolVersion.Version = releaseData.TagName

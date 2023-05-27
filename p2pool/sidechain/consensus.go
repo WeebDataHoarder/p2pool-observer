@@ -1,7 +1,6 @@
 package sidechain
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/moneroutil"
@@ -9,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"strconv"
 )
@@ -59,12 +59,12 @@ func (n NetworkType) AddressNetwork() (uint8, error) {
 }
 
 func (n NetworkType) MarshalJSON() ([]byte, error) {
-	return json.Marshal(n.String())
+	return utils.MarshalJSON(n.String())
 }
 
 func (n *NetworkType) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := utils.UnmarshalJSON(b, &s); err != nil {
 		return err
 	}
 
@@ -123,7 +123,7 @@ func NewConsensus(networkType NetworkType, poolName, poolPassword string, target
 
 func NewConsensusFromJSON(data []byte) (*Consensus, error) {
 	var c Consensus
-	if err := json.Unmarshal(data, &c); err != nil {
+	if err := utils.UnmarshalJSON(data, &c); err != nil {
 		return nil, err
 	}
 

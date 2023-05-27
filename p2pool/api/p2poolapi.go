@@ -2,13 +2,13 @@ package api
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"io"
 	"log"
@@ -107,7 +107,7 @@ func (p *P2PoolApi) LightByMainId(id types.Hash) *sidechain.PoolBlock {
 		} else {
 			b := &sidechain.PoolBlock{}
 
-			if err = json.Unmarshal(buf, &b); err != nil || b.ShareVersion() == sidechain.ShareVersion_None {
+			if err = utils.UnmarshalJSON(buf, &b); err != nil || b.ShareVersion() == sidechain.ShareVersion_None {
 				return nil
 			}
 
@@ -127,7 +127,7 @@ func (p *P2PoolApi) ByMainId(id types.Hash) *sidechain.PoolBlock {
 		} else {
 			var result p2pooltypes.P2PoolBinaryBlockResult
 
-			if err = json.Unmarshal(buf, &result); err != nil || result.Version == 0 {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || result.Version == 0 {
 				return nil
 			}
 
@@ -151,7 +151,7 @@ func (p *P2PoolApi) LightByTemplateId(id types.Hash) sidechain.UniquePoolBlockSl
 		} else {
 			var result sidechain.UniquePoolBlockSlice
 
-			if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 				return nil
 			}
 
@@ -171,7 +171,7 @@ func (p *P2PoolApi) ByTemplateId(id types.Hash) *sidechain.PoolBlock {
 		} else {
 			var result p2pooltypes.P2PoolBinaryBlockResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			} else if result.Version == 0 {
 				// Fallback into archive
@@ -185,7 +185,7 @@ func (p *P2PoolApi) ByTemplateId(id types.Hash) *sidechain.PoolBlock {
 					} else {
 						var result []p2pooltypes.P2PoolBinaryBlockResult
 
-						if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+						if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 							return nil
 						}
 
@@ -225,7 +225,7 @@ func (p *P2PoolApi) LightBySideHeight(height uint64) sidechain.UniquePoolBlockSl
 		} else {
 			var result sidechain.UniquePoolBlockSlice
 
-			if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 				return nil
 			}
 
@@ -245,7 +245,7 @@ func (p *P2PoolApi) BySideHeight(height uint64) sidechain.UniquePoolBlockSlice {
 		} else {
 			var result []p2pooltypes.P2PoolBinaryBlockResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			} else if len(result) == 0 {
 				// Fallback into archive
@@ -259,7 +259,7 @@ func (p *P2PoolApi) BySideHeight(height uint64) sidechain.UniquePoolBlockSlice {
 					} else {
 						var result []p2pooltypes.P2PoolBinaryBlockResult
 
-						if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+						if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 							return nil
 						}
 
@@ -306,7 +306,7 @@ func (p *P2PoolApi) LightByMainHeight(height uint64) sidechain.UniquePoolBlockSl
 		} else {
 			var result sidechain.UniquePoolBlockSlice
 
-			if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 				return nil
 			}
 
@@ -326,7 +326,7 @@ func (p *P2PoolApi) ByMainHeight(height uint64) sidechain.UniquePoolBlockSlice {
 		} else {
 			var result []p2pooltypes.P2PoolBinaryBlockResult
 
-			if err = json.Unmarshal(buf, &result); err != nil || len(result) == 0 {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || len(result) == 0 {
 				return nil
 			}
 
@@ -391,7 +391,7 @@ func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2Pool
 		} else {
 			var result p2pooltypes.P2PoolConnectionCheckInformation
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -411,7 +411,7 @@ func (p *P2PoolApi) MinerData() *p2pooltypes.MinerData {
 		} else {
 			var result p2pooltypes.MinerData
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -431,7 +431,7 @@ func (p *P2PoolApi) MainTip() *block.Header {
 		} else {
 			var result block.Header
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -451,7 +451,7 @@ func (p *P2PoolApi) MainHeaderById(id types.Hash) *block.Header {
 		} else {
 			var result block.Header
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -471,7 +471,7 @@ func (p *P2PoolApi) MainHeaderByHeight(height uint64) *block.Header {
 		} else {
 			var result block.Header
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -491,7 +491,7 @@ func (p *P2PoolApi) MainDifficultyByHeight(height uint64) types.Difficulty {
 		} else {
 			var result types.Difficulty
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return types.ZeroDifficulty
 			}
 
@@ -511,7 +511,7 @@ func (p *P2PoolApi) StateFromTemplateId(id types.Hash) (chain, uncles sidechain.
 		} else {
 			var result p2pooltypes.P2PoolSideChainStateResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil, nil
 			}
 
@@ -550,7 +550,7 @@ func (p *P2PoolApi) WindowFromTemplateId(id types.Hash) (chain, uncles sidechain
 		} else {
 			var result p2pooltypes.P2PoolSideChainStateResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil, nil
 			}
 
@@ -589,7 +589,7 @@ func (p *P2PoolApi) StateFromTip() (chain, uncles sidechain.UniquePoolBlockSlice
 		} else {
 			var result p2pooltypes.P2PoolSideChainStateResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil, nil
 			}
 
@@ -628,7 +628,7 @@ func (p *P2PoolApi) Tip() *sidechain.PoolBlock {
 		} else {
 			var result p2pooltypes.P2PoolBinaryBlockResult
 
-			if err = json.Unmarshal(buf, &result); err != nil {
+			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil
 			}
 
@@ -682,7 +682,7 @@ func (p *P2PoolApi) Status() *p2pooltypes.P2PoolSideChainStatusResult {
 		} else {
 			result := &p2pooltypes.P2PoolSideChainStatusResult{}
 
-			if err = json.Unmarshal(buf, result); err != nil {
+			if err = utils.UnmarshalJSON(buf, result); err != nil {
 				return nil
 			}
 

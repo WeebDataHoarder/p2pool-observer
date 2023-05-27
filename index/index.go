@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	_ "embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
@@ -13,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -645,7 +645,7 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 		}
 	}
 
-	metadataJson, _ := json.Marshal(b.Metadata)
+	metadataJson, _ := utils.MarshalJSON(b.Metadata)
 
 	return i.Query(
 		"INSERT INTO main_blocks (id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) ON CONFLICT (id) DO UPDATE SET metadata = $7, side_template_id = $8, coinbase_private_key = $9;",
@@ -1021,8 +1021,8 @@ func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndices(globalOutputI
 
 func (i *Index) InsertOrUpdateMainLikelySweepTransaction(t *MainLikelySweepTransaction) error {
 
-	resultJson, _ := json.Marshal(t.Result)
-	matchJson, _ := json.Marshal(t.Match)
+	resultJson, _ := utils.MarshalJSON(t.Result)
+	matchJson, _ := utils.MarshalJSON(t.Match)
 	spendPub, viewPub := t.Address.SpendPublicKey().AsSlice(), t.Address.ViewPublicKey().AsSlice()
 
 	if _, err := i.handle.Exec(

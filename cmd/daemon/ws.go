@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"log"
 	"net/http"
@@ -317,7 +317,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				listenerLock.RLock()
 				defer listenerLock.RUnlock()
 				for _, b := range blocksToReport {
-					buf, err := json.Marshal(&utils2.JSONEvent{
+					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
 						Type:                utils2.JSONEventSideBlock,
 						SideBlock:           b,
 						FoundBlock:          nil,
@@ -413,7 +413,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				listenerLock.RLock()
 				defer listenerLock.RUnlock()
 				for _, b := range unfoundBlocksToReport {
-					buf, err := json.Marshal(&utils2.JSONEvent{
+					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
 						Type:                utils2.JSONEventOrphanedBlock,
 						SideBlock:           b,
 						FoundBlock:          nil,
@@ -437,7 +437,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						foundBlockBuffer.Remove(b)
 						continue
 					}
-					buf, err := json.Marshal(&utils2.JSONEvent{
+					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
 						Type:                utils2.JSONEventFoundBlock,
 						SideBlock:           nil,
 						FoundBlock:          b,

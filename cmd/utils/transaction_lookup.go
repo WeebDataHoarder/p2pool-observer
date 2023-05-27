@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 	"log"
 	"net/http"
@@ -82,7 +82,7 @@ var otherLookupHostFunc func(ctx context.Context, indices []uint64) []*index.Mat
 func init() {
 	if os.Getenv("TRANSACTION_LOOKUP_OTHER") != "" {
 		otherLookupHostFunc = func(ctx context.Context, indices []uint64) (result []*index.MatchedOutput) {
-			data, _ := json.Marshal(indices)
+			data, _ := utils.MarshalJSON(indices)
 
 			result = make([]*index.MatchedOutput, len(indices))
 
@@ -102,7 +102,7 @@ func init() {
 						if response.StatusCode == http.StatusOK {
 							if data, err := io.ReadAll(response.Body); err == nil {
 								r := make([]*index.MatchedOutput, 0, len(indices))
-								if json.Unmarshal(data, &r) == nil && len(r) == len(indices) {
+								if utils.UnmarshalJSON(data, &r) == nil && len(r) == len(indices) {
 									for i := range r {
 										if result[i] == nil {
 											result[i] = r[i]

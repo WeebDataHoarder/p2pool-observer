@@ -2,7 +2,6 @@ package address
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -148,7 +147,7 @@ func (a *Address) ToBase58() string {
 }
 
 func (a *Address) MarshalJSON() ([]byte, error) {
-	return json.Marshal(a.ToBase58())
+	return []byte("\"" + a.ToBase58() + "\""), nil
 }
 
 func (a *Address) UnmarshalJSON(b []byte) error {

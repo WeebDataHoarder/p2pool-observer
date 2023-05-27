@@ -2,13 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/gorilla/mux"
 	"io"
 	"math"
@@ -21,11 +21,10 @@ import (
 )
 
 func encodeJson(r *http.Request, w http.ResponseWriter, d any) error {
-	encoder := json.NewEncoder(w)
+	encoder := utils.NewJSONEncoder(w)
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
 		encoder.SetIndent("", "    ")
 	}
-	encoder.SetEscapeHTML(false)
 	return encoder.Encode(d)
 }
 
@@ -65,7 +64,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		if err != nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: err.Error(),
@@ -88,7 +87,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 			if client, err = instance.Server().DirectConnect(addrPort); err != nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusBadRequest)
-				buf, _ := json.Marshal(struct {
+				buf, _ := utils.MarshalJSON(struct {
 					Error string `json:"error"`
 				}{
 					Error: err.Error(),
@@ -101,7 +100,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		if client == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
-			buf, _ := json.Marshal(struct {
+			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "could not find client",

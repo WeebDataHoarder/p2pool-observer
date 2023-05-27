@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"git.gammaspectra.live/P2Pool/edwards25519"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 )
 
 type PublicKey interface {
@@ -66,7 +66,7 @@ func (k *PublicKeyPoint) String() string {
 
 func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := utils.UnmarshalJSON(b, &s); err != nil {
 		return err
 	}
 
@@ -86,7 +86,7 @@ func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeyPoint) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.String())
+	return utils.MarshalJSON(k.String())
 }
 
 type PublicKeyBytes [PublicKeySize]byte
@@ -149,7 +149,7 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeyBytes) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.String())
+	return utils.MarshalJSON(k.String())
 }
 
 type PublicKeySlice []byte
@@ -198,7 +198,7 @@ func (k *PublicKeySlice) Value() (driver.Value, error) {
 
 func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {
 	var s string
-	if err := json.Unmarshal(b, &s); err != nil {
+	if err := utils.UnmarshalJSON(b, &s); err != nil {
 		return err
 	}
 
@@ -215,5 +215,5 @@ func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeySlice) MarshalJSON() ([]byte, error) {
-	return json.Marshal(k.String())
+	return utils.MarshalJSON(k.String())
 }
