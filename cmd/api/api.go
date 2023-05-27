@@ -43,6 +43,32 @@ func encodeJson(r *http.Request, d any) ([]byte, error) {
 	}
 }
 
+func streamJsonSlice[T any](r *http.Request, writer http.ResponseWriter, stream chan T) error {
+	encoder := utils.NewJSONEncoder(writer)
+	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
+		encoder.SetIndent("", "    ")
+	}
+	_, _ = writer.Write([]byte{'[', 0xa})
+	var count uint64
+	defer func() {
+		_, _ = writer.Write([]byte{0xa, ']'})
+		for range stream {
+
+		}
+	}()
+
+	for v := range stream {
+		if count > 0 {
+			_, _ = writer.Write([]byte{',', 0xa})
+		}
+		if err := encoder.Encode(v); err != nil {
+			return err
+		}
+		count++
+	}
+	return nil
+}
+
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
@@ -99,43 +125,46 @@ func main() {
 		return result
 	}
 
-	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) (result []*index.SideBlock) {
-		result = make([]*index.SideBlock, 0)
+	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) chan *index.SideBlock {
+		result := make(chan *index.SideBlock)
 		fillUncles := !params.Has("noUncles")
 		fillMined := !params.Has("noMainStatus")
 		fillMiner := !params.Has("noMiner")
-		for sideBlock := range sideBlocks {
-			if fillMiner {
-				miner := indexDb.GetMiner(sideBlock.Miner)
-				sideBlock.MinerAddress = miner.Address()
-				sideBlock.MinerAlias = miner.Alias()
-			}
-			if fillMined {
-				mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
-				if mainTipAtHeight != nil {
-					sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
-					sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
-				} else {
-					poolInfo := lastPoolInfo.Load()
-					if (poolInfo.MainChain.Height + 1) == sideBlock.MainHeight {
-						sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.NextDifficulty.Lo
-					} else if poolInfo.MainChain.Height == sideBlock.MainHeight {
-						sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.Difficulty.Lo
+		go func() {
+			defer close(result)
+			for sideBlock := range sideBlocks {
+				if fillMiner {
+					miner := indexDb.GetMiner(sideBlock.Miner)
+					sideBlock.MinerAddress = miner.Address()
+					sideBlock.MinerAlias = miner.Alias()
+				}
+				if fillMined {
+					mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
+					if mainTipAtHeight != nil {
+						sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
+						sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
+					} else {
+						poolInfo := lastPoolInfo.Load()
+						if (poolInfo.MainChain.Height + 1) == sideBlock.MainHeight {
+							sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.NextDifficulty.Lo
+						} else if poolInfo.MainChain.Height == sideBlock.MainHeight {
+							sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.Difficulty.Lo
+						}
 					}
 				}
-			}
-			if fillUncles {
-				for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
-					sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
-						TemplateId: u.TemplateId,
-						Miner:      u.Miner,
-						SideHeight: u.SideHeight,
-						Difficulty: u.Difficulty,
-					})
+				if fillUncles {
+					for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
+						sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
+							TemplateId: u.TemplateId,
+							Miner:      u.Miner,
+							SideHeight: u.SideHeight,
+							Difficulty: u.Difficulty,
+						})
+					}
 				}
+				result <- sideBlock
 			}
-			result = append(result, sideBlock)
-		}
+		}()
 		return result
 	}
 
@@ -747,12 +776,11 @@ func main() {
 			from = tip.SideHeight
 		}
 
-		result := fillSideBlockResult(params, indexDb.GetSideBlocksInWindow(from, window))
-
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+
+		result := fillSideBlockResult(params, indexDb.GetSideBlocksInWindow(from, window))
+		_ = streamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/side_blocks_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -806,12 +834,11 @@ func main() {
 			from = tip.SideHeight
 		}
 
-		result := fillSideBlockResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
-
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+
+		result := fillSideBlockResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
+		_ = streamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/sweeps", func(writer http.ResponseWriter, request *http.Request) {
@@ -834,8 +861,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetMainLikelySweepTransactions(limit)))
-		_, _ = writer.Write(buf)
+		_ = streamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactions(limit))
 
 	})
 
@@ -876,8 +902,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetMainLikelySweepTransactionsByAddress(miner.Address(), limit)))
-		_, _ = writer.Write(buf)
+		_ = streamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactionsByAddress(miner.Address(), limit))
 
 	})
 
@@ -924,8 +949,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, index.ChanToSlice(indexDb.GetPayoutsByMinerId(miner.Id(), limit)))
-		_, _ = writer.Write(buf)
+		_ = streamJsonSlice(request, writer, indexDb.GetPayoutsByMinerId(miner.Id(), limit))
 
 	})
 
@@ -1206,12 +1230,11 @@ func main() {
 			minerId = miner.Id()
 		}
 
-		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
-
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, result)
-		_, _ = writer.Write(buf)
+
+		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
+		_ = streamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/shares", func(writer http.ResponseWriter, request *http.Request) {
@@ -1267,8 +1290,8 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		buf, _ := encodeJson(request, fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain)))
-		_, _ = writer.Write(buf)
+		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain))
+		_ = streamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/main_block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -1482,7 +1505,7 @@ func main() {
 			c := make(chan *index.SideBlock, 1)
 			c <- block
 			close(c)
-			buf, _ := encodeJson(request, fillSideBlockResult(params, c)[0])
+			buf, _ := encodeJson(request, <-fillSideBlockResult(params, c))
 			_, _ = writer.Write(buf)
 		}
 	})
@@ -1504,64 +1527,70 @@ func main() {
 	serveMux.HandleFunc("/api/stats/{kind:difficulty|miner_seen|miner_seen_window$}", func(writer http.ResponseWriter, request *http.Request) {
 		switch mux.Vars(request)["kind"] {
 		case "difficulty":
-			result := make([]*difficultyStatResult, 0)
+			result := make(chan *difficultyStatResult)
 
-			_ = indexDb.Query("SELECT side_height,timestamp,difficulty,cumulative_difficulty FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
-				r := &difficultyStatResult{}
+			go func() {
+				defer close(result)
+				_ = indexDb.Query("SELECT side_height,timestamp,difficulty,cumulative_difficulty FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
+					r := &difficultyStatResult{}
 
-				var cumDiff types.Difficulty
-				if err := row.Scan(&r.Height, &r.Timestamp, &r.Difficulty, &cumDiff); err != nil {
-					return err
-				}
-				r.CumulativeDifficulty = cumDiff.Lo
-				r.CumulativeDifficultyTop64 = cumDiff.Hi
+					var cumDiff types.Difficulty
+					if err := row.Scan(&r.Height, &r.Timestamp, &r.Difficulty, &cumDiff); err != nil {
+						return err
+					}
+					r.CumulativeDifficulty = cumDiff.Lo
+					r.CumulativeDifficultyTop64 = cumDiff.Hi
 
-				result = append(result, r)
-				return nil
-			}, 3600/consensus.TargetBlockTime)
+					result <- r
+					return nil
+				}, 3600/consensus.TargetBlockTime)
+			}()
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = streamJsonSlice(request, writer, result)
 
 		case "miner_seen":
-			result := make([]*minerSeenResult, 0)
+			result := make(chan *minerSeenResult)
 
-			_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
-				r := &minerSeenResult{}
+			go func() {
+				defer close(result)
+				_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
+					r := &minerSeenResult{}
 
-				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
-					return err
-				}
+					if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
+						return err
+					}
 
-				result = append(result, r)
-				return nil
-			}, (3600*24)/consensus.TargetBlockTime, (3600*24*7)/consensus.TargetBlockTime)
+					result <- r
+					return nil
+				}, (3600*24)/consensus.TargetBlockTime, (3600*24*7)/consensus.TargetBlockTime)
+			}()
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = streamJsonSlice(request, writer, result)
 
 		case "miner_seen_window":
-			result := make([]*minerSeenResult, 0)
+			result := make(chan *minerSeenResult)
 
-			_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
-				r := &minerSeenResult{}
+			go func() {
+				defer close(result)
+				_ = indexDb.Query("SELECT side_height,timestamp,(SELECT COUNT(DISTINCT(b.miner)) FROM side_blocks b WHERE b.side_height <= side_blocks.side_height AND b.side_height > (side_blocks.side_height - $2)) as count FROM side_blocks WHERE side_height % $1 = 0 ORDER BY side_height DESC;", func(row index.RowScanInterface) error {
+					r := &minerSeenResult{}
 
-				if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
-					return err
-				}
+					if err := row.Scan(&r.Height, &r.Timestamp, &r.Miners); err != nil {
+						return err
+					}
 
-				result = append(result, r)
-				return nil
-			}, consensus.ChainWindowSize, consensus.ChainWindowSize)
+					result <- r
+					return nil
+				}, consensus.ChainWindowSize, consensus.ChainWindowSize)
+			}()
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := encodeJson(request, result)
-			_, _ = writer.Write(buf)
+			_ = streamJsonSlice(request, writer, result)
 		}
 	})
 
