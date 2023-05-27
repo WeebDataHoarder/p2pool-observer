@@ -59,18 +59,19 @@ services:
       - POSTGRES_USER=p2pool
       - POSTGRES_PASSWORD=p2pool
       - POSTGRES_DB=p2pool
-    command:
-      - "postgres"
-      - "-c"
-      - "max_connections=1000"
-      - "-c"
-      - "shared_buffers=256MB"
-      - "-c"
-      - "work_mem=64MB"
-      - "-c"
-      - "temp_buffers=64MB"
-      - "-c"
-      - "hash_mem_multiplier=2.0"
+    command: >-
+      postgres
+      -c max_connections=1000
+      -c shared_buffers=256MB
+      -c work_mem=64MB
+      -c temp_buffers=64MB
+      -c hash_mem_multiplier=2.0
+      -c hash_mem_multiplier=2.0
+      -c shared_preload_libraries='pg_stat_statements'
+      -c track_activity_query_size=2048
+      -c pg_stat_statements.track=all
+      -c pg_stat_statements.save=on
+      -c track_io_timing=on
     networks:
       - p2pool-observer
     healthcheck:

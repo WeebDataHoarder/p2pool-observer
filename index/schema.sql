@@ -119,3 +119,5 @@ CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_miner_idx ON main_like
 
 CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_spending_output_indexes_idx ON main_likely_sweep_transactions USING GIN (spending_output_indices);
 CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_global_output_indexes_idx ON main_likely_sweep_transactions USING GIN (global_output_indices);
+
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
