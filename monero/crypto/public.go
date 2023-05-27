@@ -149,7 +149,11 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeyBytes) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(k.String())
+	var buf [PublicKeySize*2 + 2]byte
+	buf[0] = '"'
+	buf[PublicKeySize*2+1] = '"'
+	hex.Encode(buf[1:], k[:])
+	return buf[:], nil
 }
 
 type PublicKeySlice []byte
@@ -215,5 +219,9 @@ func (k *PublicKeySlice) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeySlice) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(k.String())
+	var buf [PublicKeySize*2 + 2]byte
+	buf[0] = '"'
+	buf[PublicKeySize*2+1] = '"'
+	hex.Encode(buf[1:], (*k)[:])
+	return buf[:], nil
 }

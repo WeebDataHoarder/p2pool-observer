@@ -166,7 +166,11 @@ func (k *PrivateKeyBytes) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PrivateKeyBytes) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(k.String())
+	var buf [PrivateKeySize*2 + 2]byte
+	buf[0] = '"'
+	buf[PrivateKeySize*2+1] = '"'
+	hex.Encode(buf[1:], k[:])
+	return buf[:], nil
 }
 
 type PrivateKeySlice []byte
@@ -245,7 +249,11 @@ func (k *PrivateKeySlice) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PrivateKeySlice) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(k.String())
+	var buf [PrivateKeySize*2 + 2]byte
+	buf[0] = '"'
+	buf[PrivateKeySize*2+1] = '"'
+	hex.Encode(buf[1:], (*k)[:])
+	return buf[:], nil
 }
 
 func deriveKeyExchangeSecretCofactor(private *PrivateKeyScalar, public *PublicKeyPoint) *PublicKeyPoint {
