@@ -555,7 +555,7 @@ func main() {
 
 		var miner *cmdutils.MinerInfoResult
 		if params.Has("miner") {
-			miner = getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			miner = getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", params.Get("miner")))
 			if miner == nil || miner.Address == nil {
 				renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
 				return
@@ -590,7 +590,7 @@ func main() {
 
 		var miner *cmdutils.MinerInfoResult
 		if params.Has("miner") {
-			miner = getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s", params.Get("miner")))
+			miner = getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", params.Get("miner")))
 			if miner == nil || miner.Address == nil {
 				renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
 				return
@@ -1056,7 +1056,7 @@ func main() {
 		if params.Has("address") {
 			address = params.Get("address")
 		}
-		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s", address))
+		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", address))
 
 		if miner == nil || miner.Address == nil {
 			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
