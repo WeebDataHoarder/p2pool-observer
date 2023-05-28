@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 	"log"
 	"reflect"
+	"runtime/pprof"
 	"strings"
 	"sync"
 )
@@ -294,13 +295,16 @@ type Scannable interface {
 }
 
 func (i *Index) Query(query string, callback func(row RowScanInterface) error, params ...any) error {
-	if stmt, err := i.handle.Prepare(query); err != nil {
-		return err
-	} else {
-		defer stmt.Close()
-
-		return i.QueryStatement(stmt, callback, params...)
-	}
+	var parentError error
+	pprof.Do(context.Background(), pprof.Labels("query", query), func(ctx context.Context) {
+		if stmt, err := i.handle.Prepare(query); err != nil {
+			parentError = err
+		} else {
+			defer stmt.Close()
+			parentError = i.QueryStatement(stmt, callback, params...)
+		}
+	})
+	return parentError
 }
 
 func (i *Index) QueryStatement(stmt *sql.Stmt, callback func(row RowScanInterface) error, params ...any) error {
@@ -329,50 +333,55 @@ func (i *Index) GetSideBlocksByQuery(where string, params ...any) chan *SideBloc
 		close(returnChannel)
 		return returnChannel
 	} else {
-		return i.getSideBlocksByQueryStatement(stmt, params...)
+		return i.getSideBlocksByQueryStatement(where, stmt, params...)
 	}
 }
 
-func (i *Index) getSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *SideBlock {
+func (i *Index) getSideBlocksByQueryStatement(sourceQuery string, stmt *sql.Stmt, params ...any) chan *SideBlock {
 	returnChannel := make(chan *SideBlock, 1)
 	go func() {
 		defer stmt.Close()
 		defer close(returnChannel)
-		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-			b := &SideBlock{}
-			if err = b.ScanFromRow(i, row); err != nil {
-				return err
+
+		pprof.Do(context.Background(), pprof.Labels("sourceQuery", sourceQuery), func(ctx context.Context) {
+			err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
+				b := &SideBlock{}
+				if err = b.ScanFromRow(i, row); err != nil {
+					return err
+				}
+
+				returnChannel <- b
+
+				return nil
+			}, params...)
+			if err != nil {
+				log.Print(err)
 			}
-
-			returnChannel <- b
-
-			return nil
-		}, params...)
-		if err != nil {
-			log.Print(err)
-		}
+		})
 	}()
 
 	return returnChannel
 }
 
-func (i *Index) GetSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *SideBlock {
+func (i *Index) GetSideBlocksByQueryStatement(source string, stmt *sql.Stmt, params ...any) chan *SideBlock {
 	returnChannel := make(chan *SideBlock, 1)
 	go func() {
 		defer close(returnChannel)
-		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-			b := &SideBlock{}
-			if err = b.ScanFromRow(i, row); err != nil {
-				return err
+		pprof.Do(context.Background(), pprof.Labels("source", source), func(ctx context.Context) {
+			err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
+				b := &SideBlock{}
+				if err = b.ScanFromRow(i, row); err != nil {
+					return err
+				}
+
+				returnChannel <- b
+
+				return nil
+			}, params...)
+			if err != nil {
+				log.Print(err)
 			}
-
-			returnChannel <- b
-
-			return nil
-		}, params...)
-		if err != nil {
-			log.Print(err)
-		}
+		})
 	}()
 
 	return returnChannel
@@ -416,7 +425,7 @@ func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion Bloc
 
 func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) []*FoundBlock {
 	result := make([]*FoundBlock, 0, limit)
-	if err := i.Query(fmt.Sprintf("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.reward AS reward, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.difficulty AS main_difficulty, m.side_template_id AS template_id, s.side_height AS side_height, s.miner AS miner, s.uncle_of AS uncle_of, s.effective_height AS effective_height, s.window_depth AS window_depth, s.window_outputs AS window_outputs, s.transaction_count AS transaction_count, s.difficulty AS side_difficulty, s.cumulative_difficulty AS side_cumulative_difficulty, s.inclusion AS side_inclusion FROM (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m LEFT JOIN LATERAL (SELECT * FROM side_blocks WHERE main_id = m.id) s ON m.id = s.main_id %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
+	if err := i.Query(fmt.Sprintf("SELECT * FROM found_main_blocks %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
 		var d FoundBlock
 
 		if err := d.ScanFromRow(i, row); err != nil {
@@ -517,7 +526,7 @@ func (i *Index) GetMainBlockByHeight(height uint64) *MainBlock {
 }
 
 func (i *Index) GetSideBlockByMainId(id types.Hash) *SideBlock {
-	r := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByMainId, id[:])
+	r := i.GetSideBlocksByQueryStatement("GetSideBlockByMainId", i.statements.GetSideBlockByMainId, id[:])
 	defer ChanConsume(r)
 	return <-r
 }
@@ -527,11 +536,11 @@ func (i *Index) GetSideBlocksByTemplateId(id types.Hash) chan *SideBlock {
 }
 
 func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) chan *SideBlock {
-	return i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByUncleId, id[:])
+	return i.GetSideBlocksByQueryStatement("GetSideBlocksByUncleOfId", i.statements.GetSideBlockByUncleId, id[:])
 }
 
 func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) *SideBlock {
-	r := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain)
+	r := i.GetSideBlocksByQueryStatement("GetTipSideBlockByTemplateId", i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain)
 	defer ChanConsume(r)
 	return <-r
 }
@@ -551,7 +560,7 @@ func (i *Index) GetTipSideBlockByHeight(height uint64) *SideBlock {
 }
 
 func (i *Index) GetSideBlockTip() *SideBlock {
-	r := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlock, InclusionInVerifiedChain)
+	r := i.GetSideBlocksByQueryStatement("GetSideBlockTip", i.statements.TipSideBlock, InclusionInVerifiedChain)
 	defer ChanConsume(r)
 	return <-r
 }
@@ -680,11 +689,11 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 		}
 
 		if limit == 0 {
-			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
+			if err := i.Query("SELECT * FROM payouts WHERE miner = $1 ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
 				return
 			}
 		} else {
-			if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
+			if err := i.Query("SELECT * FROM payouts WHERE miner = $1 ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
 				return
 			}
 		}
@@ -708,7 +717,7 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 			return nil
 		}
 
-		if err := i.Query("SELECT m.id AS main_id, m.height AS main_height, m.timestamp AS timestamp, m.coinbase_id AS coinbase_id, m.coinbase_private_key AS coinbase_private_key, m.side_template_id AS template_id, s.side_height AS side_height, s.uncle_of AS uncle_of, o.value AS value, o.index AS index, o.global_output_index AS global_output_index FROM (SELECT id, value, index, global_output_index FROM main_coinbase_outputs WHERE miner = $1) o LEFT JOIN LATERAL (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks WHERE coinbase_id = o.id) m ON m.coinbase_id = o.id LEFT JOIN LATERAL (SELECT template_id, main_id, side_height, uncle_of, (effective_height - window_depth) AS including_height FROM side_blocks WHERE main_id = m.id) s ON s.main_id = m.id WHERE (side_height >= $2 AND including_height <= $2) OR s.main_id = $3 ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
+		if err := i.Query("SELECT * FROM payouts WHERE miner = $1 AND ((side_height >= $2 AND including_height <= $2) OR main_id = $3) ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
 			return
 		}
 	}()

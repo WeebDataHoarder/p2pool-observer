@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"flag"
 	"fmt"
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
@@ -26,6 +27,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -1092,7 +1094,15 @@ func main() {
 
 			writer.Header().Set("content-type", "text/html; charset=utf-8")
 
-			serveMux.ServeHTTP(writer, request)
+			pathEntry := "/"
+			splitPath := strings.Split(request.URL.Path, "/")
+			if len(splitPath) > 1 {
+				pathEntry = splitPath[1]
+			}
+
+			pprof.Do(request.Context(), pprof.Labels("path", pathEntry), func(ctx context.Context) {
+				serveMux.ServeHTTP(writer, request)
+			})
 		}),
 	}
 

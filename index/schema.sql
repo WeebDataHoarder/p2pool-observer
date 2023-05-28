@@ -56,6 +56,8 @@ CREATE INDEX IF NOT EXISTS side_blocks_parent_template_id_idx ON side_blocks (pa
 CREATE INDEX IF NOT EXISTS side_blocks_uncle_of_idx ON side_blocks (uncle_of);
 CREATE INDEX IF NOT EXISTS side_blocks_effective_height_idx ON side_blocks (effective_height);
 
+-- CLUSTER VERBOSE side_blocks USING side_blocks_effective_height_idx;
+
 -- Cannot have non-unique constraints
 -- ALTER TABLE side_blocks ADD CONSTRAINT fk_side_blocks_uncle_of FOREIGN KEY (uncle_of) REFERENCES side_blocks (template_id);
 -- ALTER TABLE side_blocks ADD CONSTRAINT fk_side_blocks_effective_height FOREIGN KEY (effective_height) REFERENCES side_blocks (side_height);
@@ -76,6 +78,8 @@ CREATE TABLE IF NOT EXISTS main_blocks (
     -- Cannot have non-unique constraints
     -- FOREIGN KEY (side_template_id) REFERENCES side_blocks (template_id)
 );
+
+-- CLUSTER VERBOSE main_blocks USING main_blocks_height_key;
 
 
 CREATE TABLE IF NOT EXISTS main_coinbase_outputs (
@@ -121,3 +125,54 @@ CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_spending_output_indexe
 CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_global_output_indexes_idx ON main_likely_sweep_transactions USING GIN (global_output_indices);
 
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+
+
+-- Views
+
+CREATE OR REPLACE VIEW found_main_blocks AS
+    SELECT
+    m.id AS main_id,
+    m.height AS main_height,
+    m.timestamp AS timestamp,
+    m.reward AS reward,
+    m.coinbase_id AS coinbase_id,
+    m.coinbase_private_key AS coinbase_private_key,
+    m.difficulty AS main_difficulty,
+    m.side_template_id AS template_id,
+    s.side_height AS side_height,
+    s.miner AS miner,
+    s.uncle_of AS uncle_of,
+    s.effective_height AS effective_height,
+    s.window_depth AS window_depth,
+    s.window_outputs AS window_outputs,
+    s.transaction_count AS transaction_count,
+    s.difficulty AS side_difficulty,
+    s.cumulative_difficulty AS side_cumulative_difficulty,
+    s.inclusion AS side_inclusion
+    FROM
+        (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m
+            LEFT JOIN LATERAL
+        (SELECT * FROM side_blocks) AS s ON s.main_id = m.id;
+
+
+CREATE OR REPLACE VIEW payouts AS
+    SELECT
+    o.miner AS miner,
+    m.id AS main_id,
+    m.height AS main_height,
+    m.timestamp AS timestamp,
+    m.coinbase_id AS coinbase_id,
+    m.coinbase_private_key AS coinbase_private_key,
+    m.side_template_id AS template_id,
+    s.side_height AS side_height,
+    s.uncle_of AS uncle_of,
+    o.value AS value,
+    o.index AS index,
+    o.global_output_index AS global_output_index,
+    s.including_height AS including_height
+    FROM
+        (SELECT id, value, index, global_output_index, miner FROM main_coinbase_outputs) AS o
+            LEFT JOIN LATERAL
+        (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks) AS m ON m.coinbase_id = o.id
+            LEFT JOIN LATERAL
+        (SELECT template_id, main_id, side_height, uncle_of, (effective_height - window_depth) AS including_height FROM side_blocks) AS s ON s.main_id = m.id;

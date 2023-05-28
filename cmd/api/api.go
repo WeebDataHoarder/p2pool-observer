@@ -28,6 +28,7 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -1724,7 +1725,15 @@ func main() {
 				return
 			}
 
-			serveMux.ServeHTTP(writer, request)
+			pathEntry := "/"
+			splitPath := strings.Split(request.URL.Path, "/")
+			if len(splitPath) > 1 {
+				pathEntry = splitPath[1]
+			}
+
+			pprof.Do(request.Context(), pprof.Labels("path", pathEntry), func(ctx context.Context) {
+				serveMux.ServeHTTP(writer, request)
+			})
 		}),
 	}
 
