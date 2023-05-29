@@ -49,7 +49,9 @@ services:
     ports:
       - ${SITE_PORT}:80
   db:
-    image: postgres:15.2
+    build:
+      context: ./docker/postgres
+      dockerfile: Dockerfile
     restart: always
     read_only: true
     shm_size: 4gb

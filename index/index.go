@@ -82,18 +82,27 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 	}
 	defer tx.Rollback()
 	viewMatch := regexp.MustCompile("CREATE (MATERIALIZED |)VIEW ([^ \n\t]+?)(_v[0-9]+)? AS\n")
+	immv := regexp.MustCompile("SELECT (create_immv)\\('([^ \n\t']+?)(_v[0-9]+)?',")
 	for _, statement := range strings.Split(dbSchema, ";") {
-		if matches := viewMatch.FindStringSubmatch(statement); matches != nil {
+		var matches []string
+		if matches = viewMatch.FindStringSubmatch(statement); matches == nil {
+			matches = immv.FindStringSubmatch(statement)
+		}
+		if matches != nil {
 			isMaterialized := matches[1] == "MATERIALIZED "
+			isImmv := matches[1] == "create_immv"
 			viewName := matches[2]
 			fullViewName := viewName
+			//base view for materialized one
+
 			if len(matches[3]) != 0 {
 				fullViewName = viewName + matches[3]
 			}
 			index.views[viewName] = fullViewName
-			if row, err := tx.Query(fmt.Sprintf("SELECT relname, relkind FROM pg_class WHERE relname LIKE '%s%%';", matches[2])); err != nil {
+			if row, err := tx.Query(fmt.Sprintf("SELECT relname, relkind FROM pg_class WHERE relname LIKE '%s%%';", viewName)); err != nil {
 				return nil, err
 			} else {
+				var entries []struct{ n, kind string }
 				var exists bool
 				if err = func() error {
 					defer row.Close()
@@ -102,22 +111,30 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 						if err = row.Scan(&n, &kind); err != nil {
 							return err
 						}
-						if kind == "m" && fullViewName != n {
-							if _, err := tx.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", n)); err != nil {
-								return err
-							}
-						} else if kind == "v" && fullViewName != n {
-							if _, err := tx.Exec(fmt.Sprintf("DROP VIEW %s;", n)); err != nil {
-								return err
-							}
-						} else if kind != "i" {
-							exists = true
-						}
+						entries = append(entries, struct{ n, kind string }{n: n, kind: kind})
 					}
-					return nil
+					return row.Err()
 				}(); err != nil {
 					return nil, err
 				}
+				for _, e := range entries {
+					if e.kind == "m" && fullViewName != e.n {
+						if _, err := tx.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW %s CASCADE;", e.n)); err != nil {
+							return nil, err
+						}
+					} else if e.kind == "v" && fullViewName != e.n {
+						if _, err := tx.Exec(fmt.Sprintf("DROP VIEW %s CASCADE;", e.n)); err != nil {
+							return nil, err
+						}
+					} else if e.kind == "r" && fullViewName != e.n {
+						if _, err := tx.Exec(fmt.Sprintf("DROP TABLE %s CASCADE;", e.n)); err != nil {
+							return nil, err
+						}
+					} else if e.kind != "i" {
+						exists = true
+					}
+				}
+
 				if !exists {
 					if _, err := tx.Exec(statement); err != nil {
 						return nil, err
@@ -126,6 +143,10 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 					//Do first refresh
 					if isMaterialized {
 						if _, err := tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s;", fullViewName)); err != nil {
+							return nil, err
+						}
+					} else if isImmv {
+						if _, err := tx.Exec(fmt.Sprintf("SELECT refresh_immv('%s', true);", fullViewName)); err != nil {
 							return nil, err
 						}
 					}
@@ -707,15 +728,6 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 					return err
 				}
 
-				// Refresh materialized views
-				if _, err := tx.Exec("DELETE FROM "+i.views["payouts"]+" WHERE main_id = $1;", oldBlock.Id[:]); err != nil {
-					return err
-				}
-
-				if _, err := tx.Exec("DELETE FROM "+i.views["found_main_blocks"]+" WHERE main_id = $1;", oldBlock.Id[:]); err != nil {
-					return err
-				}
-
 				if err = tx.Commit(); err != nil {
 					return err
 				}
@@ -729,7 +741,7 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 		return err
 	} else {
 		defer tx.Rollback()
-		if result, err := tx.Exec(
+		if _, err := tx.Exec(
 			"INSERT INTO main_blocks (id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) ON CONFLICT (id) DO UPDATE SET metadata = $7, side_template_id = $8, coinbase_private_key = $9;",
 			b.Id[:],
 			b.Height,
@@ -742,12 +754,6 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 			&b.CoinbasePrivateKey,
 		); err != nil {
 			return err
-		} else if n, err := result.RowsAffected(); err != nil {
-			return err
-		} else if n > 0 {
-			if _, err := tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY " + i.views["found_main_blocks"] + ";"); err != nil {
-				return err
-			}
 		}
 
 		return tx.Commit()
@@ -1173,9 +1179,8 @@ func (i *Index) InsertOrUpdateMainCoinbaseOutputs(outputs MainCoinbaseOutputs) e
 		return err
 	} else {
 		defer tx.Rollback()
-		inserted := 0
 		for _, o := range outputs {
-			if result, err := tx.Exec(
+			if _, err := tx.Exec(
 				"INSERT INTO main_coinbase_outputs (id, index, global_output_index, miner, value) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING;",
 				o.Id[:],
 				o.Index,
@@ -1183,15 +1188,6 @@ func (i *Index) InsertOrUpdateMainCoinbaseOutputs(outputs MainCoinbaseOutputs) e
 				o.Miner,
 				o.Value,
 			); err != nil {
-				return err
-			} else if n, err := result.RowsAffected(); err != nil {
-				return err
-			} else if n > 0 {
-				inserted++
-			}
-		}
-		if inserted > 0 {
-			if _, err := tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY " + i.views["payouts"] + ";"); err != nil {
 				return err
 			}
 		}

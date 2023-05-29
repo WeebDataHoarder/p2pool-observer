@@ -129,9 +129,10 @@ CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 
 -- Views
+CREATE EXTENSION IF NOT EXISTS pg_ivm;
 
-CREATE MATERIALIZED VIEW found_main_blocks_v1 AS
-    SELECT
+SELECT create_immv('found_main_blocks_v4', $$
+SELECT
     m.id AS main_id,
     m.height AS main_height,
     m.timestamp AS timestamp,
@@ -150,19 +151,18 @@ CREATE MATERIALIZED VIEW found_main_blocks_v1 AS
     s.difficulty AS side_difficulty,
     s.cumulative_difficulty AS side_cumulative_difficulty,
     s.inclusion AS side_inclusion
-    FROM
-        (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m
-            LEFT JOIN LATERAL
-        (SELECT * FROM side_blocks) AS s ON s.main_id = m.id
-    WITH NO DATA;
+FROM
+    (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m
+    JOIN
+    (SELECT * FROM side_blocks) AS s ON s.main_id = m.id
+$$);
 
-CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_main_id_idx ON found_main_blocks_v1 (main_id);
-CREATE INDEX IF NOT EXISTS found_main_blocks_miner_idx ON found_main_blocks_v1 (miner);
-CREATE INDEX IF NOT EXISTS found_main_blocks_side_height_idx ON found_main_blocks_v1 (side_height);
+CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_main_id_idx ON found_main_blocks_v4 (main_id);
+CREATE INDEX IF NOT EXISTS found_main_blocks_miner_idx ON found_main_blocks_v4 (miner);
+CREATE INDEX IF NOT EXISTS found_main_blocks_side_height_idx ON found_main_blocks_v4 (side_height);
 
-
-CREATE MATERIALIZED VIEW payouts_v2 AS
-    SELECT
+SELECT create_immv('payouts_v4', $$
+SELECT
     o.miner AS miner,
     m.id AS main_id,
     m.height AS main_height,
@@ -176,17 +176,17 @@ CREATE MATERIALIZED VIEW payouts_v2 AS
     o.index AS index,
     o.global_output_index AS global_output_index,
     s.including_height AS including_height
-    FROM
-        (SELECT id, value, index, global_output_index, miner FROM main_coinbase_outputs) AS o
-            LEFT JOIN LATERAL
+FROM
+    (SELECT id, value, index, global_output_index, miner FROM main_coinbase_outputs) AS o
+        JOIN
         (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks) AS m ON m.coinbase_id = o.id
-            LEFT JOIN LATERAL
+        JOIN
         (SELECT template_id, main_id, side_height, uncle_of, GREATEST(0, GREATEST(effective_height, side_height) - window_depth) AS including_height FROM side_blocks) AS s ON s.main_id = m.id
-    WITH NO DATA;
+$$);
 
 
-CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_global_output_index_idx ON payouts_v2 (global_output_index);
-CREATE INDEX IF NOT EXISTS payouts_miner_idx ON payouts_v2 (miner);
-CREATE INDEX IF NOT EXISTS payouts_main_id_idx ON payouts_v2 (main_id);
-CREATE INDEX IF NOT EXISTS payouts_side_height_idx ON payouts_v2 (side_height);
-CREATE INDEX IF NOT EXISTS payouts_main_height_idx ON payouts_v2 (main_height);
+CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_global_output_index_idx ON payouts_v4 (global_output_index);
+CREATE INDEX IF NOT EXISTS payouts_miner_idx ON payouts_v4 (miner);
+CREATE INDEX IF NOT EXISTS payouts_main_id_idx ON payouts_v4 (main_id);
+CREATE INDEX IF NOT EXISTS payouts_side_height_idx ON payouts_v4 (side_height);
+CREATE INDEX IF NOT EXISTS payouts_main_height_idx ON payouts_v4 (main_height);
