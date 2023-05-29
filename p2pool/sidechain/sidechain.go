@@ -682,7 +682,8 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 		for _, child := range c.blocksByHeight[block.Side.Height+i] {
 			if child.Side.Parent.Equals(block.SideTemplateId(c.Consensus())) {
 				if i != 1 {
-					//TODO: error
+					log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
+					return
 				} else {
 					block.Depth.Store(utils.Max(block.Depth.Load(), child.Depth.Load()+1))
 				}
