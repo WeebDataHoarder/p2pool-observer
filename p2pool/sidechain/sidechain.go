@@ -704,12 +704,13 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 		blockDepth := block.Depth.Load()
 		// Verify this block and possibly other blocks on top of it when we're sure it will get verified
 		if !block.Verified.Load() && (blockDepth >= c.Consensus().ChainWindowSize*2 || block.Side.Height == 0) {
-			c.verifyLoop(block)
+			_ = c.verifyLoop(block)
 		}
 
 		if parent := c.getParent(block); parent != nil {
 			if parent.Side.Height+1 != block.Side.Height {
-				//TODO error
+				log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, parent.Side.Height)
+				return
 			}
 
 			if parent.Depth.Load() < blockDepth+1 {
@@ -721,7 +722,8 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 		for _, uncleId := range block.Side.Uncles {
 			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle != nil {
 				if uncle.Side.Height >= block.Side.Height || (uncle.Side.Height+UncleBlockDepth < block.Side.Height) {
-					//TODO: error
+					log.Printf("[SideChain] Block %s side height %d is inconsistent with uncle's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, uncle.Side.Height)
+					return
 				}
 
 				d := block.Side.Height - uncle.Side.Height
