@@ -135,6 +135,12 @@ func NewConsensusFromJSON(data []byte) (*Consensus, error) {
 }
 
 func (c *Consensus) verify() bool {
+
+	if c.PoolName == "default" {
+		//p2pool changed consensus config to use default instead of original value
+		c.PoolName = ConsensusDefault.PoolName
+	}
+
 	if len(c.PoolName) > 128 {
 		return false
 	}
