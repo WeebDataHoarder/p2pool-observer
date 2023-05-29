@@ -707,11 +707,12 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 					return err
 				}
 
-				if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["payouts"] + ";"); err != nil {
+				// Refresh materialized views
+				if _, err := tx.Exec("DELETE FROM "+i.views["payouts"]+" WHERE main_id = $1;", oldBlock.Id[:]); err != nil {
 					return err
 				}
 
-				if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["found_main_blocks"] + ";"); err != nil {
+				if _, err := tx.Exec("DELETE FROM "+i.views["found_main_blocks"]+" WHERE main_id = $1;", oldBlock.Id[:]); err != nil {
 					return err
 				}
 
@@ -728,7 +729,7 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 		return err
 	} else {
 		defer tx.Rollback()
-		if _, err := tx.Exec(
+		if result, err := tx.Exec(
 			"INSERT INTO main_blocks (id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) ON CONFLICT (id) DO UPDATE SET metadata = $7, side_template_id = $8, coinbase_private_key = $9;",
 			b.Id[:],
 			b.Height,
@@ -741,11 +742,14 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 			&b.CoinbasePrivateKey,
 		); err != nil {
 			return err
+		} else if n, err := result.RowsAffected(); err != nil {
+			return err
+		} else if n > 0 {
+			if _, err := tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY " + i.views["found_main_blocks"] + ";"); err != nil {
+				return err
+			}
 		}
 
-		if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["found_main_blocks"] + ";"); err != nil {
-			return err
-		}
 		return tx.Commit()
 	}
 }
@@ -1169,8 +1173,9 @@ func (i *Index) InsertOrUpdateMainCoinbaseOutputs(outputs MainCoinbaseOutputs) e
 		return err
 	} else {
 		defer tx.Rollback()
+		inserted := 0
 		for _, o := range outputs {
-			if _, err = tx.Exec(
+			if result, err := tx.Exec(
 				"INSERT INTO main_coinbase_outputs (id, index, global_output_index, miner, value) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING;",
 				o.Id[:],
 				o.Index,
@@ -1179,10 +1184,16 @@ func (i *Index) InsertOrUpdateMainCoinbaseOutputs(outputs MainCoinbaseOutputs) e
 				o.Value,
 			); err != nil {
 				return err
+			} else if n, err := result.RowsAffected(); err != nil {
+				return err
+			} else if n > 0 {
+				inserted++
 			}
 		}
-		if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["payouts"] + ";"); err != nil {
-			return err
+		if inserted > 0 {
+			if _, err := tx.Exec("REFRESH MATERIALIZED VIEW CONCURRENTLY " + i.views["payouts"] + ";"); err != nil {
+				return err
+			}
 		}
 		return tx.Commit()
 	}

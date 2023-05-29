@@ -156,6 +156,7 @@ CREATE MATERIALIZED VIEW found_main_blocks_v1 AS
         (SELECT * FROM side_blocks) AS s ON s.main_id = m.id
     WITH NO DATA;
 
+CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_main_id_idx ON found_main_blocks_v1 (main_id);
 CREATE INDEX IF NOT EXISTS found_main_blocks_miner_idx ON found_main_blocks_v1 (miner);
 CREATE INDEX IF NOT EXISTS found_main_blocks_side_height_idx ON found_main_blocks_v1 (side_height);
 
@@ -183,6 +184,8 @@ CREATE MATERIALIZED VIEW payouts_v2 AS
         (SELECT template_id, main_id, side_height, uncle_of, GREATEST(0, GREATEST(effective_height, side_height) - window_depth) AS including_height FROM side_blocks) AS s ON s.main_id = m.id
     WITH NO DATA;
 
+
+CREATE UNIQUE INDEX IF NOT EXISTS found_main_blocks_global_output_index_idx ON payouts_v2 (global_output_index);
 CREATE INDEX IF NOT EXISTS payouts_miner_idx ON payouts_v2 (miner);
 CREATE INDEX IF NOT EXISTS payouts_main_id_idx ON payouts_v2 (main_id);
 CREATE INDEX IF NOT EXISTS payouts_side_height_idx ON payouts_v2 (side_height);
