@@ -298,6 +298,11 @@ func main() {
 		tip := p2api.Tip()
 		mainTip := p2api.MainTip()
 
+		if tip == nil || mainTip == nil {
+			log.Printf("could not fetch tip or main tip")
+			continue
+		}
+
 		if blockId(tip) != currentTip.TemplateId {
 			if tip.Side.Height < currentTip.SideHeight {
 				//wtf
