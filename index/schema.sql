@@ -123,13 +123,14 @@ CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_miner_idx ON main_like
 
 CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_spending_output_indexes_idx ON main_likely_sweep_transactions USING GIN (spending_output_indices);
 CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_global_output_indexes_idx ON main_likely_sweep_transactions USING GIN (global_output_indices);
+CREATE INDEX IF NOT EXISTS main_likely_sweep_transactions_timestamp_idx ON main_likely_sweep_transactions (timestamp);
 
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 
 -- Views
 
-CREATE OR REPLACE VIEW found_main_blocks AS
+CREATE MATERIALIZED VIEW found_main_blocks_v1 AS
     SELECT
     m.id AS main_id,
     m.height AS main_height,
@@ -152,10 +153,14 @@ CREATE OR REPLACE VIEW found_main_blocks AS
     FROM
         (SELECT * FROM main_blocks WHERE side_template_id IS NOT NULL) AS m
             LEFT JOIN LATERAL
-        (SELECT * FROM side_blocks) AS s ON s.main_id = m.id;
+        (SELECT * FROM side_blocks) AS s ON s.main_id = m.id
+    WITH NO DATA;
+
+CREATE INDEX IF NOT EXISTS found_main_blocks_miner_idx ON found_main_blocks_v1 (miner);
+CREATE INDEX IF NOT EXISTS found_main_blocks_side_height_idx ON found_main_blocks_v1 (side_height);
 
 
-CREATE OR REPLACE VIEW payouts AS
+CREATE MATERIALIZED VIEW payouts_v2 AS
     SELECT
     o.miner AS miner,
     m.id AS main_id,
@@ -175,4 +180,10 @@ CREATE OR REPLACE VIEW payouts AS
             LEFT JOIN LATERAL
         (SELECT id, height, timestamp, side_template_id, coinbase_id, coinbase_private_key FROM main_blocks) AS m ON m.coinbase_id = o.id
             LEFT JOIN LATERAL
-        (SELECT template_id, main_id, side_height, uncle_of, (effective_height - window_depth) AS including_height FROM side_blocks) AS s ON s.main_id = m.id;
+        (SELECT template_id, main_id, side_height, uncle_of, GREATEST(0, GREATEST(effective_height, side_height) - window_depth) AS including_height FROM side_blocks) AS s ON s.main_id = m.id
+    WITH NO DATA;
+
+CREATE INDEX IF NOT EXISTS payouts_miner_idx ON payouts_v2 (miner);
+CREATE INDEX IF NOT EXISTS payouts_main_id_idx ON payouts_v2 (main_id);
+CREATE INDEX IF NOT EXISTS payouts_side_height_idx ON payouts_v2 (side_height);
+CREATE INDEX IF NOT EXISTS payouts_main_height_idx ON payouts_v2 (main_height);

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/exp/slices"
 	"log"
 	"reflect"
+	"regexp"
 	"runtime/pprof"
 	"strings"
 	"sync"
@@ -52,6 +53,8 @@ type Index struct {
 		minerLock sync.RWMutex
 		miner     map[uint64]*Miner
 	}
+
+	views map[string]string
 }
 
 //go:embed schema.sql
@@ -65,6 +68,7 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 		getByTemplateId:       getByTemplateId,
 		derivationCache:       sidechain.NewDerivationLRUCache(),
 		blockCache:            lru.New[types.Hash, *sidechain.PoolBlock](int(consensus.ChainWindowSize * 4)),
+		views:                 make(map[string]string),
 	}
 	if index.handle, err = sql.Open("postgres", connStr); err != nil {
 		return nil, err
@@ -77,7 +81,61 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 		return nil, err
 	}
 	defer tx.Rollback()
+	viewMatch := regexp.MustCompile("CREATE (MATERIALIZED |)VIEW ([^ \n\t]+?)(_v[0-9]+)? AS\n")
 	for _, statement := range strings.Split(dbSchema, ";") {
+		if matches := viewMatch.FindStringSubmatch(statement); matches != nil {
+			isMaterialized := matches[1] == "MATERIALIZED "
+			viewName := matches[2]
+			fullViewName := viewName
+			if len(matches[3]) != 0 {
+				fullViewName = viewName + matches[3]
+			}
+			index.views[viewName] = fullViewName
+			if row, err := tx.Query(fmt.Sprintf("SELECT relname, relkind FROM pg_class WHERE relname LIKE '%s%%';", matches[2])); err != nil {
+				return nil, err
+			} else {
+				var exists bool
+				if err = func() error {
+					defer row.Close()
+					for row.Next() {
+						var n, kind string
+						if err = row.Scan(&n, &kind); err != nil {
+							return err
+						}
+						if kind == "m" && fullViewName != n {
+							if _, err := tx.Exec(fmt.Sprintf("DROP MATERIALIZED VIEW %s;", n)); err != nil {
+								return err
+							}
+						} else if kind == "v" && fullViewName != n {
+							if _, err := tx.Exec(fmt.Sprintf("DROP VIEW %s;", n)); err != nil {
+								return err
+							}
+						} else if kind != "i" {
+							exists = true
+						}
+					}
+					return nil
+				}(); err != nil {
+					return nil, err
+				}
+				if !exists {
+					if _, err := tx.Exec(statement); err != nil {
+						return nil, err
+					}
+
+					//Do first refresh
+					if isMaterialized {
+						if _, err := tx.Exec(fmt.Sprintf("REFRESH MATERIALIZED VIEW %s;", fullViewName)); err != nil {
+							return nil, err
+						}
+					}
+					continue
+				} else {
+					continue
+				}
+			}
+
+		}
 		if _, err := tx.Exec(statement); err != nil {
 			return nil, err
 		}
@@ -425,7 +483,7 @@ func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion Bloc
 
 func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) []*FoundBlock {
 	result := make([]*FoundBlock, 0, limit)
-	if err := i.Query(fmt.Sprintf("SELECT * FROM found_main_blocks %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
+	if err := i.Query(fmt.Sprintf("SELECT * FROM "+i.views["found_main_blocks"]+" %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
 		var d FoundBlock
 
 		if err := d.ScanFromRow(i, row); err != nil {
@@ -649,6 +707,14 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 					return err
 				}
 
+				if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["payouts"] + ";"); err != nil {
+					return err
+				}
+
+				if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["found_main_blocks"] + ";"); err != nil {
+					return err
+				}
+
 				if err = tx.Commit(); err != nil {
 					return err
 				}
@@ -658,19 +724,30 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 
 	metadataJson, _ := utils.MarshalJSON(b.Metadata)
 
-	return i.Query(
-		"INSERT INTO main_blocks (id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) ON CONFLICT (id) DO UPDATE SET metadata = $7, side_template_id = $8, coinbase_private_key = $9;",
-		nil,
-		b.Id[:],
-		b.Height,
-		b.Timestamp,
-		b.Reward,
-		b.CoinbaseId[:],
-		b.Difficulty,
-		metadataJson,
-		&b.SideTemplateId,
-		&b.CoinbasePrivateKey,
-	)
+	if tx, err := i.handle.BeginTx(context.Background(), nil); err != nil {
+		return err
+	} else {
+		defer tx.Rollback()
+		if _, err := tx.Exec(
+			"INSERT INTO main_blocks (id, height, timestamp, reward, coinbase_id, difficulty, metadata, side_template_id, coinbase_private_key) VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) ON CONFLICT (id) DO UPDATE SET metadata = $7, side_template_id = $8, coinbase_private_key = $9;",
+			b.Id[:],
+			b.Height,
+			b.Timestamp,
+			b.Reward,
+			b.CoinbaseId[:],
+			b.Difficulty,
+			metadataJson,
+			&b.SideTemplateId,
+			&b.CoinbasePrivateKey,
+		); err != nil {
+			return err
+		}
+
+		if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["found_main_blocks"] + ";"); err != nil {
+			return err
+		}
+		return tx.Commit()
+	}
 }
 
 func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
@@ -689,11 +766,11 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 		}
 
 		if limit == 0 {
-			if err := i.Query("SELECT * FROM payouts WHERE miner = $1 ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
+			if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
 				return
 			}
 		} else {
-			if err := i.Query("SELECT * FROM payouts WHERE miner = $1 ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
+			if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
 				return
 			}
 		}
@@ -717,7 +794,7 @@ func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 			return nil
 		}
 
-		if err := i.Query("SELECT * FROM payouts WHERE miner = $1 AND ((side_height >= $2 AND including_height <= $2) OR main_id = $3) ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
+		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND ((side_height >= $2 AND including_height <= $2) OR main_id = $3) ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
 			return
 		}
 	}()
@@ -1103,6 +1180,9 @@ func (i *Index) InsertOrUpdateMainCoinbaseOutputs(outputs MainCoinbaseOutputs) e
 			); err != nil {
 				return err
 			}
+		}
+		if _, err := tx.Exec("REFRESH MATERIALIZED VIEW " + i.views["payouts"] + ";"); err != nil {
+			return err
 		}
 		return tx.Commit()
 	}
