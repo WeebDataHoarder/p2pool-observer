@@ -845,13 +845,55 @@ func main() {
 		var lastFound []*index.FoundBlock
 		var payouts []*index.Payout
 		var sweeps []*index.MainLikelySweepTransaction
+
+		var raw *sidechain.PoolBlock
+
 		if miner.Id != 0 {
-			shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
-			payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=1000", miner.Id))
-			lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", miner.Id))
-			lastOrphanedShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=10&miner=%d&inclusion=%d", miner.Id, index.InclusionOrphan))
-			lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
-			sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
+			var wg sync.WaitGroup
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", miner.Id))
+
+				if len(lastShares) > 0 {
+					raw = getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
+					if raw == nil || raw.ShareVersion() == sidechain.ShareVersion_None {
+						raw = nil
+					}
+				}
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				lastOrphanedShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=10&miner=%d&inclusion=%d", miner.Id, index.InclusionOrphan))
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				//get a bit over the expected required
+				payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?from_timestamp=%d", miner.Id, uint64(time.Now().Unix())-(consensus.ChainWindowSize*consensus.TargetBlockTime*(totalWindows+1))))
+			}()
+			wg.Wait()
 		}
 
 		sharesFound := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
@@ -865,15 +907,6 @@ func main() {
 		foundPayout := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		for _, p := range payouts {
 			foundPayout.Add(int(int64(tipHeight)-int64(p.SideHeight)), 1)
-		}
-
-		var raw *sidechain.PoolBlock
-
-		if len(lastShares) > 0 {
-			raw = getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
-			if raw == nil || raw.ShareVersion() == sidechain.ShareVersion_None {
-				raw = nil
-			}
 		}
 
 		for _, share := range shares {

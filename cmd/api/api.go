@@ -882,23 +882,38 @@ func main() {
 
 		params := request.URL.Query()
 
-		var limit uint64 = 10
+		var limit, timestamp, height uint64 = 10, 0, 0
 
 		if params.Has("search_limit") {
 			if i, err := strconv.Atoi(params.Get("search_limit")); err == nil {
 				limit = uint64(i)
 			}
 		}
-
 		if params.Has("limit") {
 			if i, err := strconv.Atoi(params.Get("limit")); err == nil {
 				limit = uint64(i)
 			}
 		}
+		if params.Has("from_timestamp") {
+			if i, err := strconv.Atoi(params.Get("from_timestamp")); err == nil {
+				timestamp = uint64(i)
+			}
+		}
+		if params.Has("from_height") {
+			if i, err := strconv.Atoi(params.Get("from_height")); err == nil {
+				height = uint64(i)
+			}
+		}
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerId(miner.Id(), limit))
+		if timestamp > 0 {
+			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromTimestamp(miner.Id(), timestamp))
+		} else if height > 0 {
+			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromHeight(miner.Id(), height))
+		} else {
+			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerId(miner.Id(), limit))
+		}
 
 	})
 

@@ -793,6 +793,52 @@ func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
 	return out
 }
 
+func (i *Index) GetPayoutsByMinerIdFromHeight(minerId uint64, height uint64) chan *Payout {
+	out := make(chan *Payout, 1)
+
+	go func() {
+		defer close(out)
+
+		resultFunc := func(row RowScanInterface) error {
+			p := &Payout{}
+			if err := p.ScanFromRow(i, row); err != nil {
+				return err
+			}
+			out <- p
+			return nil
+		}
+
+		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND main_height >= $2 ORDER BY main_height DESC;", resultFunc, minerId, height); err != nil {
+			return
+		}
+	}()
+
+	return out
+}
+
+func (i *Index) GetPayoutsByMinerIdFromTimestamp(minerId uint64, timestamp uint64) chan *Payout {
+	out := make(chan *Payout, 1)
+
+	go func() {
+		defer close(out)
+
+		resultFunc := func(row RowScanInterface) error {
+			p := &Payout{}
+			if err := p.ScanFromRow(i, row); err != nil {
+				return err
+			}
+			out <- p
+			return nil
+		}
+
+		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND timestamp >= $2 ORDER BY main_height DESC;", resultFunc, minerId, timestamp); err != nil {
+			return
+		}
+	}()
+
+	return out
+}
+
 func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
 	out := make(chan *Payout, 1)
 
