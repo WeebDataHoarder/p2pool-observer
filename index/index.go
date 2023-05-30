@@ -373,6 +373,10 @@ type Scannable interface {
 	ScanFromRow(i *Index, row RowScanInterface) error
 }
 
+func (i *Index) GetView(k string) string {
+	return i.views[k]
+}
+
 func (i *Index) Query(query string, callback func(row RowScanInterface) error, params ...any) error {
 	var parentError error
 	pprof.Do(context.Background(), pprof.Labels("query", query), func(ctx context.Context) {

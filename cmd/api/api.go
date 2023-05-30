@@ -227,9 +227,9 @@ func main() {
 			minersKnown uint64
 		}
 
-		totalKnown := cacheResult(CacheTotalKnownBlocksAndMiners, time.Second*15, func() any {
+		totalKnown := cacheResult(CacheTotalKnownBlocksAndMiners, time.Minute, func() any {
 			result := &totalKnownResult{}
-			if err := indexDb.Query("SELECT (SELECT COUNT(*) FROM main_blocks WHERE side_template_id IS NOT NULL) as found, (SELECT COUNT(*) FROM miners) as miners;", func(row index.RowScanInterface) error {
+			if err := indexDb.Query("SELECT (SELECT COUNT(*) FROM "+indexDb.GetView("found_main_blocks")+") as found, (SELECT COUNT(*) FROM miners) as miners;", func(row index.RowScanInterface) error {
 				return row.Scan(&result.blocksFound, &result.minersKnown)
 			}); err != nil {
 				return nil
