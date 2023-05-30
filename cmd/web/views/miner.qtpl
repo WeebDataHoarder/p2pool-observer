@@ -55,7 +55,7 @@ type MinerPage struct {
 <div style="text-align: center">
     {% if p.Miner.LastShareTimestamp == 0 %}
     <div style="border: #d1d1d1 1px dashed;">
-        <h3 style="color:#FF4433">No shares have been reported to this P2Pool network in the past for this p.Miner.</h3>
+        <h3 style="color:#FF4433">No shares have been reported to this P2Pool network in the past for this miner.</h3>
 
         <p>Finding shares is a random process based on your hashrate vs this P2Pool hashrate. This can take several days for low hashrate miners, and depending on your luck.</p>
         <p>Please use the calculator below to find your average share time (with average luck).</p>
