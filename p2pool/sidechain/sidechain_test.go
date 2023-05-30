@@ -178,6 +178,10 @@ type fakeServer struct {
 	lastHeader atomic.Pointer[mainblock.Header]
 }
 
+func (s *fakeServer) Context() context.Context {
+	return context.Background()
+}
+
 func (s *fakeServer) Consensus() *Consensus {
 	return s.consensus
 }
