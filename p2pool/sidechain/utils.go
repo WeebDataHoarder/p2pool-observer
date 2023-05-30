@@ -254,9 +254,16 @@ func GetShares(tip *PoolBlock, consensus *Consensus, difficultyByHeight block.Ge
 	return shares, bottomHeight
 }
 
-// ShuffleShares Sorts shares according to consensus parameters. Requires pre-sorted shares based on address
+// ShuffleShares Shuffles shares according to consensus parameters via ShuffleSequence. Requires pre-sorted shares based on address
 func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed types.Hash) {
-	n := uint64(len(shares))
+	ShuffleSequence(shareVersion, privateKeySeed, len(shares), func(i, j int) {
+		shares[i], shares[j] = shares[j], shares[i]
+	})
+}
+
+// ShuffleSequence Iterates through a swap sequence according to consensus parameters.
+func ShuffleSequence(shareVersion ShareVersion, privateKeySeed types.Hash, items int, swap func(i, j int)) {
+	n := uint64(items)
 	if shareVersion > ShareVersion_V1 && n > 1 {
 		h := crypto.PooledKeccak256(privateKeySeed[:])
 		seed := binary.LittleEndian.Uint64(h[:])
@@ -269,7 +276,7 @@ func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed 
 			seed = utils.XorShift64Star(seed)
 			k, _ := bits.Mul64(seed, n-i)
 			//swap
-			shares[i], shares[i+k] = shares[i+k], shares[i]
+			swap(int(i), int(i+k))
 		}
 	}
 }

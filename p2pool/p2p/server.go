@@ -460,14 +460,21 @@ func (s *Server) DownloadMissingBlocks() {
 	s.cachedBlocksLock.RLock()
 	defer s.cachedBlocksLock.RUnlock()
 
-	for _, h := range s.SideChain().GetMissingBlocks() {
-		if b, ok := s.cachedBlocks[h]; ok {
-			if _, err, _ := s.SideChain().AddPoolBlockExternal(b); err == nil {
-				continue
+	for {
+		obtained := false
+		for _, h := range s.SideChain().GetMissingBlocks() {
+			if b, ok := s.cachedBlocks[h]; ok {
+				if _, err, _ := s.SideChain().AddPoolBlockExternal(b); err == nil {
+					obtained = true
+					continue
+				}
 			}
-		}
 
-		clientList[unsafeRandom.Intn(len(clientList))].SendUniqueBlockRequest(h)
+			clientList[unsafeRandom.Intn(len(clientList))].SendUniqueBlockRequest(h)
+		}
+		if !obtained {
+			break
+		}
 	}
 }
 
