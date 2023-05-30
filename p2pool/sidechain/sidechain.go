@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
@@ -30,6 +31,7 @@ type Cache interface {
 type P2PoolInterface interface {
 	ConsensusProvider
 	Cache
+	Context() context.Context
 	UpdateTip(tip *PoolBlock)
 	Broadcast(block *PoolBlock)
 	ClientRPC() *client.Client
@@ -893,6 +895,10 @@ func (c *SideChain) calculateOutputs(block *PoolBlock) (outputs transaction.Outp
 	preAllocatedShares := c.preAllocatedSharesPool.Get()
 	defer c.preAllocatedSharesPool.Put(preAllocatedShares)
 	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares)
+}
+
+func (c *SideChain) Server() P2PoolInterface {
+	return c.server
 }
 
 func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) (shares Shares, bottomHeight uint64) {

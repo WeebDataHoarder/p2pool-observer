@@ -234,7 +234,13 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		}
 	})
 	serveMux.HandleFunc("/mainchain/tip", func(writer http.ResponseWriter, request *http.Request) {
-		result := instance.GetMinimalBlockHeaderByHeight(instance.GetMinerDataTip().Height - 1)
+		minerData := instance.GetMinerDataTip()
+		if minerData == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+		result := instance.GetMinimalBlockHeaderByHeight(minerData.Height - 1)
 		if result == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusNotFound)

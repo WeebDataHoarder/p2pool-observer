@@ -539,7 +539,7 @@ func (s *Server) Listen() (err error) {
 							return errors.New("peer is IPv6 but we do not allow it")
 						}
 
-						if ok, b := s.IsBanned(netip.MustParseAddrPort(conn.RemoteAddr().String()).Addr()); ok {
+						if ok, b := s.IsBanned(addr); ok {
 							return fmt.Errorf("peer is banned: %w", b.Error)
 						}
 					}

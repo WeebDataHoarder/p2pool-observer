@@ -3,6 +3,7 @@ package sidechain
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
@@ -338,6 +339,19 @@ var zeroFullId FullId
 
 type FullId [FullIdSize]byte
 
+func FullIdFromString(s string) (FullId, error) {
+	var h FullId
+	if buf, err := hex.DecodeString(s); err != nil {
+		return h, err
+	} else {
+		if len(buf) != FullIdSize {
+			return h, errors.New("wrong hash size")
+		}
+		copy(h[:], buf)
+		return h, nil
+	}
+}
+
 func (id FullId) TemplateId() (h types.Hash) {
 	return types.Hash(id[:types.HashSize])
 }
@@ -348,6 +362,10 @@ func (id FullId) Nonce() uint32 {
 
 func (id FullId) ExtraNonce() uint32 {
 	return binary.LittleEndian.Uint32(id[types.HashSize+unsafe.Sizeof(uint32(0)):])
+}
+
+func (id FullId) String() string {
+	return hex.EncodeToString(id[:])
 }
 
 func (b *PoolBlock) CalculateFullId(consensus *Consensus) FullId {

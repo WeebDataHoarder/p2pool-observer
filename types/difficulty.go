@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/holiman/uint256"
 	"lukechampine.com/uint128"
+	"math"
 	"math/big"
 	"math/bits"
 	"strings"
@@ -315,4 +316,26 @@ func DifficultyFromPoW(powHash Hash) Difficulty {
 
 func (d Difficulty) CheckPoW(pow Hash) bool {
 	return DifficultyFromPoW(pow).Cmp(d) >= 0
+}
+
+// Target
+// Finds a 64-bit target for mining (target = 2^64 / difficulty) and rounds up the result of division
+// Because of that, there's a very small chance that miners will find a hash that meets the target but is still wrong (hash * difficulty >= 2^256)
+// A proper difficulty check is in check_pow()
+func (d Difficulty) Target() uint64 {
+	if d.Hi > 0 {
+		return 1
+	}
+
+	// Safeguard against division by zero (CPU will trigger it even if lo = 1 because result doesn't fit in 64 bits)
+	if d.Lo <= 1 {
+		return math.MaxUint64
+	}
+
+	q, rem := Difficulty{Hi: 1, Lo: 0}.QuoRem64(d.Lo)
+	if rem > 0 {
+		return q.Lo + 1
+	} else {
+		return q.Lo
+	}
 }
