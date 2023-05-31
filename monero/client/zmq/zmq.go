@@ -44,7 +44,7 @@ type Stream struct {
 	FullTxPoolAddC    chan *FullTxPoolAdd
 	FullMinerDataC    chan *FullMinerData
 	MinimalChainMainC chan *MinimalChainMain
-	MinimalTxPoolAddC chan *MinimalTxPoolAdd
+	MinimalTxPoolAddC chan []TxMempoolData
 }
 
 // Listen listens for a list of topics pre-configured for this client (via NewClient).
@@ -65,7 +65,7 @@ func (c *Client) Listen(ctx context.Context) (*Stream, error) {
 		FullTxPoolAddC:    make(chan *FullTxPoolAdd),
 		FullMinerDataC:    make(chan *FullMinerData),
 		MinimalChainMainC: make(chan *MinimalChainMain),
-		MinimalTxPoolAddC: make(chan *MinimalTxPoolAdd),
+		MinimalTxPoolAddC: make(chan []TxMempoolData),
 	}
 
 	go func() {
@@ -207,14 +207,12 @@ func (c *Client) transmitMinimalChainMain(stream *Stream, gson []byte) error {
 }
 
 func (c *Client) transmitMinimalTxPoolAdd(stream *Stream, gson []byte) error {
-	var arr []*MinimalTxPoolAdd
+	var arr []TxMempoolData
 
 	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
-	for _, element := range arr {
-		stream.MinimalTxPoolAddC <- element
-	}
+	stream.MinimalTxPoolAddC <- arr
 
 	return nil
 }

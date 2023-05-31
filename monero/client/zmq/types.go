@@ -61,11 +61,6 @@ type FullChainMain struct {
 	TxHashes []types.Hash `json:"tx_hashes"`
 }
 
-type MinimalTxPoolAdd struct {
-	ID       types.Hash `json:"id"`
-	BlobSize uint64     `json:"blob_size"`
-}
-
 type FullTxPoolAdd struct {
 	Version    int   `json:"version"`
 	UnlockTime int64 `json:"unlock_time"`
