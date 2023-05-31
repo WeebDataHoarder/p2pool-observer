@@ -178,7 +178,7 @@ func NewP2Pool(consensus *sidechain.Consensus, settings map[string]string) (*P2P
 		return nil, err
 	}
 
-	pool.zmqClient = zmq.NewClient(settings["zmq-url"], zmq.TopicFullChainMain, zmq.TopicFullMinerData)
+	pool.zmqClient = zmq.NewClient(settings["zmq-url"], zmq.TopicFullChainMain, zmq.TopicFullMinerData, zmq.TopicMinimalTxPoolAdd)
 
 	pool.sidechain = sidechain.NewSideChain(pool)
 

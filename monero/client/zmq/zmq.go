@@ -38,19 +38,17 @@ func NewClient(endpoint string, topics ...Topic) *Client {
 // Stream provides channels where instances of the desired topic object are
 // sent to.
 type Stream struct {
-	ErrC chan error
-
-	FullChainMainC    chan *FullChainMain
-	FullTxPoolAddC    chan *FullTxPoolAdd
-	FullMinerDataC    chan *FullMinerData
-	MinimalChainMainC chan *MinimalChainMain
-	MinimalTxPoolAddC chan []TxMempoolData
+	FullChainMainC    func(*FullChainMain)
+	FullTxPoolAddC    func([]FullTxPoolAdd)
+	FullMinerDataC    func(*FullMinerData)
+	MinimalChainMainC func(*MinimalChainMain)
+	MinimalTxPoolAddC func([]TxMempoolData)
 }
 
 // Listen listens for a list of topics pre-configured for this client (via NewClient).
-func (c *Client) Listen(ctx context.Context) (*Stream, error) {
+func (c *Client) Listen(ctx context.Context, fullChainMain func(chainMain *FullChainMain), fullTxPoolAdd func(txs []FullTxPoolAdd), fullMinerData func(main *FullMinerData), minimalChainMain func(chainMain *MinimalChainMain), minimalTxPoolAdd func(txs []TxMempoolData)) error {
 	if err := c.listen(ctx, c.topics...); err != nil {
-		return nil, fmt.Errorf("listen on '%s': %w", strings.Join(func() (r []string) {
+		return fmt.Errorf("listen on '%s': %w", strings.Join(func() (r []string) {
 			for _, s := range c.topics {
 				r = append(r, string(s))
 			}
@@ -59,30 +57,18 @@ func (c *Client) Listen(ctx context.Context) (*Stream, error) {
 	}
 
 	stream := &Stream{
-		ErrC: make(chan error),
-
-		FullChainMainC:    make(chan *FullChainMain),
-		FullTxPoolAddC:    make(chan *FullTxPoolAdd),
-		FullMinerDataC:    make(chan *FullMinerData),
-		MinimalChainMainC: make(chan *MinimalChainMain),
-		MinimalTxPoolAddC: make(chan []TxMempoolData),
+		FullChainMainC:    fullChainMain,
+		FullTxPoolAddC:    fullTxPoolAdd,
+		FullMinerDataC:    fullMinerData,
+		MinimalChainMainC: minimalChainMain,
+		MinimalTxPoolAddC: minimalTxPoolAdd,
 	}
 
-	go func() {
-		if err := c.loop(stream); err != nil {
-			stream.ErrC <- fmt.Errorf("loop: %w", err)
-		}
+	if err := c.loop(stream); err != nil {
+		return fmt.Errorf("loop: %w", err)
+	}
 
-		close(stream.ErrC)
-
-		close(stream.FullChainMainC)
-		close(stream.FullTxPoolAddC)
-		close(stream.FullMinerDataC)
-		close(stream.MinimalChainMainC)
-		close(stream.MinimalTxPoolAddC)
-	}()
-
-	return stream, nil
+	return nil
 }
 
 // Close closes any established connection, if any.
@@ -167,21 +153,19 @@ func (c *Client) transmitFullChainMain(stream *Stream, gson []byte) error {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
 	for _, element := range arr {
-		stream.FullChainMainC <- element
+		stream.FullChainMainC(element)
 	}
 
 	return nil
 }
 
 func (c *Client) transmitFullTxPoolAdd(stream *Stream, gson []byte) error {
-	var arr []*FullTxPoolAdd
+	var arr []FullTxPoolAdd
 
 	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
-	for _, element := range arr {
-		stream.FullTxPoolAddC <- element
-	}
+	stream.FullTxPoolAddC(arr)
 
 	return nil
 }
@@ -192,7 +176,7 @@ func (c *Client) transmitFullMinerData(stream *Stream, gson []byte) error {
 	if err := utils.UnmarshalJSON(gson, element); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
-	stream.FullMinerDataC <- element
+	stream.FullMinerDataC(element)
 	return nil
 }
 
@@ -202,7 +186,7 @@ func (c *Client) transmitMinimalChainMain(stream *Stream, gson []byte) error {
 	if err := utils.UnmarshalJSON(gson, element); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
-	stream.MinimalChainMainC <- element
+	stream.MinimalChainMainC(element)
 	return nil
 }
 
@@ -212,7 +196,7 @@ func (c *Client) transmitMinimalTxPoolAdd(stream *Stream, gson []byte) error {
 	if err := utils.UnmarshalJSON(gson, &arr); err != nil {
 		return fmt.Errorf("unmarshal: %w", err)
 	}
-	stream.MinimalTxPoolAddC <- arr
+	stream.MinimalTxPoolAddC(arr)
 
 	return nil
 }

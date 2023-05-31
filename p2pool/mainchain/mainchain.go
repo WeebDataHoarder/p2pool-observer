@@ -9,6 +9,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mempool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -61,18 +62,10 @@ func NewMainChain(s *sidechain.SideChain, p2pool P2PoolInterface) *MainChain {
 
 func (c *MainChain) Listen() error {
 	ctx := c.p2pool.Context()
-	s, err := c.p2pool.ClientZMQ().Listen(ctx)
-	if err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case err := <-s.ErrC:
-			return err
-		case fullChainMain := <-s.FullChainMainC:
+	err := c.p2pool.ClientZMQ().Listen(ctx,
+		func(fullChainMain *zmq.FullChainMain) {
 			if len(fullChainMain.MinerTx.Inputs) < 1 {
-				continue
+				return
 			}
 			d := &sidechain.ChainMain{
 				Difficulty: types.ZeroDifficulty,
@@ -113,13 +106,14 @@ func (c *MainChain) Listen() error {
 			}
 
 			if len(outputs) != len(fullChainMain.MinerTx.Outputs) {
-				continue
+				return
 			}
 
 			extraDataRaw, _ := hex.DecodeString(fullChainMain.MinerTx.Extra)
 			extraTags := transaction.ExtraTags{}
-			if err = extraTags.UnmarshalBinary(extraDataRaw); err != nil {
-				continue
+			if err := extraTags.UnmarshalBinary(extraDataRaw); err != nil {
+				//TODO: err
+				extraTags = nil
 			}
 
 			blockData := &mainblock.Block{
@@ -144,7 +138,18 @@ func (c *MainChain) Listen() error {
 				TransactionParentIndices: nil,
 			}
 			c.HandleMainBlock(blockData)
-		case fullMinerData := <-s.FullMinerDataC:
+		}, func(txs []zmq.FullTxPoolAdd) {
+
+		}, func(fullMinerData *zmq.FullMinerData) {
+			pool := make(mempool.Mempool, len(fullMinerData.TxBacklog))
+			for i := range fullMinerData.TxBacklog {
+				pool[i] = &mempool.MempoolEntry{
+					Id:       fullMinerData.TxBacklog[i].Id,
+					BlobSize: fullMinerData.TxBacklog[i].BlobSize,
+					Weight:   fullMinerData.TxBacklog[i].Weight,
+					Fee:      fullMinerData.TxBacklog[i].Fee,
+				}
+			}
 			c.HandleMinerData(&p2pooltypes.MinerData{
 				MajorVersion:          fullMinerData.MajorVersion,
 				Height:                fullMinerData.Height,
@@ -154,10 +159,18 @@ func (c *MainChain) Listen() error {
 				MedianWeight:          fullMinerData.MedianWeight,
 				AlreadyGeneratedCoins: fullMinerData.AlreadyGeneratedCoins,
 				MedianTimestamp:       fullMinerData.MedianTimestamp,
+				TxBacklog:             pool,
 				TimeReceived:          time.Now(),
 			})
-		}
+		}, func(chainMain *zmq.MinimalChainMain) {
+
+		}, func(txs []zmq.TxMempoolData) {
+			//TODO
+		})
+	if err != nil {
+		return err
 	}
+	return nil
 }
 
 func (c *MainChain) getTimestamps(timestamps []uint64) bool {
@@ -245,60 +258,6 @@ func (c *MainChain) HandleMainBlock(b *mainblock.Block) {
 	}()
 
 	extraMergeMiningTag := b.Coinbase.Extra.GetTag(transaction.TxExtraTagMergeMining)
-	if extraMergeMiningTag == nil {
-		return
-	}
-	sidechainHashData := extraMergeMiningTag.Data
-	if len(sidechainHashData) != types.HashSize {
-		return
-	}
-
-	sidechainId := types.HashFromBytes(sidechainHashData)
-
-	if block := c.sidechain.GetPoolBlockByTemplateId(sidechainId); block != nil {
-		c.p2pool.UpdateBlockFound(mainData, block)
-	} else {
-		c.sidechain.WatchMainChainBlock(mainData, sidechainId)
-	}
-
-	c.updateTip()
-}
-
-// HandleChainMain
-// Deprecated
-func (c *MainChain) HandleChainMain(mainData *sidechain.ChainMain, extra []byte) {
-	func() {
-		c.lock.Lock()
-		defer c.lock.Unlock()
-
-		if h, ok := c.mainchainByHeight[mainData.Height]; ok {
-			h.Height = mainData.Height
-			h.Timestamp = mainData.Timestamp
-			h.Reward = mainData.Reward
-			mainData.Id = h.Id
-			mainData.Difficulty = h.Difficulty
-			c.mainchainByHash[h.Id] = h
-		} else {
-			return
-		}
-
-		if mainData.Height > c.highest {
-			c.highest = mainData.Height
-		}
-
-		log.Printf("[MainChain] new main chain block: height = %d, id = %s, timestamp = %d, reward = %s", mainData.Height, mainData.Id.String(), mainData.Timestamp, utils.XMRUnits(mainData.Reward))
-
-		c.updateMedianTimestamp()
-	}()
-
-	c.p2pool.UpdateMainData(mainData)
-
-	var tags transaction.ExtraTags
-	if err := tags.UnmarshalBinary(extra); err != nil {
-		return
-	}
-
-	extraMergeMiningTag := tags.GetTag(transaction.TxExtraTagMergeMining)
 	if extraMergeMiningTag == nil {
 		return
 	}
