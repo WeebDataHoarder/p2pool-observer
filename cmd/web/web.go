@@ -896,10 +896,12 @@ func main() {
 			wg.Wait()
 		}
 
+		sharesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.WindowSize))
+		unclesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.WindowSize))
+
 		sharesFound := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		unclesFound := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 
-		var sharesInWindow, unclesInWindow uint64
 		var longDiff, windowDiff types.Difficulty
 
 		wend := tipHeight - currentWindowSize
@@ -927,14 +929,14 @@ func main() {
 				}
 				if share.SideHeight > wend {
 					windowDiff = windowDiff.Add64(uncleWeight)
-					unclesInWindow++
+					unclesInWindow.Add(int(int64(tipHeight)-int64(share.SideHeight)), 1)
 				}
 				longDiff = longDiff.Add64(uncleWeight)
 			} else {
 				sharesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
 				if share.SideHeight > wend {
 					windowDiff = windowDiff.Add64(share.Difficulty)
-					sharesInWindow++
+					sharesInWindow.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
 				}
 				longDiff = longDiff.Add64(share.Difficulty)
 			}
@@ -947,20 +949,24 @@ func main() {
 		minerPage := &views.MinerPage{
 			Refresh: refresh,
 			Positions: struct {
-				Resolution     int
-				SeparatorIndex int
-				Blocks         *cmdutils.PositionChart
-				Uncles         *cmdutils.PositionChart
-				Payouts        *cmdutils.PositionChart
+				Resolution       int
+				ResolutionWindow int
+				SeparatorIndex   int
+				Blocks           *cmdutils.PositionChart
+				Uncles           *cmdutils.PositionChart
+				BlocksInWindow   *cmdutils.PositionChart
+				UnclesInWindow   *cmdutils.PositionChart
+				Payouts          *cmdutils.PositionChart
 			}{
-				Resolution:     int(foundPayout.Resolution()),
-				SeparatorIndex: int(consensus.ChainWindowSize*totalWindows - currentWindowSize),
-				Blocks:         sharesFound,
-				Uncles:         unclesFound,
-				Payouts:        foundPayout,
+				Resolution:       int(foundPayout.Resolution()),
+				ResolutionWindow: int(sharesInWindow.Resolution()),
+				SeparatorIndex:   int(consensus.ChainWindowSize*totalWindows - currentWindowSize),
+				Blocks:           sharesFound,
+				BlocksInWindow:   sharesInWindow,
+				Uncles:           unclesFound,
+				UnclesInWindow:   unclesInWindow,
+				Payouts:          foundPayout,
 			},
-			SharesInWindow:     int(sharesInWindow),
-			UnclesInWindow:     int(unclesInWindow),
 			Weight:             longDiff.Lo,
 			WindowWeight:       windowDiff.Lo,
 			Miner:              miner,

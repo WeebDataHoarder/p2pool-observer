@@ -11,13 +11,14 @@ type MinerPage struct {
 	Refresh int
 	Positions struct {
 	    Resolution int
+	    ResolutionWindow int
 	    SeparatorIndex int
 	    Blocks *cmdutils.PositionChart
 	    Uncles *cmdutils.PositionChart
+	    BlocksInWindow *cmdutils.PositionChart
+	    UnclesInWindow *cmdutils.PositionChart
 	    Payouts *cmdutils.PositionChart
 	}
-	SharesInWindow int
-	UnclesInWindow int
 	ExpectedRewardPerWindow uint64
 	ExpectedRewardPerDay uint64
 	WindowWeight uint64
@@ -136,7 +137,7 @@ type MinerPage struct {
         </tr>
         <tr>
             <td title="{%s utc_date(p.Miner.LastShareTimestamp) %}">{%s time_elapsed_short(p.Miner.LastShareTimestamp) %}</td>
-            <td>{%d p.SharesInWindow %} blocks (+{%d p.UnclesInWindow %} uncles)</td>
+            <td>{%dul p.Positions.BlocksInWindow.Total() %} blocks (+{%dul p.Positions.UnclesInWindow.Total() %} uncles)</td>
             {% code windowWeightRatio := float64(p.WindowWeight) / float64(p.Context().Pool.SideChain.Window.Weight.Lo) %}
             <td>{%s si_units(windowWeightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
             <td>{%f.3 windowWeightRatio*100 %}%</td>
@@ -167,16 +168,30 @@ type MinerPage struct {
 <div style="text-align: center;">
     <h2>Share positions</h2>
     <p class="small">
-        Shares appear on the right, and get older towards the left. The pipe (<code>|</code>) character denotes the current PPLNS window end.
+        Shares appear on the right, and get older towards the left.
         <br/>
         Number denotes the amount of shares per slice, with the plus (<code>+</code>) character being more than 9, and dot (<code>.</code>) being none.
         <br/>
         Each slice accounts for {%d p.Positions.Resolution %} P2Pool blocks, or around {%dul (uint64(p.Positions.Resolution) * p.Context().Consensus.TargetBlockTime) / 60 %} minutes.
     </p>
-    <h3>Shares during last day</h3>
-    <code class="mono">{%s p.Positions.Blocks.StringWithSeparator(p.Positions.SeparatorIndex) %}</code>
+    <h3>Shares and uncles in PPLNS window</h3>
+    <p class="small">
+        Each slice accounts for {%d p.Positions.ResolutionWindow %} P2Pool block heights, or around {%dul (uint64(p.Positions.ResolutionWindow) * p.Context().Consensus.TargetBlockTime) / 60 %} minutes.
+        <br/>
+        Shares within the PPLNS window will be weighted towards receiving a payout when any Monero block is found by any P2Pool miner.
+    </p>
+    <code class="mono">{%s p.Positions.BlocksInWindow.String() %}</code>
+    <br/>
+    <code class="mono">{%s p.Positions.UnclesInWindow.String() %}</code>
 
-    <h3>Uncles during last day</h3>
+    <h3>Shares and uncles during last day</h3>
+    <p class="small">
+        Each slice accounts for {%d p.Positions.Resolution %} P2Pool block heights, or around {%dul (uint64(p.Positions.Resolution) * p.Context().Consensus.TargetBlockTime) / 60 %} minutes.
+        <br/>
+         The pipe (<code>|</code>) character denotes roughly the PPLNS window end.
+    </p>
+    <code class="mono">{%s p.Positions.Blocks.StringWithSeparator(p.Positions.SeparatorIndex) %}</code>
+    <br/>
     <code class="mono">{%s p.Positions.Uncles.StringWithSeparator(p.Positions.SeparatorIndex) %}</code>
 
     {% if p.Positions.Payouts.Total() > 0 %}
