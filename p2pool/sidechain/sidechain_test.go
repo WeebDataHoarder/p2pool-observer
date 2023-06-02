@@ -1,18 +1,12 @@
 package sidechain
 
 import (
-	"context"
-	"encoding/binary"
-	mainblock "git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
-	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"log"
 	"os"
 	"path"
 	"runtime"
-	"sync/atomic"
 	"testing"
 )
 
@@ -31,36 +25,9 @@ func init() {
 }
 
 func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mainHeight uint64, patchedBlocks ...[]byte) {
-	var err error
-	buf := make([]byte, PoolBlockMaxTemplateSize)
-	for {
-		buf = buf[:0]
-		var blockLen uint32
-		if err = binary.Read(reader, binary.LittleEndian, &blockLen); err == io.EOF {
-			break
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		if _, err = io.ReadFull(reader, buf[:blockLen]); err != nil {
-			t.Fatal(err)
-		}
-		b := &PoolBlock{}
-		if err = b.UnmarshalBinary(s.Consensus(), s.DerivationCache(), buf[:blockLen]); err != nil {
-			t.Fatal(err)
-		}
-		if err = s.AddPoolBlock(b); err != nil {
-			t.Fatal(err)
-		}
-	}
 
-	for _, buf := range patchedBlocks {
-		b := &PoolBlock{}
-		if err = b.UnmarshalBinary(s.Consensus(), s.DerivationCache(), buf); err != nil {
-			t.Fatal(err)
-		}
-		if err = s.AddPoolBlock(b); err != nil {
-			t.Fatal(err)
-		}
+	if err := s.LoadTestData(reader, patchedBlocks...); err != nil {
+		t.Fatal(err)
 	}
 
 	tip := s.GetChainTip()
@@ -104,9 +71,7 @@ func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mai
 
 func TestSideChainDefault(t *testing.T) {
 
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusDefault,
-	})
+	s := NewSideChain(GetFakeTestServer(ConsensusDefault))
 
 	f, err := os.Open("testdata/sidechain_dump.dat")
 	if err != nil {
@@ -119,9 +84,7 @@ func TestSideChainDefault(t *testing.T) {
 
 func TestSideChainDefaultPreFork(t *testing.T) {
 
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusDefault,
-	})
+	s := NewSideChain(GetFakeTestServer(ConsensusDefault))
 
 	f, err := os.Open("testdata/old_sidechain_dump.dat")
 	if err != nil {
@@ -134,9 +97,7 @@ func TestSideChainDefaultPreFork(t *testing.T) {
 
 func TestSideChainMini(t *testing.T) {
 
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusMini,
-	})
+	s := NewSideChain(GetFakeTestServer(ConsensusMini))
 
 	f, err := os.Open("testdata/sidechain_dump_mini.dat")
 	if err != nil {
@@ -149,9 +110,7 @@ func TestSideChainMini(t *testing.T) {
 
 func TestSideChainMiniPreFork(t *testing.T) {
 
-	s := NewSideChain(&fakeServer{
-		consensus: ConsensusMini,
-	})
+	s := NewSideChain(GetFakeTestServer(ConsensusMini))
 
 	f, err := os.Open("testdata/old_sidechain_dump_mini.dat")
 	if err != nil {
@@ -171,91 +130,4 @@ func TestSideChainMiniPreFork(t *testing.T) {
 	}
 
 	testSideChain(s, t, f, 2424349, 2696040, block2420028, block2420027)
-}
-
-type fakeServer struct {
-	consensus  *Consensus
-	lastHeader atomic.Pointer[mainblock.Header]
-}
-
-func (s *fakeServer) Context() context.Context {
-	return context.Background()
-}
-
-func (s *fakeServer) Consensus() *Consensus {
-	return s.consensus
-}
-
-func (s *fakeServer) GetBlob(key []byte) (blob []byte, err error) {
-	return nil, nil
-}
-
-func (s *fakeServer) SetBlob(key, blob []byte) (err error) {
-	return nil
-}
-
-func (s *fakeServer) RemoveBlob(key []byte) (err error) {
-	return nil
-}
-
-func (s *fakeServer) UpdateTip(tip *PoolBlock) {
-
-}
-func (s *fakeServer) Broadcast(block *PoolBlock) {
-
-}
-func (s *fakeServer) ClientRPC() *client.Client {
-	return client.GetDefaultClient()
-}
-func (s *fakeServer) GetChainMainByHeight(height uint64) *ChainMain {
-	return nil
-}
-func (s *fakeServer) GetChainMainByHash(hash types.Hash) *ChainMain {
-	return nil
-}
-func (s *fakeServer) GetMinimalBlockHeaderByHeight(height uint64) *mainblock.Header {
-	if h := s.lastHeader.Load(); h != nil && h.Height == height {
-		return h
-	}
-	if h, err := s.ClientRPC().GetBlockHeaderByHeight(height, context.Background()); err != nil {
-		return nil
-	} else {
-		header := &mainblock.Header{
-			MajorVersion: uint8(h.BlockHeader.MajorVersion),
-			MinorVersion: uint8(h.BlockHeader.MinorVersion),
-			Timestamp:    uint64(h.BlockHeader.Timestamp),
-			PreviousId:   types.MustHashFromString(h.BlockHeader.PrevHash),
-			Height:       h.BlockHeader.Height,
-			Nonce:        uint32(h.BlockHeader.Nonce),
-			Reward:       h.BlockHeader.Reward,
-			Difficulty:   types.DifficultyFrom64(h.BlockHeader.Difficulty),
-			Id:           types.MustHashFromString(h.BlockHeader.Hash),
-		}
-		s.lastHeader.Store(header)
-		return header
-	}
-}
-func (s *fakeServer) GetMinimalBlockHeaderByHash(hash types.Hash) *mainblock.Header {
-	return nil
-}
-func (s *fakeServer) GetDifficultyByHeight(height uint64) types.Difficulty {
-	return s.GetMinimalBlockHeaderByHeight(height).Difficulty
-}
-func (s *fakeServer) UpdateBlockFound(data *ChainMain, block *PoolBlock) {
-
-}
-func (s *fakeServer) SubmitBlock(block *mainblock.Block) {
-
-}
-func (s *fakeServer) GetChainMainTip() *ChainMain {
-	return nil
-}
-func (s *fakeServer) GetMinerDataTip() *p2pooltypes.MinerData {
-	return nil
-}
-func (s *fakeServer) Store(block *PoolBlock) {
-
-}
-func (s *fakeServer) ClearCachedBlocks() {
-
 }
