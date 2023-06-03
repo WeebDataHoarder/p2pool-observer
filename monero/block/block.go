@@ -45,7 +45,12 @@ func (b *Block) MarshalBinary() (buf []byte, err error) {
 }
 
 func (b *Block) BufferLength() int {
-	return 1 + 1 + binary.MaxVarintLen64 + types.HashSize + 4 + b.Coinbase.BufferLength() + binary.MaxVarintLen64 + types.HashSize*len(b.Transactions)
+	return 1 + 1 +
+		utils.UVarInt64Size(b.Timestamp) +
+		types.HashSize +
+		4 +
+		b.Coinbase.BufferLength() +
+		utils.UVarInt64Size(len(b.Transactions)) + types.HashSize*len(b.Transactions)
 }
 
 func (b *Block) MarshalBinaryFlags(pruned, compact bool) (buf []byte, err error) {
@@ -197,7 +202,10 @@ func (b *Block) Header() *Header {
 }
 
 func (b *Block) HeaderBlobBufferLength() int {
-	return 1 + 1 + binary.MaxVarintLen64 + types.HashSize + 4
+	return 1 + 1 +
+		utils.UVarInt64Size(b.Timestamp) +
+		types.HashSize +
+		4
 }
 
 func (b *Block) HeaderBlob(preAllocatedBuf []byte) []byte {
@@ -233,7 +241,8 @@ func (b *Block) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId bool
 }
 
 func (b *Block) HashingBlobBufferLength() int {
-	return b.HeaderBlobBufferLength() + types.HashSize + binary.MaxVarintLen64
+	return b.HeaderBlobBufferLength() +
+		types.HashSize + utils.UVarInt64Size(len(b.Transactions)+1)
 }
 
 func (b *Block) HashingBlob(preAllocatedBuf []byte) []byte {

@@ -33,7 +33,15 @@ type SideData struct {
 }
 
 func (b *SideData) BufferLength() int {
-	return crypto.PublicKeySize + crypto.PublicKeySize + types.HashSize + types.HashSize + binary.MaxVarintLen64 + len(b.Uncles)*types.HashSize + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + binary.MaxVarintLen64 + 4*4
+	return crypto.PublicKeySize +
+		crypto.PublicKeySize +
+		types.HashSize +
+		types.HashSize +
+		utils.UVarInt64Size(len(b.Uncles)) + len(b.Uncles)*types.HashSize +
+		utils.UVarInt64Size(b.Height) +
+		utils.UVarInt64Size(b.Difficulty.Lo) + utils.UVarInt64Size(b.Difficulty.Hi) +
+		utils.UVarInt64Size(b.CumulativeDifficulty.Lo) + utils.UVarInt64Size(b.CumulativeDifficulty.Hi) +
+		4*4
 }
 
 func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {

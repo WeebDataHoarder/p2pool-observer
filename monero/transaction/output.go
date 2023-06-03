@@ -58,8 +58,17 @@ func (s *Outputs) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	return nil
 }
 
-func (s *Outputs) BufferLength() int {
-	return binary.MaxVarintLen64 + len(*s)*(binary.MaxVarintLen64+1+crypto.PublicKeySize+1)
+func (s *Outputs) BufferLength() (n int) {
+	n = utils.UVarInt64Size(len(*s))
+	for _, o := range *s {
+		n += utils.UVarInt64Size(o.Reward) +
+			1 +
+			crypto.PublicKeySize
+		if o.Type == TxOutToTaggedKey {
+			n++
+		}
+	}
+	return n
 }
 
 func (s *Outputs) MarshalBinary() (data []byte, err error) {

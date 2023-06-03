@@ -91,3 +91,65 @@ func PreviousPowerOfTwo(x uint64) int {
 	}
 	return 1 << (64 - bits.LeadingZeros64(x) - 1)
 }
+
+const (
+	VarIntLen1 uint64 = 1 << ((iota + 1) * 7)
+	VarIntLen2
+	VarIntLen3
+	VarIntLen4
+	VarIntLen5
+	VarIntLen6
+	VarIntLen7
+	VarIntLen8
+	VarIntLen9
+)
+
+func UVarInt64Size[T constraints.Integer](v T) (n int) {
+	x := uint64(v)
+
+	if x < VarIntLen1 {
+		return 1
+	} else if x < VarIntLen2 {
+		return 2
+	} else if x < VarIntLen3 {
+		return 3
+	} else if x < VarIntLen4 {
+		return 4
+	} else if x < VarIntLen5 {
+		return 5
+	} else if x < VarIntLen6 {
+		return 6
+	} else if x < VarIntLen7 {
+		return 7
+	} else if x < VarIntLen8 {
+		return 8
+	} else if x < VarIntLen9 {
+		return 9
+	} else {
+		return 10
+	}
+
+	/*
+
+		Checked using this
+
+		var uVarInt64Thresholds [binary.MaxVarintLen64 + 1]uint64
+
+		lastSize := 0
+		for i := uint64(1); i > 0 && i < math.MaxUint64; i <<= 1 {
+			s := UVarInt64Size(i)
+			if s != lastSize {
+
+				n := uVarInt64Thresholds[lastSize]
+				ix := sort.Search(int(i-n), func(i int) bool {
+					return UVarInt64Size(n+uint64(i)) > lastSize
+				})
+				uVarInt64Thresholds[s] = n + uint64(ix)
+				lastSize = s
+			}
+		}
+
+		log.Print(uVarInt64Thresholds)
+
+	*/
+}

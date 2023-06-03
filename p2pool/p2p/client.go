@@ -510,7 +510,7 @@ func (c *Client) OnConnection() {
 				}
 				break
 			} else {
-				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReaderSize(io.LimitReader(c, int64(blockSize)), int(blockSize))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
@@ -569,13 +569,13 @@ func (c *Client) OnConnection() {
 				//TODO log
 				break
 			} else if messageId == MessageBlockBroadcastCompact {
-				if err = block.FromCompactReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromCompactReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReaderSize(io.LimitReader(c, int64(blockSize)), int(blockSize))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return
 				}
 			} else {
-				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReader(io.LimitReader(c, int64(blockSize)))); err != nil {
+				if err = block.FromReader(c.Owner.Consensus(), c.Owner.SideChain().DerivationCache(), bufio.NewReaderSize(io.LimitReader(c, int64(blockSize)), int(blockSize))); err != nil {
 					//TODO warn
 					c.Ban(DefaultBanTime, err)
 					return

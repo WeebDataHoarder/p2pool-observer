@@ -187,17 +187,34 @@ func (c *Consensus) verify() bool {
 	return true
 }
 
-func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) types.Hash {
-	buf := make([]byte, 0, share.BufferLength())
-	buf, _ = share.Main.SideChainHashingBlob(buf, true)
-	buf, _ = share.Side.AppendBinary(buf, share.ShareVersion())
-
-	return crypto.PooledKeccak256(buf, c.id[:])
+func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) (result types.Hash) {
+	return c.CalculateSideTemplateIdPreAllocated(share, make([]byte, 0, utils.Max(share.Main.BufferLength(), share.Side.BufferLength())))
 }
 
-func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) types.Hash {
-	//TODO: handle extra nonce
-	return crypto.PooledKeccak256(mainBlob, sideBlob, c.id[:])
+func (c *Consensus) CalculateSideTemplateIdPreAllocated(share *PoolBlock, buf []byte) (result types.Hash) {
+	h := crypto.GetKeccak256Hasher()
+	defer crypto.PutKeccak256Hasher(h)
+
+	buf, _ = share.Main.SideChainHashingBlob(buf, true)
+	_, _ = h.Write(buf)
+	buf, _ = share.Side.AppendBinary(buf[:0], share.ShareVersion())
+	_, _ = h.Write(buf)
+
+	_, _ = h.Write(c.id[:])
+	crypto.HashFastSum(h, result[:])
+	return result
+}
+
+func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) (result types.Hash) {
+	h := crypto.GetKeccak256Hasher()
+	defer crypto.PutKeccak256Hasher(h)
+
+	_, _ = h.Write(mainBlob)
+	_, _ = h.Write(sideBlob)
+
+	_, _ = h.Write(c.id[:])
+	crypto.HashFastSum(h, result[:])
+	return result
 }
 
 func (c *Consensus) Id() types.Hash {

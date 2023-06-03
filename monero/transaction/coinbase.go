@@ -139,7 +139,12 @@ func (c *CoinbaseTransaction) MarshalBinary() ([]byte, error) {
 }
 
 func (c *CoinbaseTransaction) BufferLength() int {
-	return 1 + binary.MaxVarintLen64 + 1 + 1 + binary.MaxVarintLen64 + c.Outputs.BufferLength() + binary.MaxVarintLen64 + c.Extra.BufferLength() + 1
+	return 1 +
+		utils.UVarInt64Size(c.UnlockTime) +
+		1 + 1 +
+		utils.UVarInt64Size(c.GenHeight) +
+		c.Outputs.BufferLength() +
+		utils.UVarInt64Size(c.Extra.BufferLength()) + c.Extra.BufferLength() + 1
 }
 
 func (c *CoinbaseTransaction) MarshalBinaryFlags(pruned bool) ([]byte, error) {
