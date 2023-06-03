@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client/zmq"
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -71,28 +70,19 @@ func TestClient(t *testing.T) {
 	client := zmq.NewClient(os.Getenv("MONEROD_ZMQ_URL"), zmq.TopicFullChainMain, zmq.TopicFullTxPoolAdd, zmq.TopicFullMinerData, zmq.TopicMinimalChainMain, zmq.TopicMinimalTxPoolAdd)
 	ctx, ctxFunc := context.WithTimeout(context.Background(), time.Second*10)
 	defer ctxFunc()
-	s, err := client.Listen(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
+	err := client.Listen(ctx, func(chainMain *zmq.FullChainMain) {
+		t.Log(chainMain)
+	}, func(txs []zmq.FullTxPoolAdd) {
+		t.Log(txs)
+	}, func(main *zmq.FullMinerData) {
+		t.Log(main)
+	}, func(chainMain *zmq.MinimalChainMain) {
+		t.Log(chainMain)
+	}, func(txs []zmq.TxMempoolData) {
 
-	for {
-		select {
-		case err := <-s.ErrC:
-			if !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatal(err)
-			}
-			return
-		case fullChainMain := <-s.FullChainMainC:
-			log.Print(fullChainMain)
-		case fullTxPoolAdd := <-s.FullTxPoolAddC:
-			log.Print(fullTxPoolAdd)
-		case fullMinerData := <-s.FullMinerDataC:
-			log.Print(fullMinerData)
-		case minimalChainMain := <-s.MinimalChainMainC:
-			log.Print(minimalChainMain)
-		case minimalTxPoolAdd := <-s.MinimalTxPoolAddC:
-			log.Print(minimalTxPoolAdd)
-		}
+		t.Log(txs)
+	})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
 	}
 }
