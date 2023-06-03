@@ -5,12 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 )
 
 type Outputs []Output
 
-func (s *Outputs) FromReader(reader readerAndByteReader) (err error) {
+func (s *Outputs) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	var outputCount uint64
 
 	if outputCount, err = binary.ReadUvarint(reader); err != nil {

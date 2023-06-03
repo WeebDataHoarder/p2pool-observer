@@ -14,6 +14,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"io"
 	"sync"
@@ -463,7 +464,7 @@ func (b *PoolBlock) AppendBinaryFlags(preAllocatedBuf []byte, pruned, compact bo
 	}
 }
 
-func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader utils.ReaderAndByteReader) (err error) {
 	if err = b.Main.FromReader(reader); err != nil {
 		return err
 	}
@@ -489,7 +490,7 @@ func (b *PoolBlock) FromReader(consensus *Consensus, derivationCache DerivationC
 }
 
 // FromCompactReader used in Protocol 1.1 and above
-func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader readerAndByteReader) (err error) {
+func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache DerivationCacheInterface, reader utils.ReaderAndByteReader) (err error) {
 	if err = b.Main.FromCompactReader(reader); err != nil {
 		return err
 	}
@@ -675,7 +676,7 @@ type poolBlockCache struct {
 	powHash    types.Hash
 }
 
-func (c *poolBlockCache) FromReader(reader readerAndByteReader) (err error) {
+func (c *poolBlockCache) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	buf := make([]byte, types.HashSize*3+types.DifficultySize+FullIdSize)
 	if _, err = reader.Read(buf); err != nil {
 		return err

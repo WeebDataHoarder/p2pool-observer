@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 )
 
@@ -78,7 +79,7 @@ func (t *ExtraTags) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId 
 	return buf, nil
 }
 
-func (t *ExtraTags) FromReader(reader readerAndByteReader) (err error) {
+func (t *ExtraTags) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	var tag ExtraTag
 	for {
 		if err = tag.FromReader(reader); err != nil {
@@ -148,7 +149,7 @@ func (t *ExtraTag) SideChainHashingBlob(preAllocatedBuf []byte, zeroTemplateId b
 	return buf, nil
 }
 
-func (t *ExtraTag) FromReader(reader readerAndByteReader) (err error) {
+func (t *ExtraTag) FromReader(reader utils.ReaderAndByteReader) (err error) {
 
 	if err = binary.Read(reader, binary.LittleEndian, &t.Tag); err != nil {
 		return err

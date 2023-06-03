@@ -8,7 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"io"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"sync"
 )
 
@@ -32,17 +32,12 @@ type CoinbaseTransaction struct {
 	ExtraBaseRCT uint8 `json:"extra_base_rct"`
 }
 
-type readerAndByteReader interface {
-	io.Reader
-	io.ByteReader
-}
-
 func (c *CoinbaseTransaction) UnmarshalBinary(data []byte) error {
 	reader := bytes.NewReader(data)
 	return c.FromReader(reader)
 }
 
-func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error) {
+func (c *CoinbaseTransaction) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	var (
 		txExtraSize uint64
 	)
@@ -121,12 +116,12 @@ func (c *CoinbaseTransaction) FromReader(reader readerAndByteReader) (err error)
 		return errors.New("tx extra too large")
 	}
 
-	txExtra := make([]byte, txExtraSize)
-	if _, err = io.ReadFull(reader, txExtra); err != nil {
+	limitReader := utils.LimitByteReader(reader, int64(txExtraSize))
+	if err = c.Extra.FromReader(limitReader); err != nil {
 		return err
 	}
-	if err = c.Extra.UnmarshalBinary(txExtra); err != nil {
-		return err
+	if limitReader.Left() > 0 {
+		return errors.New("bytes leftover in extra data")
 	}
 	if err = binary.Read(reader, binary.LittleEndian, &c.ExtraBaseRCT); err != nil {
 		return err

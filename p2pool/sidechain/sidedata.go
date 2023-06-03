@@ -7,6 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 )
 
@@ -29,11 +30,6 @@ type SideData struct {
 		RandomNumber        uint32
 		SideChainExtraNonce uint32
 	}
-}
-
-type readerAndByteReader interface {
-	io.Reader
-	io.ByteReader
 }
 
 func (b *SideData) BufferLength() int {
@@ -73,7 +69,7 @@ func (b *SideData) AppendBinary(preAllocatedBuf []byte, version ShareVersion) (b
 	return buf, nil
 }
 
-func (b *SideData) FromReader(reader readerAndByteReader, version ShareVersion) (err error) {
+func (b *SideData) FromReader(reader utils.ReaderAndByteReader, version ShareVersion) (err error) {
 	var (
 		uncleCount uint64
 		uncleHash  types.Hash

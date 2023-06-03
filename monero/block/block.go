@@ -10,6 +10,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 )
 
@@ -37,11 +38,6 @@ type Header struct {
 	Reward       uint64           `json:"reward"`
 	Difficulty   types.Difficulty `json:"difficulty"`
 	Id           types.Hash       `json:"id"`
-}
-
-type readerAndByteReader interface {
-	io.Reader
-	io.ByteReader
 }
 
 func (b *Block) MarshalBinary() (buf []byte, err error) {
@@ -93,11 +89,11 @@ func (b *Block) AppendBinaryFlags(preAllocatedBuf []byte, pruned, compact bool) 
 	return buf, nil
 }
 
-func (b *Block) FromReader(reader readerAndByteReader) (err error) {
+func (b *Block) FromReader(reader utils.ReaderAndByteReader) (err error) {
 	return b.FromReaderFlags(reader, false)
 }
 
-func (b *Block) FromCompactReader(reader readerAndByteReader) (err error) {
+func (b *Block) FromCompactReader(reader utils.ReaderAndByteReader) (err error) {
 	return b.FromReaderFlags(reader, true)
 }
 
@@ -106,7 +102,7 @@ func (b *Block) UnmarshalBinary(data []byte) error {
 	return b.FromReader(reader)
 }
 
-func (b *Block) FromReaderFlags(reader readerAndByteReader, compact bool) (err error) {
+func (b *Block) FromReaderFlags(reader utils.ReaderAndByteReader, compact bool) (err error) {
 	var (
 		txCount         uint64
 		transactionHash types.Hash
