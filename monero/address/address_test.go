@@ -63,6 +63,7 @@ func BenchmarkCoinbaseDerivation(b *testing.B) {
 			GetEphemeralPublicKeyAndViewTag(&packed, txKey, i.Add(1))
 		}
 	})
+	b.ReportAllocs()
 }
 
 func BenchmarkCoinbaseDerivationInline(b *testing.B) {
@@ -75,6 +76,7 @@ func BenchmarkCoinbaseDerivationInline(b *testing.B) {
 			getEphemeralPublicKeyInline(spendPub, viewPub, privateKey, i.Add(1), p)
 		}
 	})
+	b.ReportAllocs()
 }
 
 func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
@@ -91,4 +93,5 @@ func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
 			GetEphemeralPublicKeyAndViewTagNoAllocate(spendPub, GetDerivationNoAllocate(viewPub, txKey), txKey, i.Add(1), hasher)
 		}
 	})
+	b.ReportAllocs()
 }
