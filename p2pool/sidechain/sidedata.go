@@ -3,6 +3,7 @@ package sidechain
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
@@ -88,6 +89,11 @@ func (b *SideData) FromReader(reader utils.ReaderAndByteReader, version ShareVer
 	if _, err = io.ReadFull(reader, b.PublicViewKey[:]); err != nil {
 		return err
 	}
+	var emptyKey crypto.PublicKeyBytes
+	if b.PublicSpendKey == emptyKey && b.PublicViewKey == emptyKey {
+		return errors.New("both spend and view key are zero")
+	}
+
 	if version > ShareVersion_V1 {
 		//needs preprocessing
 		if _, err = io.ReadFull(reader, b.CoinbasePrivateKeySeed[:]); err != nil {
