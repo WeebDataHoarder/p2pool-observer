@@ -6,13 +6,17 @@ import (
 	"unsafe"
 )
 
-func CalculateTransactionPrivateKeySeed(main, side []byte) types.Hash {
-	return crypto.PooledKeccak256(
-		// domain
-		[]byte("tx_key_seed"), []byte{0},
-		main,
-		side,
-	)
+var transactionPrivateKeySeedDomain = append([]byte("tx_key_seed"), 0)
+
+func CalculateTransactionPrivateKeySeed(main, side []byte) (result types.Hash) {
+	h := crypto.GetKeccak256Hasher()
+	defer crypto.PutKeccak256Hasher(h)
+	_, _ = h.Write(transactionPrivateKeySeedDomain)
+	_, _ = h.Write(main)
+	_, _ = h.Write(side)
+	crypto.HashFastSum(h, result[:])
+
+	return result
 }
 
 func GetDeterministicTransactionPrivateKey(seed types.Hash, previousMoneroId types.Hash) crypto.PrivateKey {

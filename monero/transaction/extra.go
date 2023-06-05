@@ -112,9 +112,9 @@ func (t *ExtraTag) UnmarshalBinary(data []byte) error {
 
 func (t *ExtraTag) BufferLength() int {
 	if t.HasVarInt {
-		return len(t.Data) + 1 + utils.UVarInt64Size(t.VarInt)
+		return 1 + utils.UVarInt64Size(t.VarInt) + len(t.Data)
 	}
-	return len(t.Data) + 1
+	return 1 + len(t.Data)
 }
 
 func (t *ExtraTag) MarshalBinary() ([]byte, error) {

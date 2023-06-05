@@ -171,11 +171,8 @@ func (c *CoinbaseTransaction) AppendBinaryFlags(preAllocatedBuf []byte, pruned b
 		buf, _ = c.Outputs.AppendBinary(buf)
 	}
 
-	txExtra := make([]byte, 0, c.Extra.BufferLength())
-	txExtra, _ = c.Extra.AppendBinary(txExtra)
-
-	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
-	buf = append(buf, txExtra...)
+	buf = binary.AppendUvarint(buf, uint64(c.Extra.BufferLength()))
+	buf, _ = c.Extra.AppendBinary(buf)
 	buf = append(buf, c.ExtraBaseRCT)
 
 	return buf, nil
@@ -196,10 +193,8 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(preAllocatedBuf []byte, zeroT
 
 	buf, _ = c.Outputs.AppendBinary(buf)
 
-	txExtra := make([]byte, 0, c.Extra.BufferLength())
-	txExtra, _ = c.Extra.SideChainHashingBlob(txExtra, zeroTemplateId)
-	buf = binary.AppendUvarint(buf, uint64(len(txExtra)))
-	buf = append(buf, txExtra...)
+	buf = binary.AppendUvarint(buf, uint64(c.Extra.BufferLength()))
+	buf, _ = c.Extra.SideChainHashingBlob(buf, zeroTemplateId)
 	buf = append(buf, c.ExtraBaseRCT)
 
 	return buf, nil
