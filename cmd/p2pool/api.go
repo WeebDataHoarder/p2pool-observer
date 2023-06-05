@@ -539,9 +539,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 
 						var topError error
 
-						for e := range sidechain.IterateBlocksInPPLNSWindow(tip, instance.Consensus(), instance.GetDifficultyByHeight, getByTemplateId, nil, func(err error) {
-							topError = err
-						}) {
+						topError = sidechain.IterateBlocksInPPLNSWindow(tip, instance.Consensus(), instance.GetDifficultyByHeight, getByTemplateId, nil, func(e sidechain.PoolBlockWindowSlot) {
 							if _, err = e.Block.PreProcessBlock(instance.Consensus(), instance.SideChain().DerivationCache(), preAllocatedShares, instance.GetDifficultyByHeight, getByTemplateId); err != nil {
 								topError = err
 								result.Chain = append(result.Chain, p2pooltypes.P2PoolBinaryBlockResult{
@@ -581,7 +579,7 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 									})
 								}
 							}
-						}
+						})
 
 						if topError == nil {
 							writer.Header().Set("Content-Type", "application/json; charset=utf-8")

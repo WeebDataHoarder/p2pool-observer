@@ -1278,13 +1278,8 @@ func (i *Index) GetSideBlockFromPoolBlock(b *sidechain.PoolBlock, inclusion Bloc
 	}
 	tip.EffectiveHeight = tip.SideHeight
 	tip.Inclusion = inclusion
-	var bottomHeight uint64
-	for e := range sidechain.IterateBlocksInPPLNSWindow(b, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil, func(err error) {
-		bottomHeight = 0
-	}) {
-		bottomHeight = e.Block.Side.Height
-	}
-	if bottomHeight == 0 {
+
+	if bottomHeight, err := sidechain.BlocksInPPLNSWindow(b, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil); err != nil {
 		// unknown
 		tip.WindowDepth = 0
 	} else {
@@ -1316,13 +1311,8 @@ func (i *Index) GetSideBlockFromPoolBlock(b *sidechain.PoolBlock, inclusion Bloc
 			uncleBlock.EffectiveHeight = tip.EffectiveHeight
 			uncleBlock.Inclusion = InclusionInVerifiedChain
 		}
-		var uncleBottomHeight uint64
-		for e := range sidechain.IterateBlocksInPPLNSWindow(uncle, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil, func(err error) {
-			uncleBottomHeight = 0
-		}) {
-			uncleBottomHeight = e.Block.Side.Height
-		}
-		if uncleBottomHeight == 0 {
+
+		if uncleBottomHeight, err := sidechain.BlocksInPPLNSWindow(uncle, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil); err != nil {
 			// unknown
 			uncleBlock.WindowDepth = 0
 		} else {
