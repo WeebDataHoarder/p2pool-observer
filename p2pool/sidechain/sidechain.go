@@ -157,6 +157,64 @@ func (c *SideChain) getSeedByHeightFunc() mainblock.GetSeedByHeightFunc {
 	}
 }
 
+func (c *SideChain) GetPossibleUncles(tip *PoolBlock, forHeight uint64) (uncles []types.Hash) {
+	minedBlocks := make([]types.Hash, 0, UncleBlockDepth*2+1)
+	tmp := tip
+	c.sidechainLock.RLock()
+	defer c.sidechainLock.RUnlock()
+	for i, n := uint64(0), utils.Min(UncleBlockDepth, tip.Side.Height+1); tmp != nil && (i < n); i++ {
+		minedBlocks = append(minedBlocks, tmp.SideTemplateId(c.Consensus()))
+		for _, uncleId := range tmp.Side.Uncles {
+			minedBlocks = append(minedBlocks, uncleId)
+		}
+		tmp = c.getParent(tmp)
+	}
+
+	for i, n := uint64(0), utils.Min(UncleBlockDepth, tip.Side.Height+1); i < n; i++ {
+		for _, uncle := range c.getPoolBlocksByHeight(tip.Side.Height - i) {
+			// Only add verified and valid blocks
+			if !uncle.Verified.Load() || uncle.Invalid.Load() {
+				continue
+			}
+
+			// Only add it if it hasn't been mined already
+			if slices.Contains(minedBlocks, uncle.SideTemplateId(c.Consensus())) {
+				continue
+			}
+
+			if sameChain := func() bool {
+				tmp = tip
+				for tmp != nil && tmp.Side.Height > uncle.Side.Height {
+					tmp = c.getParent(tmp)
+				}
+				if tmp == nil || tmp.Side.Height < uncle.Side.Height {
+					return false
+				}
+				tmp2 := uncle
+				for j := 0; j < UncleBlockDepth && tmp != nil && tmp2 != nil && (tmp.Side.Height+UncleBlockDepth >= forHeight); j++ {
+					if tmp.Side.Parent == tmp2.Side.Parent {
+						return true
+					}
+					tmp = c.getParent(tmp)
+					tmp2 = c.getParent(tmp2)
+				}
+				return false
+			}(); sameChain {
+				uncles = append(uncles, uncle.SideTemplateId(c.Consensus()))
+			}
+		}
+	}
+
+	if len(uncles) > 0 {
+		// Sort hashes, consensus
+		slices.SortFunc(uncles, func(a, b types.Hash) bool {
+			return a.Compare(b) < 0
+		})
+	}
+
+	return uncles
+}
+
 func (c *SideChain) BlockSeen(block *PoolBlock) bool {
 	tip := c.GetChainTip()
 
