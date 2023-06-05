@@ -8,6 +8,7 @@ import (
 	p2poolinstance "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/stratum"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
@@ -50,6 +51,9 @@ func main() {
 	addPeers := flag.String("addpeers", "", "Comma-separated list of IP:port of other p2pool nodes to connect to")
 	addSelf := flag.Bool("add-self-peer", false, "Adds itself to the peer list regularly, based on found local interfaces for IPv4/IPv6")
 	peerList := flag.String("peer-list", "p2pool_peers.txt", "Either a path or an URL to obtain peer lists from. If it is a path, new peers will be saved to this path. Set to empty to disable")
+
+	//stratum related
+	stratumListen := flag.String("stratum", "", "IP:port for stratum server to listen on. Empty to disable.")
 
 	//other settings
 	lightMode := flag.Bool("light-mode", false, "Don't allocate RandomX dataset, saves 2GB of RAM")
@@ -173,6 +177,27 @@ func main() {
 		if *debugListen != "" {
 			go func() {
 				if err := http.ListenAndServe(*debugListen, nil); err != nil {
+					log.Panic(err)
+				}
+			}()
+		}
+
+		if *stratumListen != "" {
+			stratumServer := stratum.NewServer(instance.SideChain(), func(block *sidechain.PoolBlock) error {
+				block.WantBroadcast.Store(true)
+				block.LocalTimestamp = uint64(time.Now().Unix())
+				if _, err, _ := instance.SideChain().AddPoolBlockExternal(block); err != nil {
+					log.Printf("[Stratum] ERROR: Submitted block template id = %s, side height = %d, main height = %d, main_id = %s, nonce = %d, extra_nonce = %d add_pool_block_external error: %s", block.SideTemplateId(instance.Consensus()), block.Side.Height, block.Main.Coinbase.GenHeight, block.MainId(), block.Main.Nonce, block.ExtraNonce(), err)
+					return err
+				} else {
+					log.Printf("[Stratum] SUCCESS: Submitted block template id = %s, side height = %d, main height = %d, main_id = %s, nonce = %d, extra_nonce = %d", block.SideTemplateId(instance.Consensus()), block.Side.Height, block.Main.Coinbase.GenHeight, block.MainId(), block.Main.Nonce, block.ExtraNonce())
+				}
+				return nil
+			})
+			listenerId := instance.AddListener(stratumServer.HandleTip, stratumServer.HandleBroadcast, nil, nil, stratumServer.HandleMinerData, stratumServer.HandleMempoolData)
+			go func() {
+				defer instance.RemoveListener(listenerId)
+				if err := stratumServer.Listen(*stratumListen); err != nil {
 					log.Panic(err)
 				}
 			}()
