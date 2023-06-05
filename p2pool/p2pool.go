@@ -14,6 +14,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mainchain"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/mempool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
@@ -28,12 +29,13 @@ import (
 )
 
 type EventListener struct {
-	ListenerId uint64
-	Tip        func(tip *sidechain.PoolBlock)
-	Broadcast  func(b *sidechain.PoolBlock)
-	Found      func(data *sidechain.ChainMain, b *sidechain.PoolBlock)
-	MainData   func(data *sidechain.ChainMain)
-	MinerData  func(data *p2pooltypes.MinerData)
+	ListenerId  uint64
+	Tip         func(tip *sidechain.PoolBlock)
+	Broadcast   func(b *sidechain.PoolBlock)
+	Found       func(data *sidechain.ChainMain, b *sidechain.PoolBlock)
+	MainData    func(data *sidechain.ChainMain)
+	MinerData   func(data *p2pooltypes.MinerData)
+	MempoolData func(data mempool.Mempool)
 }
 
 type P2Pool struct {
@@ -63,19 +65,20 @@ type P2Pool struct {
 
 // AddListener Registers listener to several events produced centrally.
 // Note that you should process events called as fast as possible, or spawn a new goroutine to not block
-func (p *P2Pool) AddListener(tip func(tip *sidechain.PoolBlock), broadcast func(b *sidechain.PoolBlock), found func(data *sidechain.ChainMain, b *sidechain.PoolBlock), mainData func(data *sidechain.ChainMain), minerData func(data *p2pooltypes.MinerData)) (listenerId uint64) {
+func (p *P2Pool) AddListener(tip func(tip *sidechain.PoolBlock), broadcast func(b *sidechain.PoolBlock), found func(data *sidechain.ChainMain, b *sidechain.PoolBlock), mainData func(data *sidechain.ChainMain), minerData func(data *p2pooltypes.MinerData), mempoolData func(data mempool.Mempool)) (listenerId uint64) {
 	p.listenersLock.Lock()
 	p.listenersLock.Unlock()
 
 	listenerId = p.nextListenerId
 	p.nextListenerId++
 	p.listeners = append(p.listeners, EventListener{
-		ListenerId: listenerId,
-		Tip:        tip,
-		Broadcast:  broadcast,
-		Found:      found,
-		MainData:   mainData,
-		MinerData:  minerData,
+		ListenerId:  listenerId,
+		Tip:         tip,
+		Broadcast:   broadcast,
+		Found:       found,
+		MainData:    mainData,
+		MinerData:   minerData,
+		MempoolData: mempoolData,
 	})
 	return listenerId
 }
@@ -471,7 +474,8 @@ func (p *P2Pool) getMinerData() error {
 		prevId, _ := types.HashFromString(minerData.PrevId)
 		seedHash, _ := types.HashFromString(minerData.SeedHash)
 		diff, _ := types.DifficultyFromString(minerData.Difficulty)
-		p.mainchain.HandleMinerData(&p2pooltypes.MinerData{
+
+		data := &p2pooltypes.MinerData{
 			MajorVersion:          minerData.MajorVersion,
 			Height:                minerData.Height,
 			PrevId:                prevId,
@@ -481,7 +485,19 @@ func (p *P2Pool) getMinerData() error {
 			AlreadyGeneratedCoins: minerData.AlreadyGeneratedCoins,
 			MedianTimestamp:       minerData.MedianTimestamp,
 			TimeReceived:          time.Now(),
-		})
+		}
+		data.TxBacklog = make(mempool.Mempool, len(minerData.TxBacklog))
+		for i, e := range minerData.TxBacklog {
+			txId, _ := types.HashFromString(e.Id)
+
+			data.TxBacklog[i] = &mempool.MempoolEntry{
+				Id:       txId,
+				BlobSize: e.BlobSize,
+				Weight:   e.Weight,
+				Fee:      e.Fee,
+			}
+		}
+		p.mainchain.HandleMinerData(data)
 
 		return p.mainchain.DownloadBlockHeaders(minerData.Height)
 	}
@@ -497,6 +513,16 @@ func (p *P2Pool) UpdateMainData(data *sidechain.ChainMain) {
 	for i := range p.listeners {
 		if p.listeners[i].MainData != nil {
 			p.listeners[i].MainData(data)
+		}
+	}
+}
+
+func (p *P2Pool) UpdateMempoolData(data mempool.Mempool) {
+	p.listenersLock.RLock()
+	defer p.listenersLock.RUnlock()
+	for i := range p.listeners {
+		if p.listeners[i].MempoolData != nil {
+			p.listeners[i].MempoolData(data)
 		}
 	}
 }

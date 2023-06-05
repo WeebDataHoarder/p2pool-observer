@@ -19,9 +19,19 @@ type MempoolEntry struct {
 type Mempool []*MempoolEntry
 
 func (m Mempool) Sort() {
+	// Sort all transactions by fee per byte (highest to lowest)
+
 	slices.SortFunc(m, func(a, b *MempoolEntry) bool {
 		return a.Compare(b) < 0
 	})
+}
+
+func (m Mempool) WeightAndFees() (weight, fees uint64) {
+	for _, e := range m {
+		weight += e.Weight
+		fees += e.Fee
+	}
+	return
 }
 
 func (m Mempool) Fees() (r uint64) {
@@ -39,6 +49,7 @@ func (m Mempool) Weight() (r uint64) {
 }
 
 func (m Mempool) Pick(baseReward, minerTxWeight, medianWeight uint64) Mempool {
+	// Sort all transactions by fee per byte (highest to lowest)
 	m.Sort()
 
 	finalReward := baseReward

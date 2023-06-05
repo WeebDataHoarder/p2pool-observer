@@ -104,6 +104,13 @@ const (
 	VarIntLen9
 )
 
+func UVarInt64SliceSize[T constraints.Integer](v []T) (n int) {
+	for i := range v {
+		n += UVarInt64Size(v[i])
+	}
+	return
+}
+
 func UVarInt64Size[T constraints.Integer](v T) (n int) {
 	x := uint64(v)
 

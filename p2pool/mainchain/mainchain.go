@@ -46,6 +46,7 @@ type P2PoolInterface interface {
 	Started() bool
 	UpdateMainData(data *sidechain.ChainMain)
 	UpdateMinerData(data *p2pooltypes.MinerData)
+	UpdateMempoolData(data mempool.Mempool)
 	UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.PoolBlock)
 }
 
@@ -165,7 +166,16 @@ func (c *MainChain) Listen() error {
 		}, func(chainMain *zmq.MinimalChainMain) {
 
 		}, func(txs []zmq.TxMempoolData) {
-			//TODO
+			m := make(mempool.Mempool, len(txs))
+			for i := range txs {
+				m[i] = &mempool.MempoolEntry{
+					Id:       txs[i].Id,
+					BlobSize: txs[i].BlobSize,
+					Weight:   txs[i].Weight,
+					Fee:      txs[i].Fee,
+				}
+			}
+			c.p2pool.UpdateMempoolData(m)
 		})
 	if err != nil {
 		return err

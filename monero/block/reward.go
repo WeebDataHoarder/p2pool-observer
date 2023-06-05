@@ -1,9 +1,18 @@
 package block
 
 import (
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"lukechampine.com/uint128"
 	"math"
 )
+
+func GetBaseReward(alreadyGeneratedCounts uint64) uint64 {
+	result := (^alreadyGeneratedCounts) >> 19
+	if result < monero.TailEmissionReward {
+		return monero.TailEmissionReward
+	}
+	return result
+}
 
 func GetBlockReward(medianWeight, currentBlockWeight, alreadyGeneratedCoins uint64, version uint8) (reward uint64) {
 	const DIFFICULTY_TARGET_V1 = 60  // seconds - before first fork
