@@ -55,7 +55,7 @@ func (p *P2PoolApi) WaitSync() (err error) {
 		time.Sleep(time.Second * 5)
 	}
 	log.Printf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
-	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id())
+	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id)
 	return nil
 }
 
@@ -78,7 +78,7 @@ func (p *P2PoolApi) WaitSyncStart() (err error) {
 	if status.Synchronized {
 		log.Printf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
 	}
-	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id())
+	log.Printf("[API] Consensus id = %s\n", p.Consensus().Id)
 	return nil
 }
 

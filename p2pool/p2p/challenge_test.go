@@ -20,7 +20,7 @@ func TestFindChallengeSolution(t *testing.T) {
 
 	var stop atomic.Bool
 
-	if solution, hash, ok := FindChallengeSolution(handshakeChallenge, sidechain.ConsensusDefault.Id(), &stop); !ok {
+	if solution, hash, ok := FindChallengeSolution(handshakeChallenge, sidechain.ConsensusDefault.Id, &stop); !ok {
 		t.Fatalf("No solution for %s", hex.EncodeToString(handshakeChallenge[:]))
 	} else {
 		t.Logf("Solution for %s is %d (hash %s)", hex.EncodeToString(handshakeChallenge[:]), solution, hash.String())

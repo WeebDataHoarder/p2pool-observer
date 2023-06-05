@@ -98,7 +98,7 @@ type Consensus struct {
 
 	hasher randomx.Hasher
 
-	id types.Hash
+	Id types.Hash
 }
 
 const SmallestMinimumDifficulty = 100000
@@ -166,8 +166,8 @@ func (c *Consensus) verify() bool {
 	}
 
 	var emptyHash types.Hash
-	c.id = c.CalculateId()
-	if c.id == emptyHash {
+	c.Id = c.CalculateId()
+	if c.Id == emptyHash {
 		return false
 	}
 
@@ -200,7 +200,7 @@ func (c *Consensus) CalculateSideTemplateIdPreAllocated(share *PoolBlock, buf []
 	buf, _ = share.Side.AppendBinary(buf[:0], share.ShareVersion())
 	_, _ = h.Write(buf)
 
-	_, _ = h.Write(c.id[:])
+	_, _ = h.Write(c.Id[:])
 	crypto.HashFastSum(h, result[:])
 	return result
 }
@@ -212,27 +212,17 @@ func (c *Consensus) CalculateSideChainIdFromBlobs(mainBlob, sideBlob []byte) (re
 	_, _ = h.Write(mainBlob)
 	_, _ = h.Write(sideBlob)
 
-	_, _ = h.Write(c.id[:])
+	_, _ = h.Write(c.Id[:])
 	crypto.HashFastSum(h, result[:])
 	return result
 }
 
-func (c *Consensus) Id() types.Hash {
-	var h types.Hash
-	if c.id == h {
-		//this data race is fine
-		c.id = c.CalculateId()
-		return c.id
-	}
-	return c.id
-}
-
 func (c *Consensus) IsDefault() bool {
-	return c.id == ConsensusDefault.id
+	return c.Id == ConsensusDefault.Id
 }
 
 func (c *Consensus) IsMini() bool {
-	return c.id == ConsensusMini.id
+	return c.Id == ConsensusMini.Id
 }
 
 func (c *Consensus) DefaultPort() uint16 {
@@ -290,5 +280,5 @@ func (c *Consensus) CalculateId() types.Hash {
 	return randomx.ConsensusHash(buf)
 }
 
-var ConsensusDefault = &Consensus{NetworkType: NetworkMainnet, PoolName: "mainnet test 2", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, id: types.Hash{34, 175, 126, 231, 181, 11, 104, 146, 227, 153, 218, 107, 44, 108, 68, 39, 178, 81, 4, 212, 169, 4, 142, 0, 177, 110, 157, 240, 68, 7, 249, 24}}
-var ConsensusMini = &Consensus{NetworkType: NetworkMainnet, PoolName: "mini", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, id: types.Hash{57, 130, 201, 26, 149, 174, 199, 250, 66, 80, 189, 18, 108, 216, 194, 220, 136, 23, 63, 24, 64, 113, 221, 44, 219, 86, 39, 163, 53, 24, 126, 196}}
+var ConsensusDefault = &Consensus{NetworkType: NetworkMainnet, PoolName: "mainnet test 2", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, Id: types.Hash{34, 175, 126, 231, 181, 11, 104, 146, 227, 153, 218, 107, 44, 108, 68, 39, 178, 81, 4, 212, 169, 4, 142, 0, 177, 110, 157, 240, 68, 7, 249, 24}}
+var ConsensusMini = &Consensus{NetworkType: NetworkMainnet, PoolName: "mini", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, Id: types.Hash{57, 130, 201, 26, 149, 174, 199, 250, 66, 80, 189, 18, 108, 216, 194, 220, 136, 23, 63, 24, 64, 113, 221, 44, 219, 86, 39, 163, 53, 24, 126, 196}}
