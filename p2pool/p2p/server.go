@@ -126,8 +126,8 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		listenAddress:      addrPort,
 		externalListenPort: externalListenPort,
 		peerId:             binary.LittleEndian.Uint64(peerId),
-		MaxOutgoingPeers:   utils.Min(utils.Max(maxOutgoingPeers, 10), 450),
-		MaxIncomingPeers:   utils.Min(utils.Max(maxIncomingPeers, 10), 450),
+		MaxOutgoingPeers:   utils.Min(maxOutgoingPeers, 450),
+		MaxIncomingPeers:   utils.Min(maxIncomingPeers, 450),
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
 		versionInformation: p2pooltypes.PeerVersionInformation{
 			SoftwareId:      p2pooltypes.CurrentSoftwareId,
@@ -383,6 +383,10 @@ func (s *Server) UpdateClientConnections() {
 			attempts++
 			go func() {
 				defer wg.Done()
+
+				if s.NumOutgoingConnections.Load() >= int32(s.MaxOutgoingPeers) {
+					return
+				}
 				if err := s.Connect(peer.AddressPort); err != nil {
 					log.Printf("[P2PServer] Connection to %s rejected (%s)", peer.AddressPort.String(), err.Error())
 				}
