@@ -51,7 +51,7 @@ func (b *CircularBuffer[T]) PushUnique(value T) bool {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
-	if slices.Contains(b.buffer, value) {
+	if len(b.buffer) == 0 || slices.Contains(b.buffer, value) {
 		return false
 	}
 
