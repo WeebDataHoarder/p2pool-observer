@@ -10,6 +10,7 @@ require (
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a
 	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
+	github.com/dolthub/swiss v0.1.0
 	github.com/floatdrop/lru v1.3.0
 	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/goccy/go-json v0.10.2
@@ -29,6 +30,7 @@ require (
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dolthub/maphash v0.0.0-20221220182448-74e1e1ea1577 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

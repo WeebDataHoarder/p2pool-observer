@@ -16,6 +16,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
+	"github.com/dolthub/swiss"
 	"golang.org/x/exp/slices"
 	"io"
 	"log"
@@ -63,15 +64,15 @@ type SideChain struct {
 	server          P2PoolInterface
 
 	seenBlocksLock sync.Mutex
-	seenBlocks     map[FullId]struct{}
+	seenBlocks     *swiss.Map[FullId, struct{}]
 
 	sidechainLock sync.RWMutex
 
 	watchBlock            *ChainMain
 	watchBlockSidechainId types.Hash
 
-	blocksByTemplateId map[types.Hash]*PoolBlock
-	blocksByHeight     map[uint64][]*PoolBlock
+	blocksByTemplateId *swiss.Map[types.Hash, *PoolBlock]
+	blocksByHeight     *swiss.Map[uint64, []*PoolBlock]
 
 	preAllocatedBuffer []byte
 
@@ -91,14 +92,14 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 	s := &SideChain{
 		derivationCache:                   NewDerivationMapCache(),
 		server:                            server,
-		blocksByTemplateId:                make(map[types.Hash]*PoolBlock),
-		blocksByHeight:                    make(map[uint64][]*PoolBlock),
+		blocksByTemplateId:                swiss.NewMap[types.Hash, *PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
+		blocksByHeight:                    swiss.NewMap[uint64, []*PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
 		preAllocatedDifficultyData:        make([]DifficultyData, server.Consensus().ChainWindowSize*2),
 		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
 		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
 		preAllocatedBuffer:                make([]byte, 0, PoolBlockMaxTemplateSize),
-		seenBlocks:                        make(map[FullId]struct{}),
+		seenBlocks:                        swiss.NewMap[FullId, struct{}](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
 	s.currentDifficulty.Store(&minDiff)
@@ -227,10 +228,10 @@ func (c *SideChain) BlockSeen(block *PoolBlock) bool {
 
 	c.seenBlocksLock.Lock()
 	defer c.seenBlocksLock.Unlock()
-	if _, ok := c.seenBlocks[fullId]; ok {
+	if c.seenBlocks.Has(fullId) {
 		return true
 	} else {
-		c.seenBlocks[fullId] = struct{}{}
+		c.seenBlocks.Put(fullId, struct{}{})
 		return false
 	}
 }
@@ -240,7 +241,7 @@ func (c *SideChain) BlockUnsee(block *PoolBlock) {
 
 	c.seenBlocksLock.Lock()
 	defer c.seenBlocksLock.Unlock()
-	delete(c.seenBlocks, fullId)
+	c.seenBlocks.Delete(fullId)
 }
 
 func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error, ban bool) {
@@ -312,7 +313,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 					c.sidechainLock.Lock()
 					defer c.sidechainLock.Unlock()
 
-					log.Printf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
+					log.Printf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
 
 					block.Verified.Store(true)
 					block.Invalid.Store(false)
@@ -399,7 +400,7 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 
 	c.sidechainLock.Lock()
 	defer c.sidechainLock.Unlock()
-	if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
+	if c.blocksByTemplateId.Has(block.SideTemplateId(c.Consensus())) {
 		//already inserted
 		//TODO WARN
 		return nil
@@ -409,19 +410,19 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		return fmt.Errorf("encoding block error: %w", err)
 	}
 
-	c.blocksByTemplateId[block.SideTemplateId(c.Consensus())] = block
+	c.blocksByTemplateId.Put(block.SideTemplateId(c.Consensus()), block)
 
-	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), len(c.blocksByTemplateId))
+	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
 
 	if block.SideTemplateId(c.Consensus()) == c.watchBlockSidechainId {
 		c.server.UpdateBlockFound(c.watchBlock, block)
 		c.watchBlockSidechainId = types.ZeroHash
 	}
 
-	if l, ok := c.blocksByHeight[block.Side.Height]; ok {
-		c.blocksByHeight[block.Side.Height] = append(l, block)
+	if l, ok := c.blocksByHeight.Get(block.Side.Height); ok {
+		c.blocksByHeight.Put(block.Side.Height, append(l, block))
 	} else {
-		c.blocksByHeight[block.Side.Height] = []*PoolBlock{block}
+		c.blocksByHeight.Put(block.Side.Height, []*PoolBlock{block})
 	}
 
 	c.updateDepths(block)
@@ -504,7 +505,8 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 
 			// Try to verify blocks on top of this one
 			for i := uint64(1); i <= UncleBlockDepth; i++ {
-				blocksToVerify = append(blocksToVerify, c.blocksByHeight[block.Side.Height+i]...)
+				blocksAtHeight, _ := c.blocksByHeight.Get(block.Side.Height + i)
+				blocksToVerify = append(blocksToVerify, blocksAtHeight...)
 			}
 		}
 	}
@@ -741,7 +743,8 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 
 func (c *SideChain) updateDepths(block *PoolBlock) {
 	for i := uint64(1); i <= UncleBlockDepth; i++ {
-		for _, child := range c.blocksByHeight[block.Side.Height+i] {
+		blocksAtHeight, _ := c.blocksByHeight.Get(block.Side.Height + i)
+		for _, child := range blocksAtHeight {
 			if child.Side.Parent.Equals(block.SideTemplateId(c.Consensus())) {
 				if i != 1 {
 					log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
@@ -865,17 +868,17 @@ func (c *SideChain) pruneOldBlocks() {
 	h := tip.Side.Height - pruneDistance
 
 	numBlocksPruned := 0
-	for height, v := range c.blocksByHeight {
+	c.blocksByHeight.Iter(func(height uint64, v []*PoolBlock) (stop bool) {
 		if height > h {
-			continue
+			return false
 		}
 
 		// loop backwards for proper deletions
 		for i := len(v) - 1; i >= 0; i-- {
 			block := v[i]
 			if block.Depth.Load() >= pruneDistance || (curTime >= (block.LocalTimestamp + pruneDelay)) {
-				if _, ok := c.blocksByTemplateId[block.SideTemplateId(c.Consensus())]; ok {
-					delete(c.blocksByTemplateId, block.SideTemplateId(c.Consensus()))
+				if c.blocksByTemplateId.Has(block.SideTemplateId(c.Consensus())) {
+					c.blocksByTemplateId.Delete(block.SideTemplateId(c.Consensus()))
 					numBlocksPruned++
 				} else {
 					log.Printf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
@@ -885,11 +888,12 @@ func (c *SideChain) pruneOldBlocks() {
 		}
 
 		if len(v) == 0 {
-			delete(c.blocksByHeight, height)
+			c.blocksByHeight.Delete(height)
 		} else {
-			c.blocksByHeight[height] = v
+			c.blocksByHeight.Put(height, v)
 		}
-	}
+		return false
+	})
 
 	if numBlocksPruned > 0 {
 		log.Printf("[SideChain] pruned %d old blocks at heights <= %d", numBlocksPruned, h)
@@ -908,12 +912,13 @@ func (c *SideChain) cleanupSeenBlocks() (cleaned int) {
 	c.seenBlocksLock.Lock()
 	defer c.seenBlocksLock.Unlock()
 
-	for k, _ := range c.seenBlocks {
+	c.seenBlocks.Iter(func(k FullId, _ struct{}) (stop bool) {
 		if c.getPoolBlockByTemplateId(k.TemplateId()) == nil {
-			delete(c.seenBlocks, k)
+			c.seenBlocks.Delete(k)
 			cleaned++
 		}
-	}
+		return false
+	})
 	return cleaned
 }
 
@@ -923,9 +928,9 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 
 	missingBlocks := make([]types.Hash, 0)
 
-	for _, b := range c.blocksByTemplateId {
+	c.blocksByTemplateId.Iter(func(_ types.Hash, b *PoolBlock) (stop bool) {
 		if b.Verified.Load() {
-			continue
+			return false
 		}
 
 		if !b.Side.Parent.Equals(types.ZeroHash) && c.getPoolBlockByTemplateId(b.Side.Parent) == nil {
@@ -942,11 +947,12 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 				// Get no more than 2 first missing uncles at a time from each block
 				// Blocks with more than 2 uncles are very rare and they will be processed in several steps
 				if missingUncles >= 2 {
-					break
+					return true
 				}
 			}
 		}
-	}
+		return false
+	})
 
 	return missingBlocks
 }
@@ -997,7 +1003,8 @@ func (c *SideChain) GetPoolBlockByTemplateId(id types.Hash) *PoolBlock {
 }
 
 func (c *SideChain) getPoolBlockByTemplateId(id types.Hash) *PoolBlock {
-	return c.blocksByTemplateId[id]
+	b, _ := c.blocksByTemplateId.Get(id)
+	return b
 }
 
 func (c *SideChain) GetPoolBlocksByHeight(height uint64) []*PoolBlock {
@@ -1007,7 +1014,8 @@ func (c *SideChain) GetPoolBlocksByHeight(height uint64) []*PoolBlock {
 }
 
 func (c *SideChain) getPoolBlocksByHeight(height uint64) []*PoolBlock {
-	return c.blocksByHeight[height]
+	b, _ := c.blocksByHeight.Get(height)
+	return b
 }
 
 func (c *SideChain) GetPoolBlocksFromTip(id types.Hash) (chain, uncles UniquePoolBlockSlice) {
@@ -1055,7 +1063,7 @@ func (c *SideChain) GetPoolBlocksFromTipWithDepth(id types.Hash, depth uint64) (
 func (c *SideChain) GetPoolBlockCount() int {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
-	return len(c.blocksByTemplateId)
+	return c.blocksByTemplateId.Count()
 }
 
 func (c *SideChain) WatchMainChainBlock(mainData *ChainMain, possibleId types.Hash) {

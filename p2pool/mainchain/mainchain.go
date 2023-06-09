@@ -14,6 +14,7 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"github.com/dolthub/swiss"
 	"golang.org/x/exp/slices"
 	"log"
 	"sync"
@@ -30,8 +31,8 @@ type MainChain struct {
 	sidechain *sidechain.SideChain
 
 	highest           uint64
-	mainchainByHeight map[uint64]*sidechain.ChainMain
-	mainchainByHash   map[types.Hash]*sidechain.ChainMain
+	mainchainByHeight *swiss.Map[uint64, *sidechain.ChainMain]
+	mainchainByHash   *swiss.Map[types.Hash, *sidechain.ChainMain]
 
 	tip          atomic.Pointer[sidechain.ChainMain]
 	tipMinerData atomic.Pointer[p2pooltypes.MinerData]
@@ -54,8 +55,8 @@ func NewMainChain(s *sidechain.SideChain, p2pool P2PoolInterface) *MainChain {
 	m := &MainChain{
 		sidechain:         s,
 		p2pool:            p2pool,
-		mainchainByHeight: make(map[uint64]*sidechain.ChainMain),
-		mainchainByHash:   make(map[types.Hash]*sidechain.ChainMain),
+		mainchainByHeight: swiss.NewMap[uint64, *sidechain.ChainMain](BlockHeadersRequired + 3),
+		mainchainByHash:   swiss.NewMap[types.Hash, *sidechain.ChainMain](BlockHeadersRequired + 3),
 	}
 
 	return m
@@ -185,12 +186,12 @@ func (c *MainChain) Listen() error {
 
 func (c *MainChain) getTimestamps(timestamps []uint64) bool {
 	_ = timestamps[TimestampWindow-1]
-	if len(c.mainchainByHeight) <= TimestampWindow {
+	if c.mainchainByHeight.Count() <= TimestampWindow {
 		return false
 	}
 
 	for i := 0; i < TimestampWindow; i++ {
-		h, ok := c.mainchainByHeight[c.highest-uint64(i)]
+		h, ok := c.mainchainByHeight.Get(c.highest - uint64(i))
 		if !ok {
 			break
 		}
@@ -225,8 +226,8 @@ func (c *MainChain) HandleMainHeader(mainHeader *mainblock.Header) {
 		Reward:     mainHeader.Reward,
 		Id:         mainHeader.Id,
 	}
-	c.mainchainByHeight[mainHeader.Height] = mainData
-	c.mainchainByHash[mainHeader.Id] = mainData
+	c.mainchainByHeight.Put(mainHeader.Height, mainData)
+	c.mainchainByHash.Put(mainHeader.Id, mainData)
 
 	if mainData.Height > c.highest {
 		c.highest = mainData.Height
@@ -250,13 +251,13 @@ func (c *MainChain) HandleMainBlock(b *mainblock.Block) {
 		c.lock.Lock()
 		defer c.lock.Unlock()
 
-		if h, ok := c.mainchainByHeight[mainData.Height]; ok {
+		if h, ok := c.mainchainByHeight.Get(mainData.Height); ok {
 			mainData.Difficulty = h.Difficulty
 		} else {
 			return
 		}
-		c.mainchainByHash[mainData.Id] = mainData
-		c.mainchainByHeight[mainData.Height] = mainData
+		c.mainchainByHash.Put(mainData.Id, mainData)
+		c.mainchainByHeight.Put(mainData.Height, mainData)
 
 		if mainData.Height > c.highest {
 			c.highest = mainData.Height
@@ -290,13 +291,15 @@ func (c *MainChain) HandleMainBlock(b *mainblock.Block) {
 func (c *MainChain) GetChainMainByHeight(height uint64) *sidechain.ChainMain {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.mainchainByHeight[height]
+	m, _ := c.mainchainByHeight.Get(height)
+	return m
 }
 
 func (c *MainChain) GetChainMainByHash(hash types.Hash) *sidechain.ChainMain {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
-	return c.mainchainByHash[hash]
+	b, _ := c.mainchainByHash.Get(hash)
+	return b
 }
 
 func (c *MainChain) GetChainMainTip() *sidechain.ChainMain {
@@ -333,16 +336,17 @@ func (c *MainChain) cleanup(height uint64) {
 
 	seedHeights := []uint64{seedHeight, seedHeight - randomx.SeedHashEpochBlocks, seedHeight - randomx.SeedHashEpochBlocks*2}
 
-	for h, m := range c.mainchainByHeight {
+	c.mainchainByHeight.Iter(func(h uint64, m *sidechain.ChainMain) (stop bool) {
 		if (h + PruneDistance) >= height {
-			continue
+			return false
 		}
 
 		if !slices.Contains(seedHeights, h) {
-			delete(c.mainchainByHash, m.Id)
-			delete(c.mainchainByHeight, h)
+			c.mainchainByHash.Delete(m.Id)
+			c.mainchainByHeight.Delete(h)
 		}
-	}
+		return false
+	})
 
 }
 
@@ -405,8 +409,8 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 			Height:     minerData.Height,
 		}
 
-		if existingMainData, ok := c.mainchainByHeight[mainData.Height]; !ok {
-			c.mainchainByHeight[mainData.Height] = mainData
+		if existingMainData, ok := c.mainchainByHeight.Get(mainData.Height); !ok {
+			c.mainchainByHeight.Put(mainData.Height, mainData)
 		} else {
 			existingMainData.Difficulty = mainData.Difficulty
 			mainData = existingMainData
@@ -417,15 +421,15 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 			Id:     minerData.PrevId,
 		}
 
-		if existingPrevMainData, ok := c.mainchainByHeight[prevMainData.Height]; !ok {
-			c.mainchainByHeight[prevMainData.Height] = prevMainData
+		if existingPrevMainData, ok := c.mainchainByHeight.Get(prevMainData.Height); !ok {
+			c.mainchainByHeight.Put(prevMainData.Height, prevMainData)
 		} else {
 			existingPrevMainData.Id = prevMainData.Id
 
 			prevMainData = existingPrevMainData
 		}
 
-		c.mainchainByHash[prevMainData.Id] = prevMainData
+		c.mainchainByHash.Put(prevMainData.Id, prevMainData)
 
 		c.cleanup(minerData.Height)
 
@@ -443,7 +447,7 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 
 		if c.p2pool.Started() {
 			for h := minerData.Height; h > 0 && (h+BlockHeadersRequired) > minerData.Height; h-- {
-				if d, ok := c.mainchainByHeight[h]; !ok || d.Difficulty.Equals(types.ZeroDifficulty) {
+				if d, ok := c.mainchainByHeight.Get(h); !ok || d.Difficulty.Equals(types.ZeroDifficulty) {
 					log.Printf("[MainChain] Main chain data for height = %d is missing, requesting from monerod again", h)
 					missingHeights = append(missingHeights, h)
 				}
