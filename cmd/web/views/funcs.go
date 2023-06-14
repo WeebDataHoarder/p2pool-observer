@@ -180,8 +180,6 @@ func henc(val any) string {
 	return ""
 }
 
-type a index.Payout
-
 func str(val any) string {
 	if strVal, ok := val.(fmt.Stringer); ok {
 		return strVal.String()

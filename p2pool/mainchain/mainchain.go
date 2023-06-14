@@ -124,7 +124,7 @@ func (c *MainChain) Listen() error {
 				Timestamp:    uint64(fullChainMain.Timestamp),
 				PreviousId:   fullChainMain.PrevID,
 				Nonce:        uint32(fullChainMain.Nonce),
-				Coinbase: &transaction.CoinbaseTransaction{
+				Coinbase: transaction.CoinbaseTransaction{
 					Version:         uint8(fullChainMain.MinerTx.Version),
 					UnlockTime:      uint64(fullChainMain.MinerTx.UnlockTime),
 					InputCount:      uint8(len(fullChainMain.MinerTx.Inputs)),

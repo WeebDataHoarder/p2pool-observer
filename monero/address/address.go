@@ -9,10 +9,11 @@ import (
 )
 
 type Address struct {
-	Network  uint8
-	SpendPub crypto.PublicKeyBytes
-	ViewPub  crypto.PublicKeyBytes
-	checksum []byte
+	SpendPub    crypto.PublicKeyBytes
+	ViewPub     crypto.PublicKeyBytes
+	Network     uint8
+	hasChecksum bool
+	checksum    moneroutil.Checksum
 }
 
 func (a *Address) Compare(b Interface) int {
@@ -74,8 +75,9 @@ func FromBase58(address string) *Address {
 		return nil
 	}
 	a := &Address{
-		Network:  raw[0],
-		checksum: checksum[:],
+		Network:     raw[0],
+		checksum:    checksum,
+		hasChecksum: true,
 	}
 
 	copy(a.SpendPub[:], raw[1:33])
@@ -104,9 +106,10 @@ func FromBase58NoChecksumCheck(address string) *Address {
 	}
 
 	a := &Address{
-		Network:  raw[0],
-		checksum: slices.Clone(raw[65:]),
+		Network: raw[0],
 	}
+	copy(a.checksum[:], slices.Clone(raw[65:]))
+	a.hasChecksum = true
 
 	copy(a.SpendPub[:], raw[1:33])
 	copy(a.ViewPub[:], raw[33:65])
@@ -123,9 +126,10 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	//TODO: cache checksum?
 	checksum := crypto.PooledKeccak256(nice[:65])
 	a := &Address{
-		Network:  nice[0],
-		checksum: checksum[:4],
+		Network: nice[0],
 	}
+	copy(a.checksum[:], checksum[:4])
+	a.hasChecksum = true
 
 	a.SpendPub = spend.AsBytes()
 	a.ViewPub = view.AsBytes()
@@ -134,14 +138,15 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 }
 
 func (a *Address) ToBase58() string {
-	if a.checksum == nil {
+	if !a.hasChecksum {
 		var nice [69]byte
 		nice[0] = a.Network
 		copy(nice[1:], a.SpendPub.AsSlice())
 		copy(nice[1+crypto.PublicKeySize:], a.ViewPub.AsSlice())
 		sum := crypto.PooledKeccak256(nice[:65])
 		//this race is ok
-		a.checksum = sum[:4]
+		copy(a.checksum[:], sum[:4])
+		a.hasChecksum = true
 	}
 	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 }
@@ -160,6 +165,7 @@ func (a *Address) UnmarshalJSON(b []byte) error {
 		a.SpendPub = addr.SpendPub
 		a.ViewPub = addr.ViewPub
 		a.checksum = addr.checksum
+		a.hasChecksum = addr.hasChecksum
 		return nil
 	} else {
 		return errors.New("invalid address")

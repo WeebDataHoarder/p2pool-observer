@@ -67,7 +67,10 @@ func (d *DerivationCache) GetEphemeralPublicKey(a *address.PackedAddress, txKeyS
 	if ephemeralPubKey, ok := d.ephemeralPublicKeyCache.Get(key); ok {
 		return ephemeralPubKey.PublicKey, ephemeralPubKey.ViewTag
 	} else {
-		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(d.getPublicKeyPoint(*a.SpendPublicKey()), d.getDerivation(*a.ViewPublicKey(), txKeySlice, d.getPublicKeyPoint(*a.ViewPublicKey()), txKeyScalar.Scalar()), txKeyScalar.Scalar(), outputIndex, hasher)
+		viewPoint := d.getPublicKeyPoint(*a.ViewPublicKey())
+		spendPoint := d.getPublicKeyPoint(*a.SpendPublicKey())
+		derivation := d.getDerivation(*a.ViewPublicKey(), txKeySlice, viewPoint, txKeyScalar.Scalar())
+		pKB, viewTag := address.GetEphemeralPublicKeyAndViewTagNoAllocate(spendPoint, derivation, txKeyScalar.Scalar(), outputIndex, hasher)
 		d.ephemeralPublicKeyCache.Set(key, ephemeralPublicKeyWithViewTag{PublicKey: pKB, ViewTag: viewTag})
 		return pKB, viewTag
 	}

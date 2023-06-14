@@ -56,9 +56,8 @@ type SideBlock struct {
 	SoftwareId      p2pooltypes.SoftwareId      `json:"software_id"`
 	SoftwareVersion p2pooltypes.SoftwareVersion `json:"software_version"`
 	// WindowDepth PPLNS window depth, in blocks including this one
-	WindowDepth      uint32 `json:"window_depth"`
-	WindowOutputs    uint32 `json:"window_outputs"`
-	TransactionCount uint32 `json:"transaction_count"`
+	WindowDepth   uint32 `json:"window_depth"`
+	WindowOutputs uint32 `json:"window_outputs"`
 
 	// Difficulty sidechain difficulty at height
 	Difficulty           uint64           `json:"difficulty"`
@@ -69,12 +68,14 @@ type SideBlock struct {
 
 	Inclusion BlockInclusion `json:"inclusion"`
 
+	TransactionCount uint32 `json:"transaction_count"`
+
 	// Extra information filled just for JSON purposes
 
+	MinedMainAtHeight bool                  `json:"mined_main_at_height"`
 	MinerAddress      *address.Address      `json:"miner_address,omitempty"`
 	MinerAlias        string                `json:"miner_alias,omitempty"`
 	Uncles            []SideBlockUncleEntry `json:"uncles,omitempty"`
-	MinedMainAtHeight bool                  `json:"mined_main_at_height"`
 	MainDifficulty    uint64                `json:"main_difficulty"`
 }
 

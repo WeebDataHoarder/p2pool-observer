@@ -15,13 +15,16 @@ import (
 )
 
 type Block struct {
-	MajorVersion uint8      `json:"major_version"`
-	MinorVersion uint8      `json:"minor_version"`
-	Timestamp    uint64     `json:"timestamp"`
-	PreviousId   types.Hash `json:"previous_id"`
-	Nonce        uint32     `json:"nonce"`
+	MajorVersion uint8 `json:"major_version"`
+	MinorVersion uint8 `json:"minor_version"`
+	// Nonce re-arranged here to improve memory layout space
+	Nonce uint32 `json:"nonce"`
 
-	Coinbase *transaction.CoinbaseTransaction `json:"coinbase"`
+	Timestamp  uint64     `json:"timestamp"`
+	PreviousId types.Hash `json:"previous_id"`
+	//Nonce would be here
+
+	Coinbase transaction.CoinbaseTransaction `json:"coinbase"`
 
 	Transactions []types.Hash `json:"transactions"`
 	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks or by pre-processing.
@@ -29,15 +32,18 @@ type Block struct {
 }
 
 type Header struct {
-	MajorVersion uint8            `json:"major_version"`
-	MinorVersion uint8            `json:"minor_version"`
-	Timestamp    uint64           `json:"timestamp"`
-	PreviousId   types.Hash       `json:"previous_id"`
-	Height       uint64           `json:"height"`
-	Nonce        uint32           `json:"nonce"`
-	Reward       uint64           `json:"reward"`
-	Difficulty   types.Difficulty `json:"difficulty"`
-	Id           types.Hash       `json:"id"`
+	MajorVersion uint8 `json:"major_version"`
+	MinorVersion uint8 `json:"minor_version"`
+	// Nonce re-arranged here to improve memory layout space
+	Nonce uint32 `json:"nonce"`
+
+	Timestamp  uint64     `json:"timestamp"`
+	PreviousId types.Hash `json:"previous_id"`
+	Height     uint64     `json:"height"`
+	//Nonce would be here
+	Reward     uint64           `json:"reward"`
+	Difficulty types.Difficulty `json:"difficulty"`
+	Id         types.Hash       `json:"id"`
 }
 
 func (b *Block) MarshalBinary() (buf []byte, err error) {
@@ -134,7 +140,6 @@ func (b *Block) FromReaderFlags(reader utils.ReaderAndByteReader, compact bool) 
 
 	// Coinbase Tx Decoding
 	{
-		b.Coinbase = &transaction.CoinbaseTransaction{}
 		if err = b.Coinbase.FromReader(reader); err != nil {
 			return err
 		}

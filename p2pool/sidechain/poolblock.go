@@ -17,7 +17,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"golang.org/x/exp/slices"
 	"io"
-	"sync"
 	"sync/atomic"
 	"unsafe"
 )
@@ -126,7 +125,9 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 			return nil, err
 		}
 
-		if _, err = io.ReadFull(reader, b.cache.powHash[:]); err != nil {
+		var h types.Hash
+		// Read PoW hash
+		if _, err = io.ReadFull(reader, h[:]); err != nil {
 			return nil, err
 		}
 
@@ -213,8 +214,8 @@ func NewShareFromExportedBytes(buf []byte, consensus *Consensus, cacheInterface 
 	b.FillPrivateKeys(cacheInterface)
 
 	//zero cache as it can be wrong
-	b.cache.templateId = types.ZeroHash
-	b.cache.powHash = types.ZeroHash
+	b.cache.templateId.Store(nil)
+	b.cache.powHash.Store(nil)
 
 	return b, nil
 }
@@ -291,9 +292,6 @@ func (b *PoolBlock) ExtraNonce() uint32 {
 }
 
 func (b *PoolBlock) CoinbaseExtra(tag CoinbaseExtraTag) []byte {
-	if b.Main.Coinbase == nil {
-		return nil
-	}
 	switch tag {
 	case SideExtraNonce:
 		if t := b.Main.Coinbase.Extra.GetTag(uint8(tag)); t != nil {
@@ -383,23 +381,15 @@ func (b *PoolBlock) MainDifficulty(f mainblock.GetDifficultyByHeightFunc) types.
 }
 
 func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
-	if hash, ok := func() (types.Hash, bool) {
-		b.cache.lock.RLock()
-		defer b.cache.lock.RUnlock()
-
-		if b.cache.templateId != types.ZeroHash {
-			return b.cache.templateId, true
-		}
-		return types.ZeroHash, false
-	}(); ok {
-		return hash
+	if h := b.cache.templateId.Load(); h != nil {
+		return *h
 	} else {
-		b.cache.lock.Lock()
-		defer b.cache.lock.Unlock()
-		if b.cache.templateId == types.ZeroHash { //check again for race
-			b.cache.templateId = consensus.CalculateSideTemplateId(b)
+		hash := consensus.CalculateSideTemplateId(b)
+		if hash == types.ZeroHash {
+			return types.ZeroHash
 		}
-		return b.cache.templateId
+		b.cache.templateId.Store(&hash)
+		return hash
 	}
 }
 
@@ -409,24 +399,17 @@ func (b *PoolBlock) PowHash(hasher randomx.Hasher, f mainblock.GetSeedByHeightFu
 }
 
 func (b *PoolBlock) PowHashWithError(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) (powHash types.Hash, err error) {
-	if hash, ok := func() (types.Hash, bool) {
-		b.cache.lock.RLock()
-		defer b.cache.lock.RUnlock()
-
-		if b.cache.powHash != types.ZeroHash {
-			return b.cache.powHash, true
-		}
-		return types.ZeroHash, false
-	}(); ok {
-		return hash, nil
+	if h := b.cache.powHash.Load(); h != nil {
+		powHash = *h
 	} else {
-		b.cache.lock.Lock()
-		defer b.cache.lock.Unlock()
-		if b.cache.powHash == types.ZeroHash { //check again for race
-			b.cache.powHash, err = b.Main.PowHashWithError(hasher, f)
+		powHash, err = b.Main.PowHashWithError(hasher, f)
+		if powHash == types.ZeroHash {
+			return types.ZeroHash, err
 		}
-		return b.cache.powHash, err
+		b.cache.powHash.Store(&powHash)
 	}
+
+	return powHash, nil
 }
 
 func (b *PoolBlock) UnmarshalBinary(consensus *Consensus, derivationCache DerivationCacheInterface, data []byte) error {
@@ -673,32 +656,6 @@ func (b *PoolBlock) GetTransactionOutputType() uint8 {
 }
 
 type poolBlockCache struct {
-	lock       sync.RWMutex
-	templateId types.Hash
-	powHash    types.Hash
-}
-
-func (c *poolBlockCache) FromReader(reader utils.ReaderAndByteReader) (err error) {
-	buf := make([]byte, types.HashSize*3+types.DifficultySize+FullIdSize)
-	if _, err = reader.Read(buf); err != nil {
-		return err
-	}
-	return c.UnmarshalBinary(buf)
-}
-
-func (c *poolBlockCache) UnmarshalBinary(buf []byte) error {
-	if len(buf) < types.HashSize*3+types.DifficultySize+FullIdSize {
-		return io.ErrUnexpectedEOF
-	}
-	copy(c.templateId[:], buf[types.HashSize+types.DifficultySize:])
-	copy(c.powHash[:], buf[types.HashSize+types.DifficultySize+types.HashSize:])
-	return nil
-}
-
-func (c *poolBlockCache) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, 0, types.HashSize*3+types.DifficultySize+FullIdSize)
-	buf = append(buf, c.templateId[:]...)
-	buf = append(buf, c.powHash[:]...)
-
-	return buf, nil
+	templateId atomic.Pointer[types.Hash]
+	powHash    atomic.Pointer[types.Hash]
 }

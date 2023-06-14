@@ -49,12 +49,11 @@ func returnBuffer(x []byte) {
 
 type Client struct {
 	// Peer general static-ish information
-	PeerId               atomic.Uint64
-	VersionInformation   p2pooltypes.PeerVersionInformation
-	IsIncomingConnection bool
-	ConnectionTime       time.Time
-	ListenPort           atomic.Uint32
-	AddressPort          netip.AddrPort
+	PeerId             atomic.Uint64
+	VersionInformation p2pooltypes.PeerVersionInformation
+	ListenPort         atomic.Uint32
+	ConnectionTime     time.Time
+	AddressPort        netip.AddrPort
 
 	// Peer general dynamic-ish information
 	BroadcastMaxHeight atomic.Uint64
@@ -63,7 +62,6 @@ type Client struct {
 	// Internal values
 	Owner                                *Server
 	Connection                           *net.TCPConn
-	Closed                               atomic.Bool
 	banErrorLock                         sync.Mutex
 	banError                             error
 	LastBroadcastTimestamp               atomic.Uint64
@@ -73,6 +71,10 @@ type Client struct {
 	LastPeerListRequestTimestamp         atomic.Uint64
 	NextOutgoingPeerListRequestTimestamp atomic.Uint64
 
+	expectedMessage      MessageId
+	IsIncomingConnection bool
+
+	Closed atomic.Bool
 	//State properties
 	HandshakeComplete     atomic.Bool
 	SentHandshakeSolution atomic.Bool
@@ -83,8 +85,6 @@ type Client struct {
 	RequestedHashes   *utils.CircularBuffer[types.Hash]
 
 	blockPendingRequests chan types.Hash
-
-	expectedMessage MessageId
 
 	handshakeChallenge HandshakeChallenge
 

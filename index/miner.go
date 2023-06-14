@@ -10,7 +10,7 @@ const MinerSelectFields = "id, alias, spend_public_key, view_public_key"
 
 type Miner struct {
 	id    uint64
-	addr  *address.Address
+	addr  address.Address
 	alias sql.NullString
 }
 
@@ -26,7 +26,7 @@ func (m *Miner) Alias() string {
 }
 
 func (m *Miner) Address() *address.Address {
-	return m.addr
+	return &m.addr
 }
 
 func (m *Miner) ScanFromRow(i *Index, row RowScanInterface) error {
@@ -39,6 +39,6 @@ func (m *Miner) ScanFromRow(i *Index, row RowScanInterface) error {
 	if err != nil {
 		return err
 	}
-	m.addr = address.FromRawAddress(network, &spendPub, &viewPub)
+	m.addr = *address.FromRawAddress(network, &spendPub, &viewPub)
 	return nil
 }

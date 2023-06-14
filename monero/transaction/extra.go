@@ -27,9 +27,9 @@ const TxExtraTemplateNonceSize = 4
 type ExtraTags []ExtraTag
 
 type ExtraTag struct {
-	Tag uint8 `json:"tag"`
 	// VarInt has different meanings. In TxExtraTagMergeMining it is depth, while in others it is length
 	VarInt    uint64      `json:"var_int"`
+	Tag       uint8       `json:"tag"`
 	HasVarInt bool        `json:"has_var_int"`
 	Data      types.Bytes `json:"data"`
 }

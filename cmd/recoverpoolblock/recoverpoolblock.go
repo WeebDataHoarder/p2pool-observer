@@ -240,7 +240,7 @@ func main() {
 					MinorVersion: uint8(header.MinorVersion),
 					Timestamp:    v2.Ts,
 					PreviousId:   v2.MinerMainId,
-					Coinbase: &transaction.CoinbaseTransaction{
+					Coinbase: transaction.CoinbaseTransaction{
 						Version:     2,
 						UnlockTime:  v2.MainHeight + monero.MinerRewardUnlockTime,
 						InputCount:  1,

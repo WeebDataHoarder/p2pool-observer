@@ -9,16 +9,17 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"sync"
+	"sync/atomic"
 )
 
 type CoinbaseTransaction struct {
-	id         types.Hash
-	idLock     sync.Mutex
-	Version    uint8   `json:"version"`
+	id      atomic.Pointer[types.Hash]
+	Version uint8 `json:"version"`
+	// UnlockTime would be here
+	InputCount uint8 `json:"input_count"`
+	InputType  uint8 `json:"input_type"`
+	// UnlockTime re-arranged here to improve memory layout space
 	UnlockTime uint64  `json:"unlock_time"`
-	InputCount uint8   `json:"input_count"`
-	InputType  uint8   `json:"input_type"`
 	GenHeight  uint64  `json:"gen_height"`
 	Outputs    Outputs `json:"outputs"`
 
@@ -201,19 +202,16 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(preAllocatedBuf []byte, zeroT
 }
 
 func (c *CoinbaseTransaction) Id() types.Hash {
-	if c.id != types.ZeroHash {
-		return c.id
+	if h := c.id.Load(); h != nil {
+		return *h
+	} else {
+		hash := c.CalculateId()
+		if hash == types.ZeroHash {
+			return types.ZeroHash
+		}
+		c.id.Store(&hash)
+		return hash
 	}
-
-	c.idLock.Lock()
-	defer c.idLock.Unlock()
-	if c.id != types.ZeroHash {
-		return c.id
-	}
-
-	c.id = c.CalculateId()
-
-	return c.id
 }
 
 func (c *CoinbaseTransaction) CalculateId() (hash types.Hash) {

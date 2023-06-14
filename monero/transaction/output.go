@@ -99,9 +99,11 @@ func (s *Outputs) AppendBinary(preAllocatedBuf []byte) (data []byte, err error) 
 }
 
 type Output struct {
-	Index              uint64                `json:"index"`
-	Reward             uint64                `json:"reward"`
-	Type               uint8                 `json:"type"`
+	Index  uint64 `json:"index"`
+	Reward uint64 `json:"reward"`
+	// Type would be here
 	EphemeralPublicKey crypto.PublicKeyBytes `json:"ephemeral_public_key"`
-	ViewTag            uint8                 `json:"view_tag"`
+	// Type re-arranged here to improve memory layout space
+	Type    uint8 `json:"type"`
+	ViewTag uint8 `json:"view_tag"`
 }
