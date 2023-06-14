@@ -22,7 +22,7 @@ require (
 	github.com/valyala/quicktemplate v1.7.0
 	go.etcd.io/bbolt v1.3.7
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
-	golang.org/x/sys v0.8.0
+	golang.org/x/sys v0.9.0
 	lukechampine.com/uint128 v1.3.0
 	nhooyr.io/websocket v1.8.7
 )
@@ -30,13 +30,13 @@ require (
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dolthub/maphash v0.0.0-20221220182448-74e1e1ea1577 // indirect
+	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
-	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/klauspost/compress v1.16.6 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	golang.org/x/crypto v0.9.0 // indirect
+	golang.org/x/crypto v0.10.0 // indirect
 	golang.org/x/sync v0.2.0 // indirect
-	golang.org/x/text v0.9.0 // indirect
+	golang.org/x/text v0.10.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
