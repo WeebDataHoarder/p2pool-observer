@@ -15,8 +15,8 @@ import (
 	p2poolcrypto "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"io"
+	"slices"
 	"sync/atomic"
 	"unsafe"
 )

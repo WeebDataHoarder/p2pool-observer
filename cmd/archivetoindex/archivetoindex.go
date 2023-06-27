@@ -12,7 +12,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"log"
 	"math"
@@ -322,7 +321,7 @@ func main() {
 
 	for stride := uint64(0); stride <= strides; stride++ {
 		start := minHeight + stride*strideSize
-		end := utils.Min(maxHeight, minHeight+stride*strideSize+strideSize)
+		end := min(maxHeight, minHeight+stride*strideSize+strideSize)
 		log.Printf("checking %d to %d", start, end)
 		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
 			log.Panic(err)

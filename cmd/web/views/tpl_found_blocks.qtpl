@@ -1,6 +1,6 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/index" %}
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/types" %}
-{% import "golang.org/x/exp/slices" %}
+{% import "slices" %}
 {% import "github.com/ake-persson/mapslice-json" %}
 
 {% func TemplateFoundBlocks(ctx *GlobalRequestContext, foundBlocks []*index.FoundBlock, isMiner bool) %}

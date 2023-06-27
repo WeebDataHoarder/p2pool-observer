@@ -10,18 +10,17 @@ import (
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/constraints"
 	"log"
 	"strconv"
 	"strings"
 	"time"
 )
 
-func utc_date[T constraints.Integer | constraints.Float](v T) string {
+func utc_date[T int64 | uint64 | int | float64](v T) string {
 	return time.Unix(int64(v), 0).UTC().Format("02-01-2006 15:04:05 MST")
 }
 
-func time_elapsed_short[T constraints.Integer | constraints.Float](v T) string {
+func time_elapsed_short[T int64 | uint64 | int | float64](v T) string {
 	diff := time.Since(time.Unix(int64(v), 0).UTC())
 
 	days := int64(diff.Hours() / 24)
@@ -101,14 +100,14 @@ func side_block_valuation(b any, consensus *sidechain.Consensus) string {
 	}
 }
 
-func si_units[T constraints.Integer | constraints.Float](v T, n ...int) string {
+func si_units[T int64 | uint64 | int | float64](v T, n ...int) string {
 	if len(n) > 0 {
 		return utils.SiUnits(float64(v), n[0])
 	} else {
 		return utils.SiUnits(float64(v), 3)
 	}
 }
-func date_diff_short[T constraints.Integer | constraints.Float](v T) string {
+func date_diff_short[T int64 | uint64 | int | float64](v T) string {
 	diff := time.Since(time.Unix(int64(v), 0).UTC())
 	s := fmt.Sprintf("%02d:%02d:%02d", int64(diff.Hours())%24, int64(diff.Minutes())%60, int64(diff.Seconds())%60)
 
@@ -120,7 +119,7 @@ func date_diff_short[T constraints.Integer | constraints.Float](v T) string {
 	return s
 }
 
-func time_duration_long[T constraints.Integer | constraints.Float](v T) string {
+func time_duration_long[T int64 | uint64 | int | float64](v T) string {
 	diff := time.Second * time.Duration(v)
 	diff += time.Microsecond * time.Duration((float64(uint64(v))-float64(v))*1000000)
 	days := int64(diff.Hours() / 24)

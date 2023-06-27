@@ -206,7 +206,6 @@ func (d Difficulty) MarshalJSON() ([]byte, error) {
 func MustDifficultyFromString(s string) Difficulty {
 	if d, err := DifficultyFromString(s); err != nil {
 		panic(err)
-		return ZeroDifficulty
 	} else {
 		return d
 	}

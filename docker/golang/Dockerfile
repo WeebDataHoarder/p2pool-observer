@@ -1,4 +1,4 @@
-FROM golang:1.20-alpine
+FROM golang:1.21-rc-alpine3.18 AS builder
 
 
 ENV CFLAGS="-march=native -Ofast"
@@ -35,6 +35,15 @@ RUN go generate -v ./...
 
 ARG BUILD_BINARY
 
+ENV GOEXPERIMENT=loopvar
+
 RUN go build -buildvcs=false -trimpath -v -pgo=/tmp/pgo-profile-latest.pprof -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
+
+FROM alpine:3.18
+
+RUN apk update && apk add --no-cache \
+    libstdc++ libgcc
+
+COPY --from=builder /usr/bin/${BUILD_BINARY} /usr/bin/${BUILD_BINARY}
 
 WORKDIR /data

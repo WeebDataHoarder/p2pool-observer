@@ -27,7 +27,6 @@ func (h Hash) MarshalJSON() ([]byte, error) {
 func MustHashFromString(s string) Hash {
 	if h, err := HashFromString(s); err != nil {
 		panic(err)
-		return ZeroHash
 	} else {
 		return h
 	}

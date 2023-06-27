@@ -10,9 +10,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/randomx-go-bindings"
-	"golang.org/x/exp/slices"
 	"log"
 	"runtime"
+	"slices"
 	"sync"
 	"unsafe"
 )

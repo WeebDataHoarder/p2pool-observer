@@ -17,9 +17,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/dolthub/swiss"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -86,6 +86,7 @@ type SideChain struct {
 	preAllocatedSharesPool            *PreAllocatedSharesPool
 	preAllocatedDifficultyData        []DifficultyData
 	preAllocatedDifficultyDifferences []uint32
+	preAllocatedMinedBlocks           []types.Hash
 }
 
 func NewSideChain(server P2PoolInterface) *SideChain {
@@ -99,6 +100,7 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
 		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
 		preAllocatedBuffer:                make([]byte, 0, PoolBlockMaxTemplateSize),
+		preAllocatedMinedBlocks:           make([]types.Hash, 0, 6*UncleBlockDepth*2+1),
 		seenBlocks:                        swiss.NewMap[FullId, struct{}](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
@@ -163,7 +165,7 @@ func (c *SideChain) GetPossibleUncles(tip *PoolBlock, forHeight uint64) (uncles 
 	tmp := tip
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
-	for i, n := uint64(0), utils.Min(UncleBlockDepth, tip.Side.Height+1); tmp != nil && (i < n); i++ {
+	for i, n := uint64(0), min(UncleBlockDepth, tip.Side.Height+1); tmp != nil && (i < n); i++ {
 		minedBlocks = append(minedBlocks, tmp.SideTemplateId(c.Consensus()))
 		for _, uncleId := range tmp.Side.Uncles {
 			minedBlocks = append(minedBlocks, uncleId)
@@ -171,7 +173,7 @@ func (c *SideChain) GetPossibleUncles(tip *PoolBlock, forHeight uint64) (uncles 
 		tmp = c.getParent(tmp)
 	}
 
-	for i, n := uint64(0), utils.Min(UncleBlockDepth, tip.Side.Height+1); i < n; i++ {
+	for i, n := uint64(0), min(UncleBlockDepth, tip.Side.Height+1); i < n; i++ {
 		for _, uncle := range c.getPoolBlocksByHeight(tip.Side.Height - i) {
 			// Only add verified and valid blocks
 			if !uncle.Verified.Load() || uncle.Invalid.Load() {
@@ -208,8 +210,8 @@ func (c *SideChain) GetPossibleUncles(tip *PoolBlock, forHeight uint64) (uncles 
 
 	if len(uncles) > 0 {
 		// Sort hashes, consensus
-		slices.SortFunc(uncles, func(a, b types.Hash) bool {
-			return a.Compare(b) < 0
+		slices.SortFunc(uncles, func(a, b types.Hash) int {
+			return a.Compare(b)
 		})
 	}
 
@@ -587,10 +589,10 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 
 		//check uncles
 
-		minedBlocks := make([]types.Hash, 0, len(block.Side.Uncles)*UncleBlockDepth*2+1)
+		minedBlocks := c.preAllocatedMinedBlocks[:0]
 		{
 			tmp := parent
-			n := utils.Min(UncleBlockDepth, block.Side.Height+1)
+			n := min(UncleBlockDepth, block.Side.Height+1)
 			for i := uint64(0); tmp != nil && i < n; i++ {
 				minedBlocks = append(minedBlocks, tmp.SideTemplateId(c.Consensus()))
 				for _, uncleId := range tmp.Side.Uncles {
@@ -750,12 +752,12 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 					log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
 					return
 				} else {
-					block.Depth.Store(utils.Max(block.Depth.Load(), child.Depth.Load()+1))
+					block.Depth.Store(max(block.Depth.Load(), child.Depth.Load()+1))
 				}
 			}
 
 			if ix := slices.Index(child.Side.Uncles, block.SideTemplateId(c.Consensus())); ix != 1 {
-				block.Depth.Store(utils.Max(block.Depth.Load(), child.Depth.Load()+1))
+				block.Depth.Store(max(block.Depth.Load(), child.Depth.Load()+1))
 			}
 		}
 	}
@@ -1040,7 +1042,7 @@ func (c *SideChain) GetPoolBlocksFromTip(id types.Hash) (chain, uncles UniquePoo
 }
 
 func (c *SideChain) GetPoolBlocksFromTipWithDepth(id types.Hash, depth uint64) (chain, uncles UniquePoolBlockSlice) {
-	chain = make([]*PoolBlock, 0, utils.Min(depth, c.Consensus().ChainWindowSize*2+monero.BlockTime/c.Consensus().TargetBlockTime))
+	chain = make([]*PoolBlock, 0, min(depth, c.Consensus().ChainWindowSize*2+monero.BlockTime/c.Consensus().TargetBlockTime))
 	uncles = make([]*PoolBlock, 0, len(chain)/20)
 
 	c.sidechainLock.RLock()

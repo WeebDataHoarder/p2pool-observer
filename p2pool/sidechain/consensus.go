@@ -188,7 +188,7 @@ func (c *Consensus) verify() bool {
 }
 
 func (c *Consensus) CalculateSideTemplateId(share *PoolBlock) (result types.Hash) {
-	return c.CalculateSideTemplateIdPreAllocated(share, make([]byte, 0, utils.Max(share.Main.BufferLength(), share.Side.BufferLength())))
+	return c.CalculateSideTemplateIdPreAllocated(share, make([]byte, 0, max(share.Main.BufferLength(), share.Side.BufferLength())))
 }
 
 func (c *Consensus) CalculateSideTemplateIdPreAllocated(share *PoolBlock, buf []byte) (result types.Hash) {

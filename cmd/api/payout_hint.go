@@ -4,7 +4,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 func PayoutAmountHint(shares map[uint64]types.Difficulty, reward uint64) map[uint64]uint64 {

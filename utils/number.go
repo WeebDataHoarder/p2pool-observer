@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/hex"
 	"github.com/jxskiss/base62"
-	"golang.org/x/exp/constraints"
 	"math/bits"
 	"strconv"
 	"strings"
@@ -65,26 +64,6 @@ func EncodeHexBinaryNumber(v2 string) string {
 	return v1
 }
 
-func Min[T constraints.Ordered](v0 T, values ...T) (result T) {
-	result = v0
-	for _, v := range values {
-		if v < result {
-			result = v
-		}
-	}
-	return
-}
-
-func Max[T constraints.Ordered](v0 T, values ...T) (result T) {
-	result = v0
-	for _, v := range values {
-		if v > result {
-			result = v
-		}
-	}
-	return
-}
-
 func PreviousPowerOfTwo(x uint64) int {
 	if x == 0 {
 		return 0
@@ -104,14 +83,14 @@ const (
 	VarIntLen9
 )
 
-func UVarInt64SliceSize[T constraints.Integer](v []T) (n int) {
+func UVarInt64SliceSize[T uint64 | int](v []T) (n int) {
 	for i := range v {
 		n += UVarInt64Size(v[i])
 	}
 	return
 }
 
-func UVarInt64Size[T constraints.Integer](v T) (n int) {
+func UVarInt64Size[T uint64 | int](v T) (n int) {
 	x := uint64(v)
 
 	if x < VarIntLen1 {

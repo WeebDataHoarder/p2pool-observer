@@ -13,7 +13,6 @@ import (
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -184,7 +183,7 @@ func main() {
 	//backfill headers
 	for stride := uint64(0); stride <= strides; stride++ {
 		start := currentHeight + stride*strideSize
-		end := utils.Min(maxHeight-1, currentHeight+stride*strideSize+strideSize)
+		end := min(maxHeight-1, currentHeight+stride*strideSize+strideSize)
 		log.Printf("checking %d to %d", start, end)
 		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
 			log.Panic(err)

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 type Address struct {

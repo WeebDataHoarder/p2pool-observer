@@ -3,8 +3,7 @@ package sidechain
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/exp/constraints"
-	"golang.org/x/exp/slices"
+	"slices"
 	"sync"
 )
 
@@ -27,8 +26,8 @@ func (s Shares) Clone() (o Shares) {
 // Compact Removes dupe Share entries
 func (s Shares) Compact() Shares {
 	// Sort shares based on address
-	slices.SortFunc(s, func(a *Share, b *Share) bool {
-		return a.Address.ComparePacked(b.Address) < 0
+	slices.SortFunc(s, func(a *Share, b *Share) int {
+		return a.Address.ComparePacked(b.Address)
 	})
 
 	index := 0
@@ -52,7 +51,7 @@ type PreAllocatedSharesPool struct {
 	pool sync.Pool
 }
 
-func NewPreAllocatedSharesPool[T constraints.Integer](n T) *PreAllocatedSharesPool {
+func NewPreAllocatedSharesPool[T uint64 | int](n T) *PreAllocatedSharesPool {
 	p := &PreAllocatedSharesPool{}
 	p.pool.New = func() any {
 		return PreAllocateShares(n)
@@ -68,7 +67,7 @@ func (p *PreAllocatedSharesPool) Put(s Shares) {
 	p.pool.Put(s)
 }
 
-func PreAllocateShares[T constraints.Integer](n T) Shares {
+func PreAllocateShares[T uint64 | int](n T) Shares {
 	preAllocatedShares := make(Shares, n)
 	for i := range preAllocatedShares {
 		preAllocatedShares[i] = &Share{}

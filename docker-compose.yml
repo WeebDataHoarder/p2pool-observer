@@ -99,8 +99,6 @@ services:
         - BUILD_BINARY=p2pool
         - GOPROXY=${GOPROXY}
     restart: always
-    depends_on:
-      - db
     security_opt:
       - no-new-privileges:true
     volumes:
@@ -198,7 +196,7 @@ services:
       -api-host "http://p2pool:3131"
       -db="host=db port=5432 dbname=p2pool user=p2pool password=p2pool sslmode=disable"
   pgo-collector:
-    image: golang:1.20-alpine
+    image: golang:1.21-rc-alpine
     restart: always
     environment:
       - GOPROXY=${GOPROXY}

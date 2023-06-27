@@ -12,11 +12,11 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"log"
 	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -126,8 +126,8 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 		listenAddress:      addrPort,
 		externalListenPort: externalListenPort,
 		peerId:             binary.LittleEndian.Uint64(peerId),
-		MaxOutgoingPeers:   utils.Min(maxOutgoingPeers, 450),
-		MaxIncomingPeers:   utils.Min(maxIncomingPeers, 450),
+		MaxOutgoingPeers:   min(maxOutgoingPeers, 450),
+		MaxIncomingPeers:   min(maxIncomingPeers, 450),
 		cachedBlocks:       make(map[types.Hash]*sidechain.PoolBlock, p2pool.Consensus().ChainWindowSize*3),
 		versionInformation: p2pooltypes.PeerVersionInformation{
 			SoftwareId:      p2pooltypes.CurrentSoftwareId,
@@ -319,7 +319,7 @@ func (s *Server) UpdateClientConnections() {
 			// - It's been at least 10 seconds since the last block request (peer is not syncing)
 			// - Peer should have sent a broadcast by now
 
-			if lastUpdated > 0 && (currentTime >= utils.Max(lastUpdated, client.LastBlockRequestTimestamp.Load())+10) && (lastUpdated >= client.LastBroadcastTimestamp.Load()+900) {
+			if lastUpdated > 0 && (currentTime >= max(lastUpdated, client.LastBlockRequestTimestamp.Load())+10) && (lastUpdated >= client.LastBroadcastTimestamp.Load()+900) {
 				dt := lastUpdated - client.LastBroadcastTimestamp.Load()
 				client.Ban(DefaultBanTime, fmt.Errorf("not broadcasting blocks (last update %d seconds ago)", dt))
 				client.Close()
@@ -421,8 +421,14 @@ func (s *Server) UpdateClientConnections() {
 					s.moneroPeerList = append(s.moneroPeerList, e)
 				}
 			}
-			slices.SortFunc(s.moneroPeerList, func(a, b *PeerListEntry) bool {
-				return a.LastSeenTimestamp.Load() < b.LastSeenTimestamp.Load()
+			slices.SortFunc(s.moneroPeerList, func(a, b *PeerListEntry) int {
+				aValue, bValue := a.LastSeenTimestamp.Load(), b.LastSeenTimestamp.Load()
+				if aValue < bValue {
+					return -1
+				} else if aValue > bValue {
+					return 1
+				}
+				return 0
 			})
 			log.Printf("[P2PServer] monerod peer list loaded (%d peers)", len(s.moneroPeerList))
 		}

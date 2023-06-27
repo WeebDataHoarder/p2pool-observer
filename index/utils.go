@@ -6,7 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 type GetByTemplateIdFunc func(h types.Hash) *SideBlock

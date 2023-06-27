@@ -11,12 +11,12 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
 	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -583,7 +583,7 @@ func (c *Client) OnConnection() {
 			}
 
 			//Atomic max, not necessary as no external writers exist
-			topHeight := utils.Max(c.BroadcastMaxHeight.Load(), block.Side.Height)
+			topHeight := max(c.BroadcastMaxHeight.Load(), block.Side.Height)
 			for {
 				if oldHeight := c.BroadcastMaxHeight.Swap(topHeight); oldHeight <= topHeight {
 					break
@@ -659,7 +659,7 @@ func (c *Client) OnConnection() {
 			entriesToSend := make([]netip.AddrPort, 0, PeerListResponseMaxPeers)
 
 			// Send every 4th peer on average, selected at random
-			peersToSendTarget := utils.Min(PeerListResponseMaxPeers, utils.Max(len(connectedPeerList)/4, 1))
+			peersToSendTarget := min(PeerListResponseMaxPeers, max(len(connectedPeerList)/4, 1))
 			n := 0
 			for _, peer := range connectedPeerList {
 				if peer.AddressPort.Addr().IsLoopback() || peer.AddressPort.Addr().IsPrivate() || !peer.IsGood() || peer.AddressPort.Addr().Compare(c.AddressPort.Addr()) == 0 {
@@ -741,7 +741,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, fmt.Errorf("too many peers on PEER_LIST_RESPONSE num_peers = %d", numPeers))
 				return
 			} else {
-				firstPeerResponse := c.PingDuration.Swap(uint64(utils.Max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTimestamp.Load()))), 0))) == 0
+				firstPeerResponse := c.PingDuration.Swap(uint64(max(time.Now().Sub(time.UnixMicro(int64(c.LastPeerListRequestTimestamp.Load()))), 0))) == 0
 				var rawIp [16]byte
 				var port uint16
 

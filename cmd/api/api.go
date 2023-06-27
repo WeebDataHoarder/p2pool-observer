@@ -18,10 +18,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/ake-persson/mapslice-json"
 	"github.com/gorilla/mux"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -29,6 +28,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -163,7 +163,7 @@ func main() {
 			//no changes!
 
 			//this race is ok
-			oldPoolInfo.SideChain.SecondsSinceLastBlock = utils.Max(0, time.Now().Unix()-int64(tip.Timestamp))
+			oldPoolInfo.SideChain.SecondsSinceLastBlock = max(0, time.Now().Unix()-int64(tip.Timestamp))
 			return
 		}
 
@@ -209,13 +209,13 @@ func main() {
 				// got error, just update last pool
 
 				//this race is ok
-				oldPoolInfo.SideChain.SecondsSinceLastBlock = utils.Max(0, time.Now().Unix()-int64(tip.Timestamp))
+				oldPoolInfo.SideChain.SecondsSinceLastBlock = max(0, time.Now().Unix()-int64(tip.Timestamp))
 			}
 			return
 		}
 
-		slices.SortFunc(versions, func(a, b cmdutils.SideChainVersionEntry) bool {
-			return a.Weight.Cmp(b.Weight) > 0
+		slices.SortFunc(versions, func(a, b cmdutils.SideChainVersionEntry) int {
+			return a.Weight.Cmp(b.Weight) * -1
 		})
 
 		for i := range versions {
@@ -277,7 +277,7 @@ func main() {
 		}
 
 		averageEffort := func(limit int) (result float64) {
-			maxI := utils.Min(limit, len(blockEfforts))
+			maxI := min(limit, len(blockEfforts))
 			for i, e := range blockEfforts {
 				result += e.Value.(float64)
 				if i+1 == maxI {
@@ -296,7 +296,7 @@ func main() {
 				Difficulty:            types.DifficultyFrom64(tip.Difficulty),
 				CumulativeDifficulty:  tip.CumulativeDifficulty,
 				Timestamp:             tip.Timestamp,
-				SecondsSinceLastBlock: utils.Max(0, time.Now().Unix()-int64(tip.Timestamp)),
+				SecondsSinceLastBlock: max(0, time.Now().Unix()-int64(tip.Timestamp)),
 				Effort: cmdutils.PoolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),
@@ -1422,8 +1422,8 @@ func main() {
 						sortedAddresses := maps.Keys(addresses)
 
 						//Sort based on addresses
-						slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) bool {
-							return a.Compare(&b) < 0
+						slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) int {
+							return a.Compare(&b)
 						})
 
 						//Shuffle shares

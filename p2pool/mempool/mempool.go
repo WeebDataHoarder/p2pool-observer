@@ -3,10 +3,9 @@ package mempool
 import (
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"log"
 	"lukechampine.com/uint128"
+	"slices"
 )
 
 type MempoolEntry struct {
@@ -21,8 +20,8 @@ type Mempool []*MempoolEntry
 func (m Mempool) Sort() {
 	// Sort all transactions by fee per byte (highest to lowest)
 
-	slices.SortFunc(m, func(a, b *MempoolEntry) bool {
-		return a.Compare(b) < 0
+	slices.SortFunc(m, func(a, b *MempoolEntry) int {
+		return a.Compare(b)
 	})
 }
 
@@ -72,7 +71,7 @@ func (m Mempool) Pick(baseReward, minerTxWeight, medianWeight uint64) Mempool {
 		if finalWeight+tx.Weight > medianWeight {
 			// Don't check more than 100 transactions deep because they have higher and higher fee/byte
 			n := len(m2)
-			for j, j1 := n-1, utils.Max(0, n-100); j >= j1; j-- {
+			for j, j1 := n-1, max(0, n-100); j >= j1; j-- {
 				prevTx := m2[j]
 				reward2 := GetBlockReward(baseReward, medianWeight, finalFees+prevTx.Fee, finalWeight+prevTx.Weight)
 				if reward2 > finalReward {

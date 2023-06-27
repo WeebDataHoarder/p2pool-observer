@@ -12,10 +12,10 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
-	"golang.org/x/exp/slices"
 	"log"
 	"math"
 	"math/bits"
+	"slices"
 )
 
 type GetByMainIdFunc func(h types.Hash) *PoolBlock
@@ -365,7 +365,7 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	var blockDepth uint64
 	var oldestTimestamp uint64 = math.MaxUint64
 	for {
-		oldestTimestamp = utils.Min(oldestTimestamp, cur.Main.Timestamp)
+		oldestTimestamp = min(oldestTimestamp, cur.Main.Timestamp)
 		insertDifficultyData(cur.Side.CumulativeDifficulty, cur.Main.Timestamp)
 
 		for _, uncleId := range cur.Side.Uncles {
@@ -378,7 +378,7 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 					continue
 				}
 
-				oldestTimestamp = utils.Min(oldestTimestamp, uncle.Main.Timestamp)
+				oldestTimestamp = min(oldestTimestamp, uncle.Main.Timestamp)
 				insertDifficultyData(uncle.Side.CumulativeDifficulty, uncle.Main.Timestamp)
 			}
 		}
@@ -562,7 +562,7 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 
 		if newChain != nil {
 			if candidateMainchainMinHeight != 0 {
-				candidateMainchainMinHeight = utils.Min(candidateMainchainMinHeight, newChain.Main.Coinbase.GenHeight)
+				candidateMainchainMinHeight = min(candidateMainchainMinHeight, newChain.Main.Coinbase.GenHeight)
 			} else {
 				candidateMainchainMinHeight = newChain.Main.Coinbase.GenHeight
 			}
@@ -575,7 +575,7 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 			if !slices.Contains(candidateChainMoneroBlocks, newChain.Main.PreviousId) {
 				if data := getChainMainByHash(newChain.Main.PreviousId); data != nil {
 					candidateChainMoneroBlocks = append(candidateChainMoneroBlocks, newChain.Main.PreviousId)
-					candidateMainchainHeight = utils.Max(candidateMainchainHeight, data.Height)
+					candidateMainchainHeight = max(candidateMainchainHeight, data.Height)
 				}
 			}
 

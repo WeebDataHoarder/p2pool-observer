@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"golang.org/x/exp/slices"
+	"slices"
 	"sync"
 	"sync/atomic"
 )

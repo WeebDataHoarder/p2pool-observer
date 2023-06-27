@@ -7,10 +7,10 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"log"
 	"net/http"
 	"nhooyr.io/websocket"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,9 +40,9 @@ func (b *SortedBuf[T]) Insert(value T) bool {
 		return false
 	}
 	b.buf = append(b.buf, value)
-	slices.SortFunc(b.buf, func(i, j T) bool {
+	slices.SortFunc(b.buf, func(i, j T) int {
 		//keep highest value at 0
-		return b.compare(i, j) > 0
+		return b.compare(i, j) * -1
 	})
 	b.buf = b.buf[:len(b.buf)-1]
 	return b.Has(value)
@@ -55,9 +55,9 @@ func (b *SortedBuf[T]) Remove(value T) {
 			b.buf[i] = zeroValue
 		}
 	}
-	slices.SortFunc(b.buf, func(i, j T) bool {
+	slices.SortFunc(b.buf, func(i, j T) int {
 		//keep highest value at index 0
-		return b.compare(i, j) > 0
+		return b.compare(i, j) * -1
 	})
 }
 
@@ -298,19 +298,19 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			}()
 
 			//sort for proper order
-			slices.SortFunc(blocksToReport, func(a, b *index.SideBlock) bool {
+			slices.SortFunc(blocksToReport, func(a, b *index.SideBlock) int {
 				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
+					return -1
 				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
+					return 1
 				}
 				if a.SideHeight < b.SideHeight {
-					return true
+					return -1
 				} else if a.SideHeight > b.SideHeight {
-					return false
+					return 1
 				}
 				//same height, sort by main id
-				return a.MainId.Compare(b.MainId) < 0
+				return a.MainId.Compare(b.MainId)
 			})
 
 			func() {
@@ -368,45 +368,45 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			}()
 
 			//sort for proper order
-			slices.SortFunc(blocksToReport, func(a, b *index.FoundBlock) bool {
+			slices.SortFunc(blocksToReport, func(a, b *index.FoundBlock) int {
 				if a.MainBlock.Height < b.MainBlock.Height {
-					return true
+					return -1
 				} else if a.MainBlock.Height > b.MainBlock.Height {
-					return false
+					return 1
 				}
 				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
+					return -1
 				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
+					return 1
 				}
 				if a.SideHeight < b.SideHeight {
-					return true
+					return -1
 				} else if a.SideHeight > b.SideHeight {
-					return false
+					return 1
 				}
 				//same height, sort by main id
-				return a.MainBlock.Id.Compare(b.MainBlock.Id) < 0
+				return a.MainBlock.Id.Compare(b.MainBlock.Id)
 			})
 
 			//sort for proper order
-			slices.SortFunc(unfoundBlocksToReport, func(a, b *index.SideBlock) bool {
+			slices.SortFunc(unfoundBlocksToReport, func(a, b *index.SideBlock) int {
 				if a.MainHeight < b.MainHeight {
-					return true
+					return -1
 				} else if a.MainHeight > b.MainHeight {
-					return false
+					return 1
 				}
 				if a.EffectiveHeight < b.EffectiveHeight {
-					return true
+					return -1
 				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return false
+					return 1
 				}
 				if a.SideHeight < b.SideHeight {
-					return true
+					return -1
 				} else if a.SideHeight > b.SideHeight {
-					return false
+					return 1
 				}
 				//same height, sort by main id
-				return a.MainId.Compare(b.MainId) < 0
+				return a.MainId.Compare(b.MainId)
 			})
 
 			func() {

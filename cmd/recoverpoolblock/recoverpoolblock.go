@@ -23,11 +23,11 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/floatdrop/lru"
-	"golang.org/x/exp/slices"
 	"log"
 	"math"
 	"os"
 	"runtime"
+	"slices"
 	"sync"
 	"sync/atomic"
 )

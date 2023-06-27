@@ -17,10 +17,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/gorilla/mux"
 	"github.com/valyala/quicktemplate"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -28,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"runtime/pprof"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -707,8 +707,8 @@ func main() {
 		}
 
 		minerKeys := maps.Keys(miners)
-		slices.SortFunc(minerKeys, func(a uint64, b uint64) bool {
-			return miners[a].Weight.Cmp(miners[b].Weight) > 0
+		slices.SortFunc(minerKeys, func(a uint64, b uint64) int {
+			return miners[a].Weight.Cmp(miners[b].Weight) * -1
 		})
 
 		sortedMiners := make([]*views.MinersPageMinerEntry, len(minerKeys))
@@ -1037,7 +1037,7 @@ func main() {
 			}
 			previous := lastShares[i+1]
 
-			timeDelta := uint64(utils.Max(int64(s.Timestamp)-int64(previous.Timestamp), 0))
+			timeDelta := uint64(max(int64(s.Timestamp)-int64(previous.Timestamp), 0))
 
 			expectedCumDiff := types.DifficultyFrom64(dailyHashRate).Mul64(timeDelta)
 

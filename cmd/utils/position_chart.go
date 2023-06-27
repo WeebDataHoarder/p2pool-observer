@@ -2,7 +2,7 @@ package utils
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
+	"slices"
 )
 
 type PositionChart struct {

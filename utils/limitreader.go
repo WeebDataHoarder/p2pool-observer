@@ -35,7 +35,7 @@ func (l *LimitedByteReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (l *LimitedByteReader) ReadByte() (v uint8, err error) {
+func (l *LimitedByteReader) ReadByte() (v byte, err error) {
 	if l.N <= 0 {
 		return 0, io.EOF
 	}

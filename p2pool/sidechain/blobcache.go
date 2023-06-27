@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"golang.org/x/exp/slices"
 	"log"
+	"slices"
 )
 
 // BlockSaveEpochSize could be up to 256?

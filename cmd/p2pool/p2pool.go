@@ -10,7 +10,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
 	"log"
 	"net"
 	"net/http"
@@ -20,6 +19,7 @@ import (
 	"os/signal"
 	"runtime"
 	"runtime/debug"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -248,8 +248,8 @@ func main() {
 					for range utils.ContextTick(instance.Context(), time.Minute*1) {
 						contents = contents[:0]
 						peerListEntries := instance.Server().PeerList()
-						slices.SortFunc(peerListEntries, func(a, b *p2p.PeerListEntry) bool {
-							return a.AddressPort.Addr().Compare(b.AddressPort.Addr()) < 0
+						slices.SortFunc(peerListEntries, func(a, b *p2p.PeerListEntry) int {
+							return a.AddressPort.Addr().Compare(b.AddressPort.Addr())
 						})
 						for _, addrPort := range peerListEntries {
 							contents = append(contents, []byte(addrPort.AddressPort.String())...)

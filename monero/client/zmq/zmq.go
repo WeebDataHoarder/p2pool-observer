@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"golang.org/x/exp/slices"
+	"slices"
 	"strings"
 
 	"github.com/go-zeromq/zmq4"

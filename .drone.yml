@@ -11,6 +11,7 @@ environment:
   GOARCH: amd64
   GOAMD64: v3
   GOOS: linux
+  GOEXPERIMENT: loopvar
   CFLAGS: "-march=native -Ofast"
   LDFLAGS: "-flto"
   PKG_CONFIG_PATH: "/drone/src/build_deps/lib/pkgconfig"
@@ -35,7 +36,7 @@ steps:
       - cd /tmp
       - git clone --depth 1 --branch master https://github.com/tevador/RandomX.git && cd RandomX && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/drone/src/build_deps && make -j$(nproc) && make install && cd ../..
   - name: test-cgo
-    image: golang:1.20-alpine
+    image: golang:1.21-rc-alpine3.18
     depends_on:
       - init-tests
       - build-sources

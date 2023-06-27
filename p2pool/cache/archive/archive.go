@@ -8,9 +8,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	bolt "go.etcd.io/bbolt"
-	"golang.org/x/exp/slices"
 	"log"
 	"math"
+	"slices"
 	"time"
 	"unsafe"
 )

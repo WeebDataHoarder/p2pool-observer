@@ -15,12 +15,11 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"github.com/lib/pq"
-	_ "github.com/lib/pq"
-	"golang.org/x/exp/slices"
 	"log"
 	"reflect"
 	"regexp"
 	"runtime/pprof"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -1055,8 +1054,8 @@ func (r TransactionInputQueryResults) Match() (result TransactionInputQueryResul
 		result = append(result, *v)
 	}
 
-	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) bool {
-		return a.Count > b.Count
+	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) int {
+		return int(a.Count) - int(b.Count)
 	})
 
 	return result
