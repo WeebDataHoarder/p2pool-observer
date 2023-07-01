@@ -95,3 +95,16 @@ func BenchmarkCoinbaseDerivationNoAllocate(b *testing.B) {
 	})
 	b.ReportAllocs()
 }
+
+func BenchmarkPackedAddress_ComparePacked(b *testing.B) {
+	a1, a2 := testAddress.ToPackedAddress(), testAddress2.ToPackedAddress()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if a1.ComparePacked(&a2) == 0 {
+				panic("cannot be equal")
+			}
+		}
+	})
+	b.ReportAllocs()
+}

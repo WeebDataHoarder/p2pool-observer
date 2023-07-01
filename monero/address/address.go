@@ -19,13 +19,13 @@ type Address struct {
 func (a *Address) Compare(b Interface) int {
 	//compare spend key
 
-	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(a.SpendPub, *b.SpendPublicKey())
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&a.SpendPub, b.SpendPublicKey())
 	if resultSpendKey != 0 {
 		return resultSpendKey
 	}
 
 	// compare view key
-	return crypto.CompareConsensusPublicKeyBytes(a.ViewPub, *b.ViewPublicKey())
+	return crypto.CompareConsensusPublicKeyBytes(&a.ViewPub, b.ViewPublicKey())
 }
 
 func (a *Address) PublicKeys() (spend, view crypto.PublicKey) {

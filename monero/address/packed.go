@@ -37,25 +37,25 @@ func (p *PackedAddress) ToPackedAddress() PackedAddress {
 func (p *PackedAddress) Compare(b Interface) int {
 	//compare spend key
 
-	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(p[0], *b.SpendPublicKey())
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[0], b.SpendPublicKey())
 	if resultSpendKey != 0 {
 		return resultSpendKey
 	}
 
 	// compare view key
-	return crypto.CompareConsensusPublicKeyBytes(p[1], *b.ViewPublicKey())
+	return crypto.CompareConsensusPublicKeyBytes(&p[1], b.ViewPublicKey())
 }
 
-func (p PackedAddress) ComparePacked(other PackedAddress) int {
+func (p PackedAddress) ComparePacked(other *PackedAddress) int {
 	//compare spend key
 
-	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(p[0], other[0])
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[0], &other[0])
 	if resultSpendKey != 0 {
 		return resultSpendKey
 	}
 
 	// compare view key
-	return crypto.CompareConsensusPublicKeyBytes(p[1], other[1])
+	return crypto.CompareConsensusPublicKeyBytes(&p[1], &other[1])
 }
 
 func (p *PackedAddress) ToAddress(network uint8, err ...error) *Address {

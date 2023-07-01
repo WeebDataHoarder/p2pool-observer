@@ -6,9 +6,9 @@ import (
 )
 
 // CompareConsensusPublicKeyBytes Compares public keys in a special consensus specific way
-func CompareConsensusPublicKeyBytes(a, b PublicKeyBytes) int {
-	aUint64 := (*[PublicKeySize / 8]uint64)(unsafe.Pointer(&a))
-	bUint64 := (*[PublicKeySize / 8]uint64)(unsafe.Pointer(&b))
+func CompareConsensusPublicKeyBytes(a, b *PublicKeyBytes) int {
+	aUint64 := (*[PublicKeySize / 8]uint64)(unsafe.Pointer(a))
+	bUint64 := (*[PublicKeySize / 8]uint64)(unsafe.Pointer(b))
 
 	if aUint64[3] < bUint64[3] {
 		return -1

@@ -11,7 +11,7 @@ type Shares []*Share
 
 func (s Shares) Index(addr address.PackedAddress) int {
 	return slices.IndexFunc(s, func(share *Share) bool {
-		return share.Address.ComparePacked(addr) == 0
+		return share.Address.ComparePacked(&addr) == 0
 	})
 }
 
@@ -27,7 +27,7 @@ func (s Shares) Clone() (o Shares) {
 func (s Shares) Compact() Shares {
 	// Sort shares based on address
 	slices.SortFunc(s, func(a *Share, b *Share) int {
-		return a.Address.ComparePacked(b.Address)
+		return a.Address.ComparePacked(&b.Address)
 	})
 
 	index := 0
@@ -35,7 +35,7 @@ func (s Shares) Compact() Shares {
 		if i == 0 {
 			continue
 		}
-		if s[index].Address.ComparePacked(share.Address) == 0 {
+		if s[index].Address.ComparePacked(&share.Address) == 0 {
 			s[index].Weight = s[index].Weight.Add(share.Weight)
 		} else {
 			index++
