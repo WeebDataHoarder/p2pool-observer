@@ -72,6 +72,13 @@ func (s UniquePoolBlockSlice) GetHeight(height uint64) (result UniquePoolBlockSl
 	return result
 }
 
+// IterationCache Used for fast scan backwards, and of uncles
+// Only maybe available in verified blocks
+type IterationCache struct {
+	Parent *PoolBlock
+	Uncles []*PoolBlock
+}
+
 type PoolBlock struct {
 	Main mainblock.Block `json:"main"`
 
@@ -88,6 +95,33 @@ type PoolBlock struct {
 
 	LocalTimestamp     uint64       `json:"-"`
 	CachedShareVersion ShareVersion `json:"share_version"`
+
+	iterationCache *IterationCache
+}
+
+func (b *PoolBlock) iteratorGetParent(getByTemplateId GetByTemplateIdFunc) *PoolBlock {
+	if b.iterationCache == nil {
+		return getByTemplateId(b.Side.Parent)
+	}
+	return b.iterationCache.Parent
+}
+
+func (b *PoolBlock) iteratorUncles(getByTemplateId GetByTemplateIdFunc, uncleFunc func(uncle *PoolBlock)) error {
+	if b.iterationCache == nil {
+		for _, uncleId := range b.Side.Uncles {
+			uncle := getByTemplateId(uncleId)
+			if uncle == nil {
+				return fmt.Errorf("could not find uncle %s", uncleId)
+			}
+			uncleFunc(uncle)
+		}
+	} else {
+		for _, uncle := range b.iterationCache.Uncles {
+			uncleFunc(uncle)
+		}
+	}
+
+	return nil
 }
 
 // NewShareFromExportedBytes

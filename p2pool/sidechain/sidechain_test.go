@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"io"
 	"log"
 	"os"
@@ -130,4 +131,120 @@ func TestSideChainMiniPreFork(t *testing.T) {
 	}
 
 	testSideChain(s, t, f, 2424349, 2696040, block2420028, block2420027)
+}
+
+func benchmarkResetState(tip, parent *PoolBlock, templateId types.Hash, fullId FullId, difficulty types.Difficulty, s *SideChain) {
+	//Remove states in maps
+	s.blocksByHeight.Delete(tip.Side.Height)
+	s.blocksByTemplateId.Delete(templateId)
+	s.seenBlocks.Delete(fullId)
+
+	// Update tip and depths
+	tip.Depth.Store(0)
+	parent.Depth.Store(0)
+	s.chainTip.Store(parent)
+	s.syncTip.Store(parent)
+	s.currentDifficulty.Store(&difficulty)
+	s.updateDepths(parent)
+
+	// Update verification state
+	tip.Verified.Store(false)
+	tip.Invalid.Store(false)
+	tip.iterationCache = nil
+}
+
+func benchSideChain(b *testing.B, s *SideChain, tipHash types.Hash) {
+	b.StopTimer()
+
+	tip := s.GetChainTip()
+
+	for tip.SideTemplateId(s.Consensus()) != tipHash {
+		s.blocksByHeight.Delete(tip.Side.Height)
+		s.blocksByTemplateId.Delete(tip.SideTemplateId(s.Consensus()))
+		s.seenBlocks.Delete(tip.FullId())
+
+		tip = s.GetParent(tip)
+		if tip == nil {
+			b.Error("nil tip")
+			return
+		}
+	}
+	templateId := tip.SideTemplateId(s.Consensus())
+	fullId := tip.FullId()
+
+	parent := s.GetParent(tip)
+
+	difficulty, _, _ := s.GetDifficulty(parent)
+
+	benchmarkResetState(tip, parent, templateId, fullId, difficulty, s)
+
+	var err error
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		benchmarkResetState(tip, parent, templateId, fullId, difficulty, s)
+		_, err, _ = s.AddPoolBlockExternal(tip)
+		if err != nil {
+			b.Error(err)
+			return
+		}
+	}
+}
+
+var benchLoadedSideChain *SideChain
+
+func TestMain(m *testing.M) {
+
+	var isBenchmark bool
+	for _, arg := range os.Args {
+		if arg == "-test.bench" {
+			isBenchmark = true
+		}
+	}
+
+	if isBenchmark {
+		benchLoadedSideChain = NewSideChain(GetFakeTestServer(ConsensusDefault))
+
+		f, err := os.Open("testdata/sidechain_dump.dat")
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+
+		testSideChain(benchLoadedSideChain, nil, f, 4957203, 2870010)
+
+		tip := benchLoadedSideChain.GetChainTip()
+
+		// Pre-calculate PoW
+		for i := 0; i < 5; i++ {
+			tip.PowHashWithError(benchLoadedSideChain.Consensus().GetHasher(), benchLoadedSideChain.getSeedByHeightFunc())
+			tip = benchLoadedSideChain.GetParent(tip)
+		}
+	}
+
+	os.Exit(m.Run())
+}
+
+func BenchmarkSideChainDefault_AddPoolBlockExternal(b *testing.B) {
+	b.ReportAllocs()
+	benchSideChain(b, benchLoadedSideChain, types.MustHashFromString("61ecfc1c7738eacd8b815d2e28f124b31962996ae3af4121621b5c5501f19c5d"))
+}
+
+func BenchmarkSideChainDefault_GetDifficulty(b *testing.B) {
+	b.ReportAllocs()
+	tip := benchLoadedSideChain.GetChainTip()
+
+	b.ResetTimer()
+	var verifyError, invalidError error
+	for i := 0; i < b.N; i++ {
+		_, verifyError, invalidError = benchLoadedSideChain.getDifficulty(tip)
+		if verifyError != nil {
+			b.Error(verifyError)
+			return
+		}
+		if invalidError != nil {
+			b.Error(invalidError)
+			return
+		}
+	}
 }

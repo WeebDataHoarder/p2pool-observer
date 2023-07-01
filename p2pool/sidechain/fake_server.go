@@ -6,12 +6,13 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"sync/atomic"
+	"sync"
 )
 
 type FakeServer struct {
-	consensus  *Consensus
-	lastHeader atomic.Pointer[mainblock.Header]
+	consensus   *Consensus
+	headersLock sync.Mutex
+	headers     map[uint64]*mainblock.Header
 }
 
 func (s *FakeServer) Context() context.Context {
@@ -50,7 +51,9 @@ func (s *FakeServer) GetChainMainByHash(hash types.Hash) *ChainMain {
 	return nil
 }
 func (s *FakeServer) GetMinimalBlockHeaderByHeight(height uint64) *mainblock.Header {
-	if h := s.lastHeader.Load(); h != nil && h.Height == height {
+	s.headersLock.Lock()
+	defer s.headersLock.Unlock()
+	if h, ok := s.headers[height]; ok {
 		return h
 	}
 	if h, err := s.ClientRPC().GetBlockHeaderByHeight(height, context.Background()); err != nil {
@@ -67,7 +70,7 @@ func (s *FakeServer) GetMinimalBlockHeaderByHeight(height uint64) *mainblock.Hea
 			Difficulty:   types.DifficultyFrom64(h.BlockHeader.Difficulty),
 			Id:           types.MustHashFromString(h.BlockHeader.Hash),
 		}
-		s.lastHeader.Store(header)
+		s.headers[height] = header
 		return header
 	}
 }
@@ -99,5 +102,6 @@ func (s *FakeServer) ClearCachedBlocks() {
 func GetFakeTestServer(consensus *Consensus) *FakeServer {
 	return &FakeServer{
 		consensus: consensus,
+		headers:   make(map[uint64]*mainblock.Header),
 	}
 }

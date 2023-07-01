@@ -96,8 +96,8 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 		blocksByTemplateId:                swiss.NewMap[types.Hash, *PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 		blocksByHeight:                    swiss.NewMap[uint64, []*PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
-		preAllocatedDifficultyData:        make([]DifficultyData, server.Consensus().ChainWindowSize*2),
-		preAllocatedDifficultyDifferences: make([]uint32, server.Consensus().ChainWindowSize*2),
+		preAllocatedDifficultyData:        make([]DifficultyData, 0, server.Consensus().ChainWindowSize*2),
+		preAllocatedDifficultyDifferences: make([]uint32, 0, server.Consensus().ChainWindowSize*2),
 		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
 		preAllocatedBuffer:                make([]byte, 0, PoolBlockMaxTemplateSize),
 		preAllocatedMinedBlocks:           make([]types.Hash, 0, 6*UncleBlockDepth*2+1),
@@ -488,13 +488,26 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 
 			// This block is now verified
 
+			// Fill cache here
+			block.iterationCache = &IterationCache{
+				Parent: c.getParent(block),
+				Uncles: nil,
+			}
+
+			if len(block.Side.Uncles) > 0 {
+				block.iterationCache.Uncles = make([]*PoolBlock, 0, len(block.Side.Uncles))
+				for _, uncleId := range block.Side.Uncles {
+					block.iterationCache.Uncles = append(block.iterationCache.Uncles, c.getPoolBlockByTemplateId(uncleId))
+				}
+			}
+
+			c.fillPoolBlockTransactionParentIndices(block)
+
 			if isLongerChain, _ := c.isLongerChain(highestBlock, block); isLongerChain {
 				highestBlock = block
 			} else if highestBlock != nil && highestBlock.Side.Height > block.Side.Height {
 				log.Printf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
 			}
-
-			c.fillPoolBlockTransactionParentIndices(block)
 
 			if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
 				if block.Depth.Load() < UncleBlockDepth {
@@ -879,13 +892,17 @@ func (c *SideChain) pruneOldBlocks() {
 		for i := len(v) - 1; i >= 0; i-- {
 			block := v[i]
 			if block.Depth.Load() >= pruneDistance || (curTime >= (block.LocalTimestamp + pruneDelay)) {
-				if c.blocksByTemplateId.Has(block.SideTemplateId(c.Consensus())) {
-					c.blocksByTemplateId.Delete(block.SideTemplateId(c.Consensus()))
+				templateId := block.SideTemplateId(c.Consensus())
+				if c.blocksByTemplateId.Has(templateId) {
+					c.blocksByTemplateId.Delete(templateId)
 					numBlocksPruned++
 				} else {
 					log.Printf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
 				}
 				v = slices.Delete(v, i, i+1)
+
+				// Empty cache here
+				block.iterationCache = nil
 			}
 		}
 

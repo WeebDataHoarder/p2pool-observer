@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
@@ -210,33 +209,31 @@ func BlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeigh
 	for {
 		curWeight := cur.Side.Difficulty
 
-		for _, uncleId := range cur.Side.Uncles {
-			if uncle := getByTemplateId(uncleId); uncle == nil {
-				//cannot find uncles
-				return 0, fmt.Errorf("could not find uncle %s", uncleId.String())
-			} else {
-				// Skip uncles which are already out of PPLNS window
-				if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
-					continue
-				}
-
-				// Take some % of uncle's weight into this share
-				unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
-				newPplnsWeight := pplnsWeight.Add(uncleWeight)
-
-				// Skip uncles that push PPLNS weight above the limit
-				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-					continue
-				}
-				curWeight = curWeight.Add(unclePenalty)
-
-				if addWeightFunc != nil {
-					addWeightFunc(uncle, uncleWeight)
-				}
-
-				pplnsWeight = newPplnsWeight
+		if err := cur.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
+			// Skip uncles which are already out of PPLNS window
+			if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
+				return
 			}
+
+			// Take some % of uncle's weight into this share
+			unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
+			uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+			newPplnsWeight := pplnsWeight.Add(uncleWeight)
+
+			// Skip uncles that push PPLNS weight above the limit
+			if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
+				return
+			}
+			curWeight = curWeight.Add(unclePenalty)
+
+			if addWeightFunc != nil {
+				addWeightFunc(uncle, uncleWeight)
+			}
+
+			pplnsWeight = newPplnsWeight
+
+		}); err != nil {
+			return 0, err
 		}
 
 		// Always add non-uncle shares even if PPLNS weight goes above the limit
@@ -265,7 +262,7 @@ func BlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeigh
 		}
 
 		parentId := cur.Side.Parent
-		cur = getByTemplateId(parentId)
+		cur = cur.iteratorGetParent(getByTemplateId)
 
 		if cur == nil {
 			return 0, fmt.Errorf("could not find parent %s", parentId.String())
@@ -278,21 +275,17 @@ func GetSharesOrdered(tip *PoolBlock, consensus *Consensus, difficultyByHeight b
 	index := 0
 	l := len(preAllocatedShares)
 
-	insertShare := func(weight types.Difficulty, a address.PackedAddress) {
+	if bottomHeight, err := BlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
 		if index < l {
-			preAllocatedShares[index].Address = a
+			preAllocatedShares[index].Address = b.GetAddress()
 			preAllocatedShares[index].Weight = weight
 		} else {
 			preAllocatedShares = append(preAllocatedShares, &Share{
-				Address: a,
+				Address: b.GetAddress(),
 				Weight:  weight,
 			})
 		}
 		index++
-	}
-
-	if bottomHeight, err := BlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
-		insertShare(weight, b.GetAddress())
 	}); err != nil {
 		return nil, 0
 	} else {
@@ -344,43 +337,35 @@ func ShuffleSequence(shareVersion ShareVersion, privateKeySeed types.Hash, items
 	}
 }
 
+// GetDifficulty Gets the difficulty at tip
+// preAllocatedDifficultyData should contain enough capacity to fit all entries to iterate through.
+// preAllocatedTimestampDifferences should contain enough capacity to fit all differences.
 func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, preAllocatedDifficultyData []DifficultyData, preAllocatedTimestampDifferences []uint32) (difficulty types.Difficulty, verifyError, invalidError error) {
-	index := 0
-	l := len(preAllocatedDifficultyData)
 
-	insertDifficultyData := func(cumDiff types.Difficulty, timestamp uint64) {
-		if index < l {
-			preAllocatedDifficultyData[index].CumulativeDifficulty = cumDiff
-			preAllocatedDifficultyData[index].Timestamp = timestamp
-		} else {
-			preAllocatedDifficultyData = append(preAllocatedDifficultyData, DifficultyData{
-				CumulativeDifficulty: cumDiff,
-				Timestamp:            timestamp,
-			})
-		}
-		index++
-	}
+	difficultyData := preAllocatedDifficultyData[:0]
 
 	cur := tip
 	var blockDepth uint64
 	var oldestTimestamp uint64 = math.MaxUint64
+
 	for {
-		oldestTimestamp = min(oldestTimestamp, cur.Main.Timestamp)
-		insertDifficultyData(cur.Side.CumulativeDifficulty, cur.Main.Timestamp)
+		difficultyData = append(difficultyData, DifficultyData{
+			CumulativeDifficulty: cur.Side.CumulativeDifficulty,
+			Timestamp:            cur.Main.Timestamp,
+		})
 
-		for _, uncleId := range cur.Side.Uncles {
-			if uncle := getByTemplateId(uncleId); uncle == nil {
-				//cannot find uncles
-				return types.ZeroDifficulty, fmt.Errorf("could not find uncle %s", uncleId), nil
-			} else {
-				// Skip uncles which are already out of PPLNS window
-				if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
-					continue
-				}
-
-				oldestTimestamp = min(oldestTimestamp, uncle.Main.Timestamp)
-				insertDifficultyData(uncle.Side.CumulativeDifficulty, uncle.Main.Timestamp)
+		if err := cur.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
+			// Skip uncles which are already out of PPLNS window
+			if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
+				return
 			}
+
+			difficultyData = append(difficultyData, DifficultyData{
+				CumulativeDifficulty: uncle.Side.CumulativeDifficulty,
+				Timestamp:            uncle.Main.Timestamp,
+			})
+		}); err != nil {
+			return types.ZeroDifficulty, err, nil
 		}
 
 		blockDepth++
@@ -395,24 +380,25 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 		}
 
 		parentId := cur.Side.Parent
-		cur = getByTemplateId(parentId)
+		cur = cur.iteratorGetParent(getByTemplateId)
 
 		if cur == nil {
-			return types.ZeroDifficulty, fmt.Errorf("could not find parent %s", parentId), nil
+			return types.ZeroDifficulty, fmt.Errorf("could not find parent %s", parentId.String()), nil
 		}
 	}
 
-	difficultyData := preAllocatedDifficultyData[:index]
-
-	if len(difficultyData) > len(preAllocatedTimestampDifferences) {
-		preAllocatedTimestampDifferences = make([]uint32, len(difficultyData))
+	for i := range difficultyData {
+		if difficultyData[i].Timestamp < oldestTimestamp {
+			oldestTimestamp = difficultyData[i].Timestamp
+		}
 	}
+
+	tmpTimestamps := preAllocatedTimestampDifferences[:0]
 
 	// Discard 10% oldest and 10% newest (by timestamp) blocks
 	for i := range difficultyData {
-		preAllocatedTimestampDifferences[i] = uint32(difficultyData[i].Timestamp - oldestTimestamp)
+		tmpTimestamps = append(tmpTimestamps, uint32(difficultyData[i].Timestamp-oldestTimestamp))
 	}
-	tmpTimestamps := preAllocatedTimestampDifferences[:len(difficultyData)]
 
 	cutSize := (len(difficultyData) + 9) / 10
 	index1 := cutSize - 1
@@ -440,13 +426,12 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	var diff2 types.Difficulty
 
 	for i := range difficultyData {
-		d := &difficultyData[i]
-		if timestamp1 <= d.Timestamp && d.Timestamp <= timestamp2 {
-			if d.CumulativeDifficulty.Cmp(diff1) < 0 {
-				diff1 = d.CumulativeDifficulty
+		if timestamp1 <= difficultyData[i].Timestamp && difficultyData[i].Timestamp <= timestamp2 {
+			if difficultyData[i].CumulativeDifficulty.Cmp(diff1) < 0 {
+				diff1 = difficultyData[i].CumulativeDifficulty
 			}
-			if diff2.Cmp(d.CumulativeDifficulty) < 0 {
-				diff2 = d.CumulativeDifficulty
+			if diff2.Cmp(difficultyData[i].CumulativeDifficulty) < 0 {
+				diff2 = difficultyData[i].CumulativeDifficulty
 			}
 		}
 	}
