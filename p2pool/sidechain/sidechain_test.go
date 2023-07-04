@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"slices"
 	"testing"
 )
 
@@ -133,9 +134,11 @@ func TestSideChainMiniPreFork(t *testing.T) {
 	testSideChain(s, t, f, 2424349, 2696040, block2420028, block2420027)
 }
 
-func benchmarkResetState(tip, parent *PoolBlock, templateId types.Hash, fullId FullId, difficulty types.Difficulty, s *SideChain) {
+func benchmarkResetState(tip, parent *PoolBlock, templateId types.Hash, fullId FullId, difficulty types.Difficulty, blocksByHeightKeys []uint64, s *SideChain) {
 	//Remove states in maps
 	s.blocksByHeight.Delete(tip.Side.Height)
+	s.blocksByHeightKeys = blocksByHeightKeys
+	s.blocksByHeightKeysSorted = true
 	s.blocksByTemplateId.Delete(templateId)
 	s.seenBlocks.Delete(fullId)
 
@@ -160,6 +163,9 @@ func benchSideChain(b *testing.B, s *SideChain, tipHash types.Hash) {
 
 	for tip.SideTemplateId(s.Consensus()) != tipHash {
 		s.blocksByHeight.Delete(tip.Side.Height)
+		s.blocksByHeightKeys = slices.DeleteFunc(s.blocksByHeightKeys, func(u uint64) bool {
+			return u == tip.Side.Height
+		})
 		s.blocksByTemplateId.Delete(tip.SideTemplateId(s.Consensus()))
 		s.seenBlocks.Delete(tip.FullId())
 
@@ -176,13 +182,20 @@ func benchSideChain(b *testing.B, s *SideChain, tipHash types.Hash) {
 
 	difficulty, _, _ := s.GetDifficulty(parent)
 
-	benchmarkResetState(tip, parent, templateId, fullId, difficulty, s)
+	slices.Sort(s.blocksByHeightKeys)
+	blocksByHeightKeys := slices.DeleteFunc(s.blocksByHeightKeys, func(u uint64) bool {
+		return u == tip.Side.Height
+	})
+
+	benchmarkResetState(tip, parent, templateId, fullId, difficulty, slices.Clone(blocksByHeightKeys), s)
 
 	var err error
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		benchmarkResetState(tip, parent, templateId, fullId, difficulty, s)
+		b.StopTimer()
+		benchmarkResetState(tip, parent, templateId, fullId, difficulty, slices.Clone(blocksByHeightKeys), s)
+		b.StartTimer()
 		_, err, _ = s.AddPoolBlockExternal(tip)
 		if err != nil {
 			b.Error(err)

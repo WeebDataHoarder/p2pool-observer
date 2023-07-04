@@ -71,8 +71,10 @@ type SideChain struct {
 	watchBlock            *ChainMain
 	watchBlockSidechainId types.Hash
 
-	blocksByTemplateId *swiss.Map[types.Hash, *PoolBlock]
-	blocksByHeight     *swiss.Map[uint64, []*PoolBlock]
+	blocksByTemplateId       *swiss.Map[types.Hash, *PoolBlock]
+	blocksByHeight           *swiss.Map[uint64, []*PoolBlock]
+	blocksByHeightKeysSorted bool
+	blocksByHeightKeys       []uint64
 
 	preAllocatedBuffer []byte
 
@@ -425,6 +427,10 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 		c.blocksByHeight.Put(block.Side.Height, append(l, block))
 	} else {
 		c.blocksByHeight.Put(block.Side.Height, []*PoolBlock{block})
+		if !(c.blocksByHeightKeysSorted && len(c.blocksByHeightKeys) > 0 && c.blocksByHeightKeys[len(c.blocksByHeightKeys)-1]+1 == block.Side.Height) {
+			c.blocksByHeightKeysSorted = false
+		}
+		c.blocksByHeightKeys = append(c.blocksByHeightKeys, block.Side.Height)
 	}
 
 	c.updateDepths(block)
@@ -882,11 +888,20 @@ func (c *SideChain) pruneOldBlocks() {
 
 	h := tip.Side.Height - pruneDistance
 
+	if !c.blocksByHeightKeysSorted {
+		slices.Sort(c.blocksByHeightKeys)
+		c.blocksByHeightKeysSorted = true
+	}
+
 	numBlocksPruned := 0
-	c.blocksByHeight.Iter(func(height uint64, v []*PoolBlock) (stop bool) {
+
+	for keyIndex, height := range c.blocksByHeightKeys {
+		// Early exit
 		if height > h {
-			return false
+			break
 		}
+
+		v, _ := c.blocksByHeight.Get(height)
 
 		// loop backwards for proper deletions
 		for i := len(v) - 1; i >= 0; i-- {
@@ -908,11 +923,11 @@ func (c *SideChain) pruneOldBlocks() {
 
 		if len(v) == 0 {
 			c.blocksByHeight.Delete(height)
+			c.blocksByHeightKeys = slices.Delete(c.blocksByHeightKeys, keyIndex, keyIndex+1)
 		} else {
 			c.blocksByHeight.Put(height, v)
 		}
-		return false
-	})
+	}
 
 	if numBlocksPruned > 0 {
 		log.Printf("[SideChain] pruned %d old blocks at heights <= %d", numBlocksPruned, h)
