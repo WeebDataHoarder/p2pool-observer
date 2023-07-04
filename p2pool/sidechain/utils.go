@@ -354,6 +354,10 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 			Timestamp:            cur.Main.Timestamp,
 		})
 
+		if cur.Main.Timestamp < oldestTimestamp {
+			oldestTimestamp = cur.Main.Timestamp
+		}
+
 		if err := cur.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
 			// Skip uncles which are already out of PPLNS window
 			if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
@@ -364,6 +368,10 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 				CumulativeDifficulty: uncle.Side.CumulativeDifficulty,
 				Timestamp:            uncle.Main.Timestamp,
 			})
+
+			if uncle.Main.Timestamp < oldestTimestamp {
+				oldestTimestamp = uncle.Main.Timestamp
+			}
 		}); err != nil {
 			return types.ZeroDifficulty, err, nil
 		}
@@ -387,12 +395,6 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 		}
 	}
 
-	for i := range difficultyData {
-		if difficultyData[i].Timestamp < oldestTimestamp {
-			oldestTimestamp = difficultyData[i].Timestamp
-		}
-	}
-
 	tmpTimestamps := preAllocatedTimestampDifferences[:0]
 
 	// Discard 10% oldest and 10% newest (by timestamp) blocks
@@ -404,10 +406,10 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	lowIndex := cutSize - 1
 	upperIndex := len(difficultyData) - cutSize
 
-	//TODO: replace this with introspective selection, use order for now
-	slices.Sort(tmpTimestamps)
-
+	utils.NthElementSlice(tmpTimestamps, lowIndex)
 	timestampLowerBound := oldestTimestamp + uint64(tmpTimestamps[lowIndex])
+
+	utils.NthElementSlice(tmpTimestamps, upperIndex)
 	timestampUpperBound := oldestTimestamp + uint64(tmpTimestamps[upperIndex])
 
 	// Make a reasonable assumption that each block has higher timestamp, so deltaTimestamp can't be less than deltaIndex
