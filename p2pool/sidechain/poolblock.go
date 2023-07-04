@@ -107,6 +107,9 @@ func (b *PoolBlock) iteratorGetParent(getByTemplateId GetByTemplateIdFunc) *Pool
 }
 
 func (b *PoolBlock) iteratorUncles(getByTemplateId GetByTemplateIdFunc, uncleFunc func(uncle *PoolBlock)) error {
+	if len(b.Side.Uncles) == 0 {
+		return nil
+	}
 	if b.iterationCache == nil {
 		for _, uncleId := range b.Side.Uncles {
 			uncle := getByTemplateId(uncleId)

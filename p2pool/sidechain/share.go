@@ -2,6 +2,7 @@ package sidechain
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"slices"
 	"sync"
@@ -11,7 +12,7 @@ type Shares []*Share
 
 func (s Shares) Index(addr address.PackedAddress) int {
 	return slices.IndexFunc(s, func(share *Share) bool {
-		return share.Address.ComparePacked(&addr) == 0
+		return share.Address == addr
 	})
 }
 
@@ -27,6 +28,14 @@ func (s Shares) Clone() (o Shares) {
 func (s Shares) Compact() Shares {
 	// Sort shares based on address
 	slices.SortFunc(s, func(a *Share, b *Share) int {
+		// Fast tests first. Skips further checks
+		if diff := int(a.Address[0][crypto.PublicKeySize-1]) - int(b.Address[0][crypto.PublicKeySize-1]); diff != 0 {
+			return diff
+		}
+		if a.Address == b.Address {
+			return 0
+		}
+
 		return a.Address.ComparePacked(&b.Address)
 	})
 
@@ -35,7 +44,7 @@ func (s Shares) Compact() Shares {
 		if i == 0 {
 			continue
 		}
-		if s[index].Address.ComparePacked(&share.Address) == 0 {
+		if s[index].Address == share.Address {
 			s[index].Weight = s[index].Weight.Add(share.Weight)
 		} else {
 			index++

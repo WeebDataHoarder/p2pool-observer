@@ -401,44 +401,44 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	}
 
 	cutSize := (len(difficultyData) + 9) / 10
-	index1 := cutSize - 1
-	index2 := len(difficultyData) - cutSize
+	lowIndex := cutSize - 1
+	upperIndex := len(difficultyData) - cutSize
 
 	//TODO: replace this with introspective selection, use order for now
 	slices.Sort(tmpTimestamps)
 
-	timestamp1 := oldestTimestamp + uint64(tmpTimestamps[index1])
-	timestamp2 := oldestTimestamp + uint64(tmpTimestamps[index2])
+	timestampLowerBound := oldestTimestamp + uint64(tmpTimestamps[lowIndex])
+	timestampUpperBound := oldestTimestamp + uint64(tmpTimestamps[upperIndex])
 
-	// Make a reasonable assumption that each block has higher timestamp, so deltaT can't be less than deltaIndex
+	// Make a reasonable assumption that each block has higher timestamp, so deltaTimestamp can't be less than deltaIndex
 	// Because if it is, someone is trying to mess with timestamps
-	// In reality, deltaT ~ deltaIndex*10 (sidechain block time)
+	// In reality, deltaTimestamp ~ deltaIndex*10 (sidechain block time)
 	deltaIndex := uint64(1)
-	if index2 > index2 {
-		deltaIndex = uint64(index2 - index1)
+	if upperIndex > upperIndex {
+		deltaIndex = uint64(upperIndex - lowIndex)
 	}
-	deltaT := deltaIndex
-	if timestamp2 > (timestamp1 + deltaIndex) {
-		deltaT = timestamp2 - timestamp1
+	deltaTimestamp := deltaIndex
+	if timestampUpperBound > (timestampLowerBound + deltaIndex) {
+		deltaTimestamp = timestampUpperBound - timestampLowerBound
 	}
 
-	var diff1 = types.Difficulty{Hi: math.MaxUint64, Lo: math.MaxUint64}
-	var diff2 types.Difficulty
+	var minDifficulty = types.Difficulty{Hi: math.MaxUint64, Lo: math.MaxUint64}
+	var maxDifficulty types.Difficulty
 
 	for i := range difficultyData {
-		if timestamp1 <= difficultyData[i].Timestamp && difficultyData[i].Timestamp <= timestamp2 {
-			if difficultyData[i].CumulativeDifficulty.Cmp(diff1) < 0 {
-				diff1 = difficultyData[i].CumulativeDifficulty
+		if timestampLowerBound <= difficultyData[i].Timestamp && difficultyData[i].Timestamp <= timestampUpperBound {
+			if difficultyData[i].CumulativeDifficulty.Cmp(minDifficulty) < 0 {
+				minDifficulty = difficultyData[i].CumulativeDifficulty
 			}
-			if diff2.Cmp(difficultyData[i].CumulativeDifficulty) < 0 {
-				diff2 = difficultyData[i].CumulativeDifficulty
+			if maxDifficulty.Cmp(difficultyData[i].CumulativeDifficulty) < 0 {
+				maxDifficulty = difficultyData[i].CumulativeDifficulty
 			}
 		}
 	}
 
-	deltaDiff := diff2.Sub(diff1)
+	deltaDifficulty := maxDifficulty.Sub(minDifficulty)
 
-	curDifficulty := deltaDiff.Mul64(consensus.TargetBlockTime).Div64(deltaT)
+	curDifficulty := deltaDifficulty.Mul64(consensus.TargetBlockTime).Div64(deltaTimestamp)
 
 	if curDifficulty.Cmp64(consensus.MinimumDifficulty) < 0 {
 		curDifficulty = types.DifficultyFrom64(consensus.MinimumDifficulty)
