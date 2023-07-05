@@ -16,17 +16,8 @@ func (s Shares) Index(addr address.PackedAddress) int {
 	})
 }
 
-func (s Shares) Clone() (o Shares) {
-	o = make(Shares, len(s))
-	for i := range s {
-		o[i] = &Share{Address: s[i].Address, Weight: s[i].Weight}
-	}
-	return o
-}
-
-// Compact Removes dupe Share entries
-func (s Shares) Compact() Shares {
-	// Sort shares based on address
+// Sort Consensus way of sorting Shares
+func (s Shares) Sort() {
 	slices.SortFunc(s, func(a *Share, b *Share) int {
 		// Fast tests first. Skips further checks
 		if diff := int(a.Address[0][crypto.PublicKeySize-1]) - int(b.Address[0][crypto.PublicKeySize-1]); diff != 0 {
@@ -38,6 +29,24 @@ func (s Shares) Compact() Shares {
 
 		return a.Address.ComparePacked(&b.Address)
 	})
+}
+
+func (s Shares) Clone() (o Shares) {
+	o = make(Shares, len(s))
+	preAllocatedStructs := make([]Share, len(s))
+	for i := range s {
+		o[i] = &preAllocatedStructs[i]
+		o[i].Address = s[i].Address
+		o[i].Weight = s[i].Weight
+	}
+	return o
+}
+
+// Compact Merges duplicate Share entries based on Address
+// len(s) must be greater than 0
+func (s Shares) Compact() Shares {
+	// Sort shares based on address
+	s.Sort()
 
 	index := 0
 	for i, share := range s {
@@ -78,13 +87,15 @@ func (p *PreAllocatedSharesPool) Put(s Shares) {
 
 func PreAllocateShares[T uint64 | int](n T) Shares {
 	preAllocatedShares := make(Shares, n)
+	// Preserve locality
+	preAllocatedStructs := make([]Share, n)
 	for i := range preAllocatedShares {
-		preAllocatedShares[i] = &Share{}
+		preAllocatedShares[i] = &preAllocatedStructs[i]
 	}
 	return preAllocatedShares
 }
 
 type Share struct {
-	Weight  types.Difficulty
 	Address address.PackedAddress
+	Weight  types.Difficulty
 }

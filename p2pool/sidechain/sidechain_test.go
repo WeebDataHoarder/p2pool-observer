@@ -261,3 +261,32 @@ func BenchmarkSideChainDefault_GetDifficulty(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkSideChainDefault_CalculateOutputs(b *testing.B) {
+	b.ReportAllocs()
+	tip := benchLoadedSideChain.GetChainTip()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		outputs, _ := benchLoadedSideChain.calculateOutputs(tip)
+		if outputs == nil {
+			b.Error("nil outputs")
+			return
+		}
+	}
+}
+
+func BenchmarkSideChainDefault_GetShares(b *testing.B) {
+	b.ReportAllocs()
+	tip := benchLoadedSideChain.GetChainTip()
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		shares, _ := benchLoadedSideChain.getShares(tip, benchLoadedSideChain.preAllocatedShares)
+		if shares == nil {
+			b.Error("nil shares")
+			return
+		}
+	}
+}

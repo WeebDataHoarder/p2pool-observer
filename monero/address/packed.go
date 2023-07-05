@@ -5,6 +5,7 @@ import (
 	"unsafe"
 )
 
+// PackedAddress 0 = spend, 1 = view
 type PackedAddress [2]crypto.PublicKeyBytes
 
 func NewPackedAddressFromBytes(spend, view crypto.PublicKeyBytes) (result PackedAddress) {
