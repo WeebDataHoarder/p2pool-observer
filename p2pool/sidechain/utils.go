@@ -503,23 +503,23 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 
 	blockAncestor := block
 	for blockAncestor != nil && blockAncestor.Side.Height > candidate.Side.Height {
-		blockAncestor = getByTemplateId(blockAncestor.Side.Parent)
+		blockAncestor = blockAncestor.iteratorGetParent(getByTemplateId)
 		//TODO: err on blockAncestor nil
 	}
 
 	if blockAncestor != nil {
 		candidateAncestor := candidate
 		for candidateAncestor != nil && candidateAncestor.Side.Height > blockAncestor.Side.Height {
-			candidateAncestor = getByTemplateId(candidateAncestor.Side.Parent)
+			candidateAncestor = candidateAncestor.iteratorGetParent(getByTemplateId)
 			//TODO: err on candidateAncestor nil
 		}
 
 		for blockAncestor != nil && candidateAncestor != nil {
-			if blockAncestor.Side.Parent.Equals(candidateAncestor.Side.Parent) {
+			if blockAncestor.Side.Parent == candidateAncestor.Side.Parent {
 				return block.Side.CumulativeDifficulty.Cmp(candidate.Side.CumulativeDifficulty) < 0, false
 			}
-			blockAncestor = getByTemplateId(blockAncestor.Side.Parent)
-			candidateAncestor = getByTemplateId(candidateAncestor.Side.Parent)
+			blockAncestor = blockAncestor.iteratorGetParent(getByTemplateId)
+			candidateAncestor = candidateAncestor.iteratorGetParent(getByTemplateId)
 		}
 	}
 
@@ -538,15 +538,13 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 	for i := uint64(0); i < consensus.ChainWindowSize && (oldChain != nil || newChain != nil); i++ {
 		if oldChain != nil {
 			blockTotalDiff = blockTotalDiff.Add(oldChain.Side.Difficulty)
-			for _, uncle := range oldChain.Side.Uncles {
-				if u := getByTemplateId(uncle); u != nil {
-					blockTotalDiff = blockTotalDiff.Add(u.Side.Difficulty)
-				}
-			}
+			_ = oldChain.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
+				blockTotalDiff = blockTotalDiff.Add(uncle.Side.Difficulty)
+			})
 			if !slices.Contains(currentChainMoneroBlocks, oldChain.Main.PreviousId) && getChainMainByHash(oldChain.Main.PreviousId) != nil {
 				currentChainMoneroBlocks = append(currentChainMoneroBlocks, oldChain.Main.PreviousId)
 			}
-			oldChain = getByTemplateId(oldChain.Side.Parent)
+			oldChain = oldChain.iteratorGetParent(getByTemplateId)
 		}
 
 		if newChain != nil {
@@ -556,11 +554,9 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 				candidateMainchainMinHeight = newChain.Main.Coinbase.GenHeight
 			}
 			candidateTotalDiff = candidateTotalDiff.Add(newChain.Side.Difficulty)
-			for _, uncle := range newChain.Side.Uncles {
-				if u := getByTemplateId(uncle); u != nil {
-					candidateTotalDiff = candidateTotalDiff.Add(u.Side.Difficulty)
-				}
-			}
+			_ = newChain.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
+				candidateTotalDiff = candidateTotalDiff.Add(uncle.Side.Difficulty)
+			})
 			if !slices.Contains(candidateChainMoneroBlocks, newChain.Main.PreviousId) {
 				if data := getChainMainByHash(newChain.Main.PreviousId); data != nil {
 					candidateChainMoneroBlocks = append(candidateChainMoneroBlocks, newChain.Main.PreviousId)
@@ -568,7 +564,7 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 				}
 			}
 
-			newChain = getByTemplateId(newChain.Side.Parent)
+			newChain = newChain.iteratorGetParent(getByTemplateId)
 		}
 	}
 

@@ -290,3 +290,21 @@ func BenchmarkSideChainDefault_GetShares(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkSideChainDefault_BlocksInPPLNSWindow(b *testing.B) {
+	b.ReportAllocs()
+	tip := benchLoadedSideChain.GetChainTip()
+
+	b.ResetTimer()
+
+	var err error
+	for i := 0; i < b.N; i++ {
+		_, err = BlocksInPPLNSWindow(tip, benchLoadedSideChain.Consensus(), benchLoadedSideChain.server.GetDifficultyByHeight, benchLoadedSideChain.getPoolBlockByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
+
+		})
+		if err != nil {
+			b.Error(err)
+			return
+		}
+	}
+}

@@ -495,15 +495,23 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			// This block is now verified
 
 			// Fill cache here
-			block.iterationCache = &IterationCache{
-				Parent: c.getParent(block),
-				Uncles: nil,
-			}
 
-			if len(block.Side.Uncles) > 0 {
-				block.iterationCache.Uncles = make([]*PoolBlock, 0, len(block.Side.Uncles))
-				for _, uncleId := range block.Side.Uncles {
-					block.iterationCache.Uncles = append(block.iterationCache.Uncles, c.getPoolBlockByTemplateId(uncleId))
+			if parent := c.getParent(block); parent != nil {
+				block.iterationCache = &IterationCache{
+					Parent: parent,
+					Uncles: nil,
+				}
+
+				if len(block.Side.Uncles) > 0 {
+					block.iterationCache.Uncles = make([]*PoolBlock, 0, len(block.Side.Uncles))
+					for _, uncleId := range block.Side.Uncles {
+						if uncle := c.getPoolBlockByTemplateId(uncleId); uncle == nil {
+							block.iterationCache = nil
+							break
+						} else {
+							block.iterationCache.Uncles = append(block.iterationCache.Uncles, uncle)
+						}
+					}
 				}
 			}
 
@@ -766,7 +774,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 	for i := uint64(1); i <= UncleBlockDepth; i++ {
 		blocksAtHeight, _ := c.blocksByHeight.Get(block.Side.Height + i)
 		for _, child := range blocksAtHeight {
-			if child.Side.Parent.Equals(block.SideTemplateId(c.Consensus())) {
+			if child.Side.Parent == block.SideTemplateId(c.Consensus()) {
 				if i != 1 {
 					log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
 					return
@@ -794,7 +802,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 			_ = c.verifyLoop(block)
 		}
 
-		if parent := c.getParent(block); parent != nil {
+		if parent := block.iteratorGetParent(c.getPoolBlockByTemplateId); parent != nil {
 			if parent.Side.Height+1 != block.Side.Height {
 				log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, parent.Side.Height)
 				return
@@ -806,19 +814,23 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 			}
 		}
 
-		for _, uncleId := range block.Side.Uncles {
-			if uncle := c.getPoolBlockByTemplateId(uncleId); uncle != nil {
-				if uncle.Side.Height >= block.Side.Height || (uncle.Side.Height+UncleBlockDepth < block.Side.Height) {
-					log.Printf("[SideChain] Block %s side height %d is inconsistent with uncle's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, uncle.Side.Height)
-					return
-				}
+		var returnFromUncles bool
 
-				d := block.Side.Height - uncle.Side.Height
-				if uncle.Depth.Load() < blockDepth+d {
-					uncle.Depth.Store(blockDepth + d)
-					blocksToUpdate = append(blocksToUpdate, uncle)
-				}
+		_ = block.iteratorUncles(c.getPoolBlockByTemplateId, func(uncle *PoolBlock) {
+			if uncle.Side.Height >= block.Side.Height || (uncle.Side.Height+UncleBlockDepth < block.Side.Height) {
+				log.Printf("[SideChain] Block %s side height %d is inconsistent with uncle's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, uncle.Side.Height)
+				returnFromUncles = true
+				return
 			}
+
+			d := block.Side.Height - uncle.Side.Height
+			if uncle.Depth.Load() < blockDepth+d {
+				uncle.Depth.Store(blockDepth + d)
+				blocksToUpdate = append(blocksToUpdate, uncle)
+			}
+		})
+		if returnFromUncles {
+			return
 		}
 	}
 }
@@ -967,14 +979,14 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 			return false
 		}
 
-		if !b.Side.Parent.Equals(types.ZeroHash) && c.getPoolBlockByTemplateId(b.Side.Parent) == nil {
+		if b.Side.Parent != types.ZeroHash && c.getPoolBlockByTemplateId(b.Side.Parent) == nil {
 			missingBlocks = append(missingBlocks, b.Side.Parent)
 		}
 
 		missingUncles := 0
 
 		for _, uncleId := range b.Side.Uncles {
-			if !uncleId.Equals(types.ZeroHash) && c.getPoolBlockByTemplateId(uncleId) == nil {
+			if uncleId != types.ZeroHash && c.getPoolBlockByTemplateId(uncleId) == nil {
 				missingBlocks = append(missingBlocks, uncleId)
 				missingUncles++
 

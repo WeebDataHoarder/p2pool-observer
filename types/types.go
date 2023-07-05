@@ -1,7 +1,6 @@
 package types
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"encoding/hex"
 	"errors"
@@ -90,10 +89,6 @@ func (h Hash) Compare(other Hash) int {
 	}
 
 	return 0
-}
-
-func (h Hash) Equals(o Hash) bool {
-	return bytes.Compare(h[:], o[:]) == 0
 }
 
 func (h Hash) String() string {
