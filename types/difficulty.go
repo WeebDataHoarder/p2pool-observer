@@ -65,51 +65,33 @@ func (d Difficulty) Xor64(v uint64) Difficulty {
 	return Difficulty(uint128.Uint128(d).Xor64(v))
 }
 
+// Add All calls can wrap
 func (d Difficulty) Add(v Difficulty) Difficulty {
-	return Difficulty(uint128.Uint128(d).Add(uint128.Uint128(v)))
-}
-
-func (d Difficulty) AddWrap(v Difficulty) Difficulty {
 	return Difficulty(uint128.Uint128(d).AddWrap(uint128.Uint128(v)))
 }
 
+// Add64 All calls can wrap
 func (d Difficulty) Add64(v uint64) Difficulty {
-	return Difficulty(uint128.Uint128(d).Add64(v))
-}
-
-func (d Difficulty) AddWrap64(v uint64) Difficulty {
 	return Difficulty(uint128.Uint128(d).AddWrap64(v))
 }
 
+// Sub All calls can wrap
 func (d Difficulty) Sub(v Difficulty) Difficulty {
-	return Difficulty(uint128.Uint128(d).Sub(uint128.Uint128(v)))
-}
-
-func (d Difficulty) SubWrap(v Difficulty) Difficulty {
 	return Difficulty(uint128.Uint128(d).SubWrap(uint128.Uint128(v)))
 }
 
+// Sub64 All calls can wrap
 func (d Difficulty) Sub64(v uint64) Difficulty {
-	return Difficulty(uint128.Uint128(d).Sub64(v))
-}
-
-func (d Difficulty) SubWrap64(v uint64) Difficulty {
 	return Difficulty(uint128.Uint128(d).SubWrap64(v))
 }
 
+// Mul All calls can wrap
 func (d Difficulty) Mul(v Difficulty) Difficulty {
-	return Difficulty(uint128.Uint128(d).Mul(uint128.Uint128(v)))
-}
-
-func (d Difficulty) MulWrap(v Difficulty) Difficulty {
 	return Difficulty(uint128.Uint128(d).MulWrap(uint128.Uint128(v)))
 }
 
+// Mul64 All calls can wrap
 func (d Difficulty) Mul64(v uint64) Difficulty {
-	return Difficulty(uint128.Uint128(d).Mul64(v))
-}
-
-func (d Difficulty) MulWrap64(v uint64) Difficulty {
 	return Difficulty(uint128.Uint128(d).MulWrap64(v))
 }
 

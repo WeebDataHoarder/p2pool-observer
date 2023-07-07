@@ -249,6 +249,20 @@ func (c *SideChain) BlockUnsee(block *PoolBlock) {
 }
 
 func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []types.Hash, err error, ban bool) {
+	defer func() {
+		if e := recover(); e != nil {
+			//recover from panics
+			missingBlocks = nil
+			if panicError, ok := e.(error); ok {
+				err = fmt.Errorf("panic: %w", panicError)
+			} else {
+				err = fmt.Errorf("panic: %v", e)
+			}
+			ban = true
+			log.Printf("[SideChain]: add_external_block: panic %v, block %+v", e, block)
+		}
+	}()
+
 	// Technically some p2pool node could keep stuffing block with transactions until reward is less than 0.6 XMR
 	// But default transaction picking algorithm never does that. It's better to just ban such nodes
 	if block.Main.Coinbase.TotalReward < monero.TailEmissionReward {
@@ -275,7 +289,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		}
 	}
 
-	templateId := c.Consensus().CalculateSideTemplateId(block)
+	templateId := types.HashFromBytes(block.CoinbaseExtra(SideTemplateId))
 	if templateId != block.SideTemplateId(c.Consensus()) {
 		return nil, fmt.Errorf("invalid template id %s, expected %s", templateId.String(), block.SideTemplateId(c.Consensus()).String()), true
 	}
@@ -284,7 +298,6 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		return nil, fmt.Errorf("block mined by %s has invalid difficulty %s, expected >= %d", block.GetAddress().Reference().ToAddress(c.Consensus().NetworkType.AddressNetwork()).ToBase58(), block.Side.Difficulty.StringNumeric(), c.Consensus().MinimumDifficulty), true
 	}
 
-	//TODO: cache?
 	expectedDifficulty := c.Difficulty()
 	tooLowDiff := block.Side.Difficulty.Cmp(expectedDifficulty) < 0
 

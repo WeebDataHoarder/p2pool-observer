@@ -247,7 +247,7 @@ func main() {
 		minerDifficulty := minerData.Difficulty
 
 		getBlockEffort := func(blockCumulativeDifficulty, previousBlockCumulativeDifficulty, networkDifficulty types.Difficulty) float64 {
-			return float64(blockCumulativeDifficulty.SubWrap(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
+			return float64(blockCumulativeDifficulty.Sub(previousBlockCumulativeDifficulty).Mul64(100).Lo) / float64(networkDifficulty.Lo)
 		}
 
 		var lastDiff types.Difficulty

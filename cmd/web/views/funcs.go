@@ -204,7 +204,7 @@ func found_block_effort(b, previous *index.FoundBlock) float64 {
 		return 0
 	}
 
-	return float64(b.CumulativeDifficulty.SubWrap(previous.CumulativeDifficulty).Mul64(100).Lo) / float64(b.MainBlock.Difficulty)
+	return float64(b.CumulativeDifficulty.Sub(previous.CumulativeDifficulty).Mul64(100).Lo) / float64(b.MainBlock.Difficulty)
 }
 
 func effort_color(effort float64) string {

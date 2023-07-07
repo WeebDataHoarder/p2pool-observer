@@ -111,36 +111,33 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 		}
 		curWeight := cur.Side.Difficulty
 
-		for _, uncleId := range cur.Side.Uncles {
-			if uncle := getByTemplateId(uncleId); uncle == nil {
-				//cannot find uncles
-				return fmt.Errorf("could not find uncle %s", uncleId.String())
-			} else {
-				//Needs to be added regardless - for other consumers
-				curEntry.Uncles = append(curEntry.Uncles, uncle)
+		if err := cur.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
+			//Needs to be added regardless - for other consumers
+			curEntry.Uncles = append(curEntry.Uncles, uncle)
 
-				// Skip uncles which are already out of PPLNS window
-				if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
-					continue
-				}
-
-				// Take some % of uncle's weight into this share
-				unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
-				newPplnsWeight := pplnsWeight.Add(uncleWeight)
-
-				// Skip uncles that push PPLNS weight above the limit
-				if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-					continue
-				}
-				curWeight = curWeight.Add(unclePenalty)
-
-				if addWeightFunc != nil {
-					addWeightFunc(uncle, uncleWeight)
-				}
-
-				pplnsWeight = newPplnsWeight
+			// Skip uncles which are already out of PPLNS window
+			if (tip.Side.Height - uncle.Side.Height) >= consensus.ChainWindowSize {
+				return
 			}
+
+			// Take some % of uncle's weight into this share
+			unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
+			uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+			newPplnsWeight := pplnsWeight.Add(uncleWeight)
+
+			// Skip uncles that push PPLNS weight above the limit
+			if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
+				return
+			}
+			curWeight = curWeight.Add(unclePenalty)
+
+			if addWeightFunc != nil {
+				addWeightFunc(uncle, uncleWeight)
+			}
+
+			pplnsWeight = newPplnsWeight
+		}); err != nil {
+			return err
 		}
 
 		// Always add non-uncle shares even if PPLNS weight goes above the limit
@@ -169,7 +166,7 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 		}
 
 		parentId := cur.Side.Parent
-		cur = getByTemplateId(parentId)
+		cur = cur.iteratorGetParent(getByTemplateId)
 
 		if cur == nil {
 			return fmt.Errorf("could not find parent %s", parentId.String())
