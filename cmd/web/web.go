@@ -686,15 +686,14 @@ func main() {
 				createMiner(share.Miner, share)
 				miners[miner].Uncles.Add(int(int64(tip.SideHeight)-int64(share.SideHeight)), 1)
 
-				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := share.Difficulty - unclePenalty.Lo
+				uncleWeight, unclePenalty := consensus.ApplyUnclePenalty(types.DifficultyFrom64(share.Difficulty))
 
 				if shares[uncleShareIndex].TemplateId == share.UncleOf {
 					parent := shares[uncleShareIndex]
 					createMiner(parent.Miner, parent)
 					miners[parent.Miner].Weight = miners[parent.Miner].Weight.Add64(unclePenalty.Lo)
 				}
-				miners[miner].Weight = miners[miner].Weight.Add64(uncleWeight)
+				miners[miner].Weight = miners[miner].Weight.Add64(uncleWeight.Lo)
 
 				totalWeight = totalWeight.Add64(share.Difficulty)
 			} else {
@@ -926,8 +925,7 @@ func main() {
 
 				unclesFound.Add(int(int64(tipHeight)-int64(share.SideHeight)), 1)
 
-				unclePenalty := types.DifficultyFrom64(share.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := share.Difficulty - unclePenalty.Lo
+				uncleWeight, unclePenalty := consensus.ApplyUnclePenalty(types.DifficultyFrom64(share.Difficulty))
 
 				if i := slices.IndexFunc(shares, func(block *index.SideBlock) bool {
 					return block.TemplateId == share.UncleOf
@@ -938,10 +936,10 @@ func main() {
 					longDiff = longDiff.Add64(unclePenalty.Lo)
 				}
 				if share.SideHeight > wend {
-					windowDiff = windowDiff.Add64(uncleWeight)
+					windowDiff = windowDiff.Add64(uncleWeight.Lo)
 					unclesInWindow.Add(int(int64(tipHeight)-int64(share.SideHeight)), 1)
 				}
-				longDiff = longDiff.Add64(uncleWeight)
+				longDiff = longDiff.Add64(uncleWeight.Lo)
 			} else {
 				sharesFound.Add(int(int64(tipHeight)-toInt64(share.SideHeight)), 1)
 				if share.SideHeight > wend {

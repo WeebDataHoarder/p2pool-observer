@@ -34,7 +34,14 @@ func (d Difficulty) Equals64(v uint64) bool {
 }
 
 func (d Difficulty) Cmp(v Difficulty) int {
-	return uint128.Uint128(d).Cmp(uint128.Uint128(v))
+	//return uint128.Uint128(d).Cmp(uint128.Uint128(v))
+	if d == v {
+		return 0
+	} else if d.Hi < v.Hi || (d.Hi == v.Hi && d.Lo < v.Lo) {
+		return -1
+	} else {
+		return 1
+	}
 }
 
 func (d Difficulty) Cmp64(v uint64) int {
@@ -67,7 +74,10 @@ func (d Difficulty) Xor64(v uint64) Difficulty {
 
 // Add All calls can wrap
 func (d Difficulty) Add(v Difficulty) Difficulty {
-	return Difficulty(uint128.Uint128(d).AddWrap(uint128.Uint128(v)))
+	//return Difficulty(uint128.Uint128(d).AddWrap(uint128.Uint128(v)))
+	lo, carry := bits.Add64(d.Lo, v.Lo, 0)
+	hi, _ := bits.Add64(d.Hi, v.Hi, carry)
+	return Difficulty{Lo: lo, Hi: hi}
 }
 
 // Add64 All calls can wrap
@@ -92,7 +102,10 @@ func (d Difficulty) Mul(v Difficulty) Difficulty {
 
 // Mul64 All calls can wrap
 func (d Difficulty) Mul64(v uint64) Difficulty {
-	return Difficulty(uint128.Uint128(d).MulWrap64(v))
+	//return Difficulty(uint128.Uint128(d).MulWrap64(v))
+	hi, lo := bits.Mul64(d.Lo, v)
+	hi += d.Hi * v
+	return Difficulty{Lo: lo, Hi: hi}
 }
 
 func (d Difficulty) Div(v Difficulty) Difficulty {

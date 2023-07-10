@@ -74,8 +74,7 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 				}
 
 				// Take some % of uncle's weight into this share
-				unclePenalty := types.DifficultyFrom64(uncle.Difficulty).Mul64(consensus.UnclePenalty).Div64(100)
-				uncleWeight := types.DifficultyFrom64(uncle.Difficulty).Sub(unclePenalty)
+				uncleWeight, unclePenalty := consensus.ApplyUnclePenalty(types.DifficultyFrom64(uncle.Difficulty))
 				newPplnsWeight := pplnsWeight.Add(uncleWeight)
 
 				// Skip uncles that push PPLNS weight above the limit

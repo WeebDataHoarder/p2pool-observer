@@ -1278,7 +1278,9 @@ func (i *Index) GetSideBlockFromPoolBlock(b *sidechain.PoolBlock, inclusion Bloc
 	tip.EffectiveHeight = tip.SideHeight
 	tip.Inclusion = inclusion
 
-	if bottomHeight, err := sidechain.BlocksInPPLNSWindow(b, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil); err != nil {
+	if bottomHeight, err := sidechain.BlocksInPPLNSWindow(b, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, func(b *sidechain.PoolBlock, weight types.Difficulty) {
+
+	}); err != nil {
 		// unknown
 		tip.WindowDepth = 0
 	} else {
@@ -1311,7 +1313,9 @@ func (i *Index) GetSideBlockFromPoolBlock(b *sidechain.PoolBlock, inclusion Bloc
 			uncleBlock.Inclusion = InclusionInVerifiedChain
 		}
 
-		if uncleBottomHeight, err := sidechain.BlocksInPPLNSWindow(uncle, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, nil); err != nil {
+		if uncleBottomHeight, err := sidechain.BlocksInPPLNSWindow(uncle, i.consensus, i.GetDifficultyByHeight, i.GetByTemplateId, func(b *sidechain.PoolBlock, weight types.Difficulty) {
+
+		}); err != nil {
 			// unknown
 			uncleBlock.WindowDepth = 0
 		} else {

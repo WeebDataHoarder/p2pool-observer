@@ -121,8 +121,7 @@ func IterateBlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficulty
 			}
 
 			// Take some % of uncle's weight into this share
-			unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
-			uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+			uncleWeight, unclePenalty := consensus.ApplyUnclePenalty(uncle.Side.Difficulty)
 			newPplnsWeight := pplnsWeight.Add(uncleWeight)
 
 			// Skip uncles that push PPLNS weight above the limit
@@ -213,8 +212,8 @@ func BlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeigh
 			}
 
 			// Take some % of uncle's weight into this share
-			unclePenalty := uncle.Side.Difficulty.Mul64(consensus.UnclePenalty).Div64(100)
-			uncleWeight := uncle.Side.Difficulty.Sub(unclePenalty)
+			uncleWeight, unclePenalty := consensus.ApplyUnclePenalty(uncle.Side.Difficulty)
+
 			newPplnsWeight := pplnsWeight.Add(uncleWeight)
 
 			// Skip uncles that push PPLNS weight above the limit
@@ -223,9 +222,7 @@ func BlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeigh
 			}
 			curWeight = curWeight.Add(unclePenalty)
 
-			if addWeightFunc != nil {
-				addWeightFunc(uncle, uncleWeight)
-			}
+			addWeightFunc(uncle, uncleWeight)
 
 			pplnsWeight = newPplnsWeight
 
@@ -236,9 +233,7 @@ func BlocksInPPLNSWindow(tip *PoolBlock, consensus *Consensus, difficultyByHeigh
 		// Always add non-uncle shares even if PPLNS weight goes above the limit
 		bottomHeight = cur.Side.Height
 
-		if addWeightFunc != nil {
-			addWeightFunc(cur, curWeight)
-		}
+		addWeightFunc(cur, curWeight)
 
 		pplnsWeight = pplnsWeight.Add(curWeight)
 

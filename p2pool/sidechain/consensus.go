@@ -280,5 +280,12 @@ func (c *Consensus) CalculateId() types.Hash {
 	return randomx.ConsensusHash(buf)
 }
 
+// ApplyUnclePenalty Applies UnclePenalty efficiently
+func (c *Consensus) ApplyUnclePenalty(weight types.Difficulty) (uncleWeight, unclePenalty types.Difficulty) {
+	unclePenalty = weight.Mul64(c.UnclePenalty).Div64(100)
+	uncleWeight = weight.Sub(unclePenalty)
+	return
+}
+
 var ConsensusDefault = &Consensus{NetworkType: NetworkMainnet, PoolName: "mainnet test 2", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, Id: types.Hash{34, 175, 126, 231, 181, 11, 104, 146, 227, 153, 218, 107, 44, 108, 68, 39, 178, 81, 4, 212, 169, 4, 142, 0, 177, 110, 157, 240, 68, 7, 249, 24}}
 var ConsensusMini = &Consensus{NetworkType: NetworkMainnet, PoolName: "mini", TargetBlockTime: 10, MinimumDifficulty: 100000, ChainWindowSize: 2160, UnclePenalty: 20, HardForks: p2poolMainNetHardForks, Id: types.Hash{57, 130, 201, 26, 149, 174, 199, 250, 66, 80, 189, 18, 108, 216, 194, 220, 136, 23, 63, 24, 64, 113, 221, 44, 219, 86, 39, 163, 53, 24, 126, 196}}
