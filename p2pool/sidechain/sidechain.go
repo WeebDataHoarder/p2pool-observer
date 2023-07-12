@@ -85,6 +85,7 @@ type SideChain struct {
 	precalcFinished atomic.Bool
 
 	preAllocatedShares                Shares
+	preAllocatedRewards               []uint64
 	preAllocatedSharesPool            *PreAllocatedSharesPool
 	preAllocatedDifficultyData        []DifficultyData
 	preAllocatedDifficultyDifferences []uint32
@@ -98,6 +99,7 @@ func NewSideChain(server P2PoolInterface) *SideChain {
 		blocksByTemplateId:                swiss.NewMap[types.Hash, *PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 		blocksByHeight:                    swiss.NewMap[uint64, []*PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
+		preAllocatedRewards:               make([]uint64, 0, server.Consensus().ChainWindowSize*2),
 		preAllocatedDifficultyData:        make([]DifficultyData, 0, server.Consensus().ChainWindowSize*2),
 		preAllocatedDifficultyDifferences: make([]uint32, 0, server.Consensus().ChainWindowSize*2),
 		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
@@ -736,7 +738,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 			return
 		}(); totalReward != block.Main.Coinbase.TotalReward {
 			return nil, fmt.Errorf("invalid total reward, got %d, expected %d", block.Main.Coinbase.TotalReward, totalReward)
-		} else if rewards := SplitReward(totalReward, shares); len(rewards) != len(block.Main.Coinbase.Outputs) {
+		} else if rewards := SplitReward(c.preAllocatedRewards, totalReward, shares); len(rewards) != len(block.Main.Coinbase.Outputs) {
 			return nil, fmt.Errorf("invalid number of outputs, got %d, expected %d", len(block.Main.Coinbase.Outputs), len(rewards))
 		} else {
 
@@ -1016,10 +1018,12 @@ func (c *SideChain) GetMissingBlocks() []types.Hash {
 	return missingBlocks
 }
 
+// calculateOutputs
+// Deprecated
 func (c *SideChain) calculateOutputs(block *PoolBlock) (outputs transaction.Outputs, bottomHeight uint64) {
 	preAllocatedShares := c.preAllocatedSharesPool.Get()
 	defer c.preAllocatedSharesPool.Put(preAllocatedShares)
-	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares)
+	return CalculateOutputs(block, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, c.derivationCache, preAllocatedShares, c.preAllocatedRewards)
 }
 
 func (c *SideChain) Server() P2PoolInterface {

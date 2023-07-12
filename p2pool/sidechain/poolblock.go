@@ -589,7 +589,7 @@ func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache Deriva
 	}
 
 	if len(b.Main.Coinbase.Outputs) == 0 {
-		if outputs, _ := CalculateOutputs(b, consensus, difficultyByHeight, getTemplateById, derivationCache, preAllocatedShares); outputs == nil {
+		if outputs, _ := CalculateOutputs(b, consensus, difficultyByHeight, getTemplateById, derivationCache, preAllocatedShares, nil); outputs == nil {
 			return nil, errors.New("error filling outputs for block: nil outputs")
 		} else {
 			b.Main.Coinbase.Outputs = outputs

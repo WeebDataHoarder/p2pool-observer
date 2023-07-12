@@ -45,14 +45,16 @@ func (s Shares) Clone() (o Shares) {
 // Compact Merges duplicate Share entries based on Address
 // len(s) must be greater than 0
 func (s Shares) Compact() Shares {
+	if len(s) == 0 {
+		return s
+	}
+
 	// Sort shares based on address
 	s.Sort()
 
 	index := 0
-	for i, share := range s {
-		if i == 0 {
-			continue
-		}
+
+	for _, share := range s[1:] {
 		if s[index].Address == share.Address {
 			s[index].Weight = s[index].Weight.Add(share.Weight)
 		} else {

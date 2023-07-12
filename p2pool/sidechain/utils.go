@@ -25,9 +25,12 @@ type GetBySideHeightFunc func(height uint64) UniquePoolBlockSlice
 // GetChainMainByHashFunc if h = types.ZeroHash, return tip
 type GetChainMainByHashFunc func(h types.Hash) *ChainMain
 
-func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares) (outputs transaction.Outputs, bottomHeight uint64) {
+func CalculateOutputs(block *PoolBlock, consensus *Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId GetByTemplateIdFunc, derivationCache DerivationCacheInterface, preAllocatedShares Shares, preAllocatedRewards []uint64) (outputs transaction.Outputs, bottomHeight uint64) {
 	tmpShares, bottomHeight := GetShares(block, consensus, difficultyByHeight, getByTemplateId, preAllocatedShares)
-	tmpRewards := SplitReward(block.Main.Coinbase.TotalReward, tmpShares)
+	if preAllocatedRewards == nil {
+		preAllocatedRewards = make([]uint64, 0, len(tmpShares))
+	}
+	tmpRewards := SplitReward(preAllocatedRewards, block.Main.Coinbase.TotalReward, tmpShares)
 
 	if tmpShares == nil || tmpRewards == nil || len(tmpRewards) != len(tmpShares) {
 		return nil, 0
@@ -442,7 +445,11 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	return curDifficulty, nil, nil
 }
 
-func SplitRewardNoAllocate(preAllocatedRewards []uint64, reward uint64, shares Shares) (rewards []uint64) {
+func SplitRewardAllocate(reward uint64, shares Shares) (rewards []uint64) {
+	return SplitReward(make([]uint64, 0, len(shares)), reward, shares)
+}
+
+func SplitReward(preAllocatedRewards []uint64, reward uint64, shares Shares) (rewards []uint64) {
 	var totalWeight types.Difficulty
 	for i := range shares {
 		totalWeight = totalWeight.Add(shares[i].Weight)
@@ -458,8 +465,8 @@ func SplitRewardNoAllocate(preAllocatedRewards []uint64, reward uint64, shares S
 	var w types.Difficulty
 	var rewardGiven uint64
 
-	for i := range shares {
-		w = w.Add(shares[i].Weight)
+	for _, share := range shares {
+		w = w.Add(share.Weight)
 		nextValue := w.Mul64(reward).Div(totalWeight)
 		rewards = append(rewards, nextValue.Lo-rewardGiven)
 		rewardGiven = nextValue.Lo
@@ -475,10 +482,6 @@ func SplitRewardNoAllocate(preAllocatedRewards []uint64, reward uint64, shares S
 	}
 
 	return rewards
-}
-
-func SplitReward(reward uint64, shares Shares) (rewards []uint64) {
-	return SplitRewardNoAllocate(make([]uint64, 0, len(shares)), reward, shares)
 }
 
 func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, getChainMainByHash GetChainMainByHashFunc) (isLonger, isAlternative bool) {

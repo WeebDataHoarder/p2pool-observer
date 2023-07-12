@@ -24,7 +24,7 @@ type SideData struct {
 	Difficulty           types.Difficulty
 	CumulativeDifficulty types.Difficulty
 
-	// ExtraBuffer available in ShareVersion ShareVersion_2 and above
+	// ExtraBuffer available in ShareVersion ShareVersion_V2 and above
 	ExtraBuffer struct {
 		SoftwareId          p2pooltypes.SoftwareId
 		SoftwareVersion     p2pooltypes.SoftwareVersion
