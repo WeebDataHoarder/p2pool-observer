@@ -611,7 +611,7 @@ func (b *PoolBlock) NeedsPreProcess() bool {
 
 func (b *PoolBlock) FillPrivateKeys(derivationCache DerivationCacheInterface) {
 	if b.ShareVersion() > ShareVersion_V1 {
-		if bytes.Compare(b.Side.CoinbasePrivateKey.AsSlice(), types.ZeroHash[:]) == 0 {
+		if b.Side.CoinbasePrivateKey == crypto.ZeroPrivateKeyBytes {
 			//Fill Private Key
 			kP := derivationCache.GetDeterministicTransactionKey(b.GetPrivateKeySeed(), b.Main.PreviousId)
 			b.Side.CoinbasePrivateKey = kP.PrivateKey.AsBytes()

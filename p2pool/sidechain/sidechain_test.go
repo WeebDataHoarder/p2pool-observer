@@ -154,6 +154,9 @@ func benchmarkResetState(tip, parent *PoolBlock, templateId types.Hash, fullId F
 	tip.Verified.Store(false)
 	tip.Invalid.Store(false)
 	tip.iterationCache = nil
+
+	// Update cache
+	tip.cache.templateId.Store(nil)
 }
 
 func benchSideChain(b *testing.B, s *SideChain, tipHash types.Hash) {

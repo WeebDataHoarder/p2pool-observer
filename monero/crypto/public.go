@@ -21,6 +21,8 @@ type PublicKey interface {
 
 const PublicKeySize = 32
 
+var ZeroPublicKeyBytes PublicKeyBytes
+
 type PublicKeyPoint edwards25519.Point
 
 func (k *PublicKeyPoint) AsSlice() PublicKeySlice {

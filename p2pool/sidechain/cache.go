@@ -84,9 +84,12 @@ func (d *DerivationCache) GetDeterministicTransactionKey(seed types.Hash, prevId
 	if kp, ok := d.deterministicKeyCache.Get(key); ok {
 		return kp
 	} else {
-		data := crypto.NewKeyPairFromPrivate(address.GetDeterministicTransactionPrivateKey(seed, prevId))
-		d.deterministicKeyCache.Set(key, data)
-		return data
+		priv := address.GetDeterministicTransactionPrivateKey(seed, prevId).AsBytes()
+		pub := priv.PublicKey().AsBytes()
+		privBytes := priv.AsBytes()
+		kp = &crypto.KeyPair{PrivateKey: &privBytes, PublicKey: &pub}
+		d.deterministicKeyCache.Set(key, kp)
+		return kp
 	}
 }
 

@@ -29,6 +29,8 @@ type PrivateKey interface {
 
 const PrivateKeySize = 32
 
+var ZeroPrivateKeyBytes PrivateKeyBytes
+
 type PrivateKeyScalar edwards25519.Scalar
 
 func (p *PrivateKeyScalar) AsSlice() PrivateKeySlice {
