@@ -2,11 +2,12 @@ package utils
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"io"
 	"net/http"
 	"strings"
 )
 
-func EncodeJson(r *http.Request, writer http.ResponseWriter, d any) error {
+func EncodeJson(r *http.Request, writer io.Writer, d any) error {
 	encoder := utils.NewJSONEncoder(writer)
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
 		encoder.SetIndent("", "    ")
@@ -14,15 +15,20 @@ func EncodeJson(r *http.Request, writer http.ResponseWriter, d any) error {
 	return encoder.EncodeWithOption(d, utils.JsonEncodeOptions...)
 }
 
-func StreamJsonSlice[T any](r *http.Request, writer http.ResponseWriter, stream chan T) error {
+// StreamJsonSlice Streams a channel of values into a JSON list via a writer.
+func StreamJsonSlice[T any](r *http.Request, writer io.Writer, stream chan T) error {
 	encoder := utils.NewJSONEncoder(writer)
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
 		encoder.SetIndent("", "    ")
 	}
+	// Write start of JSON list
 	_, _ = writer.Write([]byte{'[', 0xa})
 	var count uint64
 	defer func() {
+		// Write end of JSON list
 		_, _ = writer.Write([]byte{0xa, ']'})
+
+		// Empty channel
 		for range stream {
 
 		}
@@ -30,6 +36,7 @@ func StreamJsonSlice[T any](r *http.Request, writer http.ResponseWriter, stream 
 
 	for v := range stream {
 		if count > 0 {
+			// Write separator between list fields
 			_, _ = writer.Write([]byte{',', 0xa})
 		}
 		if err := encoder.EncodeWithOption(v, utils.JsonEncodeOptions...); err != nil {

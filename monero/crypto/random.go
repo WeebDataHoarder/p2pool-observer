@@ -27,6 +27,7 @@ func RandomScalar() *edwards25519.Scalar {
 }
 
 // DeterministicScalar consensus way of generating a deterministic scalar from given entropy
+// Slice entropy will have data appended
 func DeterministicScalar(entropy []byte) *edwards25519.Scalar {
 
 	var counter uint32

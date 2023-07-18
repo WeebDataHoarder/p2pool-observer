@@ -9,5 +9,6 @@ func TestChart(t *testing.T) {
 	for i := 0; i < 4096; i++ {
 		p.Add(i, 1)
 	}
+	t.Log(p.String())
 
 }
