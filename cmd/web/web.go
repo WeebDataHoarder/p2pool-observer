@@ -147,16 +147,26 @@ func main() {
 	if err == nil && ircUrl.Host != "" {
 		ircLink = ircUrl.String()
 		humanHost := ircUrl.Host
+		splitChan := strings.Split(ircUrl.Fragment, "/")
 		switch strings.Split(humanHost, ":")[0] {
 		case "irc.libera.chat":
-			humanHost = "libera.chat"
-			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
-			webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", ircUrl.Fragment)
+			if len(splitChan) > 1 {
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", splitChan[0], splitChan[1])
+				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", splitChan[0])
+			} else {
+				humanHost = "libera.chat"
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", ircUrl.Fragment)
+			}
 		case "irc.hackint.org":
-			humanHost = "hackint.org"
-			matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+			if len(splitChan) > 1 {
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", splitChan[0], splitChan[1])
+			} else {
+				humanHost = "hackint.org"
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+			}
 		}
-		ircLinkTitle = fmt.Sprintf("#%s@%s", ircUrl.Fragment, humanHost)
+		ircLinkTitle = fmt.Sprintf("#%s@%s", splitChan[0], humanHost)
 	}
 
 	var basePoolInfo *cmdutils.PoolInfoResult
