@@ -195,28 +195,84 @@ services:
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
       -db="host=db port=5432 dbname=p2pool user=p2pool password=p2pool sslmode=disable"
-  pgo-collector:
+
+  pgo-p2pool:
     image: golang:1.21-rc-alpine
     restart: always
     environment:
       - GOPROXY=${GOPROXY}
     depends_on:
       - p2pool
-      - api
-      - web
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./cmd/p2pool:/data:rw
+    networks:
+      - p2pool-observer
+    command: >-
+      go run git.gammaspectra.live/P2Pool/pgo-collector@27345e42a586ccf8b3a2608cc7e91d02a9615f93
+      -profile-interval 1h
+      -profile-duration 60s
+      -profile-directory /data
+      -profile-name default.pgo
+      -endpoint http://p2pool:6060
+  pgo-daemon:
+    image: golang:1.21-rc-alpine
+    restart: always
+    environment:
+      - GOPROXY=${GOPROXY}
+    depends_on:
       - daemon
     security_opt:
       - no-new-privileges:true
     volumes:
-      - ./pgo-data:/data:rw
+      - ./cmd/daemon:/data:rw
     networks:
       - p2pool-observer
     command: >-
-      go run git.gammaspectra.live/P2Pool/pgo-collector@b322f65c8bf4f022a79b4551f2ecf51bcbf255b2
+      go run git.gammaspectra.live/P2Pool/pgo-collector@27345e42a586ccf8b3a2608cc7e91d02a9615f93
       -profile-interval 1h
       -profile-duration 60s
       -profile-directory /data
-      -endpoint http://p2pool:6060
+      -profile-name default.pgo
       -endpoint http://daemon:6060
-      -endpoint http://api:6060
+  pgo-web:
+    image: golang:1.21-rc-alpine
+    restart: always
+    environment:
+      - GOPROXY=${GOPROXY}
+    depends_on:
+      - web
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./cmd/web:/data:rw
+    networks:
+      - p2pool-observer
+    command: >-
+      go run git.gammaspectra.live/P2Pool/pgo-collector@27345e42a586ccf8b3a2608cc7e91d02a9615f93
+      -profile-interval 1h
+      -profile-duration 60s
+      -profile-directory /data
+      -profile-name default.pgo
       -endpoint http://web:6060
+  pgo-api:
+    image: golang:1.21-rc-alpine
+    restart: always
+    environment:
+      - GOPROXY=${GOPROXY}
+    depends_on:
+      - api
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./cmd/api:/data:rw
+    networks:
+      - p2pool-observer
+    command: >-
+      go run git.gammaspectra.live/P2Pool/pgo-collector@27345e42a586ccf8b3a2608cc7e91d02a9615f93
+      -profile-interval 1h
+      -profile-duration 60s
+      -profile-directory /data
+      -profile-name default.pgo
+      -endpoint http://daemon:6060

@@ -3,6 +3,7 @@
 .env.example
 .gitignore
 testdata/
+default.pgo.tmp
 docker/nginx
 docker/postgres
 docker-compose.override.yml

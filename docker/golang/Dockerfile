@@ -29,15 +29,13 @@ RUN go mod download -x && go mod verify
 
 COPY . .
 
-COPY pgo-data/pgo-profile-latest.pprof /tmp/
-
 RUN go generate -v ./...
 
 ARG BUILD_BINARY
 
 ENV GOEXPERIMENT=loopvar
 
-RUN go build -buildvcs=false -trimpath -v -pgo=/tmp/pgo-profile-latest.pprof -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
+RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
 
 FROM alpine:3.18
 
