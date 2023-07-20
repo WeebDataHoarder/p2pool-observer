@@ -15,7 +15,7 @@ require (
 	github.com/go-zeromq/zmq4 v0.15.0
 	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/mux v1.8.0
-	github.com/holiman/uint256 v1.2.2
+	github.com/holiman/uint256 v1.2.3
 	github.com/jxskiss/base62 v1.1.0
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.1

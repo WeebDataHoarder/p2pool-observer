@@ -84,28 +84,28 @@ type SideChain struct {
 
 	precalcFinished atomic.Bool
 
-	preAllocatedShares                Shares
-	preAllocatedRewards               []uint64
-	preAllocatedSharesPool            *PreAllocatedSharesPool
-	preAllocatedDifficultyData        []DifficultyData
-	preAllocatedDifficultyDifferences []uint32
-	preAllocatedMinedBlocks           []types.Hash
+	preAllocatedShares         Shares
+	preAllocatedRewards        []uint64
+	preAllocatedSharesPool     *PreAllocatedSharesPool
+	preAllocatedDifficultyData []DifficultyData
+	preAllocatedTimestampData  []uint64
+	preAllocatedMinedBlocks    []types.Hash
 }
 
 func NewSideChain(server P2PoolInterface) *SideChain {
 	s := &SideChain{
-		derivationCache:                   NewDerivationMapCache(),
-		server:                            server,
-		blocksByTemplateId:                swiss.NewMap[types.Hash, *PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
-		blocksByHeight:                    swiss.NewMap[uint64, []*PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
-		preAllocatedShares:                PreAllocateShares(server.Consensus().ChainWindowSize * 2),
-		preAllocatedRewards:               make([]uint64, 0, server.Consensus().ChainWindowSize*2),
-		preAllocatedDifficultyData:        make([]DifficultyData, 0, server.Consensus().ChainWindowSize*2),
-		preAllocatedDifficultyDifferences: make([]uint32, 0, server.Consensus().ChainWindowSize*2),
-		preAllocatedSharesPool:            NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
-		preAllocatedBuffer:                make([]byte, 0, PoolBlockMaxTemplateSize),
-		preAllocatedMinedBlocks:           make([]types.Hash, 0, 6*UncleBlockDepth*2+1),
-		seenBlocks:                        swiss.NewMap[FullId, struct{}](uint32(server.Consensus().ChainWindowSize*2 + 300)),
+		derivationCache:            NewDerivationMapCache(),
+		server:                     server,
+		blocksByTemplateId:         swiss.NewMap[types.Hash, *PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
+		blocksByHeight:             swiss.NewMap[uint64, []*PoolBlock](uint32(server.Consensus().ChainWindowSize*2 + 300)),
+		preAllocatedShares:         PreAllocateShares(server.Consensus().ChainWindowSize * 2),
+		preAllocatedRewards:        make([]uint64, 0, server.Consensus().ChainWindowSize*2),
+		preAllocatedDifficultyData: make([]DifficultyData, 0, server.Consensus().ChainWindowSize*2),
+		preAllocatedTimestampData:  make([]uint64, 0, server.Consensus().ChainWindowSize*2),
+		preAllocatedSharesPool:     NewPreAllocatedSharesPool(server.Consensus().ChainWindowSize * 2),
+		preAllocatedBuffer:         make([]byte, 0, PoolBlockMaxTemplateSize),
+		preAllocatedMinedBlocks:    make([]types.Hash, 0, 6*UncleBlockDepth*2+1),
+		seenBlocks:                 swiss.NewMap[FullId, struct{}](uint32(server.Consensus().ChainWindowSize*2 + 300)),
 	}
 	minDiff := types.DifficultyFrom64(server.Consensus().MinimumDifficulty)
 	s.currentDifficulty.Store(&minDiff)
@@ -1034,11 +1034,6 @@ func (c *SideChain) getShares(tip *PoolBlock, preAllocatedShares Shares) (shares
 	return GetShares(tip, c.Consensus(), c.server.GetDifficultyByHeight, c.getPoolBlockByTemplateId, preAllocatedShares)
 }
 
-type DifficultyData struct {
-	CumulativeDifficulty types.Difficulty
-	Timestamp            uint64
-}
-
 func (c *SideChain) GetDifficulty(tip *PoolBlock) (difficulty types.Difficulty, verifyError, invalidError error) {
 	c.sidechainLock.RLock()
 	defer c.sidechainLock.RUnlock()
@@ -1046,7 +1041,7 @@ func (c *SideChain) GetDifficulty(tip *PoolBlock) (difficulty types.Difficulty, 
 }
 
 func (c *SideChain) getDifficulty(tip *PoolBlock) (difficulty types.Difficulty, verifyError, invalidError error) {
-	return GetDifficulty(tip, c.Consensus(), c.getPoolBlockByTemplateId, c.preAllocatedDifficultyData, c.preAllocatedDifficultyDifferences)
+	return GetDifficultyForNextBlock(tip, c.Consensus(), c.getPoolBlockByTemplateId, c.preAllocatedDifficultyData, c.preAllocatedTimestampData)
 }
 
 func (c *SideChain) GetParent(block *PoolBlock) *PoolBlock {

@@ -308,7 +308,7 @@ func main() {
 			}
 		}
 
-		currentOutputs, _ := sidechain.CalculateOutputs(poolBlock, consensus, getDifficultyByHeight, getByTemplateIdDirect, derivationCache, sidechain.PreAllocateShares(consensus.ChainWindowSize*2))
+		currentOutputs, _ := sidechain.CalculateOutputs(poolBlock, consensus, getDifficultyByHeight, getByTemplateIdDirect, derivationCache, sidechain.PreAllocateShares(consensus.ChainWindowSize*2), make([]uint64, consensus.ChainWindowSize*2))
 
 		if currentOutputs == nil {
 			log.Panic("could not calculate outputs blob")

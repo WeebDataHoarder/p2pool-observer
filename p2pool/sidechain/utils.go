@@ -12,6 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
 	"log"
+	"lukechampine.com/uint128"
 	"math"
 	"math/bits"
 	"slices"
@@ -334,26 +335,33 @@ func ShuffleSequence(shareVersion ShareVersion, privateKeySeed types.Hash, items
 	}
 }
 
-// GetDifficulty Gets the difficulty at tip
+type DifficultyData struct {
+	cumulativeDifficulty types.Difficulty
+	timestamp            uint64
+}
+
+// GetDifficultyForNextBlock Gets the difficulty at tip (the next block will require this difficulty)
 // preAllocatedDifficultyData should contain enough capacity to fit all entries to iterate through.
 // preAllocatedTimestampDifferences should contain enough capacity to fit all differences.
-func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, preAllocatedDifficultyData []DifficultyData, preAllocatedTimestampDifferences []uint32) (difficulty types.Difficulty, verifyError, invalidError error) {
+//
+// Ported from SideChain::get_difficulty() from C p2pool,
+// somewhat based on Blockchain::get_difficulty_for_next_block() from Monero with the addition of uncles
+func GetDifficultyForNextBlock(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTemplateIdFunc, preAllocatedDifficultyData []DifficultyData, preAllocatedTimestampData []uint64) (difficulty types.Difficulty, verifyError, invalidError error) {
 
 	difficultyData := preAllocatedDifficultyData[:0]
 
+	timestampData := preAllocatedTimestampData[:0]
+
 	cur := tip
 	var blockDepth uint64
-	var oldestTimestamp uint64 = math.MaxUint64
 
 	for {
 		difficultyData = append(difficultyData, DifficultyData{
-			CumulativeDifficulty: cur.Side.CumulativeDifficulty,
-			Timestamp:            cur.Main.Timestamp,
+			cumulativeDifficulty: cur.Side.CumulativeDifficulty,
+			timestamp:            cur.Main.Timestamp,
 		})
 
-		if cur.Main.Timestamp < oldestTimestamp {
-			oldestTimestamp = cur.Main.Timestamp
-		}
+		timestampData = append(timestampData, cur.Main.Timestamp)
 
 		if err := cur.iteratorUncles(getByTemplateId, func(uncle *PoolBlock) {
 			// Skip uncles which are already out of PPLNS window
@@ -362,13 +370,11 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 			}
 
 			difficultyData = append(difficultyData, DifficultyData{
-				CumulativeDifficulty: uncle.Side.CumulativeDifficulty,
-				Timestamp:            uncle.Main.Timestamp,
+				cumulativeDifficulty: uncle.Side.CumulativeDifficulty,
+				timestamp:            uncle.Main.Timestamp,
 			})
 
-			if uncle.Main.Timestamp < oldestTimestamp {
-				oldestTimestamp = uncle.Main.Timestamp
-			}
+			timestampData = append(timestampData, uncle.Main.Timestamp)
 		}); err != nil {
 			return types.ZeroDifficulty, err, nil
 		}
@@ -392,28 +398,30 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 		}
 	}
 
-	tmpTimestamps := preAllocatedTimestampDifferences[:0]
+	difficulty, invalidError = NextDifficulty(consensus, timestampData, difficultyData)
+	return
+}
 
+// NextDifficulty returns the next block difficulty based on gathered timestamp/difficulty data
+// Returns error on wrap/overflow/underflow on uint128 operations
+func NextDifficulty(consensus *Consensus, timestamps []uint64, difficultyData []DifficultyData) (nextDifficulty types.Difficulty, err error) {
 	// Discard 10% oldest and 10% newest (by timestamp) blocks
-	for i := range difficultyData {
-		tmpTimestamps = append(tmpTimestamps, uint32(difficultyData[i].Timestamp-oldestTimestamp))
-	}
 
-	cutSize := (len(difficultyData) + 9) / 10
+	cutSize := (len(timestamps) + 9) / 10
 	lowIndex := cutSize - 1
-	upperIndex := len(difficultyData) - cutSize
+	upperIndex := len(timestamps) - cutSize
 
-	utils.NthElementSlice(tmpTimestamps, lowIndex)
-	timestampLowerBound := oldestTimestamp + uint64(tmpTimestamps[lowIndex])
+	utils.NthElementSlice(timestamps, lowIndex)
+	timestampLowerBound := timestamps[lowIndex]
 
-	utils.NthElementSlice(tmpTimestamps, upperIndex)
-	timestampUpperBound := oldestTimestamp + uint64(tmpTimestamps[upperIndex])
+	utils.NthElementSlice(timestamps, upperIndex)
+	timestampUpperBound := timestamps[upperIndex]
 
 	// Make a reasonable assumption that each block has higher timestamp, so deltaTimestamp can't be less than deltaIndex
 	// Because if it is, someone is trying to mess with timestamps
 	// In reality, deltaTimestamp ~ deltaIndex*10 (sidechain block time)
 	deltaIndex := uint64(1)
-	if upperIndex > upperIndex {
+	if upperIndex > lowIndex {
 		deltaIndex = uint64(upperIndex - lowIndex)
 	}
 	deltaTimestamp := deltaIndex
@@ -425,24 +433,38 @@ func GetDifficulty(tip *PoolBlock, consensus *Consensus, getByTemplateId GetByTe
 	var maxDifficulty types.Difficulty
 
 	for i := range difficultyData {
-		if timestampLowerBound <= difficultyData[i].Timestamp && difficultyData[i].Timestamp <= timestampUpperBound {
-			if difficultyData[i].CumulativeDifficulty.Cmp(minDifficulty) < 0 {
-				minDifficulty = difficultyData[i].CumulativeDifficulty
+		// Pick only the cumulative difficulty from specifically the entries that are within the timestamp upper and low bounds
+		if timestampLowerBound <= difficultyData[i].timestamp && difficultyData[i].timestamp <= timestampUpperBound {
+			if difficultyData[i].cumulativeDifficulty.Cmp(minDifficulty) < 0 {
+				minDifficulty = difficultyData[i].cumulativeDifficulty
 			}
-			if maxDifficulty.Cmp(difficultyData[i].CumulativeDifficulty) < 0 {
-				maxDifficulty = difficultyData[i].CumulativeDifficulty
+			if maxDifficulty.Cmp(difficultyData[i].cumulativeDifficulty) < 0 {
+				maxDifficulty = difficultyData[i].cumulativeDifficulty
 			}
 		}
 	}
 
-	deltaDifficulty := maxDifficulty.Sub(minDifficulty)
+	// Specific section that could wrap and needs to be detected
+	// Use calls that panic on wrap/overflow/underflow
+	{
+		defer func() {
+			if e := recover(); e != nil {
+				if panicError, ok := e.(error); ok {
+					err = fmt.Errorf("panic in NextDifficulty, wrap occured?: %w", panicError)
+				} else {
+					err = fmt.Errorf("panic in NextDifficulty, wrap occured?: %v", e)
+				}
+			}
+		}()
 
-	curDifficulty := deltaDifficulty.Mul64(consensus.TargetBlockTime).Div64(deltaTimestamp)
+		deltaDifficulty := uint128.Uint128(maxDifficulty).Sub(uint128.Uint128(minDifficulty))
+		curDifficulty := deltaDifficulty.Mul64(consensus.TargetBlockTime).Div64(deltaTimestamp)
 
-	if curDifficulty.Cmp64(consensus.MinimumDifficulty) < 0 {
-		curDifficulty = types.DifficultyFrom64(consensus.MinimumDifficulty)
+		if curDifficulty.Cmp64(consensus.MinimumDifficulty) < 0 {
+			return types.DifficultyFrom64(consensus.MinimumDifficulty), nil
+		}
+		return types.Difficulty(curDifficulty), nil
 	}
-	return curDifficulty, nil, nil
 }
 
 func SplitRewardAllocate(reward uint64, shares Shares) (rewards []uint64) {
