@@ -53,7 +53,11 @@ If you want to make changes to additional docker-compose settings, do not edit `
 ### Update / Apply new settings
 Within the instance folder, run this command
 ```bash
-$ git pull && docker-compose build --pull && docker-compose up -d && docker-compose restart tor site pgo-collector
+$ git checkout -- '*/default.pgo'; \
+git pull && \
+docker-compose build --pull && \
+docker-compose up -d && \
+docker-compose restart tor site pgo-p2pool pgo-daemon pgo-web pgo-api
 ```
 `docker-compose restart tor` is necessary due to the tor server not refreshing DNS of the containers.
 
