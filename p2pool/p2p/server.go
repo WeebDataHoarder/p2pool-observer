@@ -513,8 +513,13 @@ func (s *Server) Listen() (err error) {
 			for range utils.ContextTick(s.ctx, time.Second) {
 				if s.SideChain().PreCalcFinished() {
 					s.ClearCachedBlocks()
+					break
 				}
 
+				s.DownloadMissingBlocks()
+			}
+			// Slow down updates for missing blocks after sync
+			for range utils.ContextTick(s.ctx, time.Minute*2) {
 				s.DownloadMissingBlocks()
 			}
 		}()
