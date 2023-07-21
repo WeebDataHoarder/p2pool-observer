@@ -148,6 +148,11 @@ func main() {
 		ircLink = ircUrl.String()
 		humanHost := ircUrl.Host
 		splitChan := strings.Split(ircUrl.Fragment, "/")
+
+		if len(splitChan) > 1 {
+			ircLink = strings.ReplaceAll(ircLink, "/"+splitChan[1], "")
+		}
+
 		switch strings.Split(humanHost, ":")[0] {
 		case "irc.libera.chat":
 			if len(splitChan) > 1 {
