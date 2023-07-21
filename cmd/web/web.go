@@ -161,7 +161,7 @@ func main() {
 			} else {
 				humanHost = "libera.chat"
 				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
-				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", ircUrl.Fragment)
+				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest%%3F#%s", ircUrl.Fragment)
 			}
 		case "irc.hackint.org":
 			if len(splitChan) > 1 {
