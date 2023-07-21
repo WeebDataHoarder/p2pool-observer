@@ -2,6 +2,7 @@ package types
 
 import (
 	"database/sql/driver"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
@@ -93,6 +94,10 @@ func (h Hash) Compare(other Hash) int {
 
 func (h Hash) String() string {
 	return hex.EncodeToString(h[:])
+}
+
+func (h Hash) Uint64() uint64 {
+	return binary.LittleEndian.Uint64(h[:])
 }
 
 func (h *Hash) Scan(src any) error {

@@ -823,18 +823,30 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 		prunedMessage, compactMessage = message, message
 	}
 
+	blockTemplateId := block.SideTemplateId(s.Consensus())
+
 	go func() {
 		for _, c := range s.Clients() {
 			if c.IsGood() {
-				if !func() bool {
+				if !func() (sent bool) {
 					broadcastedHashes := c.BroadcastedHashes.Slice()
+
+					// has peer not broadcasted block parent to us?
 					if slices.Index(broadcastedHashes, block.Side.Parent) == -1 {
 						return false
 					}
+					// has peer not broadcasted block uncles to us?
 					for _, uncleHash := range block.Side.Uncles {
 						if slices.Index(broadcastedHashes, uncleHash) == -1 {
 							return false
 						}
+					}
+
+					// has peer broadcasted this block to us?
+					if slices.Index(broadcastedHashes, blockTemplateId) != -1 &&
+						c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
+						c.SendBlockNotify(blockTemplateId)
+						return true
 					}
 
 					if c.VersionInformation.SupportsFeature(p2pooltypes.FeatureCompactBroadcast) {

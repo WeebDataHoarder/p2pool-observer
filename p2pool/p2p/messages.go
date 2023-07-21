@@ -14,13 +14,10 @@ const (
 	MessagePeerListResponse
 	// MessageBlockBroadcastCompact Protocol 1.1
 	MessageBlockBroadcastCompact
+	// MessageBlockNotify Protocol 1.2
+	MessageBlockNotify
 
 	MessageInternal = 0xff
 )
 
 type InternalMessageId uint64
-
-const (
-	InternalMessageFastTemplateHeaderSyncRequest = InternalMessageId(iota)
-	InternalMessageFastTemplateHeaderSyncResponse
-)

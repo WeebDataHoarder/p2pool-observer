@@ -25,6 +25,7 @@ import (
 
 const DefaultBanTime = time.Second * 600
 const PeerListResponseMaxPeers = 16
+const PeerRequestDelay = 60
 
 const MaxBufferSize = 128 * 1024
 
@@ -232,13 +233,26 @@ func (c *Client) SendUniqueBlockRequest(hash types.Hash) {
 }
 
 func (c *Client) SendBlockRequest(id types.Hash) {
-	if len(c.blockPendingRequests) < 80 {
+	c.SendBlockRequestWithBound(id, 80)
+}
+
+func (c *Client) SendBlockRequestWithBound(id types.Hash, bound int) bool {
+	if len(c.blockPendingRequests) < bound {
 		c.blockPendingRequests <- id
 		c.SendMessage(&ClientMessage{
 			MessageId: MessageBlockRequest,
 			Buffer:    id[:],
 		})
+		return true
 	}
+	return false
+}
+
+func (c *Client) SendBlockNotify(id types.Hash) {
+	c.SendMessage(&ClientMessage{
+		MessageId: MessageBlockNotify,
+		Buffer:    id[:],
+	})
 }
 
 func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
@@ -263,33 +277,8 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	}
 }
 
-func (c *Client) SendInternalFastTemplateHeaderSyncRequest(hash types.Hash) {
-	buf := make([]byte, 0, binary.MaxVarintLen64*2+types.HashSize)
-	buf = binary.AppendUvarint(buf, uint64(InternalMessageFastTemplateHeaderSyncRequest))
-	buf = binary.AppendUvarint(buf, uint64(types.HashSize))
-	buf = append(buf, hash[:]...)
-	c.SendMessage(&ClientMessage{
-		MessageId: MessageInternal,
-		Buffer:    buf,
-	})
-}
-
-func (c *Client) SendInternalFastTemplateHeaderSyncResponse(hashes ...types.Hash) {
-	buf := make([]byte, 0, binary.MaxVarintLen64*2+8+len(hashes)*types.HashSize)
-	buf = binary.AppendUvarint(buf, uint64(InternalMessageFastTemplateHeaderSyncResponse))
-	buf = binary.AppendUvarint(buf, uint64(8+len(hashes)*types.HashSize))
-	buf = binary.LittleEndian.AppendUint64(buf, uint64(len(hashes)))
-	for _, h := range hashes {
-		buf = append(buf, h[:]...)
-	}
-	c.SendMessage(&ClientMessage{
-		MessageId: MessageInternal,
-		Buffer:    buf,
-	})
-}
-
 func (c *Client) SendPeerListRequest() {
-	c.NextOutgoingPeerListRequestTimestamp.Store(uint64(time.Now().Unix()) + 60 + (unsafeRandom.Uint64() % 61))
+	c.NextOutgoingPeerListRequestTimestamp.Store(uint64(time.Now().Unix()) + PeerRequestDelay + (unsafeRandom.Uint64() % (PeerRequestDelay + 1)))
 	c.SendMessage(&ClientMessage{
 		MessageId: MessagePeerListRequest,
 	})
@@ -483,6 +472,16 @@ func (c *Client) OnConnection() {
 				}
 			}
 
+			if block != nil && c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
+				c.SendBlockNotify(block.Side.Parent)
+				for _, uncleId := range block.Side.Uncles {
+					c.SendBlockNotify(uncleId)
+				}
+				if parent := c.Owner.SideChain().GetParent(block); parent != nil {
+					c.SendBlockNotify(parent.Side.Parent)
+				}
+			}
+
 			c.SendBlockResponse(block)
 		case MessageBlockResponse:
 			block := &sidechain.PoolBlock{
@@ -525,6 +524,16 @@ func (c *Client) OnConnection() {
 						if (peerHeight + 2) < ourHeight {
 							c.Ban(DefaultBanTime, fmt.Errorf("mining on top of a stale block (mainchain peer height %d, expected >= %d)", peerHeight, ourHeight))
 							return
+						}
+
+						//Atomic max, not necessary as no external writers exist
+						topHeight := max(c.BroadcastMaxHeight.Load(), block.Side.Height)
+						for {
+							if oldHeight := c.BroadcastMaxHeight.Swap(topHeight); oldHeight <= topHeight {
+								break
+							} else {
+								topHeight = oldHeight
+							}
 						}
 
 						if time.Now().Unix() >= int64(c.NextOutgoingPeerListRequestTimestamp.Load()) {
@@ -786,6 +795,24 @@ func (c *Client) OnConnection() {
 					}
 				}
 			}
+		case MessageBlockNotify:
+			c.LastBlockRequestTimestamp.Store(uint64(time.Now().Unix()))
+
+			var templateId types.Hash
+			if err := binary.Read(c, binary.LittleEndian, &templateId); err != nil {
+				c.Ban(DefaultBanTime, err)
+				return
+			}
+
+			c.BroadcastedHashes.Push(templateId)
+
+			// If we don't know about this block, request it from this peer. The peer can do it to speed up our initial sync, for example.
+			if c.Owner.SideChain().GetPoolBlockByTemplateId(templateId) == nil {
+				//TODO: prevent sending duplicate requests
+				if c.SendBlockRequestWithBound(templateId, 25) {
+
+				}
+			}
 
 		case MessageInternal:
 			internalMessageId, err := binary.ReadUvarint(c)
@@ -799,69 +826,10 @@ func (c *Client) OnConnection() {
 				return
 			}
 			reader := io.LimitReader(c, int64(messageSize))
+
+			_ = reader
+
 			switch InternalMessageId(internalMessageId) {
-			case InternalMessageFastTemplateHeaderSyncRequest:
-				c.LastBlockRequestTimestamp.Store(uint64(time.Now().Unix()))
-
-				var fromTemplateId types.Hash
-				if err := binary.Read(reader, binary.LittleEndian, &fromTemplateId); err != nil {
-					c.Ban(DefaultBanTime, err)
-					return
-				}
-				log.Printf("[P2PClient] Peer %s: received InternalMessageFastTemplateHeaderSyncRequest for %s", c.AddressPort, fromTemplateId)
-
-				//TODO: this could just be a sample of like 16 blocks
-
-				var blocks, uncles sidechain.UniquePoolBlockSlice
-				if fromTemplateId == types.ZeroHash {
-					tip := c.Owner.SideChain().GetChainTip()
-					if tip != nil {
-						blocks, uncles = c.Owner.SideChain().GetPoolBlocksFromTip(tip.SideTemplateId(c.Owner.Consensus()))
-					}
-				} else {
-					blocks, uncles = c.Owner.SideChain().GetPoolBlocksFromTip(fromTemplateId)
-				}
-
-				hashes := make([]types.Hash, 0, len(blocks)+len(uncles))
-				for _, b := range blocks {
-					hashes = append(hashes, b.SideTemplateId(c.Owner.Consensus()))
-				}
-				for _, u := range uncles {
-					hashes = append(hashes, u.SideTemplateId(c.Owner.Consensus()))
-				}
-				if uint64(len(hashes)) > c.Owner.Consensus().ChainWindowSize*3 {
-					hashes = hashes[:c.Owner.Consensus().ChainWindowSize*3]
-				}
-				//shuffle to have random chances of faster sync
-				unsafeRandom.Shuffle(len(hashes), func(i, j int) {
-					hashes[i], hashes[j] = hashes[j], hashes[i]
-				})
-				maxLen := (MaxBufferSize - 128) / types.HashSize
-				if len(hashes) > maxLen {
-					hashes = hashes[:maxLen]
-				}
-				c.SendInternalFastTemplateHeaderSyncResponse(hashes...)
-
-			case InternalMessageFastTemplateHeaderSyncResponse:
-				var hashLen uint64
-				if err = binary.Read(c, binary.LittleEndian, &hashLen); err != nil {
-					c.Ban(DefaultBanTime, err)
-					return
-				}
-				if hashLen > c.Owner.Consensus().ChainWindowSize*3 {
-					c.Ban(DefaultBanTime, errors.New("size error"))
-					return
-				}
-				log.Printf("[P2PClient] Peer %s: received InternalMessageFastTemplateHeaderSyncResponse with size %d", c.AddressPort, hashLen)
-				var hash types.Hash
-				clients := c.Owner.Clients()
-				for i := uint64(0); i < hashLen; i++ {
-					if err := binary.Read(reader, binary.LittleEndian, &hash); err != nil {
-						c.Ban(DefaultBanTime, err)
-						return
-					}
-					clients = c.SendMissingBlockRequestAtRandom(hash, clients)
-				}
 			default:
 				c.Ban(DefaultBanTime, fmt.Errorf("unknown InternalMessageId %d", internalMessageId))
 				return
@@ -876,13 +844,7 @@ func (c *Client) OnConnection() {
 }
 
 func (c *Client) afterInitialProtocolExchange() {
-	if c.VersionInformation.SupportsFeature(p2pooltypes.InternalFeatureFastTemplateHeaderSync) {
-		if tip := c.LastKnownTip.Load(); tip != nil {
-			c.SendInternalFastTemplateHeaderSyncRequest(tip.SideTemplateId(c.Owner.Consensus()))
-		} else {
-			c.SendInternalFastTemplateHeaderSyncRequest(types.ZeroHash)
-		}
-	}
+	//TODO: use notify to send fast sync data
 }
 
 func (c *Client) sendHandshakeChallenge() {

@@ -19,6 +19,7 @@ import (
 	"github.com/dolthub/swiss"
 	"io"
 	"log"
+	"math/rand"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -786,20 +787,32 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 }
 
 func (c *SideChain) updateDepths(block *PoolBlock) {
+	preCalcDepth := c.Consensus().ChainWindowSize + UncleBlockDepth - 1
+
+	updateDepth := func(b *PoolBlock, newDepth uint64) {
+		oldDepth := b.Depth.Load()
+		if oldDepth < newDepth {
+			b.Depth.Store(newDepth)
+			if oldDepth < preCalcDepth && newDepth >= preCalcDepth {
+				//TODO launchPrecalc
+			}
+		}
+	}
+
 	for i := uint64(1); i <= UncleBlockDepth; i++ {
 		blocksAtHeight, _ := c.blocksByHeight.Get(block.Side.Height + i)
 		for _, child := range blocksAtHeight {
 			if child.Side.Parent == block.SideTemplateId(c.Consensus()) {
 				if i != 1 {
-					log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
+					log.Printf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
 					return
 				} else {
-					block.Depth.Store(max(block.Depth.Load(), child.Depth.Load()+1))
+					updateDepth(block, child.Depth.Load()+1)
 				}
 			}
 
 			if ix := slices.Index(child.Side.Uncles, block.SideTemplateId(c.Consensus())); ix != 1 {
-				block.Depth.Store(max(block.Depth.Load(), child.Depth.Load()+1))
+				updateDepth(block, child.Depth.Load()+1)
 			}
 		}
 	}
@@ -817,6 +830,31 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 			_ = c.verifyLoop(block)
 		}
 
+		for i := uint64(1); i <= UncleBlockDepth; i++ {
+			for _, child := range c.getPoolBlocksByHeight(block.Side.Height + i) {
+				oldDepth := child.Depth.Load()
+
+				if child.Side.Parent == block.SideTemplateId(c.Consensus()) {
+					if i != 1 {
+						log.Printf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
+						return
+					} else if blockDepth > 0 {
+						updateDepth(child, blockDepth-1)
+					}
+				}
+
+				if slices.Contains(child.Side.Uncles, block.SideTemplateId(c.Consensus())) {
+					if blockDepth > i {
+						updateDepth(child, blockDepth-i)
+					}
+				}
+
+				if child.Depth.Load() > oldDepth {
+					blocksToUpdate = append(blocksToUpdate, child)
+				}
+			}
+		}
+
 		if parent := block.iteratorGetParent(c.getPoolBlockByTemplateId); parent != nil {
 			if parent.Side.Height+1 != block.Side.Height {
 				log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, parent.Side.Height)
@@ -824,7 +862,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 			}
 
 			if parent.Depth.Load() < blockDepth+1 {
-				parent.Depth.Store(blockDepth + 1)
+				updateDepth(parent, blockDepth+1)
 				blocksToUpdate = append(blocksToUpdate, parent)
 			}
 		}
@@ -840,7 +878,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 
 			d := block.Side.Height - uncle.Side.Height
 			if uncle.Depth.Load() < blockDepth+d {
-				uncle.Depth.Store(blockDepth + d)
+				updateDepth(uncle, blockDepth+d)
 				blocksToUpdate = append(blocksToUpdate, uncle)
 			}
 		})
@@ -1051,7 +1089,7 @@ func (c *SideChain) GetParent(block *PoolBlock) *PoolBlock {
 }
 
 func (c *SideChain) getParent(block *PoolBlock) *PoolBlock {
-	return c.getPoolBlockByTemplateId(block.Side.Parent)
+	return block.iteratorGetParent(c.getPoolBlockByTemplateId)
 }
 
 func (c *SideChain) GetPoolBlockByTemplateId(id types.Hash) *PoolBlock {
@@ -1168,6 +1206,9 @@ func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 func (c *SideChain) LoadTestData(reader io.Reader, patchedBlocks ...[]byte) error {
 	var err error
 	buf := make([]byte, PoolBlockMaxTemplateSize)
+
+	blocks := make([]*PoolBlock, 0, c.Consensus().ChainWindowSize*3)
+
 	for {
 		buf = buf[:0]
 		var blockLen uint32
@@ -1183,9 +1224,7 @@ func (c *SideChain) LoadTestData(reader io.Reader, patchedBlocks ...[]byte) erro
 		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf[:blockLen]); err != nil {
 			return err
 		}
-		if err = c.AddPoolBlock(b); err != nil {
-			return err
-		}
+		blocks = append(blocks, b)
 	}
 
 	for _, buf := range patchedBlocks {
@@ -1193,6 +1232,15 @@ func (c *SideChain) LoadTestData(reader io.Reader, patchedBlocks ...[]byte) erro
 		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf); err != nil {
 			return err
 		}
+		blocks = append(blocks, b)
+	}
+
+	// Shuffle blocks
+	rand.Shuffle(len(blocks), func(i, j int) {
+		blocks[i], blocks[j] = blocks[j], blocks[i]
+	})
+
+	for _, b := range blocks {
 		if err = c.AddPoolBlock(b); err != nil {
 			return err
 		}

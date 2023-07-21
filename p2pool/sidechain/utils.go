@@ -1,7 +1,6 @@
 package sidechain
 
 import (
-	"encoding/binary"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
@@ -319,8 +318,7 @@ func ShuffleShares[T any](shares []T, shareVersion ShareVersion, privateKeySeed 
 func ShuffleSequence(shareVersion ShareVersion, privateKeySeed types.Hash, items int, swap func(i, j int)) {
 	n := uint64(items)
 	if shareVersion > ShareVersion_V1 && n > 1 {
-		h := crypto.PooledKeccak256(privateKeySeed[:])
-		seed := binary.LittleEndian.Uint64(h[:])
+		seed := crypto.PooledKeccak256(privateKeySeed[:]).Uint64()
 
 		if seed == 0 {
 			seed = 1

@@ -19,7 +19,7 @@ type ProtocolFeature int
 
 const (
 	FeatureCompactBroadcast = ProtocolFeature(iota)
-	InternalFeatureFastTemplateHeaderSync
+	FeatureBlockNotify
 )
 
 type PeerVersionInformation struct {
@@ -32,8 +32,8 @@ func (i *PeerVersionInformation) SupportsFeature(feature ProtocolFeature) bool {
 	switch feature {
 	case FeatureCompactBroadcast:
 		return i.Protocol >= ProtocolVersion_1_1
-	/*case InternalFeatureFastTemplateHeaderSync:
-		return i.Protocol >= ProtocolVersion_1_1 && i.SoftwareId == SoftwareIdGoObserver && i.SoftwareVersion.Major() == 1 && i.SoftwareVersion >= ((1<<16)|1)*/
+	case FeatureBlockNotify:
+		return i.Protocol >= ProtocolVersion_1_2
 	default:
 		return false
 	}
@@ -71,6 +71,7 @@ const (
 	ProtocolVersion_0_0 ProtocolVersion = (0 << 16) | 0
 	ProtocolVersion_1_0 ProtocolVersion = (1 << 16) | 0
 	ProtocolVersion_1_1 ProtocolVersion = (1 << 16) | 1
+	ProtocolVersion_1_2 ProtocolVersion = (1 << 16) | 2
 )
 
 type SoftwareVersion SemanticVersion
@@ -86,8 +87,8 @@ func (v SoftwareVersion) String() string {
 	return SemanticVersion(v).String()
 }
 
-const SupportedProtocolVersion = ProtocolVersion_1_1
-const CurrentSoftwareVersion SoftwareVersion = (2 << 16) | 0
+const SupportedProtocolVersion = ProtocolVersion_1_2
+const CurrentSoftwareVersion SoftwareVersion = (3 << 16) | 0
 const CurrentSoftwareId = SoftwareIdGoObserver
 
 type SoftwareId uint32
