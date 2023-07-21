@@ -275,4 +275,4 @@ services:
       -profile-duration 60s
       -profile-directory /data
       -profile-name default.pgo
-      -endpoint http://daemon:6060
+      -endpoint http://api:6060
