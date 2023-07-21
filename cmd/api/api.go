@@ -1377,7 +1377,7 @@ func main() {
 			buf, _ := utils.MarshalJSON(raw)
 			_, _ = writer.Write(buf)
 		case "/raw":
-			raw := p2api.ByMainId(block.MainId)
+			raw := p2api.ByMainIdWithHint(block.MainId, block.TemplateId)
 
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -254,7 +254,14 @@ func FindAndInsertMainHeaderOutputs(mb *index.MainBlock, indexDb *index.Index, c
 	if len(indexDb.GetMainCoinbaseOutputs(mb.CoinbaseId)) == 0 {
 		//fill information
 		log.Printf("inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
-		if t := getByMainId(mb.Id); t != nil {
+		var t *sidechain.PoolBlock
+		if t = getByTemplateId(mb.SideTemplateId); t == nil || t.MainId() != mb.Id {
+			t = nil
+		}
+		if t == nil {
+			t = getByMainId(mb.Id)
+		}
+		if t != nil {
 			if err := processBlock(t); err != nil {
 				return fmt.Errorf("could not process block: %s", err)
 			}

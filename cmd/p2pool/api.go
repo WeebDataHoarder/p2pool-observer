@@ -790,9 +790,31 @@ func getServerMux(instance *p2pool.P2Pool) *mux.Router {
 		})
 
 		serveMux.HandleFunc("/archive/block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+			params := request.URL.Query()
+
+			var templateIdHint types.Hash
+			if params.Has("templateIdHint") {
+				if h, err := types.HashFromString(params.Get("templateIdHint")); err == nil {
+					templateIdHint = h
+				}
+			}
+
 			if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
 				var result p2pooltypes.P2PoolBinaryBlockResult
-				if b := archiveCache.LoadByMainId(mainId); b != nil {
+				var b *sidechain.PoolBlock
+				if templateIdHint != types.ZeroHash {
+					// Fast lookup on sidechain
+					if b = instance.SideChain().GetPoolBlockByTemplateId(templateIdHint); b == nil || b.MainId() != mainId {
+						b = nil
+					}
+				}
+
+				// Fallback
+				if b == nil {
+					b = archiveCache.LoadByMainId(mainId)
+				}
+
+				if b != nil {
 					result.Version = int(b.ShareVersion())
 					if err := archiveCache.ProcessBlock(b); err != nil {
 						result.Error = err.Error()

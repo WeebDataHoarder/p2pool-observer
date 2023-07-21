@@ -140,6 +140,30 @@ func (p *P2PoolApi) ByMainId(id types.Hash) *sidechain.PoolBlock {
 	}
 }
 
+func (p *P2PoolApi) ByMainIdWithHint(id, templateIdHint types.Hash) *sidechain.PoolBlock {
+	if response, err := p.Client.Get(p.Host + "/archive/block_by_main_id/" + id.String() + "?templateIdHint=" + templateIdHint.String()); err != nil {
+		return nil
+	} else {
+		defer response.Body.Close()
+
+		if buf, err := io.ReadAll(response.Body); err != nil {
+			return nil
+		} else {
+			var result p2pooltypes.P2PoolBinaryBlockResult
+
+			if err = utils.UnmarshalJSON(buf, &result); err != nil || result.Version == 0 {
+				return nil
+			}
+
+			b := &sidechain.PoolBlock{}
+			if err = b.UnmarshalBinary(p.Consensus(), p.derivationCache, result.Blob); err != nil || int(b.ShareVersion()) != result.Version {
+				return nil
+			}
+			return b
+		}
+	}
+}
+
 func (p *P2PoolApi) LightByTemplateId(id types.Hash) sidechain.UniquePoolBlockSlice {
 	if response, err := p.Client.Get(p.Host + "/archive/light_blocks_by_template_id/" + id.String()); err != nil {
 		return nil
