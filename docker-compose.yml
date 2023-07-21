@@ -9,6 +9,8 @@ volumes:
     external: false
   db:
     external: false
+  psql-run:
+    external: false
 
 services:
   tor:
@@ -83,6 +85,7 @@ services:
       retries: 5
     volumes:
       - db:/var/lib/postgresql/data:rw
+      - psql-run:/var/run/postgresql:rw
     tmpfs:
       # For read-only filesystem, need to create a volume/tmpfs for PostgreSQL to run its much
       # needed configuration. The read-only flag does not make volumes and tmpfs read-only.
@@ -138,13 +141,15 @@ services:
       - no-new-privileges:true
     networks:
       - p2pool-observer
+    volumes:
+      - psql-run:/var/run/postgresql:rw
     command: >-
       /usr/bin/api
       -debug-listen 0.0.0.0:6060
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
-      -db="host=db port=5432 dbname=p2pool user=p2pool password=p2pool sslmode=disable"
+      -db="postgres:///p2pool?host=/var/run/postgresql&user=p2pool&password=p2pool&sslmode=disable"
   web:
     build:
       context: ./
@@ -188,13 +193,15 @@ services:
       - no-new-privileges:true
     networks:
       - p2pool-observer
+    volumes:
+      - psql-run:/var/run/postgresql:rw
     command: >-
       /usr/bin/daemon
       -debug-listen 0.0.0.0:6060
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
-      -db="host=db port=5432 dbname=p2pool user=p2pool password=p2pool sslmode=disable"
+      -db="postgres:///p2pool?host=/var/run/postgresql&user=p2pool&password=p2pool&sslmode=disable"
 
   pgo-p2pool:
     image: golang:1.21-rc-alpine
