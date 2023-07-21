@@ -21,14 +21,14 @@
     </tr>
     {% for i, b := range foundBlocks %}
     <tr>
-        <th title="{%s hex(b.MainBlock.Id) %}"><a href="/b/{%s benc(b.MainBlock.Height) %}">{%dul b.MainBlock.Height %}</a></th>
+        <th title="{%= hex(b.MainBlock.Id) %}"><a href="/b/{%s benc(b.MainBlock.Height) %}">{%dul b.MainBlock.Height %}</a></th>
         {% if b.UncleOf != types.ZeroHash %}
-        <th title="{%s hex(b.MainBlock.SideTemplateId) %} is an uncle of height {%dul b.EffectiveHeight %}, {%s hex(b.UncleOf) %}">
-            <a href="/share/{%s hex(b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}*</a>
+        <th title="{%= hex(b.MainBlock.SideTemplateId) %} is an uncle of height {%dul b.EffectiveHeight %}, {%= hex(b.UncleOf) %}">
+            <a href="/share/{%= hex(b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}*</a>
         </th>
         {% else %}
-        <th title="{%s hex(b.MainBlock.SideTemplateId) %}">
-            <a href="/share/{%s hex(b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}</a>
+        <th title="{%= hex(b.MainBlock.SideTemplateId) %}">
+            <a href="/share/{%= hex(b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}</a>
         </th>
         {% endif %}
         <td title="{%s utc_date(b.MainBlock.Timestamp) %}">{%s date_diff_short(b.MainBlock.Timestamp) %}</td>
@@ -49,8 +49,8 @@
         <td>{%dul uint64(b.TransactionCount) %}</td>
         <th class="small">{%s monero_to_xmr(b.MainBlock.Reward) %} XMR</th>
         <td>{%dul uint64(b.WindowOutputs) %}</td>
-        <td title="{%s hex(b.MainBlock.CoinbaseId) %}" class="mono small"><a href="/t/{%s henc(b.MainBlock.CoinbaseId) %}">{%s shorten(hex(b.MainBlock.CoinbaseId), 10) %}</a></td>
-        <td class="mono smaller">{%s hex(b.MainBlock.CoinbasePrivateKey) %}</td>
+        <td title="{%= hex(b.MainBlock.CoinbaseId) %}" class="mono small"><a href="/t/{%= henc(b.MainBlock.CoinbaseId) %}">{%= shorten(b.MainBlock.CoinbaseId, 10) %}</a></td>
+        <td class="mono smaller">{%= hex(b.MainBlock.CoinbasePrivateKey) %}</td>
     </tr>
     {% endfor %}
 </table>

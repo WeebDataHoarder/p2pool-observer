@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"encoding/hex"
 	"github.com/jxskiss/base62"
 	"math/bits"
@@ -47,6 +48,26 @@ func DecodeHexBinaryNumber(i string) string {
 	}
 
 	return ""
+}
+
+func EncodeSliceBinaryNumber(dst, src []byte) []byte {
+	if len(dst) < 1+(len(src)*2) {
+		return nil
+	}
+	v := encoding.EncodeToBuf(dst[:0], src)
+
+	if !bytes.ContainsAny(v, "GHIJKLMNOPQRSTUVWXYZghijklmnopqrstuvwxyz") {
+		copy(dst[1:], v)
+		dst[0] = '.'
+		v = dst[:len(v)]
+	}
+
+	if len(v) >= (len(src) * 2) {
+		hex.Encode(dst, src)
+		return dst[:len(src)*2]
+	}
+
+	return v
 }
 
 func EncodeHexBinaryNumber(v2 string) string {

@@ -247,6 +247,17 @@ func (d *Difficulty) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	if len(b) == DifficultySize*2+2 {
+		// fast path
+		var buf [DifficultySize]byte
+		if _, err := hex.Decode(buf[:], b[1:len(b)-1]); err != nil {
+			return err
+		} else {
+			*d = DifficultyFromBytes(buf[:])
+			return nil
+		}
+	}
+
 	if diff, err := DifficultyFromString(s); err != nil {
 		return err
 	} else {

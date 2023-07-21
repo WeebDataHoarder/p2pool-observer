@@ -7,8 +7,8 @@
 {% func TemplateRowMinerWithTag(addr *address.Address, alias string, tag string) %}
     {% code encodedMinerAddress := addr.ToBase58() %}
     {% if alias != "" %}
-    <{%s tag %} title="{%s encodedMinerAddress %} ({%s alias %})" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s shorten(alias, 10) %}</a></{%s tag %}>
+    <{%s tag %} title="{%s encodedMinerAddress %} ({%s alias %})" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%= shorten(alias, 10) %}</a></{%s tag %}>
     {% else %}
-    <{%s tag %} title="{%s encodedMinerAddress %}" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s shorten(encodedMinerAddress, 10) %}</a></{%s tag %}>
+    <{%s tag %} title="{%s encodedMinerAddress %}" class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%= shorten(encodedMinerAddress, 10) %}</a></{%s tag %}>
     {% endif %}
 {% endfunc %}

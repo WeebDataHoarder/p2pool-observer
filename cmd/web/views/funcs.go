@@ -1,16 +1,13 @@
 package views
 
 import (
-	"encoding/binary"
 	hex2 "encoding/hex"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -49,21 +46,6 @@ func time_elapsed_short[T int64 | uint64 | int | float64](v T) string {
 	} else {
 		return strings.Join(result[0:1], " ") + " ago"
 	}
-}
-
-func shorten(val any, n int) string {
-	var value string
-	if s, ok := val.(string); ok {
-		value = s
-	} else if h, ok := val.(types.Hash); ok {
-		value = h.String()
-	} else if s, ok := val.(fmt.Stringer); ok {
-		value = s.String()
-	} else {
-		value = fmt.Sprintf("%s", value)
-	}
-
-	return utils.Shorten(value, n)
 }
 
 func software_info(softwareId types2.SoftwareId, softwareVersion types2.SoftwareVersion) string {
@@ -161,24 +143,6 @@ func bencstr(val string) string {
 	}
 }
 
-func henc(val any) string {
-	if h, ok := val.(types.Hash); ok {
-		return utils.EncodeHexBinaryNumber(h.String())
-	} else if k, ok := val.(crypto.PrivateKeyBytes); ok {
-		return utils.EncodeHexBinaryNumber(k.String())
-	} else if s, ok := val.(string); ok {
-		return utils.EncodeHexBinaryNumber(s)
-	} else if h, ok := val.(types.Hash); ok {
-		return utils.EncodeHexBinaryNumber(h.String())
-	} else if s, ok := val.(fmt.Stringer); ok {
-		return utils.EncodeHexBinaryNumber(s.String())
-	}
-
-	//TODO: remove this
-	log.Panic()
-	return ""
-}
-
 func str(val any) string {
 	if strVal, ok := val.(fmt.Stringer); ok {
 		return strVal.String()
@@ -240,34 +204,4 @@ func coinbase_extra(b *sidechain.PoolBlock) string {
 		result = append(result, hex2.EncodeToString(buf))
 	}
 	return strings.Join(result, " ")
-}
-
-func hex(val any) string {
-	if s, ok := val.(string); ok {
-		return s
-	} else if s, ok := val.(types.Difficulty); ok {
-		return s.String()
-	} else if s, ok := val.(crypto.PrivateKey); ok {
-		return s.String()
-	} else if s, ok := val.(crypto.PublicKey); ok {
-		return s.String()
-	} else if s, ok := val.(crypto.PrivateKeyBytes); ok {
-		return s.String()
-	} else if s, ok := val.(crypto.PublicKeyBytes); ok {
-		return s.String()
-	} else if s, ok := val.(types.Hash); ok {
-		return s.String()
-	} else if s, ok := val.([]byte); ok {
-		return hex2.EncodeToString(s)
-	} else if s, ok := val.(uint32); ok {
-		var buf [4]byte
-		binary.LittleEndian.PutUint32(buf[:], s)
-		return hex2.EncodeToString(buf[:])
-	} else if s, ok := val.(uint64); ok {
-		var buf [8]byte
-		binary.LittleEndian.PutUint64(buf[:], s)
-		return hex2.EncodeToString(buf[:])
-	}
-
-	return fmt.Sprintf("%s", val)
 }

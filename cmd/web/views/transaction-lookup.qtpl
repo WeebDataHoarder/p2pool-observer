@@ -55,7 +55,7 @@ type TransactionLookupPage struct {
         </p>
         <div>
             <label for="txid">Transaction Id</label><br/>
-            <input type="text" name="txid" id="txid" placeholder="e1c88cd5fb5538edfcb4814c286cb0af02b7800f50a86e50626014124aec2f1e" size="64" maxlength="64" class="mono" value="{% if p.TransactionId != types.ZeroHash %}{%s hex(p.TransactionId) %}{% endif %}"/>
+            <input type="text" name="txid" id="txid" placeholder="e1c88cd5fb5538edfcb4814c286cb0af02b7800f50a86e50626014124aec2f1e" size="64" maxlength="64" class="mono" value="{% if p.TransactionId != types.ZeroHash %}{%= hex(p.TransactionId) %}{% endif %}"/>
         </div>
         <div style="margin-top: 10px">
             <input type="submit" value="Lookup" style="width: 20em;"/>
@@ -75,7 +75,7 @@ type TransactionLookupPage struct {
     <table class="center" style="max-width: calc(8em + 15em + 15em + 15em + 15em + 15em + 15em);">
         <tr>
             <td colspan="7">
-                <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{%s henc(p.TransactionId) %}">{%s hex(p.TransactionId) %}</a></p>
+                <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{%= henc(p.TransactionId) %}">{%= hex(p.TransactionId) %}</a></p>
                 {% code minerAddress := p.Miner.Address.ToBase58() %}
                 <p><strong>Miner Payout Address:</strong> <a href="/miner/{%s minerAddress %}"><span class="mono small">{%s minerAddress %}</span></a></p>
                 <p><strong>Likely:</strong> {% if p.LikelyMiner %}Yes{% else %}Not likely{% endif %}</p>
@@ -127,11 +127,11 @@ type TransactionLookupPage struct {
                     {% else %}
                     <tr>
                         <td>{%d index %}</td>
-                        <td class="mono small" title="{%s hex(input.Input.KeyImage) %}">{%s shorten(hex(input.Input.KeyImage), 10) %}</td>
+                        <td class="mono small" title="{%= hex(input.Input.KeyImage) %}">{%= shorten(input.Input.KeyImage, 10) %}</td>
                     {% endif %}
                     <td class="small">-</td>
                     {% code out := p.Result.Outs[totalInputCount] %}
-                    <td title="{%s hex(out.TransactionId) %}" class="mono small"><a href="/t/{%s henc(out.TransactionId) %}">{%s shorten(hex(out.TransactionId), 10) %}</a></td>
+                    <td title="{%= hex(out.TransactionId) %}" class="mono small"><a href="/t/{%= henc(out.TransactionId) %}">{%= shorten(out.TransactionId, 10) %}</a></td>
                     <td class="small">{%dul input.Input.KeyOffsets[oindex] %}</td>
                     <td class="small">-</td>
                     <td class="small">-</td>
@@ -142,16 +142,16 @@ type TransactionLookupPage struct {
                     {% else %}
                     <tr {% if o.Address.Compare(p.Miner.Address) == 0 %} class="hl-found"{% endif %}>
                         <td>{%d index %}</td>
-                        <td class="mono small" title="{%s hex(input.Input.KeyImage) %}">{%s shorten(hex(input.Input.KeyImage), 10) %}</td>
+                        <td class="mono small" title="{%= hex(input.Input.KeyImage) %}">{%= shorten(input.Input.KeyImage, 10) %}</td>
                     {% endif %}
-                    <td title="{%s o.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s o.Address.ToBase58() %}">{%s shorten(o.Address.ToBase58(), 10) %}</a></td>
+                    <td title="{%s o.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s o.Address.ToBase58() %}">{%= shorten(o.Address.ToBase58(), 10) %}</a></td>
                     {% if o.Coinbase != nil %}
-                    <td title="{%s hex(o.Coinbase.Id) %}" class="mono small"><a href="/t/{%s henc(o.Coinbase.Id) %}">{%s shorten(hex(o.Coinbase.Id), 10) %}</a> #{%dul uint64(o.Coinbase.Index) %}</td>
+                    <td title="{%= hex(o.Coinbase.Id) %}" class="mono small"><a href="/t/{%= henc(o.Coinbase.Id) %}">{%= shorten(o.Coinbase.Id, 10) %}</a> #{%dul uint64(o.Coinbase.Index) %}</td>
                     <td class="small">{%dul o.GlobalOutputIndex %}</td>
                     <td class="small" title="This input was seen as an output to a mined Monero block via P2Pool">Coinbase</td>
                     <td class="small mono">{%s monero_to_xmr(o.Coinbase.Value) %} XMR</td>
                     {% elseif o.Sweep != nil %}
-                    <td title="{%s hex(o.Sweep.Id) %}" class="mono small"><a href="/transaction-lookup?txid={%s hex(o.Sweep.Id) %}">{%s shorten(hex(o.Sweep.Id), 10) %}</a>
+                    <td title="{%= hex(o.Sweep.Id) %}" class="mono small"><a href="/transaction-lookup?txid={%= hex(o.Sweep.Id) %}">{%= shorten(o.Sweep.Id, 10) %}</a>
                     {% for oindex, goi := range o.Sweep.GlobalOutputIndices %}
                         {% if goi == o.GlobalOutputIndex %}
                         #{%d oindex %}/{%d len(o.Sweep.GlobalOutputIndices) %}

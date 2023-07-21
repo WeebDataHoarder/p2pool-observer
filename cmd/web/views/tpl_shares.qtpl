@@ -19,12 +19,12 @@
     </tr>
     {% for i, s := range shares %}
     <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
-        <th><a href="/share/{%s hex(s.TemplateId) %}">{%dul s.SideHeight %}</a></th>
-        <td class="mono smaller"><a href="/share/{%s hex(s.TemplateId) %}">{%s shorten(s.TemplateId, 10) %}</a></td>
+        <th><a href="/share/{%= hex(s.TemplateId) %}">{%dul s.SideHeight %}</a></th>
+        <td class="mono smaller"><a href="/share/{%= hex(s.TemplateId) %}">{%= shorten(s.TemplateId, 10) %}</a></td>
         {% if s.MinedMainAtHeight %}
-        <th title="{%s hex(s.MainId) %}"><a href="/b/{%s benc(s.MainHeight) %}">{%dul s.MainHeight %}</a></th>
+        <th title="{%= hex(s.MainId) %}"><a href="/b/{%s benc(s.MainHeight) %}">{%dul s.MainHeight %}</a></th>
         {% else %}
-        <td title="{%s hex(s.MainId) %}">{%dul s.MainHeight %}</td>
+        <td title="{%= hex(s.MainId) %}">{%dul s.MainHeight %}</td>
         {% endif %}
         <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
         {% if efforts != nil %}

@@ -35,9 +35,9 @@ type IndexPage struct {
             <th style="width: 15em">Monero Hashrate</th>
         </tr>
         <tr>
-            <td title="{%s hex(p.Context().Pool.SideChain.Id) %}"><a href="/share/{%s hex(p.Context().Pool.SideChain.Id) %}">{%dul p.Context().Pool.SideChain.Height %}</a></td>
+            <td title="{%= hex(p.Context().Pool.SideChain.Id) %}"><a href="/share/{%= hex(p.Context().Pool.SideChain.Id) %}">{%dul p.Context().Pool.SideChain.Height %}</a></td>
             <td>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
-            <td title="{%s hex(p.Context().Pool.MainChain.Id) %}"><a href="/b/{%s benc(p.Context().Pool.MainChain.Height) %}">{%dul p.Context().Pool.MainChain.Height %}</a></td>
+            <td title="{%= hex(p.Context().Pool.MainChain.Id) %}"><a href="/b/{%s benc(p.Context().Pool.MainChain.Height) %}">{%dul p.Context().Pool.MainChain.Height %}</a></td>
             <td>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.BlockTime)), 2) %}H/s</td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>

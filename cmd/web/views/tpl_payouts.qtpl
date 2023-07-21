@@ -13,13 +13,13 @@
     </tr>
     {% for _, p := range payouts %}
     <tr>
-        <th title="{%s hex(p.MainId) %}"><a href="/b/{%s benc(p.MainHeight) %}">{%dul p.MainHeight %}</a></th>
-        <th title="{%s hex(p.TemplateId) %}"><a href="/share/{%s hex(p.TemplateId) %}">{%dul p.SideHeight %}</a></th>
+        <th title="{%= hex(p.MainId) %}"><a href="/b/{%s benc(p.MainHeight) %}">{%dul p.MainHeight %}</a></th>
+        <th title="{%= hex(p.TemplateId) %}"><a href="/share/{%= hex(p.TemplateId) %}">{%dul p.SideHeight %}</a></th>
         <td title="{%s utc_date(p.Timestamp) %}">{%s date_diff_short(p.Timestamp) %}</td>
         <td>{%s monero_to_xmr(p.Reward) %} XMR</td>
         <td>{%dul p.GlobalOutputIndex %}</td>
-        <td title="{%s hex(p.CoinbaseId) %}" class="mono small"><a href="/t/{%s henc(p.CoinbaseId) %}">{%s shorten(hex(p.CoinbaseId), 10) %}</a></td>
-        <td><a href="/proof/{%s hex(p.MainId) %}/{%dul uint64(p.Index) %}" title="Prove you have a matching output for your address on this transaction">[Payout Proof #{%dul uint64(p.Index) %}]</a></td>
+        <td title="{%= hex(p.CoinbaseId) %}" class="mono small"><a href="/t/{%= henc(p.CoinbaseId) %}">{%= shorten(p.CoinbaseId, 10) %}</a></td>
+        <td><a href="/proof/{%= hex(p.MainId) %}/{%dul uint64(p.Index) %}" title="Prove you have a matching output for your address on this transaction">[Payout Proof #{%dul uint64(p.Index) %}]</a></td>
     </tr>
     {% endfor %}
 </table>

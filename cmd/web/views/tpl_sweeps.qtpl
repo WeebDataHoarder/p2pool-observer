@@ -21,10 +21,10 @@
     </tr>
     {% for _, s := range sweeps %}
     <tr>
-        <td class="mono small"><a href="/transaction-lookup?txid={%s hex(s.Id) %}">{%s shorten(hex(s.Id), 10) %}</a></td>
+        <td class="mono small"><a href="/transaction-lookup?txid={%= hex(s.Id) %}">{%= shorten(s.Id, 10) %}</a></td>
         <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
         {% if !isMiner %}
-        <td title="{%s s.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s s.Address.ToBase58() %}">{%s shorten(s.Address.ToBase58(), 10) %}</a></td>
+        <td title="{%s s.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s s.Address.ToBase58() %}">{%= shorten(s.Address.ToBase58(), 10) %}</a></td>
         {% endif %}
         <td>{%d s.InputDecoyCount %}</td>
         <td>{%d s.InputCount %} / {%d len(s.GlobalOutputIndices) %}</td>

@@ -1,0 +1,133 @@
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/types" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/utils" %}
+{% import "encoding/binary" %}
+{% import "fmt" %}
+{% import hex2 "encoding/hex" %}
+
+{% stripspace %}
+
+{% func hex(val any) %}
+    {% code
+        var hexBuf [types.HashSize*2]byte
+    %}
+    {% switch s := val.(type) %}
+    {% case string %}
+		{%s s %}
+    {% case types.Difficulty %}
+	    {% code
+	    hex2.Encode(hexBuf[:types.DifficultySize*2], s.Bytes())
+	    %}
+	    {%z= hexBuf[:types.DifficultySize*2] %}
+    {% case crypto.PrivateKey %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s.AsSlice())
+	    %}
+	    {%z= hexBuf[:] %}
+    {% case crypto.PublicKey %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s.AsSlice())
+	    %}
+	    {%z= hexBuf[:] %}
+    {% case crypto.PrivateKeyBytes %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= hexBuf[:] %}
+    {% case crypto.PublicKeyBytes %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= hexBuf[:] %}
+    {% case types.Hash %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= hexBuf[:] %}
+    {% case []byte %}
+		{%s= hex2.EncodeToString(s) %}
+    {% case uint32 %}
+	    {% code
+		var buf [4]byte
+		binary.LittleEndian.PutUint32(buf[:], s)
+	    hex2.Encode(hexBuf[:4*2], buf[:])
+	    %}
+	    {%z= hexBuf[:4*2] %}
+    {% case uint64 %}
+	    {% code
+		var buf [8]byte
+		binary.LittleEndian.PutUint64(buf[:], s)
+	    hex2.Encode(hexBuf[:8*2], buf[:])
+	    %}
+	    {%z= hexBuf[:8*2] %}
+    {% default %}
+		{%v val %}
+    {% endswitch %}
+{% endfunc %}
+
+{% func shorten(val any, n int) %}
+    {% code
+        var hexBuf [types.HashSize*2]byte
+    %}
+    {% switch s := val.(type) %}
+    {% case string %}
+		{%s utils.Shorten(s, n) %}
+    {% case crypto.PrivateKey %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s.AsSlice())
+	    %}
+	    {%z= utils.ShortenSlice(hexBuf[:], n) %}
+    {% case crypto.PublicKey %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s.AsSlice())
+	    %}
+	    {%z= utils.ShortenSlice(hexBuf[:], n) %}
+    {% case crypto.PrivateKeyBytes %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= utils.ShortenSlice(hexBuf[:], n) %}
+    {% case crypto.PublicKeyBytes %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= utils.ShortenSlice(hexBuf[:], n) %}
+    {% case types.Hash %}
+	    {% code
+	    hex2.Encode(hexBuf[:], s[:])
+	    %}
+	    {%z= utils.ShortenSlice(hexBuf[:], n) %}
+    {% case fmt.Stringer %}
+		{%s utils.Shorten(s.String(), n) %}
+    {% default %}
+		{%s utils.Shorten(fmt.Sprintf("%v", val), n) %}
+    {% endswitch %}
+{% endfunc %}
+
+
+
+{% func henc(val any) %}
+    {% code
+        var buf [types.HashSize*2+1]byte
+    %}
+    {% switch s := val.(type) %}
+    {% case types.Hash %}
+        {% code
+        dst := utils.EncodeSliceBinaryNumber(buf[:], s[:])
+        %}
+        {%z= dst[:] %}
+    {% case crypto.PrivateKeyBytes %}
+        {% code
+        dst := utils.EncodeSliceBinaryNumber(buf[:], s[:])
+        %}
+        {%z= dst[:] %}
+    {% case string %}
+        {%s= utils.EncodeHexBinaryNumber(s) %}
+    {% case fmt.Stringer %}
+		{%s= utils.EncodeHexBinaryNumber(s.String()) %}
+    {% default %}
+		panic("type not allowed")
+    {% endswitch %}
+{% endfunc %}
+
+{% endstripspace %}

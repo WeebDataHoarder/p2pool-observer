@@ -90,16 +90,16 @@ type ConnectivityCheckPage struct {
         {% if p.Check.Tip != nil %}
         <tr><th colspan="6">&nbsp;</th></tr>
         <tr style="line-height: 1.5;">
-            <td style="width: 10em"><strong>Peer SideChain Height</strong><br/><a href="/share/{%s hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}">{%dul p.YourTipRaw.Side.Height %}</a></td>
-            <td style="width: 10em"><strong>Peer SideChain Id</strong><br/><a href="/share/{%s hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}" title="{%s hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}">{%s shorten(hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)), 10) %}</a></td>
+            <td style="width: 10em"><strong>Peer SideChain Height</strong><br/><a href="/share/{%= hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}">{%dul p.YourTipRaw.Side.Height %}</a></td>
+            <td style="width: 10em"><strong>Peer SideChain Id</strong><br/><a href="/share/{%= hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}" title="{%= hex(p.YourTipRaw.SideTemplateId(p.Context().Consensus)) %}">{%= shorten(p.YourTipRaw.SideTemplateId(p.Context().Consensus), 10) %}</a></td>
             <td style="width: 10em"><strong>Peer MainChain Height</strong><br/>{%dul p.YourTipRaw.Main.Coinbase.GenHeight %}</td>
             <td style="width: 10em"><strong>Peer Difficulty</strong><br/>{%s si_units(p.YourTipRaw.Side.Difficulty.Lo, 4) %}</td>
             <td style="width: 10em"><strong>Peer Cumulative Difficulty</strong><br/>{%s si_units(p.YourTipRaw.Side.CumulativeDifficulty.Lo, 4) %}</td>
             <td style="width: 10em"><strong>Peer Timestamp</strong><br/>{%s utc_date(p.YourTipRaw.Main.Timestamp) %}</td>
         </tr>
         <tr style="line-height: 1.5;">
-            <td style="width: 10em"><strong>Observer SideChain Height</strong><br/><a href="/share/{%s hex(p.OurTip.TemplateId) %}">{%dul p.OurTip.SideHeight %}</a></td>
-            <td style="width: 10em"><strong>Observer SideChain Id</strong><br/><a href="/share/{%s hex(p.OurTip.TemplateId) %}" title="{%s hex(p.OurTip.TemplateId) %}">{%s shorten(hex(p.OurTip.TemplateId), 10) %}</a></td>
+            <td style="width: 10em"><strong>Observer SideChain Height</strong><br/><a href="/share/{%= hex(p.OurTip.TemplateId) %}">{%dul p.OurTip.SideHeight %}</a></td>
+            <td style="width: 10em"><strong>Observer SideChain Id</strong><br/><a href="/share/{%= hex(p.OurTip.TemplateId) %}" title="{%= hex(p.OurTip.TemplateId) %}">{%= shorten(p.OurTip.TemplateId, 10) %}</a></td>
             <td style="width: 10em"><strong>Observer MainChain Height</strong><br/>{%dul p.OurTip.MainHeight %}</td>
             <td style="width: 10em"><strong>Observer Difficulty</strong><br/>{%s si_units(p.OurTip.Difficulty, 4) %}</td>
             <td style="width: 10em"><strong>Observer Cumulative Difficulty</strong><br/>{%s si_units(p.OurTip.CumulativeDifficulty.Lo, 4) %}</td>
