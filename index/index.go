@@ -1055,7 +1055,7 @@ func (r TransactionInputQueryResults) Match() (result TransactionInputQueryResul
 	}
 
 	slices.SortFunc(result, func(a, b TransactionInputQueryResultsMatch) int {
-		return int(a.Count) - int(b.Count)
+		return int(b.Count) - int(a.Count)
 	})
 
 	return result
