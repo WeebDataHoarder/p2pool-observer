@@ -31,16 +31,19 @@ COPY . .
 
 RUN go run github.com/valyala/quicktemplate/qtc@v1.7.0
 
-ARG BUILD_BINARY
-
 ENV GOEXPERIMENT=loopvar
 
-RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/${BUILD_BINARY} git.gammaspectra.live/P2Pool/p2pool-observer/cmd/${BUILD_BINARY}
+RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/api git.gammaspectra.live/P2Pool/p2pool-observer/cmd/api
+RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/daemon git.gammaspectra.live/P2Pool/p2pool-observer/cmd/daemon
+RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/p2pool git.gammaspectra.live/P2Pool/p2pool-observer/cmd/p2pool
+RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/web git.gammaspectra.live/P2Pool/p2pool-observer/cmd/web
 
 FROM alpine:3.18
 
 RUN apk update && apk add --no-cache \
     libstdc++ libgcc
+
+ARG BUILD_BINARY
 
 COPY --from=builder /usr/bin/${BUILD_BINARY} /usr/bin/${BUILD_BINARY}
 
