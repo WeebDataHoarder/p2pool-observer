@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"log"
 	"slices"
@@ -114,7 +115,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 					break
 				}
 
-				if minerAddressOffset == 0 && tmp.Side.PublicSpendKey == block.Side.PublicSpendKey && tmp.Side.PublicViewKey == block.Side.PublicViewKey {
+				if minerAddressOffset == 0 && tmp.Side.PublicKey == block.Side.PublicKey {
 					minerAddressOffset = block.Side.Height - tmp.Side.Height
 				}
 
@@ -171,8 +172,8 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 
 		// miner address
 		if (blockFlags&BlockSaveOffsetAddress) == 0 || (blockFlags&BlockSaveOptionTemplate) != 0 {
-			blob = append(blob, block.Side.PublicSpendKey[:]...)
-			blob = append(blob, block.Side.PublicViewKey[:]...)
+			blob = append(blob, block.Side.PublicKey[address.PackedAddressSpend][:]...)
+			blob = append(blob, block.Side.PublicKey[address.PackedAddressView][:]...)
 		} else {
 			blob = binary.AppendUvarint(blob, minerAddressOffset)
 		}

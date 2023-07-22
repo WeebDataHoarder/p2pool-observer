@@ -21,9 +21,9 @@ type ProofPage struct {
     <h2>Payout Proof for output #{%dul uint64(p.Output.Index) %} on Monero block {%dul p.Block.MainHeight %}</h2>
     {% code encodedMinerAddress := p.Output.MinerAddress.ToBase58() %}
     {% if p.Output.MinerAlias != "" %}
-    <p><strong>Payout Address:</strong> {%s p.Output.MinerAlias %} (<span class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s encodedMinerAddress %}</a>)</span></p>
+    <p><strong>Payout Address:</strong> {%s p.Output.MinerAlias %} (<span class="mono small"><a href="/miner/{%z= encodedMinerAddress %}">{%z= encodedMinerAddress %}</a>)</span></p>
     {% else %}
-    <p><strong>Payout Address:</strong> <span class="mono small"><a href="/miner/{%s encodedMinerAddress %}">{%s encodedMinerAddress %}</a></span></p>
+    <p><strong>Payout Address:</strong> <span class="mono small"><a href="/miner/{%z= encodedMinerAddress %}">{%z= encodedMinerAddress %}</a></span></p>
     {% endif %}
 
     <p>Received <strong>{%s monero_to_xmr(p.Output.Value) %} XMR</strong> on transaction id <a class="mono small" href="/t/{%= henc(p.Output.Id) %}">{%= hex(p.Output.Id) %}</a> (output index #{%dul uint64(p.Output.Index) %}, global output index #{%dul p.Output.GlobalOutputIndex %}).</p>
@@ -34,11 +34,11 @@ type ProofPage struct {
     <h3>Payment Proofs</h3>
     <div style="border: #aaaaaa 1px dashed; margin-bottom: 20px">
         <p><strong>Transaction Private Key:</strong> <span class="mono small">{%= hex(p.Raw.Side.CoinbasePrivateKey) %}</span></p>
-        <p>Verify on Monero CLI: <span class="mono smaller">check_tx_proof {%= hex(p.Output.Id) %} {%s encodedMinerAddress %} {%= hex(p.Raw.Side.CoinbasePrivateKey) %}</span></p>
+        <p>Verify on Monero CLI: <span class="mono smaller">check_tx_proof {%= hex(p.Output.Id) %} {%z= encodedMinerAddress %} {%= hex(p.Raw.Side.CoinbasePrivateKey) %}</span></p>
         <p>
-            <a href="{%s p.Context().GetUrl("localmonero.co") %}/blocks/tx/{%= hex(p.Output.Id) %}?xmraddress={%s encodedMinerAddress %}&txprvkey={%= hex(p.Raw.Side.CoinbasePrivateKey) %}">Verify on LocalMonero</a><br/>
-            <a href="{%s p.Context().GetUrl("www.exploremonero.com") %}/receipt/{%= hex(p.Output.Id) %}/{%s encodedMinerAddress %}/{%= hex(p.Raw.Side.CoinbasePrivateKey) %}">Verify on Explore Monero</a><br/>
-            <a href="{%s p.Context().GetUrl("monero.com") %}/payment/{%= hex(p.Output.Id) %}/{%s encodedMinerAddress %}/{%= hex(p.Raw.Side.CoinbasePrivateKey) %}/">Verify on Monero.com</a><br/>
+            <a href="{%s p.Context().GetUrl("localmonero.co") %}/blocks/tx/{%= hex(p.Output.Id) %}?xmraddress={%z= encodedMinerAddress %}&txprvkey={%= hex(p.Raw.Side.CoinbasePrivateKey) %}">Verify on LocalMonero</a><br/>
+            <a href="{%s p.Context().GetUrl("www.exploremonero.com") %}/receipt/{%= hex(p.Output.Id) %}/{%z= encodedMinerAddress %}/{%= hex(p.Raw.Side.CoinbasePrivateKey) %}">Verify on Explore Monero</a><br/>
+            <a href="{%s p.Context().GetUrl("monero.com") %}/payment/{%= hex(p.Output.Id) %}/{%z= encodedMinerAddress %}/{%= hex(p.Raw.Side.CoinbasePrivateKey) %}/">Verify on Monero.com</a><br/>
         </p>
     </div>
 

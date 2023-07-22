@@ -69,7 +69,7 @@ func GetTxProofV2(a Interface, txId types.Hash, txKey crypto.PrivateKey, message
 
 	sharedSecret, signature := crypto.GenerateTxProofV2(prefixHash, txKey, a.ViewPublicKey(), nil)
 
-	return "OutProofV2" + moneroutil.EncodeMoneroBase58(sharedSecret.AsSlice()) + moneroutil.EncodeMoneroBase58(signature.Bytes())
+	return "OutProofV2" + string(moneroutil.EncodeMoneroBase58(sharedSecret.AsSlice())) + string(moneroutil.EncodeMoneroBase58(signature.Bytes()))
 }
 
 func GetTxProofV1(a Interface, txId types.Hash, txKey crypto.PrivateKey, message string) string {
@@ -77,7 +77,7 @@ func GetTxProofV1(a Interface, txId types.Hash, txKey crypto.PrivateKey, message
 
 	sharedSecret, signature := crypto.GenerateTxProofV1(prefixHash, txKey, a.ViewPublicKey(), nil)
 
-	return "OutProofV1" + moneroutil.EncodeMoneroBase58(sharedSecret.AsSlice()) + moneroutil.EncodeMoneroBase58(signature.Bytes())
+	return "OutProofV1" + string(moneroutil.EncodeMoneroBase58(sharedSecret.AsSlice())) + string(moneroutil.EncodeMoneroBase58(signature.Bytes()))
 }
 
 type SignatureVerifyResult int
@@ -109,7 +109,7 @@ func VerifyMessage(a Interface, message []byte, signature string) SignatureVerif
 	} else {
 		return ResultFail
 	}
-	raw := moneroutil.DecodeMoneroBase58(signature[5:])
+	raw := moneroutil.DecodeMoneroBase58([]byte(signature[5:]))
 
 	sig := crypto.NewSignatureFromBytes(raw)
 

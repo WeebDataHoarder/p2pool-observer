@@ -13,7 +13,7 @@ type PayoutsPage struct {
 %}
 
 {% func (p *PayoutsPage) Title() %}
-{%= p.BasePage.Title() %} - Historical miner payouts {%s p.Miner.ToBase58() %}
+{%= p.BasePage.Title() %} - Historical miner payouts {%z= p.Miner.ToBase58() %}
 {% endfunc %}
 
 {% func (p *PayoutsPage) Content() %}
@@ -21,15 +21,15 @@ type PayoutsPage struct {
 
 <div style="text-align: center; font-weight: bold;">
     {% if p.Refresh > 0 %}
-    <a href="/payouts/{%s p.Miner.ToBase58() %}">Autorefresh is ON ({%d p.Refresh %} s)</a>
+    <a href="/payouts/{%z= p.Miner.ToBase58() %}">Autorefresh is ON ({%d p.Refresh %} s)</a>
     {% else %}
-    <a href="/payouts/{%s p.Miner.ToBase58() %}?refresh">Autorefresh is OFF</a>
+    <a href="/payouts/{%z= p.Miner.ToBase58() %}?refresh">Autorefresh is OFF</a>
     {% endif %}
 </div>
 
 <div style="text-align: center">
     <h2>Historical miner payouts</h2>
-    <p><strong>Payout Address:</strong> <a href="/miner/{%s p.Miner.ToBase58() %}"><span class="mono small">{%s p.Miner.ToBase58() %}</span></a></p>
+    <p><strong>Payout Address:</strong> <a href="/miner/{%z= p.Miner.ToBase58() %}"><span class="mono small">{%z= p.Miner.ToBase58() %}</span></a></p>
     <p><strong>Estimated total:</strong> {%s monero_to_xmr(p.Total) %} XMR</p>
 
     {%= TemplatePayouts(p.Context(), p.Payouts) %}

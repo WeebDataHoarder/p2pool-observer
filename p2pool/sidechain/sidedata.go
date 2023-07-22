@@ -3,8 +3,8 @@ package sidechain
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -13,8 +13,7 @@ import (
 )
 
 type SideData struct {
-	PublicSpendKey         crypto.PublicKeyBytes
-	PublicViewKey          crypto.PublicKeyBytes
+	PublicKey              address.PackedAddress
 	CoinbasePrivateKeySeed types.Hash
 	// CoinbasePrivateKey filled or calculated on decoding
 	CoinbasePrivateKey   crypto.PrivateKeyBytes
@@ -37,7 +36,7 @@ func (b *SideData) BufferLength() int {
 	return crypto.PublicKeySize +
 		crypto.PublicKeySize +
 		types.HashSize +
-		types.HashSize +
+		crypto.PrivateKeySize +
 		utils.UVarInt64Size(len(b.Uncles)) + len(b.Uncles)*types.HashSize +
 		utils.UVarInt64Size(b.Height) +
 		utils.UVarInt64Size(b.Difficulty.Lo) + utils.UVarInt64Size(b.Difficulty.Hi) +
@@ -51,8 +50,8 @@ func (b *SideData) MarshalBinary(version ShareVersion) (buf []byte, err error) {
 
 func (b *SideData) AppendBinary(preAllocatedBuf []byte, version ShareVersion) (buf []byte, err error) {
 	buf = preAllocatedBuf
-	buf = append(buf, b.PublicSpendKey[:]...)
-	buf = append(buf, b.PublicViewKey[:]...)
+	buf = append(buf, b.PublicKey[address.PackedAddressSpend][:]...)
+	buf = append(buf, b.PublicKey[address.PackedAddressView][:]...)
 	if version > ShareVersion_V1 {
 		buf = append(buf, b.CoinbasePrivateKeySeed[:]...)
 	} else {
@@ -83,15 +82,11 @@ func (b *SideData) FromReader(reader utils.ReaderAndByteReader, version ShareVer
 		uncleCount uint64
 		uncleHash  types.Hash
 	)
-	if _, err = io.ReadFull(reader, b.PublicSpendKey[:]); err != nil {
+	if _, err = io.ReadFull(reader, b.PublicKey[address.PackedAddressSpend][:]); err != nil {
 		return err
 	}
-	if _, err = io.ReadFull(reader, b.PublicViewKey[:]); err != nil {
+	if _, err = io.ReadFull(reader, b.PublicKey[address.PackedAddressView][:]); err != nil {
 		return err
-	}
-	var emptyKey crypto.PublicKeyBytes
-	if b.PublicSpendKey == emptyKey && b.PublicViewKey == emptyKey {
-		return errors.New("both spend and view key are zero")
 	}
 
 	if version > ShareVersion_V1 {

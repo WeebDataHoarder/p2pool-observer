@@ -1,16 +1,20 @@
 package address
 
 import (
+	"git.gammaspectra.live/P2Pool/moneroutil"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"unsafe"
 )
+
+const PackedAddressSpend = 0
+const PackedAddressView = 1
 
 // PackedAddress 0 = spend, 1 = view
 type PackedAddress [2]crypto.PublicKeyBytes
 
 func NewPackedAddressFromBytes(spend, view crypto.PublicKeyBytes) (result PackedAddress) {
-	copy(result[0][:], spend[:])
-	copy(result[1][:], view[:])
+	copy(result[PackedAddressSpend][:], spend[:])
+	copy(result[PackedAddressView][:], view[:])
 	return
 }
 
@@ -19,15 +23,15 @@ func NewPackedAddress(spend, view crypto.PublicKey) (result PackedAddress) {
 }
 
 func (p *PackedAddress) PublicKeys() (spend, view crypto.PublicKey) {
-	return &(*p)[0], &(*p)[1]
+	return &(*p)[PackedAddressSpend], &(*p)[PackedAddressView]
 }
 
 func (p *PackedAddress) SpendPublicKey() *crypto.PublicKeyBytes {
-	return &(*p)[0]
+	return &(*p)[PackedAddressSpend]
 }
 
 func (p *PackedAddress) ViewPublicKey() *crypto.PublicKeyBytes {
-	return &(*p)[1]
+	return &(*p)[PackedAddressView]
 }
 
 func (p *PackedAddress) ToPackedAddress() PackedAddress {
@@ -38,25 +42,25 @@ func (p *PackedAddress) ToPackedAddress() PackedAddress {
 func (p *PackedAddress) Compare(b Interface) int {
 	//compare spend key
 
-	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[0], b.SpendPublicKey())
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[PackedAddressSpend], b.SpendPublicKey())
 	if resultSpendKey != 0 {
 		return resultSpendKey
 	}
 
 	// compare view key
-	return crypto.CompareConsensusPublicKeyBytes(&p[1], b.ViewPublicKey())
+	return crypto.CompareConsensusPublicKeyBytes(&p[PackedAddressView], b.ViewPublicKey())
 }
 
 func (p PackedAddress) ComparePacked(other *PackedAddress) int {
 	//compare spend key
 
-	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[0], &other[0])
+	resultSpendKey := crypto.CompareConsensusPublicKeyBytes(&p[PackedAddressSpend], &other[PackedAddressSpend])
 	if resultSpendKey != 0 {
 		return resultSpendKey
 	}
 
 	// compare view key
-	return crypto.CompareConsensusPublicKeyBytes(&p[1], &other[1])
+	return crypto.CompareConsensusPublicKeyBytes(&p[PackedAddressView], &other[PackedAddressView])
 }
 
 func (p *PackedAddress) ToAddress(network uint8, err ...error) *Address {
@@ -64,6 +68,17 @@ func (p *PackedAddress) ToAddress(network uint8, err ...error) *Address {
 		return nil
 	}
 	return FromRawAddress(network, p.SpendPublicKey(), p.ViewPublicKey())
+}
+
+func (p PackedAddress) ToBase58(network uint8, err ...error) []byte {
+	var nice [69]byte
+	nice[0] = network
+	copy(nice[1:], p[PackedAddressSpend][:])
+	copy(nice[1+crypto.PublicKeySize:], p[PackedAddressView][:])
+	sum := crypto.PooledKeccak256(nice[:65])
+
+	buf := make([]byte, 0, 95)
+	return moneroutil.EncodeMoneroBase58PreAllocated(buf, []byte{network}, p[PackedAddressSpend][:], p[PackedAddressView][:], sum[:4])
 }
 
 func (p PackedAddress) Reference() *PackedAddress {

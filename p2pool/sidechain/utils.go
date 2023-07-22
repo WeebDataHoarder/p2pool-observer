@@ -272,13 +272,12 @@ func GetSharesOrdered(tip *PoolBlock, consensus *Consensus, difficultyByHeight b
 
 	if bottomHeight, err := BlocksInPPLNSWindow(tip, consensus, difficultyByHeight, getByTemplateId, func(b *PoolBlock, weight types.Difficulty) {
 		if index < l {
-			preAllocatedShares[index].Address[0] = b.Side.PublicSpendKey
-			preAllocatedShares[index].Address[1] = b.Side.PublicViewKey
+			preAllocatedShares[index].Address = b.Side.PublicKey
 
 			preAllocatedShares[index].Weight = weight
 		} else {
 			preAllocatedShares = append(preAllocatedShares, &Share{
-				Address: b.GetAddress(),
+				Address: b.Side.PublicKey,
 				Weight:  weight,
 			})
 		}

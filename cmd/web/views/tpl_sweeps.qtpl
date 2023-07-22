@@ -24,7 +24,10 @@
         <td class="mono small"><a href="/transaction-lookup?txid={%= hex(s.Id) %}">{%= shorten(s.Id, 10) %}</a></td>
         <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
         {% if !isMiner %}
-        <td title="{%s s.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s s.Address.ToBase58() %}">{%= shorten(s.Address.ToBase58(), 10) %}</a></td>
+        {% code
+            addr := s.Address.ToBase58()
+        %}
+        <td title="{%z= addr %}" class="mono small"><a href="/miner/{%z= addr %}">{%= shorten(addr, 10) %}</a></td>
         {% endif %}
         <td>{%d s.InputDecoyCount %}</td>
         <td>{%d s.InputCount %} / {%d len(s.GlobalOutputIndices) %}</td>

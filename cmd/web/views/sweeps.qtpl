@@ -15,7 +15,7 @@ type SweepsPage struct {
 {% if p.Miner == nil %}
 {%= p.BasePage.Title() %} - Recent Likely Sweeps
 {% else %}
-{%= p.BasePage.Title() %} - Recent Likely Sweeps by {%s p.Miner.ToBase58() %}
+{%= p.BasePage.Title() %} - Recent Likely Sweeps by {%z= p.Miner.ToBase58() %}
 {% endif %}
 {% endfunc %}
 
@@ -34,7 +34,7 @@ type SweepsPage struct {
     {% if p.Miner == nil %}
     <h2>Recent Likely Sweeps</h2>
     {% else %}
-    <h2>Recent Likely Sweeps by {%s p.Miner.ToBase58() %}</h2>
+    <h2>Recent Likely Sweeps by {%z= p.Miner.ToBase58() %}</h2>
     {% endif %}
     <p>
         <a href="/transaction-lookup">[Sweep Transaction Lookup]</a>

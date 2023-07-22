@@ -38,15 +38,15 @@ type MinerPage struct {
 %}
 
 {% func (p *MinerPage) Title() %}
-{%= p.BasePage.Title() %} - Miner {%s p.Miner.Address.ToBase58() %}
+{%= p.BasePage.Title() %} - Miner {%z= p.Miner.Address.ToBase58() %}
 {% endfunc %}
 
 {% func (p *MinerPage) Content() %}
 <div style="text-align: center; font-weight: bold;">
     {% if p.Refresh > 0 %}
-    <a href="/miner/{%s p.Miner.Address.ToBase58() %}">Autorefresh is ON ({%d p.Refresh %} s)</a>
+    <a href="/miner/{%z= p.Miner.Address.ToBase58() %}">Autorefresh is ON ({%d p.Refresh %} s)</a>
     {% else %}
-    <a href="/miner/{%s p.Miner.Address.ToBase58() %}?refresh">Autorefresh is OFF</a>
+    <a href="/miner/{%z= p.Miner.Address.ToBase58() %}?refresh">Autorefresh is OFF</a>
     {% endif %}
 </div>
 
@@ -101,7 +101,7 @@ type MinerPage struct {
         <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.3">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
         <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.3 is recommended.</p>
         <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
-        <p>{% if p.Context().NetServiceAddress == "p2pool.observer" %}After the fork, you can check on <a href="{%s p.Context().GetUrl("old.p2pool.observer") %}/miner/{%s p.Miner.Address.ToBase58() %}">OLD.P2Pool.Observer</a>.{% elseif p.Context().NetServiceAddress == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{%s p.Context().GetUrl("old-mini.p2pool.observer") %}/miner/{%s p.Miner.Address.ToBase58() %}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
+        <p>{% if p.Context().NetServiceAddress == "p2pool.observer" %}After the fork, you can check on <a href="{%s p.Context().GetUrl("old.p2pool.observer") %}/miner/{%z= p.Miner.Address.ToBase58() %}">OLD.P2Pool.Observer</a>.{% elseif p.Context().NetServiceAddress == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{%s p.Context().GetUrl("old-mini.p2pool.observer") %}/miner/{%z= p.Miner.Address.ToBase58() %}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
         <p>After upgrading to a supported P2Pool version and mining a share, this message will be dismissed.</p>
         <br/>
     </div>
@@ -120,7 +120,7 @@ type MinerPage struct {
     <hr/>
     {% endif %}
 
-    <p><strong>Payout Address:</strong> <span class="mono small">{%s p.Miner.Address.ToBase58() %}</span></p>
+    <p><strong>Payout Address:</strong> <span class="mono small">{%z= p.Miner.Address.ToBase58() %}</span></p>
 
     {% if p.Miner.Alias != "" %}
     <p><strong>Miner Alias:</strong> <span class="mono">{%s p.Miner.Alias %}</span></p>
@@ -209,7 +209,7 @@ type MinerPage struct {
 <div style="text-align: center">
     <h2>Most recent payouts</h2>
     {%= TemplatePayouts(p.Context(), p.LastPayouts) %}
-    <div class="center"><a href="/payouts/{%s p.Miner.Address.ToBase58() %}">[show all historical payouts]</a></div>
+    <div class="center"><a href="/payouts/{%z= p.Miner.Address.ToBase58() %}">[show all historical payouts]</a></div>
 </div>
 
 <hr/>
@@ -233,7 +233,7 @@ type MinerPage struct {
 <div style="text-align: center">
     <h2>Most recent Monero blocks found</h2>
     {%= TemplateFoundBlocks(p.Context(), p.LastFound, true) %}
-    <div class="center"><a href="/blocks?miner={%s p.Miner.Address.ToBase58() %}">[show more found blocks]</a></div>
+    <div class="center"><a href="/blocks?miner={%z= p.Miner.Address.ToBase58() %}">[show more found blocks]</a></div>
 </div>
 
 <hr/>
@@ -241,7 +241,7 @@ type MinerPage struct {
 <div style="text-align: center">
     <h2>Most recent likely sweeps</h2>
     {%= TemplateSweeps(p.Context(), p.LastSweeps, true) %}
-    <div class="center"><a href="/sweeps?miner={%s p.Miner.Address.ToBase58() %}">[show more likely sweeps]</a></div>
+    <div class="center"><a href="/sweeps?miner={%z= p.Miner.Address.ToBase58() %}">[show more likely sweeps]</a></div>
 </div>
 
 
@@ -250,7 +250,7 @@ type MinerPage struct {
 <hr/>
 
 <div style="text-align: center">
-    <form action="/miner/{%s p.Miner.Address.ToBase58() %}" method="get">
+    <form action="/miner/{%z= p.Miner.Address.ToBase58() %}" method="get">
         <h3>Effort Calculation</h3>
         <p>Local hashrate of each P2Pool miner is not known by the network. A guess is calculated based on daily estimation. If you provide a value here, it will be more accurate for effort calculation.</p>
         <p>This data will not be saved.</p>
@@ -269,7 +269,7 @@ type MinerPage struct {
 <hr/>
 
 <div style="text-align: center">
-    <form action="/api/miner_alias/{%s p.Miner.Address.ToBase58() %}" method="get" target="_blank">
+    <form action="/api/miner_alias/{%z= p.Miner.Address.ToBase58() %}" method="get" target="_blank">
         <h3>Set Miner Alias</h3>
         <p>To set a miner alias you will need to sign a message using your wallet. On the Monero GUI, go to Advanced -> Sign/verify -> Select Mode "Message"</p>
         <p>Enter the desired Miner Alias in Message, then press Sign Message. Copy the Signature and paste it on the field below, along with your chosen Miner Alias.</p>

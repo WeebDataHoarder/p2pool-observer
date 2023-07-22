@@ -77,7 +77,7 @@ type TransactionLookupPage struct {
             <td colspan="7">
                 <p><strong>Transaction Id:</strong> <a class="mono small" href="/t/{%= henc(p.TransactionId) %}">{%= hex(p.TransactionId) %}</a></p>
                 {% code minerAddress := p.Miner.Address.ToBase58() %}
-                <p><strong>Miner Payout Address:</strong> <a href="/miner/{%s minerAddress %}"><span class="mono small">{%s minerAddress %}</span></a></p>
+                <p><strong>Miner Payout Address:</strong> <a href="/miner/{%z= minerAddress %}"><span class="mono small">{%z= minerAddress %}</span></a></p>
                 <p><strong>Likely:</strong> {% if p.LikelyMiner %}Yes{% else %}Not likely{% endif %}</p>
             </td>
         </tr>
@@ -144,7 +144,10 @@ type TransactionLookupPage struct {
                         <td>{%d index %}</td>
                         <td class="mono small" title="{%= hex(input.Input.KeyImage) %}">{%= shorten(input.Input.KeyImage, 10) %}</td>
                     {% endif %}
-                    <td title="{%s o.Address.ToBase58() %}" class="mono small"><a href="/miner/{%s o.Address.ToBase58() %}">{%= shorten(o.Address.ToBase58(), 10) %}</a></td>
+                    {% code
+                        addr := o.Address.ToBase58()
+                    %}
+                    <td title="{%z= addr %}" class="mono small"><a href="/miner/{%z= addr %}">{%= shorten(addr, 10) %}</a></td>
                     {% if o.Coinbase != nil %}
                     <td title="{%= hex(o.Coinbase.Id) %}" class="mono small"><a href="/t/{%= henc(o.Coinbase.Id) %}">{%= shorten(o.Coinbase.Id, 10) %}</a> #{%dul uint64(o.Coinbase.Index) %}</td>
                     <td class="small">{%dul o.GlobalOutputIndex %}</td>

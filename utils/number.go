@@ -2,6 +2,7 @@ package utils
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"github.com/jxskiss/base62"
 	"math/bits"
@@ -104,6 +105,30 @@ const (
 	VarIntLen9
 )
 
+/*
+
+	Checked using this
+
+	var uVarInt64Thresholds [binary.MaxVarintLen64 + 1]uint64
+
+	lastSize := 0
+	for i := uint64(1); i > 0 && i < math.MaxUint64; i <<= 1 {
+		s := UVarInt64Size(i)
+		if s != lastSize {
+
+			n := uVarInt64Thresholds[lastSize]
+			ix := sort.Search(int(i-n), func(i int) bool {
+				return UVarInt64Size(n+uint64(i)) > lastSize
+			})
+			uVarInt64Thresholds[s] = n + uint64(ix)
+			lastSize = s
+		}
+	}
+
+	log.Print(uVarInt64Thresholds)
+
+*/
+
 func UVarInt64SliceSize[T uint64 | int](v []T) (n int) {
 	for i := range v {
 		n += UVarInt64Size(v[i])
@@ -133,30 +158,6 @@ func UVarInt64Size[T uint64 | int](v T) (n int) {
 	} else if x < VarIntLen9 {
 		return 9
 	} else {
-		return 10
+		return binary.MaxVarintLen64
 	}
-
-	/*
-
-		Checked using this
-
-		var uVarInt64Thresholds [binary.MaxVarintLen64 + 1]uint64
-
-		lastSize := 0
-		for i := uint64(1); i > 0 && i < math.MaxUint64; i <<= 1 {
-			s := UVarInt64Size(i)
-			if s != lastSize {
-
-				n := uVarInt64Thresholds[lastSize]
-				ix := sort.Search(int(i-n), func(i int) bool {
-					return UVarInt64Size(n+uint64(i)) > lastSize
-				})
-				uVarInt64Thresholds[s] = n + uint64(ix)
-				lastSize = s
-			}
-		}
-
-		log.Print(uVarInt64Thresholds)
-
-	*/
 }

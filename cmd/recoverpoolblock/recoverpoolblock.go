@@ -271,8 +271,7 @@ func main() {
 					Transactions: nil,
 				},
 				Side: sidechain.SideData{
-					PublicSpendKey:     v2.Wallet.SpendPublicKey().AsBytes(),
-					PublicViewKey:      v2.Wallet.ViewPublicKey().AsBytes(),
+					PublicKey:          v2.Wallet.ToPackedAddress(),
 					CoinbasePrivateKey: keyPair.PrivateKey.AsBytes(),
 					Parent:             v2.PrevId,
 					Uncles: func() (result []types.Hash) {

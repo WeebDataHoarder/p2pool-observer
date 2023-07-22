@@ -53,7 +53,7 @@ func (a *Address) ToPackedAddress() PackedAddress {
 
 func FromBase58(address string) *Address {
 	preAllocatedBuf := make([]byte, 0, 69)
-	raw := moneroutil.DecodeMoneroBase58PreAllocated(preAllocatedBuf, address)
+	raw := moneroutil.DecodeMoneroBase58PreAllocated(preAllocatedBuf, []byte(address))
 
 	if len(raw) != 69 {
 		return nil
@@ -86,7 +86,7 @@ func FromBase58(address string) *Address {
 	return a
 }
 
-func FromBase58NoChecksumCheck(address string) *Address {
+func FromBase58NoChecksumCheck(address []byte) *Address {
 	preAllocatedBuf := make([]byte, 0, 69)
 	raw := moneroutil.DecodeMoneroBase58PreAllocated(preAllocatedBuf, address)
 
@@ -137,7 +137,7 @@ func FromRawAddress(network uint8, spend, view crypto.PublicKey) *Address {
 	return a
 }
 
-func (a *Address) ToBase58() string {
+func (a *Address) verifyChecksum() {
 	if !a.hasChecksum {
 		var nice [69]byte
 		nice[0] = a.Network
@@ -148,11 +148,21 @@ func (a *Address) ToBase58() string {
 		copy(a.checksum[:], sum[:4])
 		a.hasChecksum = true
 	}
-	return moneroutil.EncodeMoneroBase58([]byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
+}
+
+func (a *Address) ToBase58() []byte {
+	a.verifyChecksum()
+	buf := make([]byte, 0, 95)
+	return moneroutil.EncodeMoneroBase58PreAllocated(buf, []byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 }
 
 func (a *Address) MarshalJSON() ([]byte, error) {
-	return []byte("\"" + a.ToBase58() + "\""), nil
+	a.verifyChecksum()
+	buf := make([]byte, 0, 95+2)
+	buf[0] = '"'
+	moneroutil.EncodeMoneroBase58PreAllocated(buf[1:1], []byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
+	buf[len(buf)-1] = '"'
+	return buf, nil
 }
 
 func (a *Address) UnmarshalJSON(b []byte) error {
@@ -160,7 +170,7 @@ func (a *Address) UnmarshalJSON(b []byte) error {
 		return errors.New("unsupported length")
 	}
 
-	if addr := FromBase58NoChecksumCheck(string(b[1 : len(b)-1])); addr != nil {
+	if addr := FromBase58NoChecksumCheck(b[1 : len(b)-1]); addr != nil {
 		a.Network = addr.Network
 		a.SpendPub = addr.SpendPub
 		a.ViewPub = addr.ViewPub

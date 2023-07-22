@@ -654,7 +654,7 @@ func (b *PoolBlock) GetPrivateKeySeed() types.Hash {
 		return b.Side.CoinbasePrivateKeySeed
 	}
 
-	oldSeed := types.Hash(b.Side.PublicSpendKey.AsBytes())
+	oldSeed := types.Hash(b.Side.PublicKey[address.PackedAddressSpend])
 	if b.Main.MajorVersion < monero.HardForkViewTagsVersion && p2poolcrypto.GetDeterministicTransactionPrivateKey(oldSeed, b.Main.PreviousId).AsBytes() != b.Side.CoinbasePrivateKey {
 		return types.ZeroHash
 	}
@@ -674,11 +674,11 @@ func (b *PoolBlock) CalculateTransactionPrivateKeySeed() types.Hash {
 		)
 	}
 
-	return types.Hash(b.Side.PublicSpendKey.AsBytes())
+	return types.Hash(b.Side.PublicKey[address.PackedAddressSpend])
 }
 
 func (b *PoolBlock) GetAddress() address.PackedAddress {
-	return address.NewPackedAddressFromBytes(b.Side.PublicSpendKey, b.Side.PublicViewKey)
+	return b.Side.PublicKey
 }
 
 func (b *PoolBlock) GetTransactionOutputType() uint8 {
