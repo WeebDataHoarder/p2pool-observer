@@ -158,7 +158,7 @@ func (a *Address) ToBase58() []byte {
 
 func (a *Address) MarshalJSON() ([]byte, error) {
 	a.verifyChecksum()
-	buf := make([]byte, 0, 95+2)
+	buf := make([]byte, 95+2)
 	buf[0] = '"'
 	moneroutil.EncodeMoneroBase58PreAllocated(buf[1:1], []byte{a.Network}, a.SpendPub.AsSlice(), a.ViewPub.AsSlice(), a.checksum[:])
 	buf[len(buf)-1] = '"'
