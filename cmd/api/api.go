@@ -6,8 +6,9 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/httputils"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
@@ -347,7 +348,7 @@ func main() {
 	serveMux.HandleFunc("/api/pool_info", func(writer http.ResponseWriter, request *http.Request) {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, lastPoolInfo.Load())
+		_ = httputils.EncodeJson(request, writer, lastPoolInfo.Load())
 	})
 
 	serveMux.HandleFunc("/api/miner_info/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -415,7 +416,7 @@ func main() {
 		}
 
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, cmdutils.MinerInfoResult{
+		_ = httputils.EncodeJson(request, writer, cmdutils.MinerInfoResult{
 			Id:                 miner.Id(),
 			Address:            miner.Address(),
 			Alias:              miner.Alias(),
@@ -465,7 +466,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, indexDb.QueryGlobalOutputIndices(indices))
+		_ = httputils.EncodeJson(request, writer, indexDb.QueryGlobalOutputIndices(indices))
 	})
 
 	serveMux.HandleFunc("/api/sweeps_by_spending_global_output_indices", func(writer http.ResponseWriter, request *http.Request) {
@@ -508,7 +509,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, indexDb.GetMainLikelySweepTransactionBySpendingGlobalOutputIndices(indices...))
+		_ = httputils.EncodeJson(request, writer, indexDb.GetMainLikelySweepTransactionBySpendingGlobalOutputIndices(indices...))
 
 	})
 
@@ -603,7 +604,7 @@ func main() {
 					outs[i].Timestamp = mb.Timestamp
 				}
 			}
-			_ = cmdutils.EncodeJson(request, writer, cmdutils.TransactionLookupResult{
+			_ = httputils.EncodeJson(request, writer, cmdutils.TransactionLookupResult{
 				Id:     txId,
 				Inputs: results[0],
 				Outs:   outs,
@@ -729,7 +730,7 @@ func main() {
 		writer.WriteHeader(http.StatusOK)
 
 		result := fillSideBlockResult(params, indexDb.GetSideBlocksInWindow(from, window))
-		_ = cmdutils.StreamJsonSlice(request, writer, result)
+		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/side_blocks_in_window/{miner:[0-9]+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+$}", func(writer http.ResponseWriter, request *http.Request) {
@@ -787,7 +788,7 @@ func main() {
 		writer.WriteHeader(http.StatusOK)
 
 		result := fillSideBlockResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
-		_ = cmdutils.StreamJsonSlice(request, writer, result)
+		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/sweeps", func(writer http.ResponseWriter, request *http.Request) {
@@ -810,7 +811,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactions(limit))
+		_ = httputils.StreamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactions(limit))
 
 	})
 
@@ -851,7 +852,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactionsByAddress(miner.Address(), limit))
+		_ = httputils.StreamJsonSlice(request, writer, indexDb.GetMainLikelySweepTransactionsByAddress(miner.Address(), limit))
 
 	})
 
@@ -908,11 +909,11 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		if timestamp > 0 {
-			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromTimestamp(miner.Id(), timestamp))
+			_ = httputils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromTimestamp(miner.Id(), timestamp))
 		} else if height > 0 {
-			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromHeight(miner.Id(), height))
+			_ = httputils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerIdFromHeight(miner.Id(), height))
 		} else {
-			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerId(miner.Id(), limit))
+			_ = httputils.StreamJsonSlice(request, writer, indexDb.GetPayoutsByMinerId(miner.Id(), limit))
 		}
 
 	})
@@ -1133,7 +1134,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, result)
+		_ = httputils.EncodeJson(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/side_blocks", func(writer http.ResponseWriter, request *http.Request) {
@@ -1197,7 +1198,7 @@ func main() {
 		writer.WriteHeader(http.StatusOK)
 
 		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
-		_ = cmdutils.StreamJsonSlice(request, writer, result)
+		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/shares", func(writer http.ResponseWriter, request *http.Request) {
@@ -1254,7 +1255,7 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain))
-		_ = cmdutils.StreamJsonSlice(request, writer, result)
+		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
 	serveMux.HandleFunc("/api/main_block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -1288,7 +1289,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, block)
+		_ = httputils.EncodeJson(request, writer, block)
 	})
 
 	serveMux.HandleFunc("/api/main_difficulty_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}", func(writer http.ResponseWriter, request *http.Request) {
@@ -1314,7 +1315,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, difficulty)
+		_ = httputils.EncodeJson(request, writer, difficulty)
 	})
 
 	serveMux.HandleFunc("/api/block_by_{by:id|height}/{block:[0-9a-f]+|[0-9]+}{kind:|/light|/raw|/info|/payouts|/coinbase}", func(writer http.ResponseWriter, request *http.Request) {
@@ -1398,7 +1399,7 @@ func main() {
 		case "/payouts":
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = cmdutils.StreamJsonSlice(request, writer, indexDb.GetPayoutsBySideBlock(block))
+			_ = httputils.StreamJsonSlice(request, writer, indexDb.GetPayoutsBySideBlock(block))
 		case "/coinbase":
 			foundBlock := indexDb.GetMainBlockById(block.MainId)
 			if foundBlock == nil {
@@ -1438,7 +1439,7 @@ func main() {
 
 						writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 						writer.WriteHeader(http.StatusOK)
-						_ = cmdutils.EncodeJson(request, writer, result)
+						_ = httputils.EncodeJson(request, writer, result)
 						return
 					}
 				}
@@ -1455,7 +1456,7 @@ func main() {
 			} else {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 				writer.WriteHeader(http.StatusOK)
-				_ = cmdutils.EncodeJson(request, writer, fillMainCoinbaseOutputs(params, indexDb.GetMainCoinbaseOutputs(foundBlock.CoinbaseId)))
+				_ = httputils.EncodeJson(request, writer, fillMainCoinbaseOutputs(params, indexDb.GetMainCoinbaseOutputs(foundBlock.CoinbaseId)))
 			}
 		default:
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -1463,7 +1464,7 @@ func main() {
 			c := make(chan *index.SideBlock, 1)
 			c <- block
 			close(c)
-			_ = cmdutils.EncodeJson(request, writer, <-fillSideBlockResult(params, c))
+			_ = httputils.EncodeJson(request, writer, <-fillSideBlockResult(params, c))
 		}
 	})
 
@@ -1505,7 +1506,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = cmdutils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonSlice(request, writer, result)
 
 		case "miner_seen":
 			result := make(chan *minerSeenResult)
@@ -1526,7 +1527,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = cmdutils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonSlice(request, writer, result)
 
 		case "miner_seen_window":
 			result := make(chan *minerSeenResult)
@@ -1547,7 +1548,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = cmdutils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonSlice(request, writer, result)
 		}
 	})
 
@@ -1602,7 +1603,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, p2api.ConnectionCheck(addrPort))
+		_ = httputils.EncodeJson(request, writer, p2api.ConnectionCheck(addrPort))
 	})
 
 	// p2pool disk / p2pool.io emulation
@@ -1619,7 +1620,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, networkStats{
+		_ = httputils.EncodeJson(request, writer, networkStats{
 			Difficulty: mainTip.Difficulty,
 			Hash:       mainTip.Id,
 			Height:     mainTip.Height,
@@ -1649,7 +1650,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_ = cmdutils.EncodeJson(request, writer, blocks)
+		_ = httputils.EncodeJson(request, writer, blocks)
 	})
 	serveMux.HandleFunc("/api/pool/stats", func(writer http.ResponseWriter, request *http.Request) {
 		type poolStats struct {
@@ -1678,7 +1679,7 @@ func main() {
 			lastBlockFoundTime = b.MainBlock.Timestamp
 		}
 
-		_ = cmdutils.EncodeJson(request, writer, poolStats{
+		_ = httputils.EncodeJson(request, writer, poolStats{
 			PoolList: []string{"pplns"},
 			PoolStatistics: struct {
 				HashRate            uint64 `json:"hashRate"`

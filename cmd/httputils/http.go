@@ -1,4 +1,4 @@
-package utils
+package httputils
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"

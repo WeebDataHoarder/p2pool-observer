@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"

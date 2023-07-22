@@ -1,4 +1,4 @@
-{% import "git.gammaspectra.live/P2Pool/p2pool-observer/index" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
 {% func TemplateShares(ctx *GlobalRequestContext, shares []*index.SideBlock, isMiner bool, efforts *[]float64) %}
 <table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em{% if efforts != nil %} + 8em{% endif %}{% if isMiner %}{% else %} + 12em{% endif %} + 10em + 8em + 12em)">

@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"

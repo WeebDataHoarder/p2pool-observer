@@ -1,0 +1,18 @@
+go 1.21
+
+use (
+	cmd/api
+	cmd/archivetoarchive
+	cmd/archivetoindex
+	cmd/cachetoarchive
+	cmd/daemon
+	cmd/httputils
+	cmd/index
+	cmd/legacytoarchive
+	cmd/p2pool
+	cmd/readcache
+	cmd/recoverpoolblock
+	cmd/scansweeps
+	cmd/utils
+	cmd/web
+)

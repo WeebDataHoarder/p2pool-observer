@@ -1,4 +1,4 @@
-{% import "git.gammaspectra.live/P2Pool/p2pool-observer/index" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
 {% func TemplateSweeps(ctx *GlobalRequestContext, sweeps []*index.MainLikelySweepTransaction, isMiner bool) %}
 {% if isMiner %}

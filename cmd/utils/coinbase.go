@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"

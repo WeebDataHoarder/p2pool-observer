@@ -92,7 +92,7 @@ func (p *PrivateKeyScalar) UnmarshalJSON(b []byte) error {
 }
 
 func (p *PrivateKeyScalar) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(p.String())
+	return []byte("\"" + p.String() + "\""), nil
 }
 
 type PrivateKeyBytes [PrivateKeySize]byte

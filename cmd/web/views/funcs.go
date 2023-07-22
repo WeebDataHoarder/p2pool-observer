@@ -3,7 +3,7 @@ package views
 import (
 	hex2 "encoding/hex"
 	"fmt"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"

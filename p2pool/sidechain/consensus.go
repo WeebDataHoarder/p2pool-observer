@@ -59,7 +59,7 @@ func (n NetworkType) AddressNetwork() (uint8, error) {
 }
 
 func (n NetworkType) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(n.String())
+	return []byte("\"" + n.String() + "\""), nil
 }
 
 func (n *NetworkType) UnmarshalJSON(b []byte) error {

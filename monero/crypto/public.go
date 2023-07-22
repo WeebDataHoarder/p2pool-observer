@@ -88,7 +88,7 @@ func (k *PublicKeyPoint) UnmarshalJSON(b []byte) error {
 }
 
 func (k *PublicKeyPoint) MarshalJSON() ([]byte, error) {
-	return utils.MarshalJSON(k.String())
+	return []byte("\"" + k.String() + "\""), nil
 }
 
 type PublicKeyBytes [PublicKeySize]byte

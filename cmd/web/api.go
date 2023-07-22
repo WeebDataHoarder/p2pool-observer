@@ -1,7 +1,7 @@
 package main
 
 import (
-	"git.gammaspectra.live/P2Pool/p2pool-observer/index"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 	"net/http"

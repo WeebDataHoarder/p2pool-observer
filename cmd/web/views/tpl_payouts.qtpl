@@ -1,4 +1,4 @@
-{% import "git.gammaspectra.live/P2Pool/p2pool-observer/index" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
 {% func TemplatePayouts(ctx *GlobalRequestContext, payouts []*index.Payout) %}
 <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 10em)">
