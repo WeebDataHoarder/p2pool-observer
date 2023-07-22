@@ -1,6 +1,7 @@
 go 1.21
 
 use (
+	.
 	cmd/api
 	cmd/archivetoarchive
 	cmd/archivetoindex

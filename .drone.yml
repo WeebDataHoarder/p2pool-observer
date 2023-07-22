@@ -35,11 +35,18 @@ steps:
       - apk add --no-cache git gcc g++ musl-dev bash autoconf automake cmake make libtool
       - cd /tmp
       - git clone --depth 1 --branch master https://github.com/tevador/RandomX.git && cd RandomX && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/drone/src/build_deps && make -j$(nproc) && make install && cd ../..
+  - name: go-generate
+    image: golang:1.21-rc-alpine3.18
+    commands:
+      - apk update
+      - apk add --no-cache git
+      - go run github.com/valyala/quicktemplate/qtc@v1.7.0
   - name: test-cgo
     image: golang:1.21-rc-alpine3.18
     depends_on:
       - init-tests
       - build-sources
+      - go-generate
     environment:
       MONEROD_RPC_URL:
         from_secret: MONEROD_RPC_URL
@@ -48,5 +55,4 @@ steps:
     commands:
       - apk update
       - apk add --no-cache git gcc g++ musl-dev pkgconfig
-      - go generate -v ./...
-      - go test -p 1 -failfast -timeout 20m -cover -gcflags=-d=checkptr -v ./...
+      - go list -f '{{.Dir}}/...' -m | xargs -n 1 sh -c 'go test -p 1 -failfast -timeout 20m -cover -gcflags=-d=checkptr -v $0 || exit 255'

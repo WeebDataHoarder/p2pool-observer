@@ -29,7 +29,7 @@ RUN go mod download -x && go mod verify
 
 COPY . .
 
-RUN go generate -v ./...
+RUN go run github.com/valyala/quicktemplate/qtc@v1.7.0
 
 ARG BUILD_BINARY
 

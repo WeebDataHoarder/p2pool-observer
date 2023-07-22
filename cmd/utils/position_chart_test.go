@@ -12,3 +12,12 @@ func TestChart(t *testing.T) {
 	t.Log(p.String())
 
 }
+
+func TestChartIncrement(t *testing.T) {
+	p := NewPositionChart(32, 32)
+	for i := 0; i < 32; i++ {
+		p.Add(i, uint64(i))
+	}
+	t.Log(p.String())
+
+}
