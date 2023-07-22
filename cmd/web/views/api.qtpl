@@ -36,7 +36,6 @@ pre {
     <div>
         <h3 class="mono">/api/pool_info</h3>
         <p>Response contains general information on the current status of the P2Pool sidechain and Monero network, release versions, and other parameters.</p>
-        <p><em>.sidechain.effort.last</em> keys are Monero block id effort for last found blocks.</p>
         <pre class="smaller">
 [result has been cut due to size, relevant portions shown]
 curl --silent https://{%s p.Context().NetServiceAddress %}/api/pool_info
