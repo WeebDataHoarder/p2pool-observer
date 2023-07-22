@@ -10,7 +10,6 @@ require (
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index v0.0.0
-	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807
 	github.com/floatdrop/lru v1.3.0
 )
 

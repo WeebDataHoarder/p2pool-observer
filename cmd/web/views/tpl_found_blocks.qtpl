@@ -1,7 +1,7 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
+{% import cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils" %}
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/types" %}
 {% import "slices" %}
-{% import "github.com/ake-persson/mapslice-json" %}
 
 {% func TemplateFoundBlocks(ctx *GlobalRequestContext, foundBlocks []*index.FoundBlock, isMiner bool) %}
 <table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em{% if isMiner %}{% else %} + 12em + 8em{% endif %} + 10em + 7em + 12em + 28em)">
@@ -37,9 +37,9 @@
             <td style="font-weight:bolder; color: {%s effort_color(found_block_effort(b, foundBlocks[i+1])) %};">
                 {%f.2 found_block_effort(b, foundBlocks[i+1]) %}%
             </td>
-            {% elseif effortIndex := slices.IndexFunc(ctx.Pool.SideChain.Effort.Last, func(e mapslice.MapItem) bool { return e.Key.(string) == b.MainBlock.Id.String() }); effortIndex != -1 %}
-            <td style="font-weight:bolder; color: {%s effort_color(ctx.Pool.SideChain.Effort.Last[effortIndex].Value.(float64)) %};">
-                {%f.2 ctx.Pool.SideChain.Effort.Last[effortIndex].Value.(float64) %}%
+            {% elseif effortIndex := slices.IndexFunc(ctx.Pool.SideChain.Effort.Last, func(e cmdutils.PoolInfoResultSideChainEffortLastEntry) bool { return e.Id == b.MainBlock.Id }); effortIndex != -1 %}
+            <td style="font-weight:bolder; color: {%s effort_color(ctx.Pool.SideChain.Effort.Last[effortIndex].Effort) %};">
+                {%f.2 ctx.Pool.SideChain.Effort.Last[effortIndex].Effort %}%
             </td>
             {% else %}
             <td>unknown</td>

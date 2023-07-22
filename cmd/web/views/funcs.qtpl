@@ -1,6 +1,10 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/types" %}
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto" %}
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/utils" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain" %}
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
+{% import p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types" %}
+
 {% import "encoding/binary" %}
 {% import "fmt" %}
 {% import hex2 "encoding/hex" %}
@@ -125,6 +129,37 @@
         {%s= utils.EncodeHexBinaryNumber(s) %}
     {% case fmt.Stringer %}
 		{%s= utils.EncodeHexBinaryNumber(s.String()) %}
+    {% default %}
+		panic("type not allowed")
+    {% endswitch %}
+{% endfunc %}
+
+{% func software_info(softwareId p2pooltypes.SoftwareId, softwareVersion p2pooltypes.SoftwareVersion) %}
+	{% if softwareId == 0 && softwareVersion == 0 %}
+		Not present
+	{% else %}
+	    {%s= softwareId.String() %}{%s= ` ` %}{%s= softwareVersion.String() %}
+	{% endif %}
+{% endfunc %}
+
+{% func side_block_valuation(b any, consensus *sidechain.Consensus) %}
+    {% switch block := b.(type) %}
+    {% case *index.SideBlock %}
+		{% if block.IsOrphan() %}
+			0%
+		{% elseif block.IsUncle() %}
+		    {%dul 100-consensus.UnclePenalty %}% (uncle)
+		{% elseif len(block.Uncles) > 0 %}
+		    100% + {%dul consensus.UnclePenalty %}% of {%d len(block.Uncles) %} uncle(s)
+		{% else %}
+			100%
+		{% endif %}
+    {% case *sidechain.PoolBlock %}
+		{% if len(block.Side.Uncles) > 0 %}
+		    100% + {%dul consensus.UnclePenalty %}% of {%d len(block.Side.Uncles) %} uncle(s)
+		{% else %}
+			100%
+		{% endif %}
     {% default %}
 		panic("type not allowed")
     {% endswitch %}

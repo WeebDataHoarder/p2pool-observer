@@ -95,9 +95,9 @@
         </tr>
         <tr>
             {% if sideBlock != nil %}
-            <td>{%s side_block_valuation(sideBlock, ctx.Consensus) %}</td>
+            <td>{%= side_block_valuation(sideBlock, ctx.Consensus) %}</td>
             {% else %}
-            <td>{%s side_block_valuation(poolBlock, ctx.Consensus) %}</td>
+            <td>{%= side_block_valuation(poolBlock, ctx.Consensus) %}</td>
             {% endif %}
             {% if sideBlock != nil && sideBlock.MinedMainAtHeight %}
             <td class="mono smaller"><a href="/t/{%= henc(poolBlock.Main.Coinbase.Id()) %}">{%= hex(poolBlock.Main.Coinbase.Id()) %}</a></td>
@@ -116,7 +116,7 @@
         </tr>
         <tr>
             <td class="mono" title="{%= hex(poolBlock.Main.Nonce) %}">{%dul uint64(poolBlock.Main.Nonce) %}</td>
-            <td class="mono smaller">{%s str(poolBlock.Side.CumulativeDifficulty) %}</td>
+            <td class="mono smaller">{%= hex(poolBlock.Side.CumulativeDifficulty) %}</td>
             <td class="mono" title="{%= hex(poolBlock.ExtraNonce()) %}">{%dul uint64(poolBlock.ExtraNonce()) %}</td>
             <td class="mono">{% if sideBlock != nil && sideBlock.MainDifficulty != 0 %}{%dul sideBlock.MainDifficulty %}{% endif %}</td>
         </tr>
@@ -128,8 +128,8 @@
             <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Deterministic Private Key Seed</th>
         </tr>
         <tr>
-            <td>{%s software_info(poolBlock.Side.ExtraBuffer.SoftwareId, poolBlock.Side.ExtraBuffer.SoftwareVersion) %}</td>
-            <td>{%s poolBlock.ShareVersion().String() %} <span class="small">({% if poolBlock.ShareVersionSignaling() != sidechain.ShareVersion_None %}signaling {%s poolBlock.ShareVersionSignaling().String() %} support{% else %}no known signaling{% endif %})</span></td>
+            <td>{%= software_info(poolBlock.Side.ExtraBuffer.SoftwareId, poolBlock.Side.ExtraBuffer.SoftwareVersion) %}</td>
+            <td>{%s= poolBlock.ShareVersion().String() %} <span class="small">({% if poolBlock.ShareVersionSignaling() != sidechain.ShareVersion_None %}signaling {%s= poolBlock.ShareVersionSignaling().String() %} support{% else %}no known signaling{% endif %})</span></td>
             <td class="small">{% if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 %}<span class="mono" title="Random Number">{%= hex(poolBlock.Side.ExtraBuffer.RandomNumber) %}</span> / <span class="mono" title="SideChain Extra Nonce">{%= hex(poolBlock.Side.ExtraBuffer.SideChainExtraNonce) %}{% endif %}</span></td>
             <td>{% if poolBlock.GetPrivateKeySeed() != types.ZeroHash %}<span class="mono smaller">{%= hex(poolBlock.GetPrivateKeySeed()) %}</span>{% else %}Not Deterministic{% endif %}</td>
         </tr>

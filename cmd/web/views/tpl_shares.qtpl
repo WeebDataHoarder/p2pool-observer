@@ -39,9 +39,9 @@
         {% if !isMiner %}
             {%= TemplateRowMiner(s.MinerAddress, s.MinerAlias) %}
         {% endif %}
-        <td>{%s software_info(s.SoftwareId, s.SoftwareVersion) %}</td>
+        <td>{%= software_info(s.SoftwareId, s.SoftwareVersion) %}</td>
         <td title="{%dul side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus) %}">{%s si_units(side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus), 2) %}</td>
-        <td>{%s side_block_valuation(s, ctx.Consensus) %}</td>
+        <td>{%= side_block_valuation(s, ctx.Consensus) %}</td>
     </tr>
     {% endfor %}
 </table>

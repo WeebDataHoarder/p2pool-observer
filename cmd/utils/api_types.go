@@ -7,7 +7,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"github.com/ake-persson/mapslice-json"
 	"time"
 )
 
@@ -84,12 +83,17 @@ type PoolInfoResultSideChain struct {
 	UnclePenalty int `json:"uncle_penalty"`
 }
 
+type PoolInfoResultSideChainEffortLastEntry struct {
+	Id     types.Hash `json:"id"`
+	Effort float64    `json:"effort"`
+}
+
 type PoolInfoResultSideChainEffort struct {
-	Current    float64           `json:"current"`
-	Average10  float64           `json:"average10"`
-	Average50  float64           `json:"average"`
-	Average200 float64           `json:"average200"`
-	Last       mapslice.MapSlice `json:"last"`
+	Current    float64                                  `json:"current"`
+	Average10  float64                                  `json:"average10"`
+	Average50  float64                                  `json:"average"`
+	Average200 float64                                  `json:"average200"`
+	Last       []PoolInfoResultSideChainEffortLastEntry `json:"last"`
 }
 type PoolInfoResultSideChainWindow struct {
 	Miners   int                     `json:"miners"`

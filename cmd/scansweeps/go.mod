@@ -21,7 +21,6 @@ require (
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230527152251-7b24ed2d11ce // indirect
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71 // indirect
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a // indirect
-	github.com/ake-persson/mapslice-json v0.0.0-20210720081907-22c8edf57807 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dolthub/swiss v0.1.0 // indirect

@@ -61,16 +61,40 @@ curl --silent https://{%s p.Context().NetServiceAddress %}/api/pool_info
             "average10": 32.98600297507685,
             "average": 77.65727684146015,
             "average200": 89.19728805502012,
-            "last": {
-                "e3ec5e7e7cb76cfd2cff284a8812e4b0aeddf04115eb04440e6d26bd9825b7bb": 9.403366358670995,
-                "e6ceaa02039c09022baaec73146340e20a64b6da19ecd234169c7bf73a569bdd": 1.8807123325645854,
-                "393abe826d25c72fb320fa4bad980728c8e54756fa3ae8945bbb13af964c251c": 91.37117352907373,
-                "d6ff0c1956d6743e137475a3b23823f620bf964ec89eb4891870af4c5db77a2a": 22.115510860859477,
-                "544ad16d7c83f6e3636e965eed17a92449e64538d571064d1f3fa0c3d35d2768": 47.80476995257288,
-                "6220069168433fa220f94600dbca7468d0e94a29a669eeb5e1449e181bdac624": 6.130222064837835,
-                "108ae4af9aad47a1968c205a76ea57fd2fa0cc480d6109ee36f4a0eaa4422810": 32.87182581089726,
-                "7a3d57b90e537f6414f9f898e76f16c22af20f77512dc2cbcf7571b561ecb88c": 39.24260486339777
-            }
+            "last": [
+                {
+                    "id": "e3ec5e7e7cb76cfd2cff284a8812e4b0aeddf04115eb04440e6d26bd9825b7bb",
+                    "effort": 9.403366358670995
+                    },
+                {
+                    "id": "e6ceaa02039c09022baaec73146340e20a64b6da19ecd234169c7bf73a569bdd",
+                    "effort": 1.8807123325645854
+                },
+                {
+                    "id": "393abe826d25c72fb320fa4bad980728c8e54756fa3ae8945bbb13af964c251c",
+                    "effort": 91.37117352907373
+                },
+                {
+                    "id": "d6ff0c1956d6743e137475a3b23823f620bf964ec89eb4891870af4c5db77a2a",
+                    "effort": 22.115510860859477
+                },
+                {
+                    "id": "544ad16d7c83f6e3636e965eed17a92449e64538d571064d1f3fa0c3d35d2768",
+                    "effort": 47.80476995257288
+                },
+                {
+                    "id": "6220069168433fa220f94600dbca7468d0e94a29a669eeb5e1449e181bdac624",
+                    "effort": 6.130222064837835
+                },
+                {
+                    "id": "108ae4af9aad47a1968c205a76ea57fd2fa0cc480d6109ee36f4a0eaa4422810",
+                    "effort": 32.87182581089726
+                },
+                {
+                    "id": "7a3d57b90e537f6414f9f898e76f16c22af20f77512dc2cbcf7571b561ecb88c",
+                    "effort": 39.24260486339777
+                }
+            ]
         },
         "window": {
             "miners": 28,

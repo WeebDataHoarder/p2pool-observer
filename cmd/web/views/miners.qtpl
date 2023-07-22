@@ -82,7 +82,7 @@ type MinersPageMinerEntry struct {
         <tr style="padding-bottom: 10px; border-bottom: solid #aaa 1px">
             <td style="vertical-align: middle">{%d i+1 %}</td>
             {%= TemplateRowMinerWithTag(m.Address, m.Alias, "th") %}
-            <td style="vertical-align: middle">{%s software_info(m.SoftwareId, m.SoftwareVersion) %}</td>
+            <td style="vertical-align: middle">{%= software_info(m.SoftwareId, m.SoftwareVersion) %}</td>
             {% code minerRatio := float64(m.Weight.Lo) / float64(p.WindowWeight.Lo) %}
             <td style="vertical-align: middle">{%f.3 minerRatio*100 %}%</td>
             <td style="vertical-align: middle">{%s si_units(minerRatio * (float64(p.Context().Pool.SideChain.Difficulty.Lo) / float64(p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>

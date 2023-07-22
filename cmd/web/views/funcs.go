@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
-	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"strconv"
@@ -48,38 +47,9 @@ func time_elapsed_short[T int64 | uint64 | int | float64](v T) string {
 	}
 }
 
-func software_info(softwareId types2.SoftwareId, softwareVersion types2.SoftwareVersion) string {
-	if softwareId == 0 && softwareVersion == 0 {
-		return "Not present"
-	}
-	return fmt.Sprintf("%s %s", softwareId.String(), softwareVersion.String())
-}
-
 func side_block_weight(s *index.SideBlock, tipHeight, windowSize uint64, consensus *sidechain.Consensus) uint64 {
 	w, _ := s.Weight(tipHeight, windowSize, consensus.UnclePenalty)
 	return w
-}
-
-func side_block_valuation(b any, consensus *sidechain.Consensus) string {
-	if sideBlock, ok := b.(*index.SideBlock); ok {
-		if sideBlock.IsOrphan() {
-			return "0%"
-		} else if sideBlock.IsUncle() {
-			return fmt.Sprintf("%d%% (uncle)", 100-consensus.UnclePenalty)
-		} else if len(sideBlock.Uncles) > 0 {
-			return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(sideBlock.Uncles))
-		} else {
-			return "100%"
-		}
-	} else if poolBlock, ok := b.(*sidechain.PoolBlock); ok {
-		if len(poolBlock.Side.Uncles) > 0 {
-			return fmt.Sprintf("100%% + %d%% of %d uncle(s)", consensus.UnclePenalty, len(poolBlock.Side.Uncles))
-		} else {
-			return "100%"
-		}
-	} else {
-		return ""
-	}
 }
 
 func si_units[T int64 | uint64 | int | float64](v T, n ...int) string {
@@ -144,22 +114,21 @@ func bencstr(val string) string {
 }
 
 func str(val any) string {
-	if strVal, ok := val.(fmt.Stringer); ok {
-		return strVal.String()
-	}
-	switch val.(type) {
+	switch t := val.(type) {
 	case float32:
-		return strconv.FormatFloat(float64(val.(float32)), 'f', -1, 64)
+		return strconv.FormatFloat(float64(t), 'f', -1, 64)
 	case float64:
-		return strconv.FormatFloat(val.(float64), 'f', -1, 64)
+		return strconv.FormatFloat(t, 'f', -1, 64)
 	case uint32:
-		return strconv.FormatFloat(float64(val.(uint32)), 'f', -1, 64)
+		return strconv.FormatFloat(float64(t), 'f', -1, 64)
 	case uint64:
-		return strconv.FormatFloat(float64(val.(uint64)), 'f', -1, 64)
+		return strconv.FormatFloat(float64(t), 'f', -1, 64)
 	case int:
-		return strconv.FormatFloat(float64(val.(int)), 'f', -1, 64)
+		return strconv.FormatFloat(float64(t), 'f', -1, 64)
+	case fmt.Stringer:
+		return t.String()
 	default:
-		return fmt.Sprintf("%s", val)
+		return fmt.Sprintf("%v", val)
 	}
 }
 

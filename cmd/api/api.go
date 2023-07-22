@@ -17,7 +17,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"github.com/ake-persson/mapslice-json"
 	"github.com/gorilla/mux"
 	"io"
 	"log"
@@ -267,12 +266,12 @@ func main() {
 			currentEffort = 0
 		}
 
-		var blockEfforts mapslice.MapSlice
+		var blockEfforts []cmdutils.PoolInfoResultSideChainEffortLastEntry
 		for i, b := range lastBlocksFound {
 			if i < (len(lastBlocksFound)-1) && b.CumulativeDifficulty.Cmp64(0) > 0 && lastBlocksFound[i+1].CumulativeDifficulty.Cmp64(0) > 0 {
-				blockEfforts = append(blockEfforts, mapslice.MapItem{
-					Key:   b.MainBlock.Id.String(),
-					Value: getBlockEffort(b.CumulativeDifficulty, lastBlocksFound[i+1].CumulativeDifficulty, types.DifficultyFrom64(b.MainBlock.Difficulty)),
+				blockEfforts = append(blockEfforts, cmdutils.PoolInfoResultSideChainEffortLastEntry{
+					Id:     b.MainBlock.Id,
+					Effort: getBlockEffort(b.CumulativeDifficulty, lastBlocksFound[i+1].CumulativeDifficulty, types.DifficultyFrom64(b.MainBlock.Difficulty)),
 				})
 			}
 		}
@@ -280,7 +279,7 @@ func main() {
 		averageEffort := func(limit int) (result float64) {
 			maxI := min(limit, len(blockEfforts))
 			for i, e := range blockEfforts {
-				result += e.Value.(float64)
+				result += e.Effort
 				if i+1 == maxI {
 					break
 				}

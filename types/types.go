@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"runtime"
 	"unsafe"
 )
@@ -149,19 +148,21 @@ func (b Bytes) MarshalJSON() ([]byte, error) {
 	hex.Encode(buf[1:], b)
 	return buf, nil
 }
+
 func (b Bytes) String() string {
 	return hex.EncodeToString(b)
 }
+
 func (b *Bytes) UnmarshalJSON(buf []byte) error {
-	var s string
-	if err := utils.UnmarshalJSON(buf, &s); err != nil {
-		return err
+	if len(buf) < 2 || (len(buf)%2) != 0 || buf[0] != '"' || buf[len(buf)-1] != '"' {
+		return errors.New("invalid bytes")
 	}
 
-	if buf2, err := hex.DecodeString(s); err != nil {
+	*b = make(Bytes, (len(buf)-2)/2)
+
+	if _, err := hex.Decode(*b, buf[1:len(buf)-1]); err != nil {
 		return err
 	} else {
-		*b = append(*b, buf2...)
 		return nil
 	}
 }
