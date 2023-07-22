@@ -6,9 +6,12 @@ replace git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0 => ../../
 
 replace git.gammaspectra.live/P2Pool/p2pool-observer/cmd/httputils v0.0.0 => ../httputils
 
+replace git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0 => ../../p2pool/cache
+
 require (
 	git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/httputils v0.0.0
+	git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0
 	github.com/gorilla/mux v1.8.0
 )
 

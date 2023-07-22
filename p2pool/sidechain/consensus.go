@@ -255,7 +255,7 @@ func (c *Consensus) InitHasher(n int, flags ...randomx.Flag) error {
 
 func (c *Consensus) GetHasher() randomx.Hasher {
 	if c.hasher == nil {
-		log.Panic("hasher has not been initialized in consensus")
+		panic("hasher has not been initialized in consensus")
 	}
 	return c.hasher
 }

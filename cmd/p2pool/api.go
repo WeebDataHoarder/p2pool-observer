@@ -4,7 +4,6 @@ import (
 	"bytes"
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/httputils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/p2p"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
@@ -20,7 +19,7 @@ import (
 	"time"
 )
 
-func getServerMux(instance *p2pool.P2Pool) *mux.Router {
+func getServerMux(instance *P2Pool) *mux.Router {
 
 	serveMux := mux.NewRouter()
 

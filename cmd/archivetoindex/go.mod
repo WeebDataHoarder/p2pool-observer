@@ -8,10 +8,13 @@ replace git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index v0.0.0 => ../inde
 
 replace git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils v0.0.0 => ../utils
 
+replace git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0 => ../../p2pool/cache
+
 require (
 	git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index v0.0.0
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils v0.0.0
+	git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0
 	github.com/floatdrop/lru v1.3.0
 )
 

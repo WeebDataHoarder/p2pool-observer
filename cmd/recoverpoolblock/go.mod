@@ -4,9 +4,12 @@ go 1.21
 
 replace git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0 => ../../
 
+replace git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0 => ../../p2pool/cache
+
 require (
 	git.gammaspectra.live/P2Pool/go-monero v0.0.0-20230410011208-910450c4a523
 	git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0
+	git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache v0.0.0
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a
 	github.com/floatdrop/lru v1.3.0
 )
