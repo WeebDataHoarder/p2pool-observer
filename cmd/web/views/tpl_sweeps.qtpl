@@ -1,6 +1,6 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
-{% func TemplateSweeps(ctx *GlobalRequestContext, sweeps []*index.MainLikelySweepTransaction, isMiner bool) %}
+{% func TemplateSweeps(ctx *GlobalRequestContext, sweeps <-chan *index.MainLikelySweepTransaction, isMiner bool) %}
 {% if isMiner %}
 <table class="center datatable" style="max-width: calc(12em + 10em + 10em + 8em + 10em + 10em + 10em + 12em)">
 {% else %}
@@ -19,15 +19,15 @@
         <th style="width: 10em;" title="The number and ratio of decoy inputs not owned by miners on this sweep">Unknown Decoys</th>
         <th style="width: 10em;" title="The value known from Coinbase sources">Swept Coinbase Value</th>
     </tr>
-    {% for _, s := range sweeps %}
+    {% for s := range sweeps %}
     <tr>
-        <td class="mono small"><a href="/transaction-lookup?txid={%= hex(s.Id) %}">{%= shorten(s.Id, 10) %}</a></td>
+        <td class="mono small"><a href="/transaction-lookup?txid={%= hex(ctx, s.Id) %}">{%= shorten(ctx, s.Id, 10) %}</a></td>
         <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
         {% if !isMiner %}
         {% code
             addr := s.Address.ToBase58()
         %}
-        <td title="{%z= addr %}" class="mono small"><a href="/miner/{%z= addr %}">{%= shorten(addr, 10) %}</a></td>
+        <td title="{%z= addr %}" class="mono small"><a href="/miner/{%z= addr %}">{%= shorten(ctx, addr, 10) %}</a></td>
         {% endif %}
         <td>{%d s.InputDecoyCount %}</td>
         <td>{%d s.InputCount %} / {%d len(s.GlobalOutputIndices) %}</td>

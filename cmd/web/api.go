@@ -70,7 +70,7 @@ func getSliceFromAPI[T any](method string, cacheTime ...int) []T {
 	})
 }
 
-func getStreamFromAPI[T any](method string, cacheTime ...int) chan T {
+func getStreamFromAPI[T any](method string) <-chan T {
 	result := make(chan T, 1)
 
 	go func() {
@@ -86,10 +86,26 @@ func getStreamFromAPI[T any](method string, cacheTime ...int) chan T {
 			defer io.ReadAll(response.Body)
 
 			if response.StatusCode == http.StatusOK {
+
+				var err error
+
+				// Read opening
+				var b [1]byte
+				for {
+					if _, err = response.Body.Read(b[:]); err != nil {
+						return
+					}
+					if b[0] == '[' {
+						break
+					} else if b[0] != ' ' && b[0] != 0xa {
+						return
+					}
+				}
+
 				decoder := utils.NewJSONDecoder(response.Body)
 				for decoder.More() {
 					var item T
-					if decoder.Decode(&item) != nil {
+					if err := decoder.Decode(&item); err != nil {
 						return
 					} else {
 						result <- item
@@ -102,7 +118,7 @@ func getStreamFromAPI[T any](method string, cacheTime ...int) chan T {
 	return result
 }
 
-func getSideBlocksStreamFromAPI(method string) chan *index.SideBlock {
+func getSideBlocksStreamFromAPI(method string) <-chan *index.SideBlock {
 	return getStreamFromAPI[*index.SideBlock](method)
 }
 

@@ -6,9 +6,8 @@ type PayoutsPage struct {
 	// inherit from base page, so its' title is used in error page.
 	BasePage
 	Refresh int
-	Total uint64
 	Miner *address.Address
-	Payouts []*index.Payout
+	Payouts <-chan *index.Payout
 }
 %}
 
@@ -30,9 +29,12 @@ type PayoutsPage struct {
 <div style="text-align: center">
     <h2>Historical miner payouts</h2>
     <p><strong>Payout Address:</strong> <a href="/miner/{%z= p.Miner.ToBase58() %}"><span class="mono small">{%z= p.Miner.ToBase58() %}</span></a></p>
-    <p><strong>Estimated total:</strong> {%s monero_to_xmr(p.Total) %} XMR</p>
 
-    {%= TemplatePayouts(p.Context(), p.Payouts) %}
+    {% code var total uint64 %}
+
+    {%= TemplatePayouts(p.Context(), p.Payouts, &total) %}
+
+    <p><strong>Estimated total:</strong> {%s monero_to_xmr(total) %} XMR</p>
 </div>
 
 {% endfunc %}

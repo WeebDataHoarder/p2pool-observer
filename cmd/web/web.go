@@ -585,13 +585,13 @@ func main() {
 		if miner != nil {
 			renderPage(request, writer, &views.SweepsPage{
 				Refresh: refresh,
-				Sweeps:  getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=100", miner.Id)),
+				Sweeps:  getStreamFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=100", miner.Id)),
 				Miner:   miner.Address,
 			}, poolInfo)
 		} else {
 			renderPage(request, writer, &views.SweepsPage{
 				Refresh: refresh,
-				Sweeps:  getSliceFromAPI[*index.MainLikelySweepTransaction]("sweeps?limit=100", 30),
+				Sweeps:  getStreamFromAPI[*index.MainLikelySweepTransaction]("sweeps?limit=100"),
 				Miner:   nil,
 			}, poolInfo)
 		}
@@ -759,7 +759,7 @@ func main() {
 			raw = b
 		}
 
-		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
+		payouts := getStreamFromAPI[*index.Payout](fmt.Sprintf("block_by_id/%s/payouts", block.MainId))
 
 		sweepsCount := 0
 
@@ -858,7 +858,7 @@ func main() {
 
 		var lastFound []*index.FoundBlock
 		var payouts []*index.Payout
-		var sweeps []*index.MainLikelySweepTransaction
+		var sweeps <-chan *index.MainLikelySweepTransaction
 
 		var raw *sidechain.PoolBlock
 
@@ -891,11 +891,7 @@ func main() {
 				defer wg.Done()
 				lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
 			}()
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				sweeps = getSliceFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
-			}()
+			sweeps = getStreamFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -1026,6 +1022,7 @@ func main() {
 			if hashRate > 0 && magnitude > 0 {
 				dailyHashRate = uint64(hashRate * magnitude)
 			}
+			minerPage.HashrateSubmit = true
 		}
 
 		minerPage.HashrateLocal = hashRate
@@ -1117,18 +1114,8 @@ func main() {
 			return
 		}
 
-		payouts := getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=0", miner.Id))
-		if len(payouts) == 0 {
-			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past, and a main block found during that period. Come back later :)"))
-			return
-		}
+		payouts := getStreamFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?search_limit=0", miner.Id))
 		renderPage(request, writer, &views.PayoutsPage{
-			Total: func() (result uint64) {
-				for _, p := range payouts {
-					result += p.Reward
-				}
-				return
-			}(),
 			Miner:   miner.Address,
 			Payouts: payouts,
 			Refresh: refresh,

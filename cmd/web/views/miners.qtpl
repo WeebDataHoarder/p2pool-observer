@@ -81,7 +81,7 @@ type MinersPageMinerEntry struct {
         {% for i, m := range p.Miners %}
         <tr style="padding-bottom: 10px; border-bottom: solid #aaa 1px">
             <td style="vertical-align: middle">{%d i+1 %}</td>
-            {%= TemplateRowMinerWithTag(m.Address, m.Alias, "th") %}
+            {%= TemplateRowMinerWithTag(p.Context(), m.Address, m.Alias, "th") %}
             <td style="vertical-align: middle">{%= software_info(m.SoftwareId, m.SoftwareVersion) %}</td>
             {% code minerRatio := float64(m.Weight.Lo) / float64(p.WindowWeight.Lo) %}
             <td style="vertical-align: middle">{%f.3 minerRatio*100 %}%</td>

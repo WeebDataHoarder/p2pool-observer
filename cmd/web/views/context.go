@@ -3,6 +3,7 @@ package views
 import (
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
 type GlobalRequestContext struct {
@@ -23,6 +24,7 @@ type GlobalRequestContext struct {
 			Link string
 		}
 	}
+	HexBuffer [types.HashSize * 2]byte
 }
 
 func (ctx *GlobalRequestContext) GetUrl(host string) string {

@@ -30,8 +30,9 @@ type MinerPage struct {
 	LastOrphanedShares []*index.SideBlock
 	LastFound []*index.FoundBlock
 	LastPayouts []*index.Payout
-	LastSweeps []*index.MainLikelySweepTransaction
+	LastSweeps <-chan *index.MainLikelySweepTransaction
 
+    HashrateSubmit bool
 	HashrateLocal float64
 	MagnitudeLocal float64
 }
@@ -208,7 +209,7 @@ type MinerPage struct {
 
 <div style="text-align: center">
     <h2>Most recent payouts</h2>
-    {%= TemplatePayouts(p.Context(), p.LastPayouts) %}
+    {%= TemplatePayoutsSlice(p.Context(), p.LastPayouts) %}
     <div class="center"><a href="/payouts/{%z= p.Miner.Address.ToBase58() %}">[show all historical payouts]</a></div>
 </div>
 
@@ -216,7 +217,11 @@ type MinerPage struct {
 
 <div style="text-align: center">
     <h2>Most recent shares</h2>
-    {%= TemplateShares(p.Context(), p.LastShares, true, &p.LastSharesEfforts) %}
+    {% if p.HashrateSubmit || (p.Positions.Blocks.Total() + p.Positions.Uncles.Total()) > 2 %}
+        {%= TemplateShares(p.Context(), p.LastShares, true, &p.LastSharesEfforts) %}
+    {% else %}
+        {%= TemplateShares(p.Context(), p.LastShares, true, nil) %}
+    {% endif %}
 </div>
 
 <hr/>

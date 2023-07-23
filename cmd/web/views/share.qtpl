@@ -8,7 +8,7 @@ type SharePage struct {
 
 	Block *index.SideBlock
 	PoolBlock *sidechain.PoolBlock
-	Payouts []*index.Payout
+	Payouts <-chan *index.Payout
 	CoinbaseOutputs index.MainCoinbaseOutputs
 	SweepsCount int
 	Sweeps [][]*index.MainLikelySweepTransaction

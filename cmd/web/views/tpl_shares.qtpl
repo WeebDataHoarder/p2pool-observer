@@ -19,12 +19,12 @@
     </tr>
     {% for i, s := range shares %}
     <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
-        <th><a href="/share/{%= hex(s.TemplateId) %}">{%dul s.SideHeight %}</a></th>
-        <td class="mono smaller"><a href="/share/{%= hex(s.TemplateId) %}">{%= shorten(s.TemplateId, 10) %}</a></td>
+        <th><a href="/share/{%= hex(ctx, s.TemplateId) %}">{%dul s.SideHeight %}</a></th>
+        <td class="mono smaller"><a href="/share/{%= hex(ctx, s.TemplateId) %}">{%= shorten(ctx, s.TemplateId, 10) %}</a></td>
         {% if s.MinedMainAtHeight %}
-        <th title="{%= hex(s.MainId) %}"><a href="/b/{%s benc(s.MainHeight) %}">{%dul s.MainHeight %}</a></th>
+        <th title="{%= hex(ctx, s.MainId) %}"><a href="/b/{%s benc(s.MainHeight) %}">{%dul s.MainHeight %}</a></th>
         {% else %}
-        <td title="{%= hex(s.MainId) %}">{%dul s.MainHeight %}</td>
+        <td title="{%= hex(ctx, s.MainId) %}">{%dul s.MainHeight %}</td>
         {% endif %}
         <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
         {% if efforts != nil %}
@@ -37,7 +37,7 @@
             {% endif %}
         {% endif %}
         {% if !isMiner %}
-            {%= TemplateRowMiner(s.MinerAddress, s.MinerAlias) %}
+            {%= TemplateRowMiner(ctx, s.MinerAddress, s.MinerAlias) %}
         {% endif %}
         <td>{%= software_info(s.SoftwareId, s.SoftwareVersion) %}</td>
         <td title="{%dul side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus) %}">{%s si_units(side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus), 2) %}</td>

@@ -6,7 +6,7 @@ type SweepsPage struct {
 	// inherit from base page, so its' title is used in error page.
 	BasePage
 	Refresh int
-	Sweeps []*index.MainLikelySweepTransaction
+	Sweeps <-chan *index.MainLikelySweepTransaction
 	Miner *address.Address
 }
 %}
