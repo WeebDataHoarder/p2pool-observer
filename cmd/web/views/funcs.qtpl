@@ -9,6 +9,7 @@
 {% import "fmt" %}
 {% import "slices" %}
 {% import hex2 "encoding/hex" %}
+{% import fasthex "github.com/tmthrgd/go-hex" %}
 
 {% stripspace %}
 
@@ -20,32 +21,32 @@
 		{%s s %}
     {% case types.Difficulty %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:types.DifficultySize*2], s.Bytes())
+	    fasthex.Encode(ctx.HexBuffer[:types.DifficultySize*2], s.Bytes())
 	    %}
 	    {%z= ctx.HexBuffer[:types.DifficultySize*2] %}
     {% case crypto.PrivateKeyBytes %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= ctx.HexBuffer[:] %}
     {% case crypto.PublicKeyBytes %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= ctx.HexBuffer[:] %}
     {% case crypto.PrivateKey %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s.AsSlice())
+	    fasthex.Encode(ctx.HexBuffer[:], s.AsSlice())
 	    %}
 	    {%z= ctx.HexBuffer[:] %}
     {% case crypto.PublicKey %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s.AsSlice())
+	    fasthex.Encode(ctx.HexBuffer[:], s.AsSlice())
 	    %}
 	    {%z= ctx.HexBuffer[:] %}
     {% case types.Hash %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= ctx.HexBuffer[:] %}
     {% case []byte %}
@@ -54,14 +55,14 @@
 	    {% code
 		var buf [4]byte
 		binary.LittleEndian.PutUint32(buf[:], s)
-	    hex2.Encode(ctx.HexBuffer[:4*2], buf[:])
+	    fasthex.Encode(ctx.HexBuffer[:4*2], buf[:])
 	    %}
 	    {%z= ctx.HexBuffer[:4*2] %}
     {% case uint64 %}
 	    {% code
 		var buf [8]byte
 		binary.LittleEndian.PutUint64(buf[:], s)
-	    hex2.Encode(ctx.HexBuffer[:8*2], buf[:])
+	    fasthex.Encode(ctx.HexBuffer[:8*2], buf[:])
 	    %}
 	    {%z= ctx.HexBuffer[:8*2] %}
     {% default %}
@@ -77,27 +78,27 @@
 		{%z= utils.ShortenSlice(slices.Clone(s), n) %}
     {% case crypto.PrivateKeyBytes %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= utils.ShortenSlice(ctx.HexBuffer[:], n) %}
     {% case crypto.PublicKeyBytes %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= utils.ShortenSlice(ctx.HexBuffer[:], n) %}
     {% case crypto.PrivateKey %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s.AsSlice())
+	    fasthex.Encode(ctx.HexBuffer[:], s.AsSlice())
 	    %}
 	    {%z= utils.ShortenSlice(ctx.HexBuffer[:], n) %}
     {% case crypto.PublicKey %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s.AsSlice())
+	    fasthex.Encode(ctx.HexBuffer[:], s.AsSlice())
 	    %}
 	    {%z= utils.ShortenSlice(ctx.HexBuffer[:], n) %}
     {% case types.Hash %}
 	    {% code
-	    hex2.Encode(ctx.HexBuffer[:], s[:])
+	    fasthex.Encode(ctx.HexBuffer[:], s[:])
 	    %}
 	    {%z= utils.ShortenSlice(ctx.HexBuffer[:], n) %}
     {% case fmt.Stringer %}

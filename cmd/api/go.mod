@@ -33,6 +33,7 @@ require (
 	github.com/holiman/uint256 v1.2.3 // indirect
 	github.com/jxskiss/base62 v1.1.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
+	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc // indirect
 	golang.org/x/crypto v0.11.0 // indirect
 	golang.org/x/sys v0.10.0 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect

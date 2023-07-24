@@ -7,6 +7,7 @@ import (
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/holiman/uint256"
+	fasthex "github.com/tmthrgd/go-hex"
 	"lukechampine.com/uint128"
 	"math"
 	"math/big"
@@ -194,7 +195,7 @@ func (d Difficulty) MarshalJSON() ([]byte, error) {
 	var buf [DifficultySize*2 + 2]byte
 	buf[0] = '"'
 	buf[DifficultySize*2+1] = '"'
-	hex.Encode(buf[1:], encodeBuf[:])
+	fasthex.Encode(buf[1:], encodeBuf[:])
 	return buf[:], nil
 }
 
@@ -250,7 +251,7 @@ func (d *Difficulty) UnmarshalJSON(b []byte) error {
 	if len(b) == DifficultySize*2+2 {
 		// fast path
 		var buf [DifficultySize]byte
-		if _, err := hex.Decode(buf[:], b[1:len(b)-1]); err != nil {
+		if _, err := fasthex.Decode(buf[:], b[1:len(b)-1]); err != nil {
 			return err
 		} else {
 			*d = DifficultyFromBytes(buf[:])

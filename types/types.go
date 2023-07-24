@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	fasthex "github.com/tmthrgd/go-hex"
 	"runtime"
 	"unsafe"
 )
@@ -19,7 +20,7 @@ func (h Hash) MarshalJSON() ([]byte, error) {
 	var buf [HashSize*2 + 2]byte
 	buf[0] = '"'
 	buf[HashSize*2+1] = '"'
-	hex.Encode(buf[1:], h[:])
+	fasthex.Encode(buf[1:], h[:])
 	return buf[:], nil
 }
 
@@ -132,7 +133,7 @@ func (h *Hash) UnmarshalJSON(b []byte) error {
 		return errors.New("wrong hash size")
 	}
 
-	if _, err := hex.Decode(h[:], b[1:len(b)-1]); err != nil {
+	if _, err := fasthex.Decode(h[:], b[1:len(b)-1]); err != nil {
 		return err
 	} else {
 		return nil
@@ -145,7 +146,7 @@ func (b Bytes) MarshalJSON() ([]byte, error) {
 	buf := make([]byte, len(b)*2+2)
 	buf[0] = '"'
 	buf[len(buf)-1] = '"'
-	hex.Encode(buf[1:], b)
+	fasthex.Encode(buf[1:], b)
 	return buf, nil
 }
 
@@ -160,7 +161,7 @@ func (b *Bytes) UnmarshalJSON(buf []byte) error {
 
 	*b = make(Bytes, (len(buf)-2)/2)
 
-	if _, err := hex.Decode(*b, buf[1:len(buf)-1]); err != nil {
+	if _, err := fasthex.Decode(*b, buf[1:len(buf)-1]); err != nil {
 		return err
 	} else {
 		return nil

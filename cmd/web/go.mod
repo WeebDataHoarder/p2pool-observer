@@ -13,6 +13,7 @@ require (
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index v0.0.0
 	git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils v0.0.0
 	github.com/gorilla/mux v1.8.0
+	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc
 	github.com/valyala/quicktemplate v1.7.0
 )
 

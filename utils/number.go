@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"github.com/jxskiss/base62"
+	fasthex "github.com/tmthrgd/go-hex"
 	"math/bits"
 	"strconv"
 	"strings"
@@ -64,7 +65,7 @@ func EncodeSliceBinaryNumber(dst, src []byte) []byte {
 	}
 
 	if len(v) >= (len(src) * 2) {
-		hex.Encode(dst, src)
+		fasthex.Encode(dst, src)
 		return dst[:len(src)*2]
 	}
 

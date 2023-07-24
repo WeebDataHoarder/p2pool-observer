@@ -16,6 +16,7 @@ require (
 	github.com/holiman/uint256 v1.2.3
 	github.com/jxskiss/base62 v1.1.0
 	github.com/stretchr/testify v1.8.1
+	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc
 	golang.org/x/sys v0.10.0
 	lukechampine.com/uint128 v1.3.0
 )

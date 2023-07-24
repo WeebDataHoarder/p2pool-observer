@@ -7,6 +7,7 @@ import (
 	"errors"
 	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	fasthex "github.com/tmthrgd/go-hex"
 )
 
 type PublicKey interface {
@@ -143,7 +144,7 @@ func (k *PublicKeyBytes) UnmarshalJSON(b []byte) error {
 		return errors.New("wrong key size")
 	}
 
-	if _, err := hex.Decode(k[:], b[1:len(b)-1]); err != nil {
+	if _, err := fasthex.Decode(k[:], b[1:len(b)-1]); err != nil {
 		return err
 	} else {
 		return nil
@@ -154,7 +155,7 @@ func (k *PublicKeyBytes) MarshalJSON() ([]byte, error) {
 	var buf [PublicKeySize*2 + 2]byte
 	buf[0] = '"'
 	buf[PublicKeySize*2+1] = '"'
-	hex.Encode(buf[1:], k[:])
+	fasthex.Encode(buf[1:], k[:])
 	return buf[:], nil
 }
 
@@ -224,6 +225,6 @@ func (k *PublicKeySlice) MarshalJSON() ([]byte, error) {
 	var buf [PublicKeySize*2 + 2]byte
 	buf[0] = '"'
 	buf[PublicKeySize*2+1] = '"'
-	hex.Encode(buf[1:], (*k)[:])
+	fasthex.Encode(buf[1:], (*k)[:])
 	return buf[:], nil
 }
