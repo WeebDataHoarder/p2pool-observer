@@ -1370,8 +1370,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			buf, _ := utils.MarshalJSON(raw)
-			_, _ = writer.Write(buf)
+			_ = httputils.EncodeJson(request, writer, raw)
 		case "/raw":
 
 			raw := p2api.LightByMainIdWithHint(block.MainId, block.TemplateId)
