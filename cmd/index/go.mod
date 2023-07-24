@@ -6,6 +6,7 @@ replace git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0 => ../../
 
 require (
 	git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0
+	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a
 	github.com/floatdrop/lru v1.3.0
 	github.com/lib/pq v1.10.9
 )
@@ -16,7 +17,6 @@ require (
 	git.gammaspectra.live/P2Pool/go-randomx v0.0.0-20221027085532-f46adfce03a7 // indirect
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230722215223-18ecc51ae61e // indirect
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71 // indirect
-	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/dolthub/swiss v0.1.0 // indirect

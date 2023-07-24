@@ -28,7 +28,7 @@ type Block struct {
 
 	Transactions []types.Hash `json:"transactions"`
 	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks or by pre-processing.
-	TransactionParentIndices []uint64 `json:"-"`
+	TransactionParentIndices []uint64 `json:"transaction_parent_indices,omitempty"`
 }
 
 type Header struct {
