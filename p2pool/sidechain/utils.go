@@ -432,7 +432,7 @@ func NextDifficulty(consensus *Consensus, timestamps []uint64, difficultyData []
 	for i := range difficultyData {
 		// Pick only the cumulative difficulty from specifically the entries that are within the timestamp upper and low bounds
 		if timestampLowerBound <= difficultyData[i].timestamp && difficultyData[i].timestamp <= timestampUpperBound {
-			if difficultyData[i].cumulativeDifficulty.Cmp(minDifficulty) < 0 {
+			if minDifficulty.Cmp(difficultyData[i].cumulativeDifficulty) > 0 {
 				minDifficulty = difficultyData[i].cumulativeDifficulty
 			}
 			if maxDifficulty.Cmp(difficultyData[i].cumulativeDifficulty) < 0 {

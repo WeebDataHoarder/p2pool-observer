@@ -904,6 +904,10 @@ func main() {
 				payouts = getSliceFromAPI[*index.Payout](fmt.Sprintf("payouts/%d?from_timestamp=%d", miner.Id, uint64(time.Now().Unix())-(consensus.ChainWindowSize*consensus.TargetBlockTime*(totalWindows+1))))
 			}()
 			wg.Wait()
+		} else {
+			sweepC := make(chan *index.MainLikelySweepTransaction)
+			sweeps = sweepC
+			close(sweepC)
 		}
 
 		sharesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.WindowSize))
