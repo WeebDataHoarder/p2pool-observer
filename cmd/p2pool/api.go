@@ -771,8 +771,30 @@ func getServerMux(instance *P2Pool) *mux.Router {
 		})
 
 		serveMux.HandleFunc("/archive/light_block_by_main_id/{id:[0-9a-f]+}", func(writer http.ResponseWriter, request *http.Request) {
+			params := request.URL.Query()
+
+			var templateIdHint types.Hash
+			if params.Has("templateIdHint") {
+				if h, err := types.HashFromString(params.Get("templateIdHint")); err == nil {
+					templateIdHint = h
+				}
+			}
+
 			if mainId, err := types.HashFromString(mux.Vars(request)["id"]); err == nil {
-				if b := archiveCache.LoadByMainId(mainId); b != nil {
+				var b *sidechain.PoolBlock
+				if templateIdHint != types.ZeroHash {
+					// Fast lookup on sidechain
+					if b = instance.SideChain().GetPoolBlockByTemplateId(templateIdHint); b == nil || b.MainId() != mainId {
+						b = nil
+					}
+				}
+
+				// Fallback
+				if b == nil {
+					b = archiveCache.LoadByMainId(mainId)
+				}
+
+				if b != nil {
 					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 					writer.WriteHeader(http.StatusOK)
 					_ = cmdutils.EncodeJson(request, writer, b)

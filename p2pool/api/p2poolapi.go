@@ -116,6 +116,26 @@ func (p *P2PoolApi) LightByMainId(id types.Hash) *sidechain.PoolBlock {
 	}
 }
 
+func (p *P2PoolApi) LightByMainIdWithHint(id, templateIdHint types.Hash) *sidechain.PoolBlock {
+	if response, err := p.Client.Get(p.Host + "/archive/light_block_by_main_id/" + id.String() + "?templateIdHint=" + templateIdHint.String()); err != nil {
+		return nil
+	} else {
+		defer response.Body.Close()
+
+		if buf, err := io.ReadAll(response.Body); err != nil {
+			return nil
+		} else {
+			b := &sidechain.PoolBlock{}
+
+			if err = utils.UnmarshalJSON(buf, &b); err != nil || b.ShareVersion() == sidechain.ShareVersion_None {
+				return nil
+			}
+
+			return b
+		}
+	}
+}
+
 func (p *P2PoolApi) ByMainId(id types.Hash) *sidechain.PoolBlock {
 	if response, err := p.Client.Get(p.Host + "/archive/block_by_main_id/" + id.String()); err != nil {
 		return nil

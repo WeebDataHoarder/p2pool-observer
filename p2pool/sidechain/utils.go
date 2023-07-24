@@ -479,7 +479,7 @@ func SplitReward(preAllocatedRewards []uint64, reward uint64, shares Shares) (re
 		return nil
 	}
 
-	rewards = preAllocatedRewards
+	rewards = preAllocatedRewards[:0]
 
 	var w types.Difficulty
 	var rewardGiven uint64

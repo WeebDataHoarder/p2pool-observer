@@ -147,15 +147,15 @@
 		{% if block.IsOrphan() %}
 			0%
 		{% elseif block.IsUncle() %}
-		    {%dul 100-consensus.UnclePenalty %}% (uncle)
+		    {%dul 100-consensus.UnclePenalty %}%{%s= ` ` %}(uncle)
 		{% elseif len(block.Uncles) > 0 %}
-		    100% + {%dul consensus.UnclePenalty %}% of {%d len(block.Uncles) %} uncle(s)
+		    100%{%s= ` ` %}+{%s= ` ` %}{%dul consensus.UnclePenalty %}%{%s= ` ` %}of{%s= ` ` %}{%d len(block.Uncles) %}{%s= ` ` %}uncle(s)
 		{% else %}
 			100%
 		{% endif %}
     {% case *sidechain.PoolBlock %}
 		{% if len(block.Side.Uncles) > 0 %}
-		    100% + {%dul consensus.UnclePenalty %}% of {%d len(block.Side.Uncles) %} uncle(s)
+		    100%{%s= ` ` %}+{%s= ` ` %}{%dul consensus.UnclePenalty %}%{%s= ` ` %}of{%s= ` ` %}{%d len(block.Side.Uncles) %}{%s= ` ` %}uncle(s)
 		{% else %}
 			100%
 		{% endif %}

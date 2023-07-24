@@ -13,6 +13,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
@@ -176,9 +177,7 @@ func main() {
 
 		var pplnsWeight types.Difficulty
 
-		var errord bool
-
-		for ps := range index.IterateSideBlocksInPPLNSWindow(tip, consensus, indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
+		if err := index.IterateSideBlocksInPPLNSWindow(tip, consensus, indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
 			miners[indexDb.GetMiner(b.Miner).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
@@ -196,15 +195,12 @@ func main() {
 					SoftwareString:  fmt.Sprintf("%s %s", b.SoftwareId, b.SoftwareVersion),
 				})
 			}
-		}, func(err error) {
-			log.Printf("error scanning PPLNS window: %s", err)
-			errord = true
-		}) {
+		}, func(slot index.SideBlockWindowSlot) {
 			blockCount++
-			uncleCount += len(ps.Uncles)
-		}
+			uncleCount += len(slot.Uncles)
+		}); err != nil {
+			log.Printf("error scanning PPLNS window: %s", err)
 
-		if errord {
 			if oldPoolInfo != nil {
 				// got error, just update last pool
 
@@ -1377,7 +1373,8 @@ func main() {
 			buf, _ := utils.MarshalJSON(raw)
 			_, _ = writer.Write(buf)
 		case "/raw":
-			raw := p2api.ByMainIdWithHint(block.MainId, block.TemplateId)
+
+			raw := p2api.LightByMainIdWithHint(block.MainId, block.TemplateId)
 
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -1386,6 +1383,29 @@ func main() {
 					Error string `json:"error"`
 				}{
 					Error: "not_found",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			// Process block if needed
+			if _, err := raw.PreProcessBlockWithOutputs(func(h types.Hash) *sidechain.PoolBlock {
+				b := p2api.LightByTemplateId(h)
+				if len(b) > 0 {
+					return b[0]
+				}
+				return nil
+			}, func() (outputs transaction.Outputs, bottomHeight uint64) {
+				preAllocatedShares := sidechain.PreAllocateShares(consensus.ChainWindowSize * 2)
+				preAllocatedRewards := make([]uint64, 0, len(preAllocatedShares))
+				return Outputs(p2api, indexDb, block, indexDb.DerivationCache(), preAllocatedShares, preAllocatedRewards)
+			}); err != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusNotFound)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "could_not_process",
 				})
 				_, _ = writer.Write(buf)
 				return
@@ -1406,6 +1426,7 @@ func main() {
 				if shares != nil {
 					poolBlock := p2api.LightByMainId(block.MainId)
 					if poolBlock != nil {
+
 						addresses := make(map[address.PackedAddress]*index.MainCoinbaseOutput, len(shares))
 						for minerId, amount := range PayoutAmountHint(shares, poolBlock.Main.Coinbase.TotalReward) {
 							miner := indexDb.GetMiner(minerId)

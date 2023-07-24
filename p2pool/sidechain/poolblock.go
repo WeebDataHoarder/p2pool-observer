@@ -537,6 +537,13 @@ func (b *PoolBlock) FromCompactReader(consensus *Consensus, derivationCache Deri
 
 // PreProcessBlock processes and fills the block data from either pruned or compact modes
 func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache DerivationCacheInterface, preAllocatedShares Shares, difficultyByHeight mainblock.GetDifficultyByHeightFunc, getTemplateById GetByTemplateIdFunc) (missingBlocks []types.Hash, err error) {
+	return b.PreProcessBlockWithOutputs(getTemplateById, func() (outputs transaction.Outputs, bottomHeight uint64) {
+		return CalculateOutputs(b, consensus, difficultyByHeight, getTemplateById, derivationCache, preAllocatedShares, nil)
+	})
+}
+
+// PreProcessBlockWithOutputs processes and fills the block data from either pruned or compact modes
+func (b *PoolBlock) PreProcessBlockWithOutputs(getTemplateById GetByTemplateIdFunc, calculateOutputs func() (outputs transaction.Outputs, bottomHeight uint64)) (missingBlocks []types.Hash, err error) {
 
 	getTemplateByIdFillingTx := func(h types.Hash) *PoolBlock {
 		chain := make(UniquePoolBlockSlice, 0, 1)
@@ -589,7 +596,7 @@ func (b *PoolBlock) PreProcessBlock(consensus *Consensus, derivationCache Deriva
 	}
 
 	if len(b.Main.Coinbase.Outputs) == 0 {
-		if outputs, _ := CalculateOutputs(b, consensus, difficultyByHeight, getTemplateById, derivationCache, preAllocatedShares, nil); outputs == nil {
+		if outputs, _ := calculateOutputs(); outputs == nil {
 			return nil, errors.New("error filling outputs for block: nil outputs")
 		} else {
 			b.Main.Coinbase.Outputs = outputs

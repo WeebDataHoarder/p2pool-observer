@@ -1345,6 +1345,10 @@ func (i *Index) preProcessPoolBlock(b *sidechain.PoolBlock) error {
 	return err
 }
 
+func (i *Index) DerivationCache() sidechain.DerivationCacheInterface {
+	return i.derivationCache
+}
+
 func (i *Index) InsertOrUpdatePoolBlock(b *sidechain.PoolBlock, inclusion BlockInclusion) error {
 	sideBlock, sideUncles, err := i.GetSideBlockFromPoolBlock(b, inclusion)
 	if err != nil {
