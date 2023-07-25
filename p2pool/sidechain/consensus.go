@@ -100,7 +100,7 @@ type Consensus struct {
 
 	hasher randomx.Hasher
 
-	Id types.Hash
+	Id types.Hash `json:"id"`
 }
 
 const SmallestMinimumDifficulty = 100000
