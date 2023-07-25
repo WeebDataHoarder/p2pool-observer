@@ -161,6 +161,8 @@ func diff_hashrate(v any, blockTime uint64) uint64 {
 		}
 	} else if d, ok := v.(types.Difficulty); ok {
 		return d.Div64(blockTime).Lo
+	} else if d, ok := v.(uint64); ok {
+		return d / blockTime
 	}
 	return 0
 }

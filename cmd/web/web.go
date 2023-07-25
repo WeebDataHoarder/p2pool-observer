@@ -182,7 +182,7 @@ func main() {
 			time.Sleep(1)
 			continue
 		}
-		if t.SideChain.Id != types.ZeroHash {
+		if t.SideChain.LastBlock != nil {
 			basePoolInfo = t
 			break
 		}
@@ -198,6 +198,15 @@ func main() {
 	log.Printf("Consensus id = %s", consensus.Id)
 
 	var lastPoolInfo atomic.Pointer[cmdutils.PoolInfoResult]
+
+	ensureGetLastPoolInfo := func() *cmdutils.PoolInfoResult {
+		poolInfo := lastPoolInfo.Load()
+		if poolInfo == nil {
+			poolInfo = getTypeFromAPI[cmdutils.PoolInfoResult]("pool_info", 5)
+			lastPoolInfo.Store(poolInfo)
+		}
+		return poolInfo
+	}
 
 	baseContext := views.GlobalRequestContext{
 		DonationAddress: types.DonationAddress,
@@ -269,7 +278,7 @@ func main() {
 		poolInfo := getTypeFromAPI[cmdutils.PoolInfoResult]("pool_info", 5)
 		lastPoolInfo.Store(poolInfo)
 
-		secondsPerBlock := float64(poolInfo.MainChain.Difficulty.Lo) / float64(poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo)
+		secondsPerBlock := float64(poolInfo.MainChain.Difficulty.Lo) / float64(poolInfo.SideChain.LastBlock.Difficulty/consensus.TargetBlockTime)
 
 		blocksToFetch := uint64(math.Ceil((((time.Hour*24).Seconds()/secondsPerBlock)*2)/100) * 100)
 
@@ -278,7 +287,7 @@ func main() {
 
 		blocksFound := cmdutils.NewPositionChart(30*4, consensus.ChainWindowSize*4)
 
-		tip := int64(poolInfo.SideChain.Height)
+		tip := int64(poolInfo.SideChain.LastBlock.SideHeight)
 		for _, b := range blocks {
 			blocksFound.Add(int(tip-int64(b.SideHeight)), 1)
 		}
@@ -300,7 +309,15 @@ func main() {
 	})
 
 	serveMux.HandleFunc("/api", func(writer http.ResponseWriter, request *http.Request) {
-		renderPage(request, writer, &views.ApiPage{})
+		poolInfo := *ensureGetLastPoolInfo()
+		if len(poolInfo.SideChain.Effort.Last) > 5 {
+			poolInfo.SideChain.Effort.Last = poolInfo.SideChain.Effort.Last[:5]
+		}
+
+		p := &views.ApiPage{
+			PoolInfoExample: poolInfo,
+		}
+		renderPage(request, writer, p)
 	})
 
 	serveMux.HandleFunc("/calculate-share-time", func(writer http.ResponseWriter, request *http.Request) {
@@ -333,7 +350,7 @@ func main() {
 				efforts = append(efforts, views.CalculateShareTimePageEffortEntry{
 					Effort:      v,
 					Probability: (1 - math.Exp(-(v / 100))) * 100,
-					Between:     (float64(poolInfo.SideChain.Difficulty.Lo) * (v / 100)) / currentHashRate,
+					Between:     (float64(poolInfo.SideChain.LastBlock.Difficulty) * (v / 100)) / currentHashRate,
 					BetweenSolo: (float64(poolInfo.MainChain.Difficulty.Lo) * (v / 100)) / currentHashRate,
 				})
 			}
@@ -641,9 +658,9 @@ func main() {
 		poolInfo := getTypeFromAPI[cmdutils.PoolInfoResult]("pool_info", 5)
 		lastPoolInfo.Store(poolInfo)
 
-		currentWindowSize := uint64(poolInfo.SideChain.WindowSize)
+		currentWindowSize := uint64(poolInfo.SideChain.Window.Blocks)
 		windowSize := currentWindowSize
-		if poolInfo.SideChain.Height <= windowSize {
+		if poolInfo.SideChain.LastBlock.SideHeight <= windowSize {
 			windowSize = consensus.ChainWindowSize
 		}
 		size := uint64(30)
@@ -661,7 +678,7 @@ func main() {
 
 		miners := make(map[uint64]*views.MinersPageMinerEntry)
 
-		tipHeight := poolInfo.SideChain.Height
+		tipHeight := poolInfo.SideChain.LastBlock.SideHeight
 		wend := tipHeight - windowSize
 
 		tip := shares[0]
@@ -850,9 +867,9 @@ func main() {
 		const totalWindows = 4
 		wsize := consensus.ChainWindowSize * totalWindows
 
-		currentWindowSize := uint64(poolInfo.SideChain.WindowSize)
+		currentWindowSize := uint64(poolInfo.SideChain.Window.Blocks)
 
-		tipHeight := poolInfo.SideChain.Height
+		tipHeight := poolInfo.SideChain.LastBlock.SideHeight
 
 		var shares, lastShares, lastOrphanedShares []*index.SideBlock
 
@@ -910,8 +927,8 @@ func main() {
 			close(sweepC)
 		}
 
-		sharesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.WindowSize))
-		unclesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.WindowSize))
+		sharesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.Window.Blocks))
+		unclesInWindow := cmdutils.NewPositionChart(30, uint64(poolInfo.SideChain.Window.Blocks))
 
 		sharesFound := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
 		unclesFound := cmdutils.NewPositionChart(30*totalWindows, consensus.ChainWindowSize*totalWindows)
@@ -992,7 +1009,7 @@ func main() {
 		}
 
 		if windowDiff.Cmp64(0) > 0 {
-			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.WindowSize))
+			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.Window.Blocks))
 			averageRewardPerBlock := longDiff.Mul64(poolInfo.MainChain.BaseReward).Div(longWindowWeight).Lo
 			minerPage.ExpectedRewardPerDay = longWindowWeight.Mul64(averageRewardPerBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
 
@@ -1000,8 +1017,8 @@ func main() {
 			minerPage.ExpectedRewardPerWindow = poolInfo.SideChain.Window.Weight.Mul64(expectedRewardNextBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
 		}
 
-		totalWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.WindowSize))
-		dailyHashRate := poolInfo.SideChain.Difficulty.Mul(longDiff).Div(totalWeight).Div64(consensus.TargetBlockTime).Lo
+		totalWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.Window.Blocks))
+		dailyHashRate := types.DifficultyFrom64(poolInfo.SideChain.LastBlock.Difficulty).Mul(longDiff).Div(totalWeight).Div64(consensus.TargetBlockTime).Lo
 
 		hashRate := float64(0)
 		magnitude := float64(1000)

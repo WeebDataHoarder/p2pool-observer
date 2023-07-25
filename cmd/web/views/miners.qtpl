@@ -85,7 +85,7 @@ type MinersPageMinerEntry struct {
             <td style="vertical-align: middle">{%= software_info(m.SoftwareId, m.SoftwareVersion) %}</td>
             {% code minerRatio := float64(m.Weight.Lo) / float64(p.WindowWeight.Lo) %}
             <td style="vertical-align: middle">{%f.3 minerRatio*100 %}%</td>
-            <td style="vertical-align: middle">{%s si_units(minerRatio * (float64(p.Context().Pool.SideChain.Difficulty.Lo) / float64(p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
+            <td style="vertical-align: middle">{%s si_units(minerRatio * (float64(p.Context().Pool.SideChain.LastBlock.Difficulty) / float64(p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
             <td style="vertical-align: middle">{%dul m.Shares.Total() %} block(s) +{%dul m.Uncles.Total() %} uncle(s)</td>
             <td>
                 <code class="mono small">{%s m.Shares.String() %}</code>

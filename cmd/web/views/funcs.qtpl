@@ -11,9 +11,21 @@
 {% import hex2 "encoding/hex" %}
 {% import fasthex "github.com/tmthrgd/go-hex" %}
 
+{% import qt "github.com/valyala/quicktemplate" %}
+
 {% stripspace %}
 
-
+{% code
+    func streamencodeJson(w *qt.Writer, val any, indent bool) {
+        encoder := utils.NewJSONEncoder(w.E())
+        if indent {
+            encoder.SetIndent("", "    ")
+        }
+        if err := encoder.EncodeWithOption(val, utils.JsonEncodeOptions...); err != nil {
+            panic(err)
+        }
+    }
+%}
 
 {% func hex(ctx *GlobalRequestContext, val any) %}
     {% switch s := val.(type) %}

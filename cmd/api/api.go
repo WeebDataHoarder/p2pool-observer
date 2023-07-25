@@ -93,7 +93,40 @@ func main() {
 		return result
 	}
 
-	fillSideBlockResult := func(params url.Values, sideBlocks chan *index.SideBlock) chan *index.SideBlock {
+	fillSideBlockResult := func(fillUncles, fillMined, fillMiner bool, sideBlock *index.SideBlock) *index.SideBlock {
+		if fillMiner {
+			miner := indexDb.GetMiner(sideBlock.Miner)
+			sideBlock.MinerAddress = miner.Address()
+			sideBlock.MinerAlias = miner.Alias()
+		}
+		if fillMined {
+			mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
+			if mainTipAtHeight != nil {
+				sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
+				sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
+			} else {
+				poolInfo := lastPoolInfo.Load()
+				if (poolInfo.MainChain.Height + 1) == sideBlock.MainHeight {
+					sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.NextDifficulty.Lo
+				} else if poolInfo.MainChain.Height == sideBlock.MainHeight {
+					sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.Difficulty.Lo
+				}
+			}
+		}
+		if fillUncles {
+			for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
+				sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
+					TemplateId: u.TemplateId,
+					Miner:      u.Miner,
+					SideHeight: u.SideHeight,
+					Difficulty: u.Difficulty,
+				})
+			}
+		}
+		return sideBlock
+	}
+
+	fillSideBlockChannelResult := func(params url.Values, sideBlocks chan *index.SideBlock) chan *index.SideBlock {
 		result := make(chan *index.SideBlock)
 		fillUncles := !params.Has("noUncles")
 		fillMined := !params.Has("noMainStatus")
@@ -101,36 +134,7 @@ func main() {
 		go func() {
 			defer close(result)
 			for sideBlock := range sideBlocks {
-				if fillMiner {
-					miner := indexDb.GetMiner(sideBlock.Miner)
-					sideBlock.MinerAddress = miner.Address()
-					sideBlock.MinerAlias = miner.Alias()
-				}
-				if fillMined {
-					mainTipAtHeight := indexDb.GetMainBlockByHeight(sideBlock.MainHeight)
-					if mainTipAtHeight != nil {
-						sideBlock.MinedMainAtHeight = mainTipAtHeight.Id == sideBlock.MainId
-						sideBlock.MainDifficulty = mainTipAtHeight.Difficulty
-					} else {
-						poolInfo := lastPoolInfo.Load()
-						if (poolInfo.MainChain.Height + 1) == sideBlock.MainHeight {
-							sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.NextDifficulty.Lo
-						} else if poolInfo.MainChain.Height == sideBlock.MainHeight {
-							sideBlock.MainDifficulty = lastPoolInfo.Load().MainChain.Difficulty.Lo
-						}
-					}
-				}
-				if fillUncles {
-					for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
-						sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
-							TemplateId: u.TemplateId,
-							Miner:      u.Miner,
-							SideHeight: u.SideHeight,
-							Difficulty: u.Difficulty,
-						})
-					}
-				}
-				result <- sideBlock
+				result <- fillSideBlockResult(fillUncles, fillMined, fillMiner, sideBlock)
 			}
 		}()
 		return result
@@ -160,7 +164,7 @@ func main() {
 
 		tip := indexDb.GetSideBlockTip()
 
-		if oldPoolInfo != nil && oldPoolInfo.SideChain.Id == tip.TemplateId {
+		if oldPoolInfo != nil && oldPoolInfo.SideChain.LastBlock.TemplateId == tip.TemplateId {
 			//no changes!
 
 			//this race is ok
@@ -168,6 +172,8 @@ func main() {
 			return
 		}
 
+		var bottom *index.SideBlock
+		var bottomUncles []*index.SideBlock
 		blockCount := 0
 		uncleCount := 0
 
@@ -197,7 +203,9 @@ func main() {
 			}
 		}, func(slot index.SideBlockWindowSlot) {
 			blockCount++
+			bottomUncles = slot.Uncles
 			uncleCount += len(slot.Uncles)
+			bottom = slot.Block
 		}); err != nil {
 			log.Printf("error scanning PPLNS window: %s", err)
 
@@ -286,13 +294,9 @@ func main() {
 		result := &cmdutils.PoolInfoResult{
 			SideChain: cmdutils.PoolInfoResultSideChain{
 				Consensus:             consensus,
-				Id:                    tip.TemplateId,
-				Height:                tip.SideHeight,
-				Version:               sidechain.P2PoolShareVersion(consensus, tip.Timestamp),
-				Difficulty:            types.DifficultyFrom64(tip.Difficulty),
-				CumulativeDifficulty:  tip.CumulativeDifficulty,
-				Timestamp:             tip.Timestamp,
+				LastBlock:             fillSideBlockResult(true, false, true, tip),
 				SecondsSinceLastBlock: max(0, time.Now().Unix()-int64(tip.Timestamp)),
+				LastFound:             nil, //to be filled later
 				Effort: cmdutils.PoolInfoResultSideChainEffort{
 					Current:    currentEffort,
 					Average10:  averageEffort(10),
@@ -306,27 +310,54 @@ func main() {
 					Uncles:   uncleCount,
 					Weight:   pplnsWeight,
 					Versions: versions,
+
+					Top:    tip.TemplateId,
+					Bottom: bottom.TemplateId,
+					BottomUncles: func() (result []types.Hash) {
+						for _, u := range bottomUncles {
+							result = append(result, u.TemplateId)
+						}
+						return result
+					}(),
 				},
-				WindowSize:    blockCount,
-				MaxWindowSize: int(consensus.ChainWindowSize),
-				BlockTime:     int(consensus.TargetBlockTime),
-				UnclePenalty:  int(consensus.UnclePenalty),
-				Found:         totalKnown.blocksFound,
-				Miners:        totalKnown.minersKnown,
+
+				Found:  totalKnown.blocksFound,
+				Miners: totalKnown.minersKnown,
+
+				Id:                   tip.TemplateId,
+				Height:               tip.SideHeight,
+				Version:              sidechain.P2PoolShareVersion(consensus, tip.Timestamp),
+				Difficulty:           types.DifficultyFrom64(tip.Difficulty),
+				CumulativeDifficulty: tip.CumulativeDifficulty,
+				Timestamp:            tip.Timestamp,
+				WindowSize:           blockCount,
+				MaxWindowSize:        int(consensus.ChainWindowSize),
+				BlockTime:            int(consensus.TargetBlockTime),
+				UnclePenalty:         int(consensus.UnclePenalty),
 			},
 			MainChain: cmdutils.PoolInfoResultMainChain{
+				Consensus: cmdutils.PoolInfoResultMainChainConsensus{
+					HardForks: sidechain.NetworkHardFork(consensus),
+					BlockTime: monero.BlockTime,
+				},
 				Id:             mainTip.Id,
+				CoinbaseId:     mainTip.CoinbaseId,
 				Height:         mainTip.Height,
 				Difficulty:     networkDifficulty,
 				Reward:         mainTip.Reward,
 				BaseReward:     expectedBaseBlockReward,
 				NextDifficulty: minerDifficulty,
-				BlockTime:      monero.BlockTime,
+
+				BlockTime: monero.BlockTime,
 			},
 			Versions: struct {
 				P2Pool cmdutils.VersionInfo `json:"p2pool"`
 				Monero cmdutils.VersionInfo `json:"monero"`
 			}{P2Pool: getP2PoolVersion(), Monero: getMoneroVersion()},
+		}
+
+		if len(lastBlocksFound) > 0 {
+			result.SideChain.LastFound = fillFoundBlockResult(nil, lastBlocksFound[:1])[0]
 		}
 
 		lastPoolInfo.Store(result)
@@ -724,7 +755,7 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 
-		result := fillSideBlockResult(params, indexDb.GetSideBlocksInWindow(from, window))
+		result := fillSideBlockChannelResult(params, indexDb.GetSideBlocksInWindow(from, window))
 		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
@@ -782,7 +813,7 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 
-		result := fillSideBlockResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
+		result := fillSideBlockChannelResult(params, indexDb.GetSideBlocksByMinerIdInWindow(miner.Id(), from, window))
 		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
@@ -1192,7 +1223,7 @@ func main() {
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
 
-		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
+		result := fillSideBlockChannelResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, inclusion))
 		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
@@ -1249,7 +1280,7 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		result := fillSideBlockResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain))
+		result := fillSideBlockChannelResult(params, indexDb.GetShares(limit, minerId, onlyBlocks, index.InclusionInVerifiedChain))
 		_ = httputils.StreamJsonSlice(request, writer, result)
 	})
 
@@ -1483,7 +1514,7 @@ func main() {
 			c := make(chan *index.SideBlock, 1)
 			c <- block
 			close(c)
-			_ = httputils.EncodeJson(request, writer, <-fillSideBlockResult(params, c))
+			_ = httputils.EncodeJson(request, writer, <-fillSideBlockChannelResult(params, c))
 		}
 	})
 
@@ -1711,15 +1742,15 @@ func main() {
 				SidechainDifficulty uint64 `json:"sidechainDifficulty"`
 				SidechainHeight     uint64 `json:"sidechainHeight"`
 			}{
-				HashRate:            poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo,
+				HashRate:            poolInfo.SideChain.LastBlock.Difficulty / consensus.TargetBlockTime,
 				Miners:              poolInfo.SideChain.Miners,
-				TotalHashes:         poolInfo.SideChain.CumulativeDifficulty.Lo,
+				TotalHashes:         poolInfo.SideChain.LastBlock.CumulativeDifficulty.Lo,
 				LastBlockFound:      lastBlockFound,
 				LastBlockFoundTime:  lastBlockFoundTime,
 				TotalBlocksFound:    poolInfo.SideChain.Found,
-				PPLNSWindowSize:     uint64(poolInfo.SideChain.WindowSize),
-				SidechainDifficulty: poolInfo.SideChain.Difficulty.Lo,
-				SidechainHeight:     poolInfo.SideChain.Height,
+				PPLNSWindowSize:     uint64(poolInfo.SideChain.Window.Blocks),
+				SidechainDifficulty: poolInfo.SideChain.LastBlock.Difficulty,
+				SidechainHeight:     poolInfo.SideChain.LastBlock.SideHeight,
 			},
 		})
 	})
@@ -1748,7 +1779,18 @@ func main() {
 
 		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 		writer.WriteHeader(http.StatusOK)
-		_, _ = writer.Write([]byte(fmt.Sprintf("{\"config\":{\"ports\":[{\"port\":3333,\"tls\":false}],\"fee\":0,\"minPaymentThreshold\":300000000},\"network\":{\"height\":%d},\"pool\":{\"stats\":{\"lastBlockFound\":\"%d\"},\"blocks\":[\"%s...%s:%d\",\"%d\"],\"miners\":%d,\"hashrate\":%d,\"roundHashes\":%d}}", mainTip.Height, lastBlockFoundTime*1000, hex.EncodeToString(lastBlockFoundHash[:2]), hex.EncodeToString(lastBlockFoundHash[types.HashSize-2:]), lastBlockFoundTime, lastBlockFound, poolInfo.SideChain.Miners, poolInfo.SideChain.Difficulty.Div64(consensus.TargetBlockTime).Lo, poolInfo.SideChain.CumulativeDifficulty.Sub(lastBlockCumulativeDifficulty).Lo)))
+		_, _ = writer.Write([]byte(fmt.Sprintf(
+			"{\"config\":{\"ports\":[{\"port\":3333,\"tls\":false}],\"fee\":0,\"minPaymentThreshold\":300000000},\"network\":{\"height\":%d},\"pool\":{\"stats\":{\"lastBlockFound\":\"%d\"},\"blocks\":[\"%s...%s:%d\",\"%d\"],\"miners\":%d,\"hashrate\":%d,\"roundHashes\":%d}}",
+			mainTip.Height,
+			lastBlockFoundTime*1000,
+			hex.EncodeToString(lastBlockFoundHash[:2]),
+			hex.EncodeToString(lastBlockFoundHash[types.HashSize-2:]),
+			lastBlockFoundTime,
+			lastBlockFound,
+			poolInfo.SideChain.Miners,
+			poolInfo.SideChain.LastBlock.Difficulty/consensus.TargetBlockTime,
+			poolInfo.SideChain.LastBlock.CumulativeDifficulty.Sub(lastBlockCumulativeDifficulty).Lo,
+		)))
 	})
 
 	server := &http.Server{

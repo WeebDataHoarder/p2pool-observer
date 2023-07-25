@@ -27,14 +27,14 @@
         </h4>
         {% if pool := ctx.Pool; pool != nil %}
 
-            {% if uint64(pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.Timestamp || uint64(pool.Versions.Monero.Timestamp+3600*24*7) > pool.SideChain.Timestamp %}
+            {% if uint64(pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.LastBlock.Timestamp || uint64(pool.Versions.Monero.Timestamp+3600*24*7) > pool.SideChain.LastBlock.Timestamp %}
             <h4 style="font-size: 15px; margin: 4px 0px 0px; color:yellow;">
             {% else %}
             <h4 style="font-size: 13px; margin-top: 5px; ">
             {% endif %}
-                Latest releases: <a href="{%s pool.Versions.P2Pool.Link %}" target="_blank">P2Pool {%s pool.Versions.P2Pool.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.P2Pool.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.Timestamp - uint64(pool.Versions.P2Pool.Timestamp))) / (3600*24) %} day(s) ago</small></em>
+                Latest releases: <a href="{%s pool.Versions.P2Pool.Link %}" target="_blank">P2Pool {%s pool.Versions.P2Pool.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.P2Pool.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.P2Pool.Timestamp))) / (3600*24) %} day(s) ago</small></em>
                 ::
-                <a href="{%s pool.Versions.Monero.Link %}" target="_blank">Monero {%s pool.Versions.Monero.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.Monero.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.Timestamp - uint64(pool.Versions.Monero.Timestamp))) / (3600*24) %} day(s) ago</small></em>
+                <a href="{%s pool.Versions.Monero.Link %}" target="_blank">Monero {%s pool.Versions.Monero.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.Monero.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.Monero.Timestamp))) / (3600*24) %} day(s) ago</small></em>
             </h4>
 
         {% endif %}

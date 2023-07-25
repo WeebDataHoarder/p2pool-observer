@@ -1,7 +1,11 @@
+{% import cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils" %}
+
 {% code
 type ApiPage struct {
 	// inherit from base page, so its' title is used in error page.
 	BasePage
+
+	PoolInfoExample cmdutils.PoolInfoResult
 }
 %}
 
@@ -37,122 +41,9 @@ pre {
         <h3 class="mono">/api/pool_info</h3>
         <p>Response contains general information on the current status of the P2Pool sidechain and Monero network, release versions, and other parameters.</p>
         <pre class="smaller">
-[result has been cut due to size, relevant portions shown]
+[Live result. Has been cut due to size, relevant portions shown]
 curl --silent https://{%s p.Context().NetServiceAddress %}/api/pool_info
-{
-    "sidechain": {
-        "consensus": {
-            "network_type": "mainnet",
-            "name": "mainnet test 2",
-            "password": "",
-            "block_time": 10,
-            "min_diff": 100000,
-            "pplns_window": 2160,
-            "uncle_penalty": 20
-        },
-        "id": "d526cf516019ece4dbb5782f429a8333df9979932510ef26a91a5c2d02e6ac4a",
-        "height": 4868262,
-        "difficulty": "00000000000000000000000077cdd958",
-        "cumulative_difficulty": "0000000000000000001aed8a900b6e8e",
-        "timestamp": 1681256801,
-        "effort": {
-            "current": 109.31824000162864,
-            "average10": 32.98600297507685,
-            "average": 77.65727684146015,
-            "average200": 89.19728805502012,
-            "last": [
-                {
-                    "id": "e3ec5e7e7cb76cfd2cff284a8812e4b0aeddf04115eb04440e6d26bd9825b7bb",
-                    "effort": 9.403366358670995
-                    },
-                {
-                    "id": "e6ceaa02039c09022baaec73146340e20a64b6da19ecd234169c7bf73a569bdd",
-                    "effort": 1.8807123325645854
-                },
-                {
-                    "id": "393abe826d25c72fb320fa4bad980728c8e54756fa3ae8945bbb13af964c251c",
-                    "effort": 91.37117352907373
-                },
-                {
-                    "id": "d6ff0c1956d6743e137475a3b23823f620bf964ec89eb4891870af4c5db77a2a",
-                    "effort": 22.115510860859477
-                },
-                {
-                    "id": "544ad16d7c83f6e3636e965eed17a92449e64538d571064d1f3fa0c3d35d2768",
-                    "effort": 47.80476995257288
-                },
-                {
-                    "id": "6220069168433fa220f94600dbca7468d0e94a29a669eeb5e1449e181bdac624",
-                    "effort": 6.130222064837835
-                },
-                {
-                    "id": "108ae4af9aad47a1968c205a76ea57fd2fa0cc480d6109ee36f4a0eaa4422810",
-                    "effort": 32.87182581089726
-                },
-                {
-                    "id": "7a3d57b90e537f6414f9f898e76f16c22af20f77512dc2cbcf7571b561ecb88c",
-                    "effort": 39.24260486339777
-                }
-            ]
-        },
-        "window": {
-            "miners": 28,
-            "blocks": 323,
-            "uncles": 13,
-            "weight": "00000000000000000000009eb206d209",
-            "versions": [
-                {
-                    "weight": "00000000000000000000005487eca8a5",
-                    "share": 53.266160234670814,
-                    "count": 179,
-                    "software_id": 0,
-                    "software_version": 196610,
-                    "software_string": "P2Pool v3.2"
-                },
-                {
-                    "weight": "00000000000000000000003245f084b0",
-                    "share": 31.679050570070547,
-                    "count": 106,
-                    "software_id": 0,
-                    "software_version": 196609,
-                    "software_string": "P2Pool v3.1"
-                },
-                {
-                    "weight": "000000000000000000000017e429a4b4",
-                    "share": 15.054789195258637,
-                    "count": 51,
-                    "software_id": 0,
-                    "software_version": 196608,
-                    "software_string": "P2Pool v3.0"
-                }
-            ]
-        },
-        "window_size": 323,
-        "max_window_size": 2160,
-        "block_time": 10,
-        "uncle_penalty": 20,
-        "found": 22805,
-        "miners": 5142
-    },
-    "mainchain": {
-        "id": "8bc31d75dadb3d2eae8f30232f327d5726e8f9cea9185f3ef56255594605a1c8",
-        "height": 2862299,
-        "difficulty": "00000000000000000000004c2f36c75d",
-        "block_time": 120
-    },
-    "versions": {
-        "p2pool": {
-            "version": "v3.2",
-            "timestamp": 1680284891,
-            "link": "https://github.com/SChernykh/p2pool/releases/tag/v3.2"
-        },
-        "monero": {
-            "version": "v0.18.2.2",
-            "timestamp": 1681139283,
-            "link": "https://github.com/monero-project/monero/releases/tag/v0.18.2.2"
-        }
-    }
-}
+{%= encodeJson(p.PoolInfoExample, true) %}
         </pre>
     </div>
 

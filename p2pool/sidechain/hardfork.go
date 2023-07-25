@@ -1,7 +1,5 @@
 package sidechain
 
-import "log"
-
 type HardFork struct {
 	Version   uint8  `json:"version"`
 	Height    uint64 `json:"height"`
@@ -119,19 +117,21 @@ var p2poolStageNetHardForks = []HardFork{
 	{p2poolMainNetHardForks[len(p2poolMainNetHardForks)-1].Version, 0, 0, 0},
 }
 
-func NetworkMajorVersion(consensus *Consensus, height uint64) uint8 {
-	var hardForks []HardFork
+func NetworkHardFork(consensus *Consensus) []HardFork {
 	switch consensus.NetworkType {
 	case NetworkMainnet:
-		hardForks = mainNetHardForks
+		return mainNetHardForks
 	case NetworkTestnet:
-		hardForks = testNetHardForks
+		return testNetHardForks
 	case NetworkStagenet:
-		hardForks = stageNetHardForks
+		return stageNetHardForks
 	default:
-		log.Panicf("invalid network type for determining share version")
-		return 0
+		panic("invalid network type for determining share version")
 	}
+}
+
+func NetworkMajorVersion(consensus *Consensus, height uint64) uint8 {
+	hardForks := NetworkHardFork(consensus)
 
 	if len(hardForks) == 0 {
 		return 0

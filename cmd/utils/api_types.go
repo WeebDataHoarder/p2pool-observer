@@ -56,19 +56,54 @@ type PoolInfoResult struct {
 }
 
 type PoolInfoResultSideChain struct {
-	Consensus             *sidechain.Consensus          `json:"consensus"`
-	Id                    types.Hash                    `json:"id"`
-	Height                uint64                        `json:"height"`
-	Version               sidechain.ShareVersion        `json:"version"`
-	Difficulty            types.Difficulty              `json:"difficulty"`
-	CumulativeDifficulty  types.Difficulty              `json:"cumulative_difficulty"`
-	SecondsSinceLastBlock int64                         `json:"seconds_since_last_block"`
-	Timestamp             uint64                        `json:"timestamp"`
-	Effort                PoolInfoResultSideChainEffort `json:"effort"`
-	Window                PoolInfoResultSideChainWindow `json:"window"`
-	WindowSize            int                           `json:"window_size"`
-	Found                 uint64                        `json:"found"`
-	Miners                uint64                        `json:"miners"`
+	// Consensus Specifies the consensus parameters for the backing p2pool instance
+	Consensus *sidechain.Consensus `json:"consensus"`
+
+	// LastBlock Last sidechain block on database
+	LastBlock *index.SideBlock `json:"last_block"`
+
+	// SecondsSinceLastBlock
+	// Prefer using max(0, time.Now().Unix()-int64(LastBlock .Timestamp)) instead
+	SecondsSinceLastBlock int64 `json:"seconds_since_last_block"`
+
+	// LastFound Last sidechain block on database found and accepted on Monero network
+	LastFound *index.FoundBlock `json:"last_found"`
+
+	Effort PoolInfoResultSideChainEffort `json:"effort"`
+	Window PoolInfoResultSideChainWindow `json:"window"`
+
+	// Found Total count of found blocks in database
+	Found uint64 `json:"found"`
+	// Miners Total count of miners in database
+	Miners uint64 `json:"miners"`
+
+	// Id Available on LastBlock .TemplateId
+	// Deprecated
+	Id types.Hash `json:"id"`
+
+	// Height Available on LastBlock .SideHeight
+	// Deprecated
+	Height uint64 `json:"height"`
+
+	// Version Available via sidechain.P2PoolShareVersion
+	// Deprecated
+	Version sidechain.ShareVersion `json:"version"`
+
+	// Difficulty Available on LastBlock .Difficulty
+	// Deprecated
+	Difficulty types.Difficulty `json:"difficulty"`
+
+	// CumulativeDifficulty Available on LastBlock .CumulativeDifficulty
+	// Deprecated
+	CumulativeDifficulty types.Difficulty `json:"cumulative_difficulty"`
+
+	// Timestamp Available on LastBlock .Timestamp
+	// Deprecated
+	Timestamp uint64 `json:"timestamp"`
+
+	// WindowSize Available on Window .Blocks
+	// Deprecated
+	WindowSize int `json:"window_size"`
 
 	// MaxWindowSize Available on Consensus
 	// Deprecated
@@ -96,21 +131,44 @@ type PoolInfoResultSideChainEffort struct {
 	Last       []PoolInfoResultSideChainEffortLastEntry `json:"last"`
 }
 type PoolInfoResultSideChainWindow struct {
-	Miners   int                     `json:"miners"`
-	Blocks   int                     `json:"blocks"`
-	Uncles   int                     `json:"uncles"`
+	// Miners Unique miners found in window
+	Miners int `json:"miners"`
+	// Blocks total count of blocks in the window, including uncles
+	Blocks int `json:"blocks"`
+	Uncles int `json:"uncles"`
+
+	// Top TemplateId of the window tip
+	Top types.Hash `json:"top"`
+	// Bottom TemplateId of the last non-uncle block in the window
+	Bottom types.Hash `json:"bottom"`
+
+	// BottomUncles TemplateId of the uncles included under the last block, if any
+	BottomUncles []types.Hash `json:"bottom_uncles,omitempty"`
+
 	Weight   types.Difficulty        `json:"weight"`
 	Versions []SideChainVersionEntry `json:"versions"`
 }
 
+type PoolInfoResultMainChainConsensus struct {
+	BlockTime uint64 `json:"block_time"`
+	// HardFork information for Monero known hardfork by backing p2pool
+	HardForks []sidechain.HardFork `json:"hard_forks,omitempty"`
+}
+
 type PoolInfoResultMainChain struct {
-	Id             types.Hash       `json:"id"`
-	Height         uint64           `json:"height"`
-	Difficulty     types.Difficulty `json:"difficulty"`
-	Reward         uint64           `json:"reward"`
-	BaseReward     uint64           `json:"base_reward"`
+	Consensus  PoolInfoResultMainChainConsensus `json:"consensus"`
+	Id         types.Hash                       `json:"id"`
+	CoinbaseId types.Hash                       `json:"coinbase_id"`
+	Height     uint64                           `json:"height"`
+	Difficulty types.Difficulty                 `json:"difficulty"`
+	Reward     uint64                           `json:"reward"`
+	BaseReward uint64                           `json:"base_reward"`
+
 	NextDifficulty types.Difficulty `json:"next_difficulty"`
-	BlockTime      int              `json:"block_time"`
+
+	// BlockTime included in Consensus
+	// Deprecated
+	BlockTime int `json:"block_time"`
 }
 
 type MinerInfoBlockData struct {

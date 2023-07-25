@@ -140,7 +140,7 @@ type MinerPage struct {
             <td title="{%s utc_date(p.Miner.LastShareTimestamp) %}">{%s time_elapsed_short(p.Miner.LastShareTimestamp) %}</td>
             <td>{%dul p.Positions.BlocksInWindow.Total() %} blocks (+{%dul p.Positions.UnclesInWindow.Total() %} uncles)</td>
             {% code windowWeightRatio := float64(p.WindowWeight) / float64(p.Context().Pool.SideChain.Window.Weight.Lo) %}
-            <td>{%s si_units(windowWeightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
+            <td>{%s si_units(windowWeightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
             <td>{%f.3 windowWeightRatio*100 %}%</td>
             <td>{%s monero_to_xmr(p.ExpectedRewardPerWindow) %} XMR</td>
         </tr>
@@ -155,8 +155,8 @@ type MinerPage struct {
         <tr>
             <td>{% if p.LastPoolBlock != nil %}{%dul p.Miner.Shares[1].ShareCount %} blocks (+{%dul p.Miner.Shares[1].UncleCount %} uncles{% if p.Miner.Shares[0].ShareCount > 0 %}, +{%dul p.Miner.Shares[0].ShareCount %} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{%dul p.Positions.Blocks.Total() %} blocks (+{%dul p.Positions.Uncles.Total() %} uncles)</td>
-            {% code weightRatio := (float64(p.Weight) / (float64(p.Context().Pool.SideChain.Window.Weight.Mul64(4).Lo) * (float64(p.Context().Pool.SideChain.MaxWindowSize) / float64(p.Context().Pool.SideChain.WindowSize)))) %}
-            <td>{%s si_units(weightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
+            {% code weightRatio := (float64(p.Weight) / (float64(p.Context().Pool.SideChain.Window.Weight.Mul64(4).Lo) * (float64(p.Context().Pool.SideChain.Consensus.ChainWindowSize) / float64(p.Context().Pool.SideChain.Window.Blocks)))) %}
+            <td>{%s si_units(weightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>
             <td>{%f.3 weightRatio*100 %}%</td>
             <td>{%s monero_to_xmr(p.ExpectedRewardPerDay) %} XMR</td>
         </tr>

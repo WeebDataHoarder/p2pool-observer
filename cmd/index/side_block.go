@@ -72,11 +72,11 @@ type SideBlock struct {
 
 	// Extra information filled just for JSON purposes
 
-	MinedMainAtHeight bool                  `json:"mined_main_at_height"`
+	MinedMainAtHeight bool                  `json:"mined_main_at_height,omitempty"`
 	MinerAddress      *address.Address      `json:"miner_address,omitempty"`
 	MinerAlias        string                `json:"miner_alias,omitempty"`
 	Uncles            []SideBlockUncleEntry `json:"uncles,omitempty"`
-	MainDifficulty    uint64                `json:"main_difficulty"`
+	MainDifficulty    uint64                `json:"main_difficulty,omitempty"`
 }
 
 type SideBlockUncleEntry struct {

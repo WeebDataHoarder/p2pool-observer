@@ -58,19 +58,19 @@ type CalculateShareTimePageEffortEntry struct {
 <div style="text-align: center">
 
     <table class="center" style="max-width: calc(15em + 15em + 15em + 15em);">
-        {% code between := (float64(p.Context().Pool.SideChain.Difficulty.Lo) / (p.Hashrate * p.Magnitude)) %}
+        {% code between := (float64(p.Context().Pool.SideChain.LastBlock.Difficulty) / (p.Hashrate * p.Magnitude)) %}
         {% code between_solo := (float64(p.Context().Pool.MainChain.Difficulty.Lo) / (p.Hashrate * p.Magnitude)) %}
         <tr style="line-height: 1.5;">
-            <td style="width: 15em"><strong>P2Pool Difficulty</strong><br/>{%s si_units(p.Context().Pool.SideChain.Difficulty.Lo, 2) %}</td>
-            <td style="width: 15em"><strong>P2Pool Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
+            <td style="width: 15em"><strong>P2Pool Difficulty</strong><br/>{%s si_units(p.Context().Pool.SideChain.LastBlock.Difficulty, 2) %}</td>
+            <td style="width: 15em"><strong>P2Pool Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
             <td style="width: 15em"><strong>Your Hashrate</strong><br/>{%s si_units(p.Hashrate * p.Magnitude, 2) %}H/s</td>
             <td title="Mean frequency between P2Pool shares" style="width: 15em; border: #ff6600 dashed 1px;"><strong>Your Share Mean<br/>{%s time_duration_long(between) %}</strong></td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>
         <tr style="line-height: 1.5;">
             <td><strong>Monero Difficulty</strong><br/>{%s si_units(p.Context().Pool.MainChain.Difficulty.Lo, 2) %}</td>
-            <td><strong>Monero Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.BlockTime)), 2) %}H/s</td>
-            <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{%s time_duration_long(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.Difficulty, p.Context().Consensus.TargetBlockTime))) %}</em></td>
+            <td><strong>Monero Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime)), 2) %}H/s</td>
+            <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{%s time_duration_long(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime))) %}</em></td>
             <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{%s time_duration_long(between_solo) %}</em></td>
         </tr>
         <tr><th colspan="4">&nbsp;</th></tr>

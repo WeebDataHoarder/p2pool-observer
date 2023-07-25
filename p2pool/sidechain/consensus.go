@@ -93,7 +93,9 @@ type Consensus struct {
 	MinimumDifficulty uint64      `json:"min_diff"`
 	ChainWindowSize   uint64      `json:"pplns_window"`
 	UnclePenalty      uint64      `json:"uncle_penalty"`
+
 	// HardFork optional hardfork information for p2pool
+	// If empty it will be filled with the default hardfork list to the corresponding NetworkType
 	HardForks []HardFork `json:"hard_forks,omitempty"`
 
 	hasher randomx.Hasher
