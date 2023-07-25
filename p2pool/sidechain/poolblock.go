@@ -35,7 +35,7 @@ const (
 // PoolBlockMaxTemplateSize Max P2P message size (128 KB) minus BLOCK_RESPONSE header (5 bytes)
 const PoolBlockMaxTemplateSize = 128*1024 - (1 + 4)
 
-type ShareVersion int
+type ShareVersion uint8
 
 func (v ShareVersion) String() string {
 	switch v {

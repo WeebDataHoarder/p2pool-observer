@@ -99,17 +99,17 @@ var stageNetHardForks = []HardFork{
 }
 
 var p2poolMainNetHardForks = []HardFork{
-	{1, 0, 0, 0},
+	{uint8(ShareVersion_V1), 0, 0, 0},
 	// p2pool hardforks at 2023-03-18 21:00 UTC
-	{2, 0, 0, 1679173200},
+	{uint8(ShareVersion_V2), 0, 0, 1679173200},
 }
 
 var p2poolTestNetHardForks = []HardFork{
-	{1, 0, 0, 0},
+	{uint8(ShareVersion_V1), 0, 0, 0},
 	// p2pool hardforks at 2023-01-23 21:00 UTC
-	{2, 0, 0, 1674507600},
+	{uint8(ShareVersion_V2), 0, 0, 1674507600},
 	//alternate hardfork at 2023-03-07 20:00 UTC 1678219200
-	//{2, 0, 0, 1678219200},
+	//{uint8(ShareVersion_V2), 0, 0, 1678219200},
 }
 
 var p2poolStageNetHardForks = []HardFork{
