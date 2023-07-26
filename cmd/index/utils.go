@@ -1,6 +1,7 @@
 package index
 
 import (
+	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/block"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
@@ -229,6 +230,126 @@ func BlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consensus, difficu
 	}
 
 	return bottomHeight, nil
+}
+
+func IterateSideBlocksInPPLNSWindowFast(indexDb *Index, tip *SideBlock, difficultyByHeight block.GetDifficultyByHeightFunc, addWeightFunc SideBlockWindowAddWeightFunc, slotFunc func(slot SideBlockWindowSlot)) error {
+	if tip == nil {
+		return errors.New("nil tip")
+	}
+	window := QueryIterateToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
+	if len(window) == 0 {
+		return errors.New("nil window")
+	}
+
+	var hintIndex int
+
+	getByTemplateIdFull := func(h types.Hash) *SideBlock {
+		if i := slices.IndexFunc(window, func(e *SideBlock) bool {
+			return e.TemplateId == h
+		}); i != -1 {
+			hintIndex = i
+			return window[i]
+		}
+		return nil
+	}
+	getByTemplateId := func(h types.Hash) *SideBlock {
+		//fast lookup first
+		if i := slices.IndexFunc(window[hintIndex:], func(e *SideBlock) bool {
+			return e.TemplateId == h
+		}); i != -1 {
+			hintIndex += i
+			return window[hintIndex]
+		}
+		return getByTemplateIdFull(h)
+	}
+	getUnclesOf := func(h types.Hash) QueryIterator[SideBlock] {
+		parentEffectiveHeight := window[hintIndex].EffectiveHeight
+		if window[hintIndex].TemplateId != h {
+			parentEffectiveHeight = 0
+		}
+
+		startIndex := 0
+
+		return &FakeQueryResult[SideBlock]{
+			NextFunction: func() (int, *SideBlock) {
+				for _, b := range window[startIndex+hintIndex:] {
+					if b.UncleOf == h {
+						startIndex++
+						return startIndex, b
+					}
+					startIndex++
+
+					if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
+						//early exit
+						break
+					}
+				}
+				return 0, nil
+			},
+		}
+	}
+
+	return IterateSideBlocksInPPLNSWindow(tip, indexDb.Consensus(), difficultyByHeight, getByTemplateId, getUnclesOf, addWeightFunc, slotFunc)
+}
+
+func BlocksInPPLNSWindowFast(indexDb *Index, tip *SideBlock, difficultyByHeight block.GetDifficultyByHeightFunc, addWeightFunc SideBlockWindowAddWeightFunc) (bottomHeight uint64, err error) {
+	if tip == nil {
+		return 0, errors.New("nil tip")
+	}
+	window := QueryIterateToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
+	if len(window) == 0 {
+		return 0, errors.New("nil window")
+	}
+
+	var hintIndex int
+
+	getByTemplateIdFull := func(h types.Hash) *SideBlock {
+		if i := slices.IndexFunc(window, func(e *SideBlock) bool {
+			return e.TemplateId == h
+		}); i != -1 {
+			hintIndex = i
+			return window[i]
+		}
+		return nil
+	}
+	getByTemplateId := func(h types.Hash) *SideBlock {
+		//fast lookup first
+		if i := slices.IndexFunc(window[hintIndex:], func(e *SideBlock) bool {
+			return e.TemplateId == h
+		}); i != -1 {
+			hintIndex += i
+			return window[hintIndex]
+		}
+		return getByTemplateIdFull(h)
+	}
+	getUnclesOf := func(h types.Hash) QueryIterator[SideBlock] {
+		parentEffectiveHeight := window[hintIndex].EffectiveHeight
+		if window[hintIndex].TemplateId != h {
+			parentEffectiveHeight = 0
+		}
+
+		startIndex := 0
+
+		return &FakeQueryResult[SideBlock]{
+			NextFunction: func() (int, *SideBlock) {
+				for _, b := range window[startIndex+hintIndex:] {
+					if b.UncleOf == h {
+						startIndex++
+						return startIndex, b
+					}
+					startIndex++
+
+					if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
+						//early exit
+						break
+					}
+				}
+				return 0, nil
+			},
+		}
+	}
+
+	return BlocksInPPLNSWindow(tip, indexDb.Consensus(), difficultyByHeight, getByTemplateId, getUnclesOf, addWeightFunc)
 }
 
 // GetSharesOrdered

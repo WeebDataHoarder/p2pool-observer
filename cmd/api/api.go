@@ -28,7 +28,6 @@ import (
 	"net/netip"
 	"net/url"
 	"os"
-	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -179,7 +178,7 @@ func main() {
 
 		var pplnsWeight types.Difficulty
 
-		if err := index.IterateSideBlocksInPPLNSWindow(tip, consensus, indexDb.GetDifficultyByHeight, indexDb.GetTipSideBlockByTemplateId, indexDb.GetSideBlocksByUncleOfId, func(b *index.SideBlock, weight types.Difficulty) {
+		if err := index.IterateSideBlocksInPPLNSWindowFast(indexDb, tip, indexDb.GetDifficultyByHeight, func(b *index.SideBlock, weight types.Difficulty) {
 			miners[indexDb.GetMiner(b.Miner).Id()]++
 			pplnsWeight = pplnsWeight.Add(weight)
 
@@ -1905,15 +1904,7 @@ func main() {
 				return
 			}
 
-			pathEntry := "/"
-			splitPath := strings.Split(request.URL.Path, "/")
-			if len(splitPath) > 1 {
-				pathEntry = splitPath[1]
-			}
-
-			pprof.Do(request.Context(), pprof.Labels("path", pathEntry), func(ctx context.Context) {
-				serveMux.ServeHTTP(writer, request)
-			})
+			serveMux.ServeHTTP(writer, request)
 		}),
 	}
 
