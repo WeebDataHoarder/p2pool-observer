@@ -52,6 +52,7 @@ curl --silent https://{%s p.Context().NetServiceAddress %}/api/pool_info
     <div>
         <h3 class="mono">/api/miner_info/&lt;id|address&gt;</h3>
         <p>Response contains general information on a specific miner, referred by its internal <em>id</em> or known Monero <em>address</em>.</p>
+        <p>If you do not need the precise count of shares please pass the <em>?shareEstimates</em> parameter.</p>
         <pre class="smaller">
 curl --silent https://{%s p.Context().NetServiceAddress %}/api/miner_info/47ab14EokGgCTX7RYoVhrNMjVA7GfW1jyMAmL7qBQz9fa4RZ6ZsBUgeRGuPWjqeM1wLptSJH5xuX2H4mAepMYvu6JqWMsGw
 {

@@ -844,7 +844,7 @@ func main() {
 			refresh = 300
 		}
 		address := mux.Vars(request)["miner"]
-		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s", address))
+		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?shareEstimates", address))
 		if miner == nil || miner.Address == nil {
 			if addr := address2.FromBase58(address); addr != nil {
 				miner = &cmdutils.MinerInfoResult{

@@ -3,7 +3,7 @@ package index
 import (
 	"context"
 	"database/sql"
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
@@ -15,7 +15,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"github.com/lib/pq"
+	"io"
 	"log"
+	"path"
 	"reflect"
 	"regexp"
 	"slices"
@@ -57,6 +59,9 @@ type Index struct {
 
 //go:embed schema.sql
 var dbSchema string
+
+//go:embed functions/*.sql
+var dbFunctions embed.FS
 
 func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeight block.GetDifficultyByHeightFunc, getSeedByHeight block.GetSeedByHeightFunc, getByTemplateId sidechain.GetByTemplateIdFunc) (index *Index, err error) {
 	index = &Index{
@@ -159,6 +164,31 @@ func OpenIndex(connStr string, consensus *sidechain.Consensus, difficultyByHeigh
 			return nil, err
 		}
 	}
+
+	if dir, err := dbFunctions.ReadDir("functions"); err != nil {
+		return nil, err
+	} else {
+		for _, e := range dir {
+			f, err := dbFunctions.Open(path.Join("functions", e.Name()))
+			if err != nil {
+				return nil, err
+			}
+
+			var data []byte
+			func() {
+				defer f.Close()
+				data, err = io.ReadAll(f)
+			}()
+			if err != nil {
+				return nil, err
+			}
+
+			if _, err := tx.Exec(string(data)); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}

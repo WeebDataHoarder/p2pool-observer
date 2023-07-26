@@ -146,14 +146,14 @@ type MinerPage struct {
         </tr>
         <tr><td colspan="5">&nbsp;</td></tr>
         <tr>
-            <th>Total Shares</th>
+            <th>Estimated Total Shares</th>
             <th>Day Shares</th>
             <th>Day Hashrate</th>
             <th>Day Share %</th>
             <th>Estimated Daily Reward</th>
         </tr>
         <tr>
-            <td>{% if p.LastPoolBlock != nil %}{%dul p.Miner.Shares[1].ShareCount %} blocks (+{%dul p.Miner.Shares[1].UncleCount %} uncles{% if p.Miner.Shares[0].ShareCount > 0 %}, +{%dul p.Miner.Shares[0].ShareCount %} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
+            <td>{% if p.LastPoolBlock != nil %}Around {%dul p.Miner.Shares[1].ShareCount %} blocks (+{%dul p.Miner.Shares[1].UncleCount %} uncles{% if p.Miner.Shares[0].ShareCount > 0 %}, +{%dul p.Miner.Shares[0].ShareCount %} orphans{% endif %}){% else %}No shares reported{% endif %}</td>
             <td>{%dul p.Positions.Blocks.Total() %} blocks (+{%dul p.Positions.Uncles.Total() %} uncles)</td>
             {% code weightRatio := (float64(p.Weight) / (float64(p.Context().Pool.SideChain.Window.Weight.Mul64(4).Lo) * (float64(p.Context().Pool.SideChain.Consensus.ChainWindowSize) / float64(p.Context().Pool.SideChain.Window.Blocks)))) %}
             <td>{%s si_units(weightRatio * float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime)), 3) %}H/s</td>

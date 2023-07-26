@@ -403,28 +403,45 @@ func main() {
 			return
 		}
 
-		var foundBlocksData [index.InclusionCount]cmdutils.MinerInfoBlockData
-		if !params.Has("noShares") {
-			_ = indexDb.Query("SELECT COUNT(*) FILTER (WHERE uncle_of IS NULL) AS share_count, COUNT(*) FILTER (WHERE uncle_of IS NOT NULL) AS uncle_count, coalesce(MAX(side_height), 0) AS last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
-				var d cmdutils.MinerInfoBlockData
-				var inclusion index.BlockInclusion
-				if err := row.Scan(&d.ShareCount, &d.UncleCount, &d.LastShareHeight, &inclusion); err != nil {
-					return err
-				}
-				if inclusion < index.InclusionCount {
-					foundBlocksData[inclusion] = d
-				}
-				return nil
-			}, miner.Id())
-		}
-
 		var lastShareHeight uint64
 		var lastShareTimestamp uint64
-		if foundBlocksData[index.InclusionInVerifiedChain].ShareCount > 0 && foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight > lastShareHeight {
+
+		var foundBlocksData [index.InclusionCount]cmdutils.MinerInfoBlockData
+		if !params.Has("noShares") {
+			if params.Has("shareEstimates") {
+				// estimate counts
+				_ = indexDb.Query(fmt.Sprintf("SELECT count_estimate('SELECT 1 FROM side_blocks WHERE side_blocks.miner = %d AND uncle_of IS NULL AND inclusion = %d;') AS shares_estimate, count_estimate('SELECT 1 FROM side_blocks WHERE side_blocks.miner = %d AND uncle_of IS NOT NULL AND inclusion = %d;') uncles_estimate, side_height AS last_height, timestamp AS last_timestamp FROM side_blocks WHERE side_blocks.miner = %d AND inclusion = %d ORDER BY side_height DESC LIMIT 1;", miner.Id(), index.InclusionInVerifiedChain, miner.Id(), index.InclusionInVerifiedChain, miner.Id(), index.InclusionInVerifiedChain), func(row index.RowScanInterface) error {
+					var shareEstimate, uncleEstimate, lastHeight, lastTimestamp uint64
+					if err := row.Scan(&shareEstimate, &uncleEstimate, &lastHeight, &lastTimestamp); err != nil {
+						return err
+					}
+					foundBlocksData[index.InclusionInVerifiedChain].ShareCount = shareEstimate
+					foundBlocksData[index.InclusionInVerifiedChain].UncleCount = uncleEstimate
+					foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight = lastHeight
+					lastShareHeight = lastHeight
+					lastShareTimestamp = lastTimestamp
+					return nil
+				})
+			} else {
+				_ = indexDb.Query("SELECT COUNT(*) FILTER (WHERE uncle_of IS NULL) AS share_count, COUNT(*) FILTER (WHERE uncle_of IS NOT NULL) AS uncle_count, coalesce(MAX(side_height), 0) AS last_height, inclusion FROM side_blocks WHERE side_blocks.miner = $1 GROUP BY side_blocks.inclusion ORDER BY inclusion ASC;", func(row index.RowScanInterface) error {
+					var d cmdutils.MinerInfoBlockData
+					var inclusion index.BlockInclusion
+					if err := row.Scan(&d.ShareCount, &d.UncleCount, &d.LastShareHeight, &inclusion); err != nil {
+						return err
+					}
+					if inclusion < index.InclusionCount {
+						foundBlocksData[inclusion] = d
+					}
+					return nil
+				}, miner.Id())
+			}
+		}
+
+		if lastShareHeight == 0 && foundBlocksData[index.InclusionInVerifiedChain].ShareCount > 0 && foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight > lastShareHeight {
 			lastShareHeight = foundBlocksData[index.InclusionInVerifiedChain].LastShareHeight
 		}
 
-		if lastShareHeight > 0 {
+		if lastShareTimestamp == 0 && lastShareHeight > 0 {
 			lastShareTimestamp = indexDb.GetTipSideBlockByHeight(lastShareHeight).Timestamp
 		}
 
