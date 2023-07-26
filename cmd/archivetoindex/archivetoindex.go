@@ -244,7 +244,7 @@ func main() {
 		if r.startHeight-r.tipHeight > consensus.ChainWindowSize*2 &&
 			indexDb.GetTipSideBlockByTemplateId(bestTip.SideTemplateId(consensus)) != nil &&
 			indexDb.GetTipSideBlockByHeight(r.startHeight+consensus.ChainWindowSize+1) != nil &&
-			len(index.ChanToSlice(indexDb.GetSideBlocksByHeight(r.startHeight))) != 0 {
+			index.QueryHasResults(indexDb.GetSideBlocksByHeight(r.startHeight)) {
 			continue
 		}
 
@@ -337,9 +337,11 @@ func main() {
 		}
 	}
 
-	for mb := range indexDb.GetMainBlocksByQuery("WHERE side_template_id IS NOT NULL ORDER BY height DESC;") {
+	mainBlocks, _ := indexDb.GetMainBlocksByQuery("WHERE side_template_id IS NOT NULL ORDER BY height DESC;")
+	index.QueryIterate(mainBlocks, func(_ int, mb *index.MainBlock) (stop bool) {
 		if err := utils2.FindAndInsertMainHeaderOutputs(mb, indexDb, client.GetDefaultClient(), getDifficultyByHeight, getByTemplateIdDirect, archiveCache.LoadByMainId, archiveCache.LoadByMainChainHeight, processBlock); err != nil {
 			log.Print(err)
 		}
-	}
+		return false
+	})
 }

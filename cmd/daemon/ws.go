@@ -193,14 +193,19 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			break
 		}
 		sideBlockBuffer.Insert(cur)
-		for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
+		index.QueryIterate(indexDb.GetSideBlocksByUncleOfId(cur.TemplateId), func(_ int, u *index.SideBlock) (stop bool) {
 			sideBlockBuffer.Insert(u)
-		}
+			return false
+		})
 	}
 
-	for _, b := range indexDb.GetFoundBlocks("", 5) {
-		foundBlockBuffer.Insert(b)
-	}
+	func() {
+		foundBlocks, _ := indexDb.GetFoundBlocks("", 5)
+		index.QueryIterate(foundBlocks, func(_ int, b *index.FoundBlock) (stop bool) {
+			foundBlockBuffer.Insert(b)
+			return false
+		})
+	}()
 
 	fillMainCoinbaseOutputs := func(outputs index.MainCoinbaseOutputs) (result index.MainCoinbaseOutputs) {
 		result = make(index.MainCoinbaseOutputs, 0, len(outputs))
@@ -250,14 +255,15 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 			}
 		}
 
-		for u := range indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId) {
+		index.QueryIterate(indexDb.GetSideBlocksByUncleOfId(sideBlock.TemplateId), func(_ int, u *index.SideBlock) (stop bool) {
 			sideBlock.Uncles = append(sideBlock.Uncles, index.SideBlockUncleEntry{
 				TemplateId: u.TemplateId,
 				Miner:      u.Miner,
 				SideHeight: u.SideHeight,
 				Difficulty: u.Difficulty,
 			})
-		}
+			return false
+		})
 		return sideBlock
 
 	}
@@ -278,13 +284,15 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						break
 					}
 					var pushedNew bool
-					for u := range indexDb.GetSideBlocksByUncleOfId(cur.TemplateId) {
+
+					index.QueryIterate(indexDb.GetSideBlocksByUncleOfId(cur.TemplateId), func(_ int, u *index.SideBlock) (stop bool) {
 						if sideBlockBuffer.Insert(u) {
 							//first time seen
 							pushedNew = true
 							blocksToReport = append(blocksToReport, fillSideBlockResult(mainTip, u))
 						}
-					}
+						return false
+					})
 					if sideBlockBuffer.Insert(cur) {
 						//first time seen
 						pushedNew = true
@@ -359,12 +367,17 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						}
 					}
 				}
-				for _, b := range indexDb.GetFoundBlocks("", 5) {
-					if foundBlockBuffer.Insert(b) {
-						//first time seen
-						blocksToReport = append(blocksToReport, fillFoundBlockResult(b))
-					}
-				}
+
+				func() {
+					foundBlocks, _ := indexDb.GetFoundBlocks("", 5)
+					index.QueryIterate(foundBlocks, func(_ int, b *index.FoundBlock) (stop bool) {
+						if foundBlockBuffer.Insert(b) {
+							//first time seen
+							blocksToReport = append(blocksToReport, fillFoundBlockResult(b))
+						}
+						return false
+					})
+				}()
 			}()
 
 			//sort for proper order
@@ -431,7 +444,15 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 					}
 				}
 				for _, b := range blocksToReport {
-					coinbaseOutputs := fillMainCoinbaseOutputs(indexDb.GetMainCoinbaseOutputs(b.MainBlock.CoinbaseId))
+					coinbaseOutputs := func() index.MainCoinbaseOutputs {
+						mainOutputs, err := indexDb.GetMainCoinbaseOutputs(b.MainBlock.CoinbaseId)
+						if err != nil {
+							panic(err)
+						}
+						defer mainOutputs.Close()
+						return fillMainCoinbaseOutputs(index.IterateToSliceWithoutPointer[index.MainCoinbaseOutput](mainOutputs))
+					}()
+
 					if len(coinbaseOutputs) == 0 {
 						//report next time
 						foundBlockBuffer.Remove(b)

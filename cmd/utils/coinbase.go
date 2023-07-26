@@ -138,13 +138,13 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 			if sideBlock == nil {
 				//found deep orphan which found block, insert parents
 				cur := t
-				for cur != nil && len(index.ChanToSlice(indexDb.GetSideBlocksByTemplateId(cur.SideTemplateId(indexDb.Consensus())))) == 0 {
+				for cur != nil && !index.QueryHasResults(indexDb.GetSideBlocksByTemplateId(cur.SideTemplateId(indexDb.Consensus()))) {
 					orphanBlock, orphanUncles, err := indexDb.GetSideBlockFromPoolBlock(cur, index.InclusionOrphan)
 					if err != nil {
 						break
 					}
 
-					if len(index.ChanToSlice(indexDb.GetSideBlocksByTemplateId(orphanBlock.TemplateId))) > 0 {
+					if index.QueryHasResults(indexDb.GetSideBlocksByTemplateId(orphanBlock.TemplateId)) {
 						continue
 					}
 					if err := indexDb.InsertOrUpdateSideBlock(orphanBlock); err != nil {
@@ -152,7 +152,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 					}
 
 					for _, orphanUncle := range orphanUncles {
-						if len(index.ChanToSlice(indexDb.GetSideBlocksByTemplateId(orphanUncle.TemplateId))) > 0 {
+						if index.QueryHasResults(indexDb.GetSideBlocksByTemplateId(orphanUncle.TemplateId)) {
 							continue
 						}
 						if err := indexDb.InsertOrUpdateSideBlock(orphanUncle); err != nil {
@@ -251,7 +251,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 }
 
 func FindAndInsertMainHeaderOutputs(mb *index.MainBlock, indexDb *index.Index, client *client.Client, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId sidechain.GetByTemplateIdFunc, getByMainId sidechain.GetByMainIdFunc, getByMainHeight sidechain.GetByMainHeightFunc, processBlock func(b *sidechain.PoolBlock) error) error {
-	if len(indexDb.GetMainCoinbaseOutputs(mb.CoinbaseId)) == 0 {
+	if !index.QueryHasResults(indexDb.GetMainCoinbaseOutputs(mb.CoinbaseId)) {
 		//fill information
 		log.Printf("inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
 		var t *sidechain.PoolBlock

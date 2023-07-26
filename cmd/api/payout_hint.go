@@ -35,7 +35,7 @@ func Outputs(p2api *api.P2PoolApi, indexDb *index.Index, tip *index.SideBlock, d
 
 	poolBlock := p2api.LightByMainId(tip.MainId)
 	if poolBlock != nil {
-		window := index.ChanToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
+		window := index.QueryIterateToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
 		if len(window) == 0 {
 			return nil, 0
 		}
@@ -60,26 +60,32 @@ func Outputs(p2api *api.P2PoolApi, indexDb *index.Index, tip *index.SideBlock, d
 			}
 			return getByTemplateIdFull(h)
 		}
-		getUnclesOf := func(h types.Hash) chan *index.SideBlock {
-			result := make(chan *index.SideBlock)
+
+		getUnclesOf := func(h types.Hash) index.QueryIterator[index.SideBlock] {
 			parentEffectiveHeight := window[hintIndex].EffectiveHeight
 			if window[hintIndex].TemplateId != h {
 				parentEffectiveHeight = 0
 			}
 
-			go func() {
-				defer close(result)
-				for _, b := range window[hintIndex:] {
-					if b.UncleOf == h {
-						result <- b
+			startIndex := 0
+
+			return &index.FakeQueryResult[index.SideBlock]{
+				NextFunction: func() (int, *index.SideBlock) {
+					for _, b := range window[startIndex+hintIndex:] {
+						if b.UncleOf == h {
+							startIndex++
+							return startIndex, b
+						}
+						startIndex++
+
+						if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
+							//early exit
+							break
+						}
 					}
-					if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
-						//early exit
-						break
-					}
-				}
-			}()
-			return result
+					return 0, nil
+				},
+			}
 		}
 
 		return index.CalculateOutputs(indexDb,
@@ -104,7 +110,7 @@ func PayoutHint(p2api *api.P2PoolApi, indexDb *index.Index, tip *index.SideBlock
 	if tip == nil {
 		return nil, 0
 	}
-	window := index.ChanToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
+	window := index.QueryIterateToSlice(indexDb.GetSideBlocksInPPLNSWindow(tip))
 	if len(window) == 0 {
 		return nil, 0
 	}
@@ -130,26 +136,31 @@ func PayoutHint(p2api *api.P2PoolApi, indexDb *index.Index, tip *index.SideBlock
 		}
 		return getByTemplateIdFull(h)
 	}
-	getUnclesOf := func(h types.Hash) chan *index.SideBlock {
-		result := make(chan *index.SideBlock)
+	getUnclesOf := func(h types.Hash) index.QueryIterator[index.SideBlock] {
 		parentEffectiveHeight := window[hintIndex].EffectiveHeight
 		if window[hintIndex].TemplateId != h {
 			parentEffectiveHeight = 0
 		}
 
-		go func() {
-			defer close(result)
-			for _, b := range window[hintIndex:] {
-				if b.UncleOf == h {
-					result <- b
+		startIndex := 0
+
+		return &index.FakeQueryResult[index.SideBlock]{
+			NextFunction: func() (int, *index.SideBlock) {
+				for _, b := range window[startIndex+hintIndex:] {
+					if b.UncleOf == h {
+						startIndex++
+						return startIndex, b
+					}
+					startIndex++
+
+					if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
+						//early exit
+						break
+					}
 				}
-				if parentEffectiveHeight != 0 && b.EffectiveHeight < parentEffectiveHeight {
-					//early exit
-					break
-				}
-			}
-		}()
-		return result
+				return 0, nil
+			},
+		}
 	}
 
 	blockDepth, err := index.BlocksInPPLNSWindow(tip, indexDb.Consensus(), p2api.MainDifficultyByHeight, getByTemplateId, getUnclesOf, func(b *index.SideBlock, weight types.Difficulty) {

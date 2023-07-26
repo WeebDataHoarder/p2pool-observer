@@ -14,7 +14,7 @@ import (
 )
 
 type GetByTemplateIdFunc func(h types.Hash) *SideBlock
-type GetUnclesByTemplateIdFunc func(h types.Hash) chan *SideBlock
+type GetUnclesByTemplateIdFunc func(h types.Hash) QueryIterator[SideBlock]
 type SideBlockWindowAddWeightFunc func(b *SideBlock, weight types.Difficulty)
 
 type SideBlockWindowSlot struct {
@@ -59,7 +59,7 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 		}
 		curWeight := types.DifficultyFrom64(cur.Difficulty)
 
-		for uncle := range getUnclesByTemplateId(cur.TemplateId) {
+		QueryIterate(getUnclesByTemplateId(cur.TemplateId), func(_ int, uncle *SideBlock) (stop bool) {
 			//Needs to be added regardless - for other consumers
 			if !slices.ContainsFunc(curEntry.Uncles, func(sideBlock *SideBlock) bool {
 				return sideBlock.TemplateId == uncle.TemplateId
@@ -69,7 +69,7 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 
 			// Skip uncles which are already out of PPLNS window
 			if (tip.SideHeight - uncle.SideHeight) >= consensus.ChainWindowSize {
-				continue
+				return false
 			}
 
 			// Take some % of uncle's weight into this share
@@ -78,7 +78,7 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 
 			// Skip uncles that push PPLNS weight above the limit
 			if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-				continue
+				return false
 			}
 			curWeight = curWeight.Add(unclePenalty)
 
@@ -87,7 +87,9 @@ func IterateSideBlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consens
 			}
 
 			pplnsWeight = newPplnsWeight
-		}
+
+			return false
+		})
 
 		// Always add non-uncle shares even if PPLNS weight goes above the limit
 		slotFunc(curEntry)
@@ -161,7 +163,7 @@ func BlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consensus, difficu
 		}
 		curWeight := types.DifficultyFrom64(cur.Difficulty)
 
-		for uncle := range getUnclesByTemplateId(cur.TemplateId) {
+		QueryIterate(getUnclesByTemplateId(cur.TemplateId), func(_ int, uncle *SideBlock) (stop bool) {
 			//Needs to be added regardless - for other consumers
 			if !slices.ContainsFunc(curEntry.Uncles, func(sideBlock *SideBlock) bool {
 				return sideBlock.TemplateId == uncle.TemplateId
@@ -171,7 +173,7 @@ func BlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consensus, difficu
 
 			// Skip uncles which are already out of PPLNS window
 			if (tip.SideHeight - uncle.SideHeight) >= consensus.ChainWindowSize {
-				continue
+				return false
 			}
 
 			// Take some % of uncle's weight into this share
@@ -180,7 +182,7 @@ func BlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consensus, difficu
 
 			// Skip uncles that push PPLNS weight above the limit
 			if newPplnsWeight.Cmp(maxPplnsWeight) > 0 {
-				continue
+				return false
 			}
 			curWeight = curWeight.Add(unclePenalty)
 
@@ -189,7 +191,9 @@ func BlocksInPPLNSWindow(tip *SideBlock, consensus *sidechain.Consensus, difficu
 			}
 
 			pplnsWeight = newPplnsWeight
-		}
+
+			return false
+		})
 
 		// Always add non-uncle shares even if PPLNS weight goes above the limit
 		bottomHeight = cur.SideHeight

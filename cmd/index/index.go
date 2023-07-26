@@ -18,7 +18,6 @@ import (
 	"log"
 	"reflect"
 	"regexp"
-	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -364,28 +363,18 @@ func (i *Index) SetMinerAlias(minerId uint64, alias string) error {
 	return nil
 }
 
-type RowScanInterface interface {
-	Scan(dest ...any) error
-}
-
-type Scannable interface {
-	ScanFromRow(i *Index, row RowScanInterface) error
-}
-
 func (i *Index) GetView(k string) string {
 	return i.views[k]
 }
 
 func (i *Index) Query(query string, callback func(row RowScanInterface) error, params ...any) error {
 	var parentError error
-	pprof.Do(context.Background(), pprof.Labels("query", query), func(ctx context.Context) {
-		if stmt, err := i.handle.Prepare(query); err != nil {
-			parentError = err
-		} else {
-			defer stmt.Close()
-			parentError = i.QueryStatement(stmt, callback, params...)
-		}
-	})
+	if stmt, err := i.handle.Prepare(query); err != nil {
+		parentError = err
+	} else {
+		defer stmt.Close()
+		parentError = i.QueryStatement(stmt, callback, params...)
+	}
 	return parentError
 }
 
@@ -409,71 +398,39 @@ func (i *Index) PrepareSideBlocksByQueryStatement(where string) (stmt *sql.Stmt,
 	return i.handle.Prepare(fmt.Sprintf("SELECT "+SideBlockSelectFields+" FROM side_blocks %s;", where))
 }
 
-func (i *Index) GetSideBlocksByQuery(where string, params ...any) chan *SideBlock {
+func (i *Index) GetSideBlocksByQuery(where string, params ...any) (QueryIterator[SideBlock], error) {
 	if stmt, err := i.PrepareSideBlocksByQueryStatement(where); err != nil {
-		returnChannel := make(chan *SideBlock, 1)
-		close(returnChannel)
-		return returnChannel
+		return nil, err
 	} else {
-		return i.getSideBlocksByQueryStatement(where, stmt, params...)
+		return i.getSideBlocksByQueryStatement(stmt, params...)
 	}
 }
 
-func (i *Index) getSideBlocksByQueryStatement(sourceQuery string, stmt *sql.Stmt, params ...any) chan *SideBlock {
-	returnChannel := make(chan *SideBlock, 1)
-	go func() {
+func (i *Index) getSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) (QueryIterator[SideBlock], error) {
+	if r, err := queryStatement[SideBlock](i, stmt, params...); err != nil {
 		defer stmt.Close()
-		defer close(returnChannel)
-
-		pprof.Do(context.Background(), pprof.Labels("sourceQuery", sourceQuery), func(ctx context.Context) {
-			err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-				b := &SideBlock{}
-				if err = b.ScanFromRow(i, row); err != nil {
-					return err
-				}
-
-				returnChannel <- b
-
-				return nil
-			}, params...)
-			if err != nil {
-				log.Print(err)
-			}
-		})
-	}()
-
-	return returnChannel
+		return nil, err
+	} else {
+		r.closer = func() {
+			stmt.Close()
+		}
+		return r, nil
+	}
 }
 
-func (i *Index) GetSideBlocksByQueryStatement(source string, stmt *sql.Stmt, params ...any) chan *SideBlock {
-	returnChannel := make(chan *SideBlock, 1)
-	go func() {
-		defer close(returnChannel)
-		pprof.Do(context.Background(), pprof.Labels("source", source), func(ctx context.Context) {
-			err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-				b := &SideBlock{}
-				if err = b.ScanFromRow(i, row); err != nil {
-					return err
-				}
-
-				returnChannel <- b
-
-				return nil
-			}, params...)
-			if err != nil {
-				log.Print(err)
-			}
-		})
-	}()
-
-	return returnChannel
+func (i *Index) GetSideBlocksByQueryStatement(stmt *sql.Stmt, params ...any) (QueryIterator[SideBlock], error) {
+	if r, err := queryStatement[SideBlock](i, stmt, params...); err != nil {
+		return nil, err
+	} else {
+		return r, nil
+	}
 }
 
 func (i *Index) PrepareMainBlocksByQueryStatement(where string) (stmt *sql.Stmt, err error) {
 	return i.handle.Prepare(fmt.Sprintf("SELECT "+MainBlockSelectFields+" FROM main_blocks %s;", where))
 }
 
-func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion BlockInclusion) chan *SideBlock {
+func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion BlockInclusion) (QueryIterator[SideBlock], error) {
 	if limit == 0 {
 		if minerId != 0 {
 			if onlyBlocks {
@@ -505,164 +462,222 @@ func (i *Index) GetShares(limit, minerId uint64, onlyBlocks bool, inclusion Bloc
 	}
 }
 
-func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) []*FoundBlock {
-	result := make([]*FoundBlock, 0, limit)
-	if err := i.Query(fmt.Sprintf("SELECT * FROM "+i.views["found_main_blocks"]+" %s ORDER BY main_height DESC LIMIT %d;", where, limit), func(row RowScanInterface) error {
-		var d FoundBlock
-
-		if err := d.ScanFromRow(i, row); err != nil {
-			return err
+func (i *Index) GetFoundBlocks(where string, limit uint64, params ...any) (QueryIterator[FoundBlock], error) {
+	if stmt, err := i.handle.Prepare(fmt.Sprintf("SELECT * FROM "+i.views["found_main_blocks"]+" %s ORDER BY main_height DESC LIMIT %d;", where, limit)); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[FoundBlock](i, stmt, params...); err != nil {
+			defer stmt.Close()
+			return nil, err
+		} else {
+			r.closer = func() {
+				stmt.Close()
+			}
+			return r, nil
 		}
-
-		result = append(result, &d)
-		return nil
-	}, params...); err != nil {
-		return nil
 	}
-	return result
 }
 
-func (i *Index) GetMainBlocksByQuery(where string, params ...any) chan *MainBlock {
+func (i *Index) GetMainBlocksByQuery(where string, params ...any) (QueryIterator[MainBlock], error) {
 	if stmt, err := i.PrepareMainBlocksByQueryStatement(where); err != nil {
-		returnChannel := make(chan *MainBlock, 1)
-		close(returnChannel)
-		return returnChannel
+		return nil, err
 	} else {
 		return i.getMainBlocksByQueryStatement(stmt, params...)
 	}
 }
 
-func (i *Index) getMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *MainBlock {
-	returnChannel := make(chan *MainBlock, 1)
-	go func() {
+func (i *Index) getMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) (QueryIterator[MainBlock], error) {
+	if r, err := queryStatement[MainBlock](i, stmt, params...); err != nil {
 		defer stmt.Close()
-		defer close(returnChannel)
-		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-			b := &MainBlock{}
-			if err = b.ScanFromRow(i, row); err != nil {
-				return err
-			}
-
-			returnChannel <- b
-
-			return nil
-		}, params...)
-		if err != nil {
-			log.Print(err)
+		return nil, err
+	} else {
+		r.closer = func() {
+			stmt.Close()
 		}
-	}()
-
-	return returnChannel
+		return r, nil
+	}
 }
 
-func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) chan *MainBlock {
-	returnChannel := make(chan *MainBlock, 1)
-	go func() {
-		defer close(returnChannel)
-		err := i.QueryStatement(stmt, func(row RowScanInterface) (err error) {
-			b := &MainBlock{}
-			if err = b.ScanFromRow(i, row); err != nil {
-				return err
-			}
+func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) (QueryIterator[MainBlock], error) {
+	if r, err := queryStatement[MainBlock](i, stmt, params...); err != nil {
+		return nil, err
+	} else {
+		return r, nil
+	}
+}
 
-			returnChannel <- b
-
-			return nil
-		}, params...)
-		if err != nil {
-			log.Print(err)
+func (i *Index) GetMainBlockById(id types.Hash) (b *MainBlock) {
+	if r, err := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockById, id[:]); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
 		}
-	}()
-
-	return returnChannel
+	}
+	return b
 }
 
-func (i *Index) GetMainBlockById(id types.Hash) *MainBlock {
-	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockById, id[:])
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetMainBlockTip() (b *MainBlock) {
+	if r, err := i.GetMainBlocksByQueryStatement(i.statements.TipMainBlock); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetMainBlockTip() *MainBlock {
-	r := i.GetMainBlocksByQueryStatement(i.statements.TipMainBlock)
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) (b *MainBlock) {
+	if r, err := i.GetMainBlocksByQuery("WHERE coinbase_id = $1;", id[:]); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) *MainBlock {
-	r := i.GetMainBlocksByQuery("WHERE coinbase_id = $1;", id[:])
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) (b *MainBlock) {
+	if r, err := i.GetMainBlocksByQuery("WHERE coinbase_id = (SELECT id FROM main_coinbase_outputs WHERE global_output_index = $1 LIMIT 1);", globalOutputIndex); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) *MainBlock {
-	r := i.GetMainBlocksByQuery("WHERE coinbase_id = (SELECT id FROM main_coinbase_outputs WHERE global_output_index = $1 LIMIT 1);", globalOutputIndex)
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetMainBlockByHeight(height uint64) (b *MainBlock) {
+	if r, err := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockByHeight, height); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetMainBlockByHeight(height uint64) *MainBlock {
-	r := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockByHeight, height)
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetSideBlockByMainId(id types.Hash) (b *SideBlock) {
+	if r, err := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByMainId, id[:]); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetSideBlockByMainId(id types.Hash) *SideBlock {
-	r := i.GetSideBlocksByQueryStatement("GetSideBlockByMainId", i.statements.GetSideBlockByMainId, id[:])
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetSideBlocksByTemplateId(id types.Hash) QueryIterator[SideBlock] {
+	if r, err := i.GetSideBlocksByQuery("WHERE template_id = $1;", id[:]); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
-func (i *Index) GetSideBlocksByTemplateId(id types.Hash) chan *SideBlock {
-	return i.GetSideBlocksByQuery("WHERE template_id = $1;", id[:])
+func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) QueryIterator[SideBlock] {
+	if r, err := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByUncleId, id[:]); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
-func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) chan *SideBlock {
-	return i.GetSideBlocksByQueryStatement("GetSideBlocksByUncleOfId", i.statements.GetSideBlockByUncleId, id[:])
+func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) (b *SideBlock) {
+	if r, err := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) *SideBlock {
-	r := i.GetSideBlocksByQueryStatement("GetTipSideBlockByTemplateId", i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain)
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetSideBlocksByMainHeight(height uint64) QueryIterator[SideBlock] {
+	if r, err := i.GetSideBlocksByQuery("WHERE main_height = $1;", height); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
-func (i *Index) GetSideBlocksByMainHeight(height uint64) chan *SideBlock {
-	return i.GetSideBlocksByQuery("WHERE main_height = $1;", height)
+func (i *Index) GetSideBlocksByHeight(height uint64) QueryIterator[SideBlock] {
+	if r, err := i.GetSideBlocksByQuery("WHERE side_height = $1;", height); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
-func (i *Index) GetSideBlocksByHeight(height uint64) chan *SideBlock {
-	return i.GetSideBlocksByQuery("WHERE side_height = $1;", height)
+func (i *Index) GetTipSideBlockByHeight(height uint64) (b *SideBlock) {
+	if r, err := i.GetSideBlocksByQuery("WHERE side_height = $1 AND effective_height = $2 AND inclusion = $3;", height, height, InclusionInVerifiedChain); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetTipSideBlockByHeight(height uint64) *SideBlock {
-	r := i.GetSideBlocksByQuery("WHERE side_height = $1 AND effective_height = $2 AND inclusion = $3;", height, height, InclusionInVerifiedChain)
-	defer ChanConsume(r)
-	return <-r
+func (i *Index) GetSideBlockTip() (b *SideBlock) {
+	if r, err := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlock, InclusionInVerifiedChain); err != nil {
+		log.Print(err)
+	} else {
+		defer r.Close()
+		if _, b = r.Next(); b == nil && r.Err() != nil {
+			log.Print(r.Err())
+		}
+	}
+	return b
 }
 
-func (i *Index) GetSideBlockTip() *SideBlock {
-	r := i.GetSideBlocksByQueryStatement("GetSideBlockTip", i.statements.TipSideBlock, InclusionInVerifiedChain)
-	defer ChanConsume(r)
-	return <-r
-}
-
-func (i *Index) GetSideBlocksInPPLNSWindow(tip *SideBlock) chan *SideBlock {
+func (i *Index) GetSideBlocksInPPLNSWindow(tip *SideBlock) QueryIterator[SideBlock] {
 	return i.GetSideBlocksInWindow(tip.SideHeight, uint64(tip.WindowDepth))
 }
 
-func (i *Index) GetSideBlocksInWindow(startHeight, windowSize uint64) chan *SideBlock {
+func (i *Index) GetSideBlocksInWindow(startHeight, windowSize uint64) QueryIterator[SideBlock] {
 	if startHeight < windowSize {
 		windowSize = startHeight
 	}
-	return i.GetSideBlocksByQuery("WHERE effective_height <= $1 AND effective_height > $2 AND inclusion = $3 ORDER BY effective_height DESC, side_height DESC;", startHeight, startHeight-windowSize, InclusionInVerifiedChain)
+
+	if r, err := i.GetSideBlocksByQuery("WHERE effective_height <= $1 AND effective_height > $2 AND inclusion = $3 ORDER BY effective_height DESC, side_height DESC;", startHeight, startHeight-windowSize, InclusionInVerifiedChain); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
-func (i *Index) GetSideBlocksByMinerIdInWindow(minerId, startHeight, windowSize uint64) chan *SideBlock {
+func (i *Index) GetSideBlocksByMinerIdInWindow(minerId, startHeight, windowSize uint64) QueryIterator[SideBlock] {
 	if startHeight < windowSize {
 		windowSize = startHeight
 	}
-	return i.GetSideBlocksByQuery("WHERE miner = $1 AND effective_height <= $2 AND effective_height > $3 AND inclusion = $4 ORDER BY effective_height DESC, side_height DESC;", minerId, startHeight, startHeight-windowSize, InclusionInVerifiedChain)
+
+	if r, err := i.GetSideBlocksByQuery("WHERE miner = $1 AND effective_height <= $2 AND effective_height > $3 AND inclusion = $4 ORDER BY effective_height DESC, side_height DESC;", minerId, startHeight, startHeight-windowSize, InclusionInVerifiedChain); err != nil {
+		log.Print(err)
+	} else {
+		return r
+	}
+	return nil
 }
 
 func (i *Index) InsertOrUpdateSideBlock(b *SideBlock) error {
@@ -763,207 +778,195 @@ func (i *Index) InsertOrUpdateMainBlock(b *MainBlock) error {
 	}
 }
 
-func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) chan *Payout {
-	out := make(chan *Payout, 1)
+func (i *Index) GetPayoutsByMinerId(minerId uint64, limit uint64) (r QueryIterator[Payout], err error) {
+	var stmt *sql.Stmt
+	var params []any
 
-	go func() {
-		defer close(out)
-
-		resultFunc := func(row RowScanInterface) error {
-			p := &Payout{}
-			if err := p.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- p
-			return nil
+	if limit == 0 {
+		if stmt, err = i.handle.Prepare("SELECT * FROM " + i.views["payouts"] + " WHERE miner = $1 ORDER BY main_height DESC;"); err != nil {
+			return nil, err
 		}
+		params = []any{minerId}
+	} else {
+		if stmt, err = i.handle.Prepare("SELECT * FROM " + i.views["payouts"] + " WHERE miner = $1 ORDER BY main_height DESC LIMIT $2;"); err != nil {
+			return nil, err
+		}
+		params = []any{minerId, limit}
+	}
 
-		if limit == 0 {
-			if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 ORDER BY main_height DESC;", resultFunc, minerId); err != nil {
-				return
-			}
+	if r, err := queryStatement[Payout](i, stmt, params...); err != nil {
+		defer stmt.Close()
+		return nil, err
+	} else {
+		r.closer = func() {
+			stmt.Close()
+		}
+		return r, nil
+	}
+}
+
+func (i *Index) GetPayoutsByMinerIdFromHeight(minerId uint64, height uint64) (QueryIterator[Payout], error) {
+	if stmt, err := i.handle.Prepare("SELECT * FROM " + i.views["payouts"] + " WHERE miner = $1 AND main_height >= $2 ORDER BY main_height DESC;"); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[Payout](i, stmt, minerId, height); err != nil {
+			defer stmt.Close()
+			return nil, err
 		} else {
-			if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 ORDER BY main_height DESC LIMIT $2;", resultFunc, minerId, limit); err != nil {
-				return
+			r.closer = func() {
+				stmt.Close()
 			}
+			return r, nil
 		}
-	}()
-
-	return out
-}
-
-func (i *Index) GetPayoutsByMinerIdFromHeight(minerId uint64, height uint64) chan *Payout {
-	out := make(chan *Payout, 1)
-
-	go func() {
-		defer close(out)
-
-		resultFunc := func(row RowScanInterface) error {
-			p := &Payout{}
-			if err := p.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- p
-			return nil
-		}
-
-		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND main_height >= $2 ORDER BY main_height DESC;", resultFunc, minerId, height); err != nil {
-			return
-		}
-	}()
-
-	return out
-}
-
-func (i *Index) GetPayoutsByMinerIdFromTimestamp(minerId uint64, timestamp uint64) chan *Payout {
-	out := make(chan *Payout, 1)
-
-	go func() {
-		defer close(out)
-
-		resultFunc := func(row RowScanInterface) error {
-			p := &Payout{}
-			if err := p.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- p
-			return nil
-		}
-
-		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND timestamp >= $2 ORDER BY main_height DESC;", resultFunc, minerId, timestamp); err != nil {
-			return
-		}
-	}()
-
-	return out
-}
-
-func (i *Index) GetPayoutsBySideBlock(b *SideBlock) chan *Payout {
-	out := make(chan *Payout, 1)
-
-	go func() {
-		defer close(out)
-
-		resultFunc := func(row RowScanInterface) error {
-			p := &Payout{}
-			if err := p.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- p
-			return nil
-		}
-
-		if err := i.Query("SELECT * FROM "+i.views["payouts"]+" WHERE miner = $1 AND ((side_height >= $2 AND including_height <= $2) OR main_id = $3) ORDER BY main_height DESC;", resultFunc, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
-			return
-		}
-	}()
-
-	return out
-}
-
-func (i *Index) GetMainCoinbaseOutputs(coinbaseId types.Hash) MainCoinbaseOutputs {
-	var outputs MainCoinbaseOutputs
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 ORDER BY index ASC;", func(row RowScanInterface) error {
-		var output MainCoinbaseOutput
-		if err := output.ScanFromRow(i, row); err != nil {
-			return err
-		}
-		outputs = append(outputs, output)
-		return nil
-	}, coinbaseId[:]); err != nil {
-		return nil
 	}
-	return outputs
 }
 
-func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64) *MainCoinbaseOutput {
-	var output MainCoinbaseOutput
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index ASC;", func(row RowScanInterface) error {
-		if err := output.ScanFromRow(i, row); err != nil {
-			return err
-		}
-		return nil
-	}, coinbaseId[:], index); err != nil {
-		return nil
-	}
-	if output.Id == types.ZeroHash {
-		return nil
-	}
-	return &output
-}
-
-func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint64) *MainCoinbaseOutput {
-	var output MainCoinbaseOutput
-	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index = $1 ORDER BY index ASC;", func(row RowScanInterface) error {
-		if err := output.ScanFromRow(i, row); err != nil {
-			return err
-		}
-		return nil
-	}, globalOutputIndex); err != nil {
-		return nil
-	}
-	if output.Id == types.ZeroHash {
-		return nil
-	}
-	return &output
-}
-
-func (i *Index) GetMainLikelySweepTransactions(limit uint64) chan *MainLikelySweepTransaction {
-	out := make(chan *MainLikelySweepTransaction, 1)
-
-	go func() {
-		defer close(out)
-		scanFunc := func(row RowScanInterface) error {
-			var tx MainLikelySweepTransaction
-			if err := tx.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- &tx
-			return nil
-		}
-
-		if limit > 0 {
-			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions ORDER BY timestamp DESC LIMIT $1;", scanFunc, limit); err != nil {
-				return
-			}
+func (i *Index) GetPayoutsByMinerIdFromTimestamp(minerId uint64, timestamp uint64) (QueryIterator[Payout], error) {
+	if stmt, err := i.handle.Prepare("SELECT * FROM " + i.views["payouts"] + " WHERE miner = $1 AND timestamp >= $2 ORDER BY main_height DESC;"); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[Payout](i, stmt, minerId, timestamp); err != nil {
+			defer stmt.Close()
+			return nil, err
 		} else {
-			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions ORDER BY timestamp DESC;", scanFunc); err != nil {
-				return
+			r.closer = func() {
+				stmt.Close()
 			}
+			return r, nil
 		}
-	}()
-
-	return out
+	}
 }
 
-func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, limit uint64) chan *MainLikelySweepTransaction {
-	out := make(chan *MainLikelySweepTransaction, 1)
-
-	go func() {
-		defer close(out)
-
-		spendPub, viewPub := addr.SpendPublicKey().AsSlice(), addr.ViewPublicKey().AsSlice()
-		scanFunc := func(row RowScanInterface) error {
-			var tx MainLikelySweepTransaction
-			if err := tx.ScanFromRow(i, row); err != nil {
-				return err
-			}
-			out <- &tx
-			return nil
-		}
-
-		if limit > 0 {
-			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC LIMIT $3;", scanFunc, &spendPub, &viewPub, limit); err != nil {
-				return
-			}
+func (i *Index) GetPayoutsBySideBlock(b *SideBlock) (QueryIterator[Payout], error) {
+	if stmt, err := i.handle.Prepare("SELECT * FROM " + i.views["payouts"] + " WHERE miner = $1 AND ((side_height >= $2 AND including_height <= $2) OR main_id = $3) ORDER BY main_height DESC;"); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[Payout](i, stmt, b.Miner, b.EffectiveHeight, &b.MainId); err != nil {
+			defer stmt.Close()
+			return nil, err
 		} else {
-			if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC;", scanFunc, &spendPub, &viewPub); err != nil {
-				return
+			r.closer = func() {
+				stmt.Close()
 			}
+			return r, nil
 		}
-	}()
+	}
+}
 
-	return out
+func (i *Index) GetMainCoinbaseOutputs(coinbaseId types.Hash) (QueryIterator[MainCoinbaseOutput], error) {
+	if stmt, err := i.handle.Prepare("SELECT " + MainCoinbaseOutputSelectFields + " FROM main_coinbase_outputs WHERE id = $1 ORDER BY index ASC;"); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[MainCoinbaseOutput](i, stmt, coinbaseId[:]); err != nil {
+			defer stmt.Close()
+			return nil, err
+		} else {
+			r.closer = func() {
+				stmt.Close()
+			}
+			return r, nil
+		}
+	}
+}
+
+func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64) (o *MainCoinbaseOutput) {
+	if stmt, err := i.handle.Prepare("SELECT " + MainCoinbaseOutputSelectFields + " FROM main_coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index ASC;"); err != nil {
+		log.Print(err)
+		return nil
+	} else {
+		if r, err := queryStatement[MainCoinbaseOutput](i, stmt, coinbaseId[:], index); err != nil {
+			log.Print(err)
+			return nil
+		} else {
+			defer r.Close()
+			r.closer = func() {
+				stmt.Close()
+			}
+			defer r.Close()
+			if _, o = r.Next(); o == nil && r.Err() != nil {
+				log.Print(r.Err())
+			}
+			return o
+		}
+	}
+}
+
+func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint64) (o *MainCoinbaseOutput) {
+	if stmt, err := i.handle.Prepare("SELECT " + MainCoinbaseOutputSelectFields + " FROM main_coinbase_outputs WHERE global_output_index = $1 ORDER BY index ASC;"); err != nil {
+		log.Print(err)
+		return nil
+	} else {
+		if r, err := queryStatement[MainCoinbaseOutput](i, stmt, globalOutputIndex); err != nil {
+			log.Print(err)
+			return nil
+		} else {
+			defer r.Close()
+			r.closer = func() {
+				stmt.Close()
+			}
+			defer r.Close()
+			if _, o = r.Next(); o == nil && r.Err() != nil {
+				log.Print(r.Err())
+			}
+			return o
+		}
+	}
+}
+
+func (i *Index) GetMainLikelySweepTransactions(limit uint64) (r QueryIterator[MainLikelySweepTransaction], err error) {
+	var stmt *sql.Stmt
+	var params []any
+
+	if limit > 0 {
+		if stmt, err = i.handle.Prepare("SELECT " + MainLikelySweepTransactionSelectFields + " FROM main_likely_sweep_transactions ORDER BY timestamp DESC LIMIT $1;"); err != nil {
+			return nil, err
+		}
+		params = []any{limit}
+	} else {
+		if stmt, err = i.handle.Prepare("SELECT " + MainLikelySweepTransactionSelectFields + " FROM main_likely_sweep_transactions ORDER BY timestamp DESC;"); err != nil {
+			return nil, err
+		}
+		params = []any{}
+	}
+
+	if r, err := queryStatement[MainLikelySweepTransaction](i, stmt, params...); err != nil {
+		defer stmt.Close()
+		return nil, err
+	} else {
+		r.closer = func() {
+			stmt.Close()
+		}
+		return r, nil
+	}
+}
+
+func (i *Index) GetMainLikelySweepTransactionsByAddress(addr *address.Address, limit uint64) (r QueryIterator[MainLikelySweepTransaction], err error) {
+	var stmt *sql.Stmt
+	var params []any
+
+	spendPub, viewPub := addr.SpendPublicKey().AsSlice(), addr.ViewPublicKey().AsSlice()
+
+	if limit > 0 {
+		if stmt, err = i.handle.Prepare("SELECT " + MainLikelySweepTransactionSelectFields + " FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC LIMIT $3;"); err != nil {
+			return nil, err
+		}
+		params = []any{&spendPub, &viewPub, limit}
+	} else {
+		if stmt, err = i.handle.Prepare("SELECT " + MainLikelySweepTransactionSelectFields + " FROM main_likely_sweep_transactions WHERE miner_spend_public_key = $1 AND miner_view_public_key = $2 ORDER BY timestamp DESC;"); err != nil {
+			return nil, err
+		}
+		params = []any{&spendPub, &viewPub}
+	}
+
+	if r, err := queryStatement[MainLikelySweepTransaction](i, stmt, params...); err != nil {
+		defer stmt.Close()
+		return nil, err
+	} else {
+		r.closer = func() {
+			stmt.Close()
+		}
+		return r, nil
+	}
 }
 
 type TransactionInputQueryResult struct {
@@ -1366,18 +1369,4 @@ func (i *Index) InsertOrUpdatePoolBlock(b *sidechain.PoolBlock, inclusion BlockI
 	}
 
 	return nil
-}
-
-func ChanConsume[T any](s chan T) {
-	for range s {
-
-	}
-}
-
-func ChanToSlice[T any](s chan T) (r []T) {
-	r = make([]T, 0)
-	for v := range s {
-		r = append(r, v)
-	}
-	return r
 }
