@@ -3,6 +3,7 @@ Disallow: /miner
 Disallow: /miners
 Disallow: /sweeps
 Disallow: /transaction-lookup
+Disallow: /proof
 Disallow: /api/
 
 User-agent: PetalBot
