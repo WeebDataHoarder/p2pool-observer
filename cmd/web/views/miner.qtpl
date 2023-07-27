@@ -100,7 +100,7 @@ type MinerPage struct {
         <h3 style="color:#FF4433" title="Share version {%s p.LastPoolBlock.ShareVersion().String() %}, signaling {%s p.LastPoolBlock.ShareVersionSignaling().String() %}">Recent shares indicate you are running an outdated version of P2Pool</h3>
 
         <p>A new version of <a href="https://github.com/SChernykh/p2pool/releases/tag/v3.3">P2Pool (v3.0+)</a> has been released with several improvements, which requires a consensus change.</p>
-        <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.3 is recommended.</p>
+        <p>P2Pool (not Monero!) has hardforked to new consensus rules on <strong>March 18th, 2023 at 21:00 UTC</strong>. All versions before P2Pool v3.0 are incompatible. P2Pool v3.3+ is recommended.</p>
         <p>If you keep using previous versions, you will keep mining as usual, but become almost a solo miner, as incompatible clients will mine on their own.</p>
         <p>{% if p.Context().NetServiceAddress == "p2pool.observer" %}After the fork, you can check on <a href="{%s p.Context().GetUrl("old.p2pool.observer") %}/miner/{%z= p.Miner.Address.ToBase58() %}">OLD.P2Pool.Observer</a>.{% elseif p.Context().NetServiceAddress == "mini.p2pool.observer" %}After the fork, you can check on <a href="https://{%s p.Context().GetUrl("old-mini.p2pool.observer") %}/miner/{%z= p.Miner.Address.ToBase58() %}">OLD-MINI.P2Pool.Observer</a>.{% else %}Please check on an observer tracking the old chain.{% endif %}</p>
         <p>After upgrading to a supported P2Pool version and mining a share, this message will be dismissed.</p>
