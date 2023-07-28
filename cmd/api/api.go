@@ -332,8 +332,11 @@ func main() {
 			},
 			MainChain: cmdutils.PoolInfoResultMainChain{
 				Consensus: cmdutils.PoolInfoResultMainChainConsensus{
-					HardForks: sidechain.NetworkHardFork(consensus),
-					BlockTime: monero.BlockTime,
+					BlockTime:                monero.BlockTime,
+					TransactionUnlockTime:    monero.TransactionUnlockTime,
+					MinerRewardUnlockTime:    monero.MinerRewardUnlockTime,
+					HardForkSupportedVersion: monero.HardForkSupportedVersion,
+					HardForks:                sidechain.NetworkHardFork(consensus),
 				},
 				Id:             mainTip.Id,
 				CoinbaseId:     mainTip.CoinbaseId,

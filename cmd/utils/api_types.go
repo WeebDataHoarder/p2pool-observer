@@ -150,8 +150,13 @@ type PoolInfoResultSideChainWindow struct {
 }
 
 type PoolInfoResultMainChainConsensus struct {
-	BlockTime uint64 `json:"block_time"`
-	// HardFork information for Monero known hardfork by backing p2pool
+	BlockTime             uint64 `json:"block_time"`
+	TransactionUnlockTime uint64 `json:"transaction_unlock_time"`
+	MinerRewardUnlockTime uint64 `json:"miner_reward_unlock_time"`
+
+	// HardForkSupportedVersion
+	HardForkSupportedVersion uint8 `json:"hard_fork_supported_version"`
+	// HardForks HardFork information for Monero known hardfork by backing p2pool
 	HardForks []sidechain.HardFork `json:"hard_forks,omitempty"`
 }
 
