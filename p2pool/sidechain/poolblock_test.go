@@ -72,7 +72,7 @@ func testPoolBlock(b *PoolBlock, t *testing.T, expectedBufferLength int, majorVe
 		t.Fatal()
 	}
 
-	if b.Main.Coinbase.Id() != coinbaseId {
+	if b.CoinbaseId() != coinbaseId {
 		t.Fatal()
 	}
 }

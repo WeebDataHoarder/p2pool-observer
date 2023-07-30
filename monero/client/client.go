@@ -152,8 +152,8 @@ func (c *Client) GetCoinbaseTransaction(txId types.Hash) (*transaction.CoinbaseT
 					return nil, err
 				}
 
-				if tx.Id() != txId {
-					return nil, fmt.Errorf("expected %s, got %s", txId.String(), tx.Id().String())
+				if tx.CalculateId() != txId {
+					return nil, fmt.Errorf("expected %s, got %s", txId.String(), tx.CalculateId().String())
 				}
 
 				c.coinbaseTransactionCache.Set(txId, tx)

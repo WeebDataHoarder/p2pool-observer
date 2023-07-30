@@ -9,11 +9,9 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"sync/atomic"
 )
 
 type CoinbaseTransaction struct {
-	id      atomic.Pointer[types.Hash]
 	Version uint8 `json:"version"`
 	// UnlockTime would be here
 	InputCount uint8 `json:"input_count"`
@@ -199,19 +197,6 @@ func (c *CoinbaseTransaction) SideChainHashingBlob(preAllocatedBuf []byte, zeroT
 	buf = append(buf, c.ExtraBaseRCT)
 
 	return buf, nil
-}
-
-func (c *CoinbaseTransaction) Id() types.Hash {
-	if h := c.id.Load(); h != nil {
-		return *h
-	} else {
-		hash := c.CalculateId()
-		if hash == types.ZeroHash {
-			return types.ZeroHash
-		}
-		c.id.Store(&hash)
-		return hash
-	}
 }
 
 func (c *CoinbaseTransaction) CalculateId() (hash types.Hash) {

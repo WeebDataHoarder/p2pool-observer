@@ -430,6 +430,19 @@ func (b *PoolBlock) SideTemplateId(consensus *Consensus) types.Hash {
 	}
 }
 
+func (b *PoolBlock) CoinbaseId() types.Hash {
+	if h := b.cache.coinbaseId.Load(); h != nil {
+		return *h
+	} else {
+		hash := b.Main.Coinbase.CalculateId()
+		if hash == types.ZeroHash {
+			return types.ZeroHash
+		}
+		b.cache.coinbaseId.Store(&hash)
+		return hash
+	}
+}
+
 func (b *PoolBlock) PowHash(hasher randomx.Hasher, f mainblock.GetSeedByHeightFunc) types.Hash {
 	h, _ := b.PowHashWithError(hasher, f)
 	return h
@@ -701,5 +714,6 @@ func (b *PoolBlock) GetTransactionOutputType() uint8 {
 
 type poolBlockCache struct {
 	templateId atomic.Pointer[types.Hash]
+	coinbaseId atomic.Pointer[types.Hash]
 	powHash    atomic.Pointer[types.Hash]
 }

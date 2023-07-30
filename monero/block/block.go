@@ -254,7 +254,8 @@ func (b *Block) HashingBlob(preAllocatedBuf []byte) []byte {
 	buf := b.HeaderBlob(preAllocatedBuf)
 
 	merkleTree := make(crypto.BinaryTreeHash, len(b.Transactions)+1)
-	merkleTree[0] = b.Coinbase.Id()
+	//TODO: cache?
+	merkleTree[0] = b.Coinbase.CalculateId()
 	copy(merkleTree[1:], b.Transactions)
 	txTreeHash := merkleTree.RootHash()
 	buf = append(buf, txTreeHash[:]...)

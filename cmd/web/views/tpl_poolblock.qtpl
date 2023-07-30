@@ -100,9 +100,9 @@
             <td>{%= side_block_valuation(poolBlock, ctx.Consensus) %}</td>
             {% endif %}
             {% if sideBlock != nil && sideBlock.MinedMainAtHeight %}
-            <td class="mono smaller"><a href="/t/{%= henc(poolBlock.Main.Coinbase.Id()) %}">{%= hex(ctx, poolBlock.Main.Coinbase.Id()) %}</a></td>
+            <td class="mono smaller"><a href="/t/{%= henc(poolBlock.CoinbaseId()) %}">{%= hex(ctx, poolBlock.CoinbaseId()) %}</a></td>
             {% else %}
-            <td class="mono smaller">{%= hex(ctx, poolBlock.Main.Coinbase.Id()) %}</td>
+            <td class="mono smaller">{%= hex(ctx, poolBlock.CoinbaseId()) %}</td>
             {% endif %}
             <td class="small">{%s monero_to_xmr(poolBlock.Main.Coinbase.TotalReward) %} XMR</td>
             <td class="mono smaller">{%= hex(ctx, poolBlock.Side.CoinbasePrivateKey) %}</td>

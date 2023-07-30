@@ -265,8 +265,8 @@ func FindAndInsertMainHeaderOutputs(mb *index.MainBlock, indexDb *index.Index, c
 			if err := processBlock(t); err != nil {
 				return fmt.Errorf("could not process block: %s", err)
 			}
-			if mb.CoinbaseId != t.Main.Coinbase.Id() {
-				return fmt.Errorf("not matching coinbase id: %s vs %s", mb.CoinbaseId, t.Main.Coinbase.Id())
+			if mb.CoinbaseId != t.CoinbaseId() {
+				return fmt.Errorf("not matching coinbase id: %s vs %s", mb.CoinbaseId, t.CoinbaseId())
 			}
 			indexes, err := client.GetOutputIndexes(mb.CoinbaseId)
 			if err != nil {
