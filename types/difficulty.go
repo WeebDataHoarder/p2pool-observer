@@ -8,10 +8,12 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/holiman/uint256"
 	fasthex "github.com/tmthrgd/go-hex"
+	"io"
 	"lukechampine.com/uint128"
 	"math"
 	"math/big"
 	"math/bits"
+	"strconv"
 	"strings"
 )
 
@@ -189,6 +191,10 @@ func (d Difficulty) Big() *big.Int {
 }
 
 func (d Difficulty) MarshalJSON() ([]byte, error) {
+	if d.Hi == 0 {
+		return []byte(strconv.FormatUint(d.Lo, 10)), nil
+	}
+
 	var encodeBuf [DifficultySize]byte
 	d.PutBytesBE(encodeBuf[:])
 
@@ -243,28 +249,42 @@ func DifficultyFrom64(v uint64) Difficulty {
 }
 
 func (d *Difficulty) UnmarshalJSON(b []byte) error {
-	var s string
-	if err := utils.UnmarshalJSON(b, &s); err != nil {
-		return err
+	if len(b) == 0 {
+		return io.ErrUnexpectedEOF
 	}
 
-	if len(b) == DifficultySize*2+2 {
-		// fast path
-		var buf [DifficultySize]byte
-		if _, err := fasthex.Decode(buf[:], b[1:len(b)-1]); err != nil {
+	if b[0] == '"' {
+		if len(b) < 2 || (len(b)%2) != 0 || b[len(b)-1] != '"' {
+			return errors.New("invalid bytes")
+		}
+
+		if len(b) == DifficultySize*2+2 {
+			// fast path
+			var buf [DifficultySize]byte
+			if _, err := fasthex.Decode(buf[:], b[1:len(b)-1]); err != nil {
+				return err
+			} else {
+				*d = DifficultyFromBytes(buf[:])
+				return nil
+			}
+		}
+
+		if diff, err := DifficultyFromString(string(b[1 : len(b)-1])); err != nil {
 			return err
 		} else {
-			*d = DifficultyFromBytes(buf[:])
+			*d = diff
+
 			return nil
 		}
-	}
-
-	if diff, err := DifficultyFromString(s); err != nil {
-		return err
 	} else {
-		*d = diff
-
-		return nil
+		// Difficulty as uint64
+		var err error
+		if d.Lo, err = utils.ParseUint64(b); err != nil {
+			return err
+		} else {
+			d.Hi = 0
+			return nil
+		}
 	}
 }
 
