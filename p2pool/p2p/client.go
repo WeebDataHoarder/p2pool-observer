@@ -807,11 +807,13 @@ func (c *Client) OnConnection() {
 			c.BroadcastedHashes.Push(templateId)
 
 			// If we don't know about this block, request it from this peer. The peer can do it to speed up our initial sync, for example.
-			if c.Owner.SideChain().GetPoolBlockByTemplateId(templateId) == nil {
+			if tip := c.Owner.SideChain().GetPoolBlockByTemplateId(templateId); tip == nil {
 				//TODO: prevent sending duplicate requests
 				if c.SendBlockRequestWithBound(templateId, 25) {
 
 				}
+			} else {
+				c.LastKnownTip.Store(tip)
 			}
 
 		case MessageInternal:
