@@ -6,7 +6,7 @@ import (
 )
 
 type Payout struct {
-	Miner             uint64                 `json:"miner_id"`
+	Miner             uint64                 `json:"miner"`
 	TemplateId        types.Hash             `json:"template_id"`
 	SideHeight        uint64                 `json:"side_height"`
 	UncleOf           types.Hash             `json:"uncle_of,omitempty"`

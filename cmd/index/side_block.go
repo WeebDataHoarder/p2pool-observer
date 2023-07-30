@@ -39,7 +39,7 @@ type SideBlock struct {
 	ParentTemplateId types.Hash `json:"parent_template_id"`
 
 	// Miner internal id of the miner who contributed the block
-	Miner uint64 `json:"miner_id"`
+	Miner uint64 `json:"miner"`
 
 	// Uncle inclusion information
 
@@ -81,7 +81,7 @@ type SideBlock struct {
 
 type SideBlockUncleEntry struct {
 	TemplateId types.Hash `json:"template_id"`
-	Miner      uint64     `json:"miner_id"`
+	Miner      uint64     `json:"miner"`
 	SideHeight uint64     `json:"side_height"`
 	Difficulty uint64     `json:"difficulty"`
 }
