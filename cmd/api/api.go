@@ -1669,7 +1669,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = httputils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonChan(request, writer, result)
 
 		case "miner_seen":
 			result := make(chan *minerSeenResult)
@@ -1690,7 +1690,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = httputils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonChan(request, writer, result)
 
 		case "miner_seen_window":
 			result := make(chan *minerSeenResult)
@@ -1711,7 +1711,7 @@ func main() {
 
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusOK)
-			_ = httputils.StreamJsonSlice(request, writer, result)
+			_ = httputils.StreamJsonChan(request, writer, result)
 		}
 	})
 

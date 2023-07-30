@@ -9,7 +9,7 @@ type Payout struct {
 	Miner             uint64                 `json:"miner_id"`
 	TemplateId        types.Hash             `json:"template_id"`
 	SideHeight        uint64                 `json:"side_height"`
-	UncleOf           types.Hash             `json:"uncle_of"`
+	UncleOf           types.Hash             `json:"uncle_of,omitempty"`
 	MainId            types.Hash             `json:"main_id"`
 	MainHeight        uint64                 `json:"main_height"`
 	Timestamp         uint64                 `json:"timestamp"`

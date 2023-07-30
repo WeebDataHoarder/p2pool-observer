@@ -44,7 +44,7 @@ type SideBlock struct {
 	// Uncle inclusion information
 
 	// UncleOf has been included under this parent block TemplateId as an uncle
-	UncleOf types.Hash `json:"uncle_of"`
+	UncleOf types.Hash `json:"uncle_of,omitempty"`
 	// EffectiveHeight has been included under this parent block height as an uncle, or is this height
 	EffectiveHeight uint64 `json:"effective_height"`
 

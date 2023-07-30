@@ -10,7 +10,7 @@ type FoundBlock struct {
 
 	SideHeight           uint64           `json:"side_height"`
 	Miner                uint64           `json:"miner"`
-	UncleOf              types.Hash       `json:"uncle_of"`
+	UncleOf              types.Hash       `json:"uncle_of,omitempty"`
 	EffectiveHeight      uint64           `json:"effective_height"`
 	WindowDepth          uint32           `json:"window_depth"`
 	WindowOutputs        uint32           `json:"window_outputs"`

@@ -15,8 +15,8 @@ func EncodeJson(r *http.Request, writer io.Writer, d any) error {
 	return encoder.EncodeWithOption(d, utils.JsonEncodeOptions...)
 }
 
-// StreamJsonSlice Streams a channel of values into a JSON list via a writer.
-func StreamJsonSlice[T any](r *http.Request, writer io.Writer, stream <-chan T) error {
+// StreamJsonChan Streams a channel of values into a JSON list via a writer.
+func StreamJsonChan[T any](r *http.Request, writer io.Writer, stream <-chan T) error {
 	encoder := utils.NewJSONEncoder(writer)
 	if strings.Index(strings.ToLower(r.Header.Get("user-agent")), "mozilla") != -1 {
 		encoder.SetIndent("", "    ")
