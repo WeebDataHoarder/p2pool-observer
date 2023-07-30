@@ -34,3 +34,5 @@ require (
 	golang.org/x/sys v0.10.0 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 )
+
+replace github.com/goccy/go-json => github.com/WeebDataHoarder/go-json v0.0.0-20230730135821-d8f6463bb887
