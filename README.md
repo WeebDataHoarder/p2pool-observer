@@ -74,3 +74,31 @@ go run -v git.gammaspectra.live/P2Pool/p2pool-observer/cmd/scansweeps \
 ```
 
 Can also specify `-e TRANSACTION_LOOKUP_OTHER=https://OTHER_INSTANCE` just before `daemon` to query other instances additionally with alternate or longer history.
+
+
+### Development notes
+
+Requires using CGO when running the main modes where RandomX hashes are used, but can be used with `CGO_ENABLED=0` specifically as a library.
+
+You can install the RandomX dependency via this command:
+```bash
+$ git clone --depth 1 --branch master https://github.com/tevador/RandomX.git /tmp/RandomX && cd /tmp/RandomX && \
+    mkdir build && cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/usr && \
+    make -j$(nproc) && \
+    sudo make install && \
+    cd ../ && \
+    rm -rf /tmp/RandomX
+```
+
+
+To generate web templates, run this command:
+```bash
+$ go run github.com/valyala/quicktemplate/qtc@v1.7.0
+```
+
+To update module dependencies, use these commands:
+```bash
+$ for f in $(find . -name go.mod); do (cd $(dirname $f); GOPROXY=direct go get -u ./...); done
+$ for f in $(find . -name go.mod); do (cd $(dirname $f); GOPROXY=direct go mod tidy); done
+```
