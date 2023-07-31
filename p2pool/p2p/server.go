@@ -796,28 +796,39 @@ func (s *Server) MainChain() *mainchain.MainChain {
 func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 	var message, prunedMessage, compactMessage *ClientMessage
 	if block != nil {
-		blockData, err := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), false, false)
+		// Full block broadcast
+		buffer := make([]byte, 4, block.BufferLength()+4)
+		blockData, err := block.AppendBinaryFlags(buffer, false, false)
 		if err != nil {
 			log.Panicf("[P2PServer] Tried to broadcast block %s at height %d but received error: %s", block.SideTemplateId(s.Consensus()), block.Side.Height, err)
 			return
 		}
+		binary.LittleEndian.PutUint32(blockData, uint32(len(blockData)-4))
 		message = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(blockData)+4), uint32(len(blockData))), blockData...),
+			Buffer:    blockData,
 		}
-		prunedBlockData, _ := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), true, false)
+
+		// Pruned block broadcast
+		prunedBuffer := make([]byte, 4, block.BufferLength()+4)
+		prunedBlockData, _ := block.AppendBinaryFlags(prunedBuffer, true, false)
+		binary.LittleEndian.PutUint32(prunedBlockData, uint32(len(prunedBlockData)-4))
 		prunedMessage = &ClientMessage{
 			MessageId: MessageBlockBroadcast,
-			Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(prunedBlockData)+4), uint32(len(prunedBlockData))), prunedBlockData...),
+			Buffer:    prunedBlockData,
 		}
-		compactBlockData, _ := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), true, true)
+
+		// Compact block broadcast
+		compactBuffer := make([]byte, 4, block.BufferLength()+4)
+		compactBlockData, _ := block.AppendBinaryFlags(compactBuffer, true, true)
+		binary.LittleEndian.PutUint32(compactBlockData, uint32(len(compactBlockData)-4))
 		if len(compactBlockData) >= len(prunedBlockData) {
 			//do not send compact if it ends up larger due to some reason, like parent missing or mismatch in transactions
 			compactMessage = prunedMessage
 		} else {
-			compactMessage = &ClientMessage{
+			prunedMessage = &ClientMessage{
 				MessageId: MessageBlockBroadcastCompact,
-				Buffer:    append(binary.LittleEndian.AppendUint32(make([]byte, 0, len(compactBlockData)+4), uint32(len(compactBlockData))), compactBlockData...),
+				Buffer:    compactBlockData,
 			}
 		}
 	} else {
@@ -827,6 +838,16 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 		}
 		prunedMessage, compactMessage = message, message
 	}
+
+	if !s.versionInformation.SupportsFeature(p2pooltypes.FeaturePrunedBroadcast) {
+		prunedMessage = message
+	}
+
+	if !s.versionInformation.SupportsFeature(p2pooltypes.FeatureCompactBroadcast) {
+		compactMessage = prunedMessage
+	}
+
+	supportsNotify := s.versionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify)
 
 	blockTemplateId := block.SideTemplateId(s.Consensus())
 
@@ -849,17 +870,19 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 
 					// has peer broadcasted this block to us?
 					if slices.Index(broadcastedHashes, blockTemplateId) != -1 &&
-						c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
+						supportsNotify && c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
 						c.SendBlockNotify(blockTemplateId)
 						return true
 					}
 
 					if c.VersionInformation.SupportsFeature(p2pooltypes.FeatureCompactBroadcast) {
 						c.SendMessage(compactMessage)
-					} else {
+						return true
+					} else if c.VersionInformation.SupportsFeature(p2pooltypes.FeaturePrunedBroadcast) {
 						c.SendMessage(prunedMessage)
+						return true
 					}
-					return true
+					return false
 				}() {
 					//fallback
 					c.SendMessage(message)

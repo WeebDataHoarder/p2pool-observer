@@ -472,7 +472,7 @@ func (c *Client) OnConnection() {
 				}
 			}
 
-			if block != nil && c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
+			if block != nil && c.Owner.VersionInformation().SupportsFeature(p2pooltypes.FeatureBlockNotify) && c.VersionInformation.SupportsFeature(p2pooltypes.FeatureBlockNotify) {
 				c.SendBlockNotify(block.Side.Parent)
 				for _, uncleId := range block.Side.Uncles {
 					c.SendBlockNotify(uncleId)
@@ -694,12 +694,13 @@ func (c *Client) OnConnection() {
 				}
 			}
 
-			if c.LastIncomingPeerListRequestTime.IsZero() {
+			// Check whether to send version to target or not
+			if c.LastIncomingPeerListRequestTime.IsZero() && c.Owner.VersionInformation().SupportsFeature(p2pooltypes.FeaturePeerInformationExchange) && c.VersionInformation.SupportsFeature(p2pooltypes.FeaturePeerInformationReceive) {
 				//first, send version / protocol information
 				if len(entriesToSend) == 0 {
-					entriesToSend = append(entriesToSend, c.Owner.versionInformation.ToAddrPort())
+					entriesToSend = append(entriesToSend, c.Owner.VersionInformation().ToAddrPort())
 				} else {
-					entriesToSend[0] = c.Owner.versionInformation.ToAddrPort()
+					entriesToSend[0] = c.Owner.VersionInformation().ToAddrPort()
 				}
 			}
 

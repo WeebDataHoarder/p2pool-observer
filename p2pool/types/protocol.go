@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"net/netip"
 )
@@ -15,10 +16,16 @@ func IsPeerVersionInformation(addr netip.AddrPort) bool {
 	return bytes.Compare(rawIp[12:], []byte{0xFF, 0xFF, 0xFF, 0xFF}) == 0
 }
 
+// ProtocolFeature List of features to check to not depend on hardcoded protocol versions.
+// Use PeerVersionInformation.SupportsFeature() to query these.
 type ProtocolFeature int
 
 const (
-	FeatureCompactBroadcast = ProtocolFeature(iota)
+	// FeaturePeerInformationReceive Backwards compatible, can be sent to all clients
+	FeaturePeerInformationReceive = ProtocolFeature(iota)
+	FeaturePeerInformationExchange
+	FeaturePrunedBroadcast
+	FeatureCompactBroadcast
 	FeatureBlockNotify
 )
 
@@ -30,6 +37,12 @@ type PeerVersionInformation struct {
 
 func (i *PeerVersionInformation) SupportsFeature(feature ProtocolFeature) bool {
 	switch feature {
+	case FeaturePeerInformationReceive:
+		return i.Protocol == ProtocolVersion_0_0 || i.Protocol >= ProtocolVersion_1_0
+	case FeaturePeerInformationExchange:
+		return i.Protocol >= ProtocolVersion_1_0
+	case FeaturePrunedBroadcast:
+		return i.Protocol == ProtocolVersion_0_0 || i.Protocol >= ProtocolVersion_1_0
 	case FeatureCompactBroadcast:
 		return i.Protocol >= ProtocolVersion_1_1
 	case FeatureBlockNotify:
@@ -40,6 +53,11 @@ func (i *PeerVersionInformation) SupportsFeature(feature ProtocolFeature) bool {
 }
 
 func (i *PeerVersionInformation) String() string {
+	// Empty information
+	if i.Protocol == 0 && i.SoftwareVersion == 0 && i.SoftwareId == 0 {
+		return "Unknown"
+	}
+
 	return fmt.Sprintf("%s %s (protocol %s)", i.SoftwareId.String(), i.SoftwareVersion.String(), i.Protocol.String())
 }
 
@@ -100,7 +118,11 @@ func (c SoftwareId) String() string {
 	case SoftwareIdGoObserver:
 		return "GoObserver"
 	default:
-		return fmt.Sprintf("Unknown(%08x)", uint32(c))
+		var buf = [17]byte{'U', 'n', 'k', 'n', 'o', 'w', 'n', '(', 0, 0, 0, 0, 0, 0, 0, 0, ')'}
+		var intBuf [4]byte
+		binary.LittleEndian.PutUint32(intBuf[:], uint32(c))
+		hex.Encode(buf[8:], intBuf[:])
+		return string(buf[:])
 	}
 }
 
