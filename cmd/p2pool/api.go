@@ -117,7 +117,7 @@ func getServerMux(instance *P2Pool) *mux.Router {
 			banError = banEntry.Error.Error()
 		}
 
-		info := p2pooltypes.P2PoolConnectionCheckInformation{
+		info := p2pooltypes.P2PoolConnectionCheckInformation[*sidechain.PoolBlock]{
 			Address:           client.AddressPort.Addr().Unmap().String(),
 			Port:              client.AddressPort.Port(),
 			ListenPort:        uint16(client.ListenPort.Load()),

@@ -1486,7 +1486,7 @@ func main() {
 
 		switch mux.Vars(request)["kind"] {
 		case "/light":
-			raw := p2api.LightByMainId(block.MainId)
+			raw := p2api.LightByMainIdWithHint(block.MainId, block.TemplateId)
 
 			if raw == nil {
 				writer.Header().Set("Content-Type", "application/json; charset=utf-8")

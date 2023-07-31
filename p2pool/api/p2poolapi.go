@@ -424,7 +424,7 @@ func (p *P2PoolApi) PeerList() []byte {
 	return nil
 }
 
-func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2PoolConnectionCheckInformation {
+func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2PoolConnectionCheckInformation[*sidechain.PoolBlock] {
 	if response, err := p.Client.Get(p.Host + "/server/connection_check/" + addrPort.String()); err != nil {
 		return nil
 	} else {
@@ -433,7 +433,7 @@ func (p *P2PoolApi) ConnectionCheck(addrPort netip.AddrPort) *p2pooltypes.P2Pool
 		if buf, err := io.ReadAll(response.Body); err != nil {
 			return nil
 		} else {
-			var result p2pooltypes.P2PoolConnectionCheckInformation
+			var result p2pooltypes.P2PoolConnectionCheckInformation[*sidechain.PoolBlock]
 
 			if err = utils.UnmarshalJSON(buf, &result); err != nil {
 				return nil

@@ -26,7 +26,7 @@ type Block struct {
 
 	Coinbase transaction.CoinbaseTransaction `json:"coinbase"`
 
-	Transactions []types.Hash `json:"transactions"`
+	Transactions []types.Hash `json:"transactions,omitempty"`
 	// TransactionParentIndices amount of reward existing Outputs. Used by p2pool serialized compact broadcasted blocks in protocol >= 1.1, filled only in compact blocks or by pre-processing.
 	TransactionParentIndices []uint64 `json:"transaction_parent_indices,omitempty"`
 }

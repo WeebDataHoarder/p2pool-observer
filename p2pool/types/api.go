@@ -52,7 +52,7 @@ type P2PoolServerPeerResult struct {
 	Latency         uint64 `json:"latency"`
 }
 
-type P2PoolConnectionCheckInformation struct {
+type P2PoolConnectionCheckInformation[TipType any] struct {
 	Address         string `json:"address"`
 	Port            uint16 `json:"port"`
 	ListenPort      uint16 `json:"listen_port"`
@@ -67,11 +67,11 @@ type P2PoolConnectionCheckInformation struct {
 	BroadcastTime   uint64 `json:"broadcast_time"`
 	BroadcastHeight uint64 `json:"broadcast_height"`
 	// Tip is a sidechain.PoolBlock
-	Tip               any    `json:"tip,omitempty"`
-	Closed            bool   `json:"closed"`
-	AlreadyConnected  bool   `json:"already_connected"`
-	HandshakeComplete bool   `json:"handshake_complete"`
-	Banned            bool   `json:"banned"`
-	Error             string `json:"error,omitempty"`
-	BanError          string `json:"ban_error,omitempty"`
+	Tip               TipType `json:"tip,omitempty"`
+	Closed            bool    `json:"closed"`
+	AlreadyConnected  bool    `json:"already_connected"`
+	HandshakeComplete bool    `json:"handshake_complete"`
+	Banned            bool    `json:"banned"`
+	Error             string  `json:"error,omitempty"`
+	BanError          string  `json:"ban_error,omitempty"`
 }

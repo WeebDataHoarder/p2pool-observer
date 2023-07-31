@@ -12,7 +12,7 @@ type ConnectivityCheckPage struct {
 	YourTip *index.SideBlock
 	YourTipRaw *sidechain.PoolBlock
 	OurTip *index.SideBlock
-	Check *p2pooltypes.P2PoolConnectionCheckInformation
+	Check *p2pooltypes.P2PoolConnectionCheckInformation[*sidechain.PoolBlock]
 }
 %}
 

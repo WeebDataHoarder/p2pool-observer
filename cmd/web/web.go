@@ -378,17 +378,14 @@ func main() {
 		}
 
 		if addressPort.IsValid() && !addressPort.Addr().IsUnspecified() {
-			checkInformation := getTypeFromAPI[types2.P2PoolConnectionCheckInformation]("consensus/connection_check/" + addressPort.String())
+			checkInformation := getTypeFromAPI[types2.P2PoolConnectionCheckInformation[*sidechain.PoolBlock]]("consensus/connection_check/" + addressPort.String())
 			var rawTip *sidechain.PoolBlock
 			ourTip := getTypeFromAPI[index.SideBlock]("redirect/tip")
 			var theirTip *index.SideBlock
 			if checkInformation != nil {
-				if buf, err := utils.MarshalJSON(checkInformation.Tip); err == nil && checkInformation.Tip != nil {
-					b := sidechain.PoolBlock{}
-					if utils.UnmarshalJSON(buf, &b) == nil {
-						rawTip = &b
-						theirTip = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId))))
-					}
+				if checkInformation.Tip != nil {
+					rawTip = checkInformation.Tip
+					theirTip = getTypeFromAPI[index.SideBlock](fmt.Sprintf("block_by_id/%s", types.HashFromBytes(rawTip.CoinbaseExtra(sidechain.SideTemplateId))))
 				}
 			}
 			renderPage(request, writer, &views.ConnectivityCheckPage{

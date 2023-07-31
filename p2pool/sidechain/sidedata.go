@@ -13,23 +13,23 @@ import (
 )
 
 type SideData struct {
-	PublicKey              address.PackedAddress
-	CoinbasePrivateKeySeed types.Hash
+	PublicKey              address.PackedAddress `json:"public_key"`
+	CoinbasePrivateKeySeed types.Hash            `json:"coinbase_private_key_seed,omitempty"`
 	// CoinbasePrivateKey filled or calculated on decoding
-	CoinbasePrivateKey   crypto.PrivateKeyBytes
-	Parent               types.Hash
-	Uncles               []types.Hash
-	Height               uint64
-	Difficulty           types.Difficulty
-	CumulativeDifficulty types.Difficulty
+	CoinbasePrivateKey   crypto.PrivateKeyBytes `json:"coinbase_private_key"`
+	Parent               types.Hash             `json:"parent"`
+	Uncles               []types.Hash           `json:"uncles,omitempty"`
+	Height               uint64                 `json:"height"`
+	Difficulty           types.Difficulty       `json:"difficulty"`
+	CumulativeDifficulty types.Difficulty       `json:"cumulative_difficulty"`
 
 	// ExtraBuffer available in ShareVersion ShareVersion_V2 and above
 	ExtraBuffer struct {
-		SoftwareId          p2pooltypes.SoftwareId
-		SoftwareVersion     p2pooltypes.SoftwareVersion
-		RandomNumber        uint32
-		SideChainExtraNonce uint32
-	}
+		SoftwareId          p2pooltypes.SoftwareId      `json:"software_id"`
+		SoftwareVersion     p2pooltypes.SoftwareVersion `json:"software_version"`
+		RandomNumber        uint32                      `json:"random_number"`
+		SideChainExtraNonce uint32                      `json:"side_chain_extra_nonce"`
+	} `json:"extra_buffer,omitempty"`
 }
 
 func (b *SideData) BufferLength() int {
