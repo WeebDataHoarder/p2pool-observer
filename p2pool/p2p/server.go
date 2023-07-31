@@ -826,7 +826,7 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 			//do not send compact if it ends up larger due to some reason, like parent missing or mismatch in transactions
 			compactMessage = prunedMessage
 		} else {
-			prunedMessage = &ClientMessage{
+			compactMessage = &ClientMessage{
 				MessageId: MessageBlockBroadcastCompact,
 				Buffer:    compactBlockData,
 			}
