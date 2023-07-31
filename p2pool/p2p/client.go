@@ -516,7 +516,10 @@ func (c *Client) OnConnection() {
 				} else {
 					tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 					if isChainTipBlockRequest {
-						c.LastKnownTip.Store(block)
+						if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= block.Side.Height {
+							c.LastKnownTip.Store(block)
+						}
+
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
@@ -606,7 +609,10 @@ func (c *Client) OnConnection() {
 			c.BroadcastedHashes.Push(tipHash)
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
-			c.LastKnownTip.Store(block)
+
+			if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= block.Side.Height {
+				c.LastKnownTip.Store(block)
+			}
 			//log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
@@ -813,7 +819,9 @@ func (c *Client) OnConnection() {
 
 				}
 			} else {
-				c.LastKnownTip.Store(tip)
+				if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= tip.Side.Height {
+					c.LastKnownTip.Store(tip)
+				}
 			}
 
 		case MessageInternal:
