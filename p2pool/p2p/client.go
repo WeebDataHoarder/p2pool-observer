@@ -517,7 +517,9 @@ func (c *Client) OnConnection() {
 					tipHash := types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId))
 					if isChainTipBlockRequest {
 						if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= block.Side.Height {
-							c.LastKnownTip.Store(block)
+							if _, err = c.Owner.SideChain().PreprocessBlock(block); err == nil {
+								c.LastKnownTip.Store(block)
+							}
 						}
 
 						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
@@ -610,9 +612,6 @@ func (c *Client) OnConnection() {
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 
-			if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= block.Side.Height {
-				c.LastKnownTip.Store(block)
-			}
 			//log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
@@ -622,6 +621,10 @@ func (c *Client) OnConnection() {
 				//TODO: ban here, but sort blocks properly, maybe a queue to re-try?
 				break
 			} else {
+				if lastTip := c.LastKnownTip.Load(); lastTip == nil || lastTip.Side.Height <= block.Side.Height {
+					c.LastKnownTip.Store(block)
+				}
+
 				ourMinerData := c.Owner.MainChain().GetMinerDataTip()
 
 				if block.Main.PreviousId != ourMinerData.PrevId {
