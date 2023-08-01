@@ -17,7 +17,7 @@ type MainBlock struct {
 	Difficulty uint64     `json:"difficulty"`
 
 	// Metadata should be jsonb blob, can be NULL. metadata such as pool ownership, links to other p2pool networks, and other interesting data
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 
 	// sidechain data for blocks we own
 	// SideTemplateId can be NULL

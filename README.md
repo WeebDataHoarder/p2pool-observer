@@ -101,4 +101,5 @@ To update module dependencies, use these commands:
 ```bash
 $ for f in $(find . -name go.mod); do (cd $(dirname $f); GOPROXY=direct go get -u ./...); done
 $ for f in $(find . -name go.mod); do (cd $(dirname $f); GOPROXY=direct go mod tidy); done
+$ go work sync
 ```
