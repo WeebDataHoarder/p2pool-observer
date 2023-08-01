@@ -11,6 +11,15 @@ import (
 	"strings"
 )
 
+// ZeroPrivateKeyAddress Special address with private keys set to both zero.
+// Useful to detect unsupported signatures from hardware wallets on Monero GUI
+var ZeroPrivateKeyAddress PackedAddress
+
+func init() {
+	ZeroPrivateKeyAddress[PackedAddressSpend] = crypto.ZeroPrivateKeyBytes.PublicKey().AsBytes()
+	ZeroPrivateKeyAddress[PackedAddressView] = crypto.ZeroPrivateKeyBytes.PublicKey().AsBytes()
+}
+
 func GetDeterministicTransactionPrivateKey(seed types.Hash, prevId types.Hash) crypto.PrivateKey {
 	return p2poolcrypto.GetDeterministicTransactionPrivateKey(seed, prevId)
 }

@@ -639,6 +639,177 @@ func main() {
 
 	})
 
+	serveMux.HandleFunc("/api/miner_signed_action/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		miner := indexDb.GetMinerByStringAddress(minerId)
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "miner_not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		params := request.URL.Query()
+
+		sig := strings.TrimSpace(params.Get("signature"))
+
+		var signedAction *cmdutils.SignedAction
+		if err := utils.UnmarshalJSON([]byte(strings.TrimSpace(params.Get("message"))), &signedAction); err != nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: err.Error(),
+			})
+			_, _ = writer.Write(buf)
+			return
+		} else if signedAction == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "invalid_message",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		result := signedAction.Verify(miner.Address(), sig)
+		if result == address.ResultFail {
+			// check again with zero keys
+			zeroResult := signedAction.Verify(&address.ZeroPrivateKeyAddress, sig)
+			if zeroResult == address.ResultSuccessSpend || zeroResult == address.ResultSuccessView {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusUnauthorized)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "signature_verify_fail_zero_private_key",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusUnauthorized)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "signature_verify_fail",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		switch signedAction.Action {
+		case "set_miner_alias":
+			if result == address.ResultSuccessView {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusUnauthorized)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "signature_verify_view_signature",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			if newAlias, ok := signedAction.Get("alias"); ok {
+				if len(newAlias) > 20 || len(newAlias) < 3 || !func() bool {
+					for _, c := range newAlias {
+						if !(c >= '0' && c <= '9') && !(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && c != '_' && c != '-' && c != '.' {
+							return false
+						}
+					}
+
+					return true
+				}() || !unicode.IsLetter(rune(newAlias[0])) {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusBadRequest)
+					buf, _ := utils.MarshalJSON(struct {
+						Error string `json:"error"`
+					}{
+						Error: "invalid_alias",
+					})
+					_, _ = writer.Write(buf)
+					return
+				}
+
+				if indexDb.SetMinerAlias(miner.Id(), newAlias) != nil {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusBadRequest)
+					buf, _ := utils.MarshalJSON(struct {
+						Error string `json:"error"`
+					}{
+						Error: "duplicate_message",
+					})
+					_, _ = writer.Write(buf)
+					return
+				} else {
+					writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+					writer.WriteHeader(http.StatusOK)
+					return
+				}
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "invalid_alias",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+		case "unset_miner_alias":
+			if result == address.ResultSuccessView {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusUnauthorized)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "signature_verify_view_signature",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			if indexDb.SetMinerAlias(miner.Id(), "") != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "duplicate_message",
+				})
+				_, _ = writer.Write(buf)
+				return
+			} else {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusOK)
+				return
+			}
+		default:
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusBadRequest)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "invalid_action",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+	})
+
 	serveMux.HandleFunc("/api/miner_alias/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		miner := indexDb.GetMinerByStringAddress(minerId)
