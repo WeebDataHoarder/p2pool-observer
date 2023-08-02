@@ -2,6 +2,7 @@ package index
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 )
@@ -34,7 +35,7 @@ func (b *MainBlock) SetMetadata(key string, v any) {
 	b.Metadata[key] = v
 }
 
-func (b *MainBlock) ScanFromRow(i *Index, row RowScanInterface) error {
+func (b *MainBlock) ScanFromRow(_ *sidechain.Consensus, row RowScanInterface) error {
 	var metadataBuf []byte
 	b.Metadata = make(map[string]any)
 	if err := row.Scan(&b.Id, &b.Height, &b.Timestamp, &b.Reward, &b.CoinbaseId, &b.Difficulty, &metadataBuf, &b.SideTemplateId, &b.CoinbasePrivateKey); err != nil {

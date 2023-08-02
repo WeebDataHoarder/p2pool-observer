@@ -80,13 +80,18 @@ func CreateMessageSignature(prefixHash types.Hash, key PrivateKey) *Signature {
 }
 
 func VerifyMessageSignature(prefixHash types.Hash, publicKey PublicKey, signature *Signature) bool {
+	return VerifyMessageSignatureSplit(prefixHash, publicKey, publicKey, signature)
+}
+
+// VerifyMessageSignatureSplit Allows specifying a different signer key than for the rest. Use VerifyMessageSignature in all other cases
+func VerifyMessageSignatureSplit(prefixHash types.Hash, commPublicKey, signPublicKey PublicKey, signature *Signature) bool {
 	buf := &SignatureComm{}
 	buf.Hash = prefixHash
-	buf.Key = publicKey
+	buf.Key = commPublicKey
 
 	ok, _ := signature.Verify(func(r PublicKey) []byte {
 		buf.Comm = r
 		return buf.Bytes()
-	}, publicKey)
+	}, signPublicKey)
 	return ok
 }

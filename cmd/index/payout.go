@@ -2,6 +2,7 @@ package index
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
@@ -21,7 +22,7 @@ type Payout struct {
 	IncludingHeight   uint64                 `json:"including_height"`
 }
 
-func (p *Payout) ScanFromRow(i *Index, row RowScanInterface) error {
+func (p *Payout) ScanFromRow(_ *sidechain.Consensus, row RowScanInterface) error {
 	if err := row.Scan(&p.Miner, &p.MainId, &p.MainHeight, &p.Timestamp, &p.CoinbaseId, &p.PrivateKey, &p.TemplateId, &p.SideHeight, &p.UncleOf, &p.Reward, &p.Index, &p.GlobalOutputIndex, &p.IncludingHeight); err != nil {
 		return err
 	}

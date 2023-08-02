@@ -1112,7 +1112,7 @@ func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
 
 	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE global_output_index = ANY($1) ORDER BY index ASC;", func(row RowScanInterface) error {
 		var o MainCoinbaseOutput
-		if err := o.ScanFromRow(i, row); err != nil {
+		if err := o.ScanFromRow(i.Consensus(), row); err != nil {
 			return err
 		}
 		if index := slices.Index(indices, o.GlobalOutputIndex); index != -1 {
@@ -1133,7 +1133,7 @@ func (i *Index) QueryGlobalOutputIndices(indices []uint64) []*MatchedOutput {
 
 	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
 		var tx MainLikelySweepTransaction
-		if err := tx.ScanFromRow(i, row); err != nil {
+		if err := tx.ScanFromRow(i.Consensus(), row); err != nil {
 			return err
 		}
 		for _, globalOutputIndex := range tx.GlobalOutputIndices {
@@ -1161,7 +1161,7 @@ func (i *Index) GetMainLikelySweepTransactionBySpendingGlobalOutputIndices(globa
 	entries := make([][]*MainLikelySweepTransaction, len(globalOutputIndices))
 	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && spending_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
 		var tx MainLikelySweepTransaction
-		if err := tx.ScanFromRow(i, row); err != nil {
+		if err := tx.ScanFromRow(i.Consensus(), row); err != nil {
 			return err
 		}
 		for _, globalOutputIndex := range tx.SpendingOutputIndices {
@@ -1181,7 +1181,7 @@ func (i *Index) GetMainLikelySweepTransactionByGlobalOutputIndices(globalOutputI
 	entries := make([]*MainLikelySweepTransaction, len(globalOutputIndices))
 	if err := i.Query("SELECT "+MainLikelySweepTransactionSelectFields+" FROM main_likely_sweep_transactions WHERE $1::bigint[] && global_output_indices ORDER BY timestamp ASC;", func(row RowScanInterface) error {
 		var tx MainLikelySweepTransaction
-		if err := tx.ScanFromRow(i, row); err != nil {
+		if err := tx.ScanFromRow(i.Consensus(), row); err != nil {
 			return err
 		}
 		for _, globalOutputIndex := range tx.GlobalOutputIndices {
@@ -1234,7 +1234,7 @@ func (i *Index) InsertOrUpdateMainLikelySweepTransaction(t *MainLikelySweepTrans
 func (i *Index) GetMainCoinbaseOutputByMinerId(coinbaseId types.Hash, minerId uint64) *MainCoinbaseOutput {
 	var output MainCoinbaseOutput
 	if err := i.Query("SELECT "+MainCoinbaseOutputSelectFields+" FROM main_coinbase_outputs WHERE id = $1 AND miner = $2 ORDER BY index DESC;", func(row RowScanInterface) error {
-		if err := output.ScanFromRow(i, row); err != nil {
+		if err := output.ScanFromRow(i.Consensus(), row); err != nil {
 			return err
 		}
 		return nil
@@ -1293,7 +1293,7 @@ func (i *Index) Close() error {
 func (i *Index) scanMiner(rows *sql.Rows) *Miner {
 	if rows.Next() {
 		m := &Miner{}
-		if m.ScanFromRow(i, rows) == nil {
+		if m.ScanFromRow(i.Consensus(), rows) == nil {
 			return m
 		}
 	}
@@ -1399,4 +1399,51 @@ func (i *Index) InsertOrUpdatePoolBlock(b *sidechain.PoolBlock, inclusion BlockI
 	}
 
 	return nil
+}
+
+func (i *Index) GetMinerWebHooks(minerId uint64) (QueryIterator[MinerWebHook], error) {
+	if stmt, err := i.handle.Prepare("SELECT miner, type, url, settings FROM miner_webhooks WHERE miner = $1;"); err != nil {
+		return nil, err
+	} else {
+		if r, err := queryStatement[MinerWebHook](i, stmt, minerId); err != nil {
+			defer stmt.Close()
+			return nil, err
+		} else {
+			r.closer = func() {
+				stmt.Close()
+			}
+			return r, nil
+		}
+	}
+}
+
+func (i *Index) DeleteMinerWebHook(minerId uint64, hookType WebHookType) error {
+	return i.Query("DELETE FROM miner_webhooks WHERE miner = $1 AND type = $2", func(row RowScanInterface) error {
+		return nil
+	}, minerId, hookType)
+}
+
+func (i *Index) InsertOrUpdateMinerWebHook(w *MinerWebHook) error {
+	metadataJson, _ := utils.MarshalJSON(w.Settings)
+
+	if w.Settings == nil {
+		metadataJson = []byte{'{', '}'}
+	}
+
+	if tx, err := i.handle.BeginTx(context.Background(), nil); err != nil {
+		return err
+	} else {
+		defer tx.Rollback()
+		if _, err := tx.Exec(
+			"INSERT INTO miner_webhooks (miner, type, url, settings) VALUES ($1, $2, $3, $4::jsonb) ON CONFLICT (miner, type) DO UPDATE SET url = $3, settings = $4;",
+			w.Miner,
+			w.Type,
+			w.Url,
+			metadataJson,
+		); err != nil {
+			return err
+		}
+
+		return tx.Commit()
+	}
 }

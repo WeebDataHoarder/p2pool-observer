@@ -2,6 +2,7 @@ package index
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
@@ -28,7 +29,7 @@ type MainCoinbaseOutput struct {
 	MinerAlias   string           `json:"miner_alias,omitempty"`
 }
 
-func (o *MainCoinbaseOutput) ScanFromRow(i *Index, row RowScanInterface) error {
+func (o *MainCoinbaseOutput) ScanFromRow(_ *sidechain.Consensus, row RowScanInterface) error {
 	if err := row.Scan(&o.Id, &o.Index, &o.GlobalOutputIndex, &o.Miner, &o.Value); err != nil {
 		return err
 	}

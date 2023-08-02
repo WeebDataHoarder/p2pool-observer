@@ -4,6 +4,7 @@ import (
 	"errors"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/lib/pq"
@@ -35,7 +36,7 @@ type MainLikelySweepTransaction struct {
 	Address *address.Address `json:"address"`
 }
 
-func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface) error {
+func (t *MainLikelySweepTransaction) ScanFromRow(consensus *sidechain.Consensus, row RowScanInterface) error {
 	var spendPub, viewPub crypto.PublicKeyBytes
 	var resultBuf, matchBuf []byte
 	var spendingOutputIndices, globalOutputIndices pq.Int64Array
@@ -55,7 +56,7 @@ func (t *MainLikelySweepTransaction) ScanFromRow(i *Index, row RowScanInterface)
 		t.GlobalOutputIndices[j] = uint64(ix)
 	}
 
-	network, err := i.consensus.NetworkType.AddressNetwork()
+	network, err := consensus.NetworkType.AddressNetwork()
 	if err != nil {
 		return errors.New("unknown network type")
 	}

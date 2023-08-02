@@ -3,6 +3,7 @@ package index
 import (
 	"database/sql"
 	"errors"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 )
 
 type RowScanInterface interface {
@@ -10,7 +11,7 @@ type RowScanInterface interface {
 }
 
 type Scannable interface {
-	ScanFromRow(i *Index, row RowScanInterface) error
+	ScanFromRow(consensus *sidechain.Consensus, row RowScanInterface) error
 }
 
 type QueryIterator[V any] interface {
@@ -21,6 +22,9 @@ type QueryIterator[V any] interface {
 }
 
 func QueryIterate[V any](i QueryIterator[V], f IterateFunction[int, *V]) {
+	if i == nil {
+		return
+	}
 	defer i.Close()
 	i.All(f)
 
@@ -86,8 +90,8 @@ func queryStatement[V any](index *Index, stmt *sql.Stmt, params ...any) (*QueryR
 		return nil, err
 	} else {
 		return &QueryResult[V]{
-			index: index,
-			rows:  rows,
+			consensus: index.consensus,
+			rows:      rows,
 		}, err
 	}
 }
@@ -122,11 +126,11 @@ func (r *FakeQueryResult[V]) Close() {
 }
 
 type QueryResult[V any] struct {
-	index  *Index
-	rows   *sql.Rows
-	closer func()
-	i      int
-	err    error
+	consensus *sidechain.Consensus
+	rows      *sql.Rows
+	closer    func()
+	i         int
+	err       error
 }
 
 func (r *QueryResult[V]) All(f IterateFunction[int, *V]) (complete bool) {
@@ -145,7 +149,7 @@ func (r *QueryResult[V]) All(f IterateFunction[int, *V]) (complete bool) {
 func (r *QueryResult[V]) Next() (int, *V) {
 	if r.rows.Next() {
 		var v V
-		if r.err = any(&v).(Scannable).ScanFromRow(r.index, r.rows); r.err != nil {
+		if r.err = any(&v).(Scannable).ScanFromRow(r.consensus, r.rows); r.err != nil {
 			return 0, nil
 		}
 		r.i++

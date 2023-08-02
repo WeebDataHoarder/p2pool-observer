@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
-	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
@@ -37,9 +37,14 @@ func main() {
 	p2poolApiHost := flag.String("api-host", "", "Host URL for p2pool go observer consensus")
 	fullMode := flag.Bool("full-mode", false, "Allocate RandomX dataset, uses 2GB of RAM")
 	debugListen := flag.String("debug-listen", "", "Provide a bind address and port to expose a pprof HTTP API on it.")
+	hookProxy := flag.String("hook-proxy", "", "socks5 proxy host:port for webhook requests")
 	flag.Parse()
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
+
+	if *hookProxy != "" {
+		cmdutils.SetWebHookProxy(*hookProxy)
+	}
 
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
@@ -164,7 +169,7 @@ func main() {
 	ctx := context.Background()
 
 	scanHeader := func(h daemon.BlockHeader) error {
-		if err := utils2.FindAndInsertMainHeader(h, indexDb, func(b *sidechain.PoolBlock) {
+		if err := cmdutils.FindAndInsertMainHeader(h, indexDb, func(b *sidechain.PoolBlock) {
 			p2api.InsertAlternate(b)
 		}, client.GetDefaultClient(), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId, p2api.ByMainId, p2api.LightByMainHeight, func(b *sidechain.PoolBlock) error {
 			_, err := b.PreProcessBlock(p2api.Consensus(), &sidechain.NilDerivationCache{}, sidechain.PreAllocateShares(p2api.Consensus().ChainWindowSize*2), indexDb.GetDifficultyByHeight, indexDb.GetByTemplateId)
@@ -275,7 +280,7 @@ func main() {
 					continue
 				}
 
-				if err := utils2.ProcessFullBlock(b, indexDb); err != nil {
+				if err := cmdutils.ProcessFullBlock(b, indexDb); err != nil {
 					log.Printf("error processing block %s at %d: %s", b.Id, b.Height, err)
 				}
 			}

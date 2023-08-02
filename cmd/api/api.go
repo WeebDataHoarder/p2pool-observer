@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -639,6 +640,47 @@ func main() {
 
 	})
 
+	serveMux.HandleFunc("/api/miner_webhooks/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
+		minerId := mux.Vars(request)["miner"]
+		miner := indexDb.GetMinerByStringAddress(minerId)
+
+		if miner == nil {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusNotFound)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "miner_not_found",
+			})
+			_, _ = writer.Write(buf)
+			return
+		}
+
+		wh, _ := indexDb.GetMinerWebHooks(miner.Id())
+		defer wh.Close()
+		_ = httputils.StreamJsonIterator(request, writer, func() (int, *index.MinerWebHook) {
+			i, w := wh.Next()
+			if w == nil {
+				return 0, nil
+			}
+
+			newHook := &index.MinerWebHook{
+				Miner: w.Miner,
+				Type:  w.Type,
+			}
+			// Sanitize private data by hashing
+			newHook.Url = types.Hash(sha256.Sum256([]byte(w.Url))).String()
+			settings := make(map[string]string)
+			for k, v := range w.Settings {
+				if strings.HasPrefix("send_", k) {
+					settings[k] = v
+				}
+			}
+			newHook.Settings = settings
+			return i, newHook
+		})
+	})
+
 	serveMux.HandleFunc("/api/miner_signed_action/{miner:4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+}", func(writer http.ResponseWriter, request *http.Request) {
 		minerId := mux.Vars(request)["miner"]
 		miner := indexDb.GetMinerByStringAddress(minerId)
@@ -682,27 +724,34 @@ func main() {
 			return
 		}
 
-		result := signedAction.Verify(miner.Address(), sig)
+		result := signedAction.VerifyFallbackToZero(os.Getenv("NET_SERVICE_ADDRESS"), miner.Address(), sig)
 		if result == address.ResultFail {
-			// check again with zero keys
-			zeroResult := signedAction.Verify(&address.ZeroPrivateKeyAddress, sig)
-			if zeroResult == address.ResultSuccessSpend || zeroResult == address.ResultSuccessView {
-				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-				writer.WriteHeader(http.StatusUnauthorized)
-				buf, _ := utils.MarshalJSON(struct {
-					Error string `json:"error"`
-				}{
-					Error: "signature_verify_fail_zero_private_key",
-				})
-				_, _ = writer.Write(buf)
-				return
-			}
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusUnauthorized)
 			buf, _ := utils.MarshalJSON(struct {
 				Error string `json:"error"`
 			}{
 				Error: "signature_verify_fail",
+			})
+			_, _ = writer.Write(buf)
+			return
+		} else if result == address.ResultFailZeroSpend || result == address.ResultFailZeroView {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusUnauthorized)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "signature_verify_fail_zero_private_key",
+			})
+			_, _ = writer.Write(buf)
+			return
+		} else if result != address.ResultSuccessSpend && result != address.ResultSuccessView {
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusUnauthorized)
+			buf, _ := utils.MarshalJSON(struct {
+				Error string `json:"error"`
+			}{
+				Error: "signature_verify_fail_unknown",
 			})
 			_, _ = writer.Write(buf)
 			return
@@ -797,6 +846,85 @@ func main() {
 				writer.WriteHeader(http.StatusOK)
 				return
 			}
+		case "add_webhook":
+			whType, _ := signedAction.Get("type")
+			whUrl, _ := signedAction.Get("url")
+			wh := &index.MinerWebHook{
+				Miner:    miner.Id(),
+				Type:     index.WebHookType(whType),
+				Url:      whUrl,
+				Settings: make(map[string]string),
+			}
+			for _, e := range signedAction.Data {
+				if strings.HasPrefix(e.Key, "send_") {
+					wh.Settings[e.Key] = e.Value
+				}
+			}
+
+			err := wh.Verify()
+			if err != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: err.Error(),
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+			err = indexDb.InsertOrUpdateMinerWebHook(wh)
+			if err != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: err.Error(),
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			return
+		case "remove_webhook":
+			urlHash, ok := signedAction.Get("url_hash")
+			urlType, ok2 := signedAction.Get("type")
+			if !ok || !ok2 || urlHash == "" {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "invalid_url",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			it, err := indexDb.GetMinerWebHooks(miner.Id())
+			if err != nil {
+				writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+				writer.WriteHeader(http.StatusBadRequest)
+				buf, _ := utils.MarshalJSON(struct {
+					Error string `json:"error"`
+				}{
+					Error: "internal_error",
+				})
+				_, _ = writer.Write(buf)
+				return
+			}
+
+			it.All(func(key int, value *index.MinerWebHook) (stop bool) {
+				if string(value.Type) == urlType && types.Hash(sha256.Sum256([]byte(value.Url))).String() == urlHash {
+					_ = indexDb.DeleteMinerWebHook(miner.Id(), value.Type)
+				}
+				return false
+			})
+			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+			writer.WriteHeader(http.StatusOK)
+			return
 		default:
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
 			writer.WriteHeader(http.StatusBadRequest)
@@ -1791,7 +1919,7 @@ func main() {
 		Miners    uint64 `json:"miners"`
 	}
 
-	serveMux.HandleFunc("/api/stats/{kind:difficulty|miner_seen|miner_seen_window$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/stats/{kind:difficulty|miner_seen|miner_seen_window|version_seen$}", func(writer http.ResponseWriter, request *http.Request) {
 		switch mux.Vars(request)["kind"] {
 		case "difficulty":
 			result := make(chan *difficultyStatResult)

@@ -16,6 +16,7 @@ type SignedActionEntry struct {
 type SignedAction struct {
 	Action string              `json:"action"`
 	Data   []SignedActionEntry `json:"data"`
+	Realm  string              `json:"realm"`
 }
 
 func (a *SignedAction) Get(key string) (string, bool) {
@@ -44,12 +45,25 @@ func (a *SignedAction) String() string {
 	return buf.String()
 }
 
-func (a *SignedAction) Verify(addr address.Interface, signature string) address.SignatureVerifyResult {
+func (a *SignedAction) Verify(realm string, addr address.Interface, signature string) address.SignatureVerifyResult {
+	if a.Realm != realm {
+		// Realm does not match
+		return address.ResultFail
+	}
 	message := a.String()
 	return address.VerifyMessage(addr, []byte(message), signature)
 }
 
-func SignedActionSetMinerAlias(alias string) *SignedAction {
+func (a *SignedAction) VerifyFallbackToZero(realm string, addr address.Interface, signature string) address.SignatureVerifyResult {
+	if a.Realm != realm {
+		// Realm does not match
+		return address.ResultFail
+	}
+	message := a.String()
+	return address.VerifyMessageFallbackToZero(addr, []byte(message), signature)
+}
+
+func SignedActionSetMinerAlias(realm, alias string) *SignedAction {
 	return &SignedAction{
 		Action: "set_miner_alias",
 		Data: []SignedActionEntry{
@@ -58,17 +72,19 @@ func SignedActionSetMinerAlias(alias string) *SignedAction {
 				Value: alias,
 			},
 		},
+		Realm: realm,
 	}
 }
 
-func SignedActionUnsetMinerAlias() *SignedAction {
+func SignedActionUnsetMinerAlias(realm string) *SignedAction {
 	return &SignedAction{
 		Action: "unset_miner_alias",
 		Data:   make([]SignedActionEntry, 0),
+		Realm:  realm,
 	}
 }
 
-func SignedActionAddWebHook(webhookType, webhookUrl string, other ...SignedActionEntry) *SignedAction {
+func SignedActionAddWebHook(realm, webhookType, webhookUrl string, other ...SignedActionEntry) *SignedAction {
 	return &SignedAction{
 		Action: "add_webhook",
 		Data: append([]SignedActionEntry{
@@ -81,10 +97,11 @@ func SignedActionAddWebHook(webhookType, webhookUrl string, other ...SignedActio
 				Value: webhookUrl,
 			},
 		}, other...),
+		Realm: realm,
 	}
 }
 
-func SignedActionRemoveWebHook(webhookType, webhookUrl string, other ...SignedActionEntry) *SignedAction {
+func SignedActionRemoveWebHook(realm, webhookType, webhookUrlHash string, other ...SignedActionEntry) *SignedAction {
 	return &SignedAction{
 		Action: "remove_webhook",
 		Data: append([]SignedActionEntry{
@@ -93,9 +110,10 @@ func SignedActionRemoveWebHook(webhookType, webhookUrl string, other ...SignedAc
 				Value: webhookType,
 			},
 			{
-				Key:   "url",
-				Value: webhookUrl,
+				Key:   "url_hash",
+				Value: webhookUrlHash,
 			},
 		}, other...),
+		Realm: realm,
 	}
 }

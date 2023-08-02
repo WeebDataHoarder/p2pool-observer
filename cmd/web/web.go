@@ -14,6 +14,7 @@ import (
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"github.com/goccy/go-json"
 	"github.com/gorilla/mux"
 	"github.com/valyala/quicktemplate"
 	"io"
@@ -153,19 +154,23 @@ func main() {
 		switch strings.Split(humanHost, ":")[0] {
 		case "irc.libera.chat":
 			if len(splitChan) > 1 {
-				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", splitChan[0], splitChan[1])
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s?via=matrix.org&via=%s", splitChan[0], splitChan[1], splitChan[1])
 				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest?#%s", splitChan[0])
 			} else {
 				humanHost = "libera.chat"
-				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s?via=matrix.org", ircUrl.Fragment, humanHost)
 				webchatLink = fmt.Sprintf("https://web.libera.chat/?nick=Guest%%3F#%s", ircUrl.Fragment)
 			}
 		case "irc.hackint.org":
 			if len(splitChan) > 1 {
-				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", splitChan[0], splitChan[1])
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s?via=matrix.org&via=%s", splitChan[0], splitChan[1], splitChan[1])
 			} else {
 				humanHost = "hackint.org"
-				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s", ircUrl.Fragment, humanHost)
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s?via=matrix.org", ircUrl.Fragment, humanHost)
+			}
+		default:
+			if len(splitChan) > 1 {
+				matrixLink = fmt.Sprintf("https://matrix.to/#/#%s:%s?via=matrix.org&via=%s", splitChan[0], splitChan[1], splitChan[1])
 			}
 		}
 		ircLinkTitle = fmt.Sprintf("#%s@%s", splitChan[0], humanHost)
@@ -1061,6 +1066,99 @@ func main() {
 		minerPage.LastSharesEfforts = efforts
 
 		renderPage(request, writer, minerPage, poolInfo)
+	})
+
+	serveMux.HandleFunc("/miner-options/{miner:[^ ]+}/signed_action", func(writer http.ResponseWriter, request *http.Request) {
+		params := request.URL.Query()
+
+		address := mux.Vars(request)["miner"]
+		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", address))
+		if miner == nil || miner.Address == nil {
+			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
+			return
+		}
+
+		var signedAction *cmdutils.SignedAction
+
+		if err := json.Unmarshal([]byte(params.Get("message")), &signedAction); err != nil || signedAction == nil {
+			renderPage(request, writer, views.NewErrorPage(http.StatusBadRequest, "Invalid Message", nil))
+			return
+		}
+
+		values := make(url.Values)
+		values.Set("signature", params.Get("signature"))
+		values.Set("message", signedAction.String())
+
+		var jsonErr struct {
+			Error string `json:"error"`
+		}
+		statusCode, buf := getFromAPI("miner_signed_action/" + string(miner.Address.ToBase58()) + "?" + values.Encode())
+		_ = json.Unmarshal(buf, &jsonErr)
+		if statusCode != http.StatusOK {
+			renderPage(request, writer, views.NewErrorPage(http.StatusBadRequest, "Could not verify message", jsonErr.Error))
+			return
+		}
+	})
+
+	serveMux.HandleFunc("/miner-options/{miner:[^ ]+}/{action:set_miner_alias|unset_miner_alias|add_webhook|remove_webhook}", func(writer http.ResponseWriter, request *http.Request) {
+		params := request.URL.Query()
+
+		address := mux.Vars(request)["miner"]
+		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", address))
+		if miner == nil || miner.Address == nil {
+			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
+			return
+		}
+
+		var signedAction *cmdutils.SignedAction
+
+		action := mux.Vars(request)["action"]
+		switch action {
+		case "set_miner_alias":
+			signedAction = cmdutils.SignedActionSetMinerAlias(baseContext.NetServiceAddress, params.Get("alias"))
+		case "unset_miner_alias":
+			signedAction = cmdutils.SignedActionUnsetMinerAlias(baseContext.NetServiceAddress)
+		case "add_webhook":
+			signedAction = cmdutils.SignedActionAddWebHook(baseContext.NetServiceAddress, params.Get("type"), params.Get("url"))
+			for _, s := range []string{"side_blocks", "payouts", "found_blocks", "orphaned_blocks", "other"} {
+				value := "false"
+				if params.Get(s) == "on" {
+					value = "true"
+				}
+				signedAction.Data = append(signedAction.Data, cmdutils.SignedActionEntry{
+					Key:   "send_" + s,
+					Value: value,
+				})
+			}
+		case "remove_webhook":
+			signedAction = cmdutils.SignedActionRemoveWebHook(baseContext.NetServiceAddress, params.Get("type"), params.Get("url_hash"))
+		default:
+			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Invalid Action", nil))
+			return
+		}
+
+		renderPage(request, writer, &views.MinerOptionsPage{
+			Miner:        miner,
+			SignedAction: signedAction,
+			WebHooks:     getSliceFromAPI[*index.MinerWebHook](fmt.Sprintf("miner_webhooks/%s", address)),
+		})
+	})
+
+	serveMux.HandleFunc("/miner-options/{miner:[^ ]+}", func(writer http.ResponseWriter, request *http.Request) {
+		//params := request.URL.Query()
+
+		address := mux.Vars(request)["miner"]
+		miner := getTypeFromAPI[cmdutils.MinerInfoResult](fmt.Sprintf("miner_info/%s?noShares", address))
+		if miner == nil || miner.Address == nil {
+			renderPage(request, writer, views.NewErrorPage(http.StatusNotFound, "Address Not Found", "You need to have mined at least one share in the past. Come back later :)"))
+			return
+		}
+
+		renderPage(request, writer, &views.MinerOptionsPage{
+			Miner:        miner,
+			SignedAction: nil,
+			WebHooks:     getSliceFromAPI[*index.MinerWebHook](fmt.Sprintf("miner_webhooks/%s", address)),
+		})
 	})
 
 	serveMux.HandleFunc("/miner", func(writer http.ResponseWriter, request *http.Request) {

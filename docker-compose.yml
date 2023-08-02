@@ -31,6 +31,15 @@ services:
       - p2pool
     networks:
       - p2pool-observer
+  tor-proxy:
+    image: goldy/tor-hidden-service:v0.4.7.12-54c0e54
+    tmpfs:
+      - /tmp
+    restart: always
+    environment:
+      TOR_SOCKS_PORT: 9050
+    networks:
+      - p2pool-observer
   site:
     build:
       context: ./docker/nginx
@@ -93,7 +102,6 @@ services:
       - /run
       - /run/postgresql
 
-
   p2pool:
     build:
       context: ./
@@ -132,6 +140,7 @@ services:
         - GOPROXY=${GOPROXY}
     restart: always
     environment:
+      - NET_SERVICE_ADDRESS=${NET_SERVICE_ADDRESS}
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
       - TRANSACTION_LOOKUP_OTHER=${TRANSACTION_LOOKUP_OTHER}
     depends_on:
@@ -185,9 +194,11 @@ services:
     restart: always
     environment:
       - TOR_SERVICE_ADDRESS=${TOR_SERVICE_ADDRESS}
+      - NET_SERVICE_ADDRESS=${NET_SERVICE_ADDRESS}
       - TRANSACTION_LOOKUP_OTHER=${TRANSACTION_LOOKUP_OTHER}
     depends_on:
       - db
+      - tor-proxy
       - p2pool
     security_opt:
       - no-new-privileges:true
@@ -201,6 +212,7 @@ services:
       -host ${MONEROD_HOST}
       -rpc-port ${MONEROD_RPC_PORT}
       -api-host "http://p2pool:3131"
+      -hook-proxy "tor-proxy:9050"
       -db="postgres:///p2pool?host=/var/run/postgresql&user=p2pool&password=p2pool&sslmode=disable"
 
   pgo-p2pool:

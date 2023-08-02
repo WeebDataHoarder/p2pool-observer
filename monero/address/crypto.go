@@ -92,7 +92,11 @@ func GetTxProofV1(a Interface, txId types.Hash, txKey crypto.PrivateKey, message
 type SignatureVerifyResult int
 
 const (
-	ResultFail SignatureVerifyResult = iota
+	ResultFailZeroSpend SignatureVerifyResult = -2
+	ResultFailZeroView  SignatureVerifyResult = -1
+)
+const (
+	ResultFail = SignatureVerifyResult(iota)
 	ResultSuccessSpend
 	ResultSuccessView
 )
@@ -130,12 +134,61 @@ func VerifyMessage(a Interface, message []byte, signature string) SignatureVerif
 		return ResultSuccessSpend
 	}
 
+	// Special mode: view wallets in Monero GUI could generate signatures with spend public key proper, with message hash of spend wallet mode, but zero spend private key
+	if crypto.VerifyMessageSignatureSplit(hash, a.SpendPublicKey(), ZeroPrivateKeyAddress.SpendPublicKey(), sig) {
+		return ResultFailZeroSpend
+	}
+
 	if strings.HasPrefix(signature, "SigV2") {
 		hash = GetMessageHash(a, message, 1)
 	}
 
 	if crypto.VerifyMessageSignature(hash, a.ViewPublicKey(), sig) {
 		return ResultSuccessView
+	}
+
+	return ResultFail
+}
+
+// VerifyMessageFallbackToZero Check for Monero GUI behavior to generate wrong signatures on view-only wallets
+func VerifyMessageFallbackToZero(a Interface, message []byte, signature string) SignatureVerifyResult {
+	var hash types.Hash
+
+	if strings.HasPrefix(signature, "SigV1") {
+		hash = crypto.Keccak256(message)
+	} else if strings.HasPrefix(signature, "SigV2") {
+		hash = GetMessageHash(a, message, 0)
+	} else {
+		return ResultFail
+	}
+	raw := moneroutil.DecodeMoneroBase58([]byte(signature[5:]))
+
+	sig := crypto.NewSignatureFromBytes(raw)
+
+	if sig == nil {
+		return ResultFail
+	}
+
+	if crypto.VerifyMessageSignature(hash, a.SpendPublicKey(), sig) {
+		return ResultSuccessSpend
+	}
+
+	// Special mode: view wallets in Monero GUI could generate signatures with spend public key proper, with message hash of spend wallet mode, but zero spend private key
+	if crypto.VerifyMessageSignatureSplit(hash, a.SpendPublicKey(), ZeroPrivateKeyAddress.SpendPublicKey(), sig) {
+		return ResultFailZeroSpend
+	}
+
+	if strings.HasPrefix(signature, "SigV2") {
+		hash = GetMessageHash(a, message, 1)
+	}
+
+	if crypto.VerifyMessageSignature(hash, a.ViewPublicKey(), sig) {
+		return ResultSuccessView
+	}
+
+	// Special mode
+	if crypto.VerifyMessageSignatureSplit(hash, a.ViewPublicKey(), ZeroPrivateKeyAddress.ViewPublicKey(), sig) {
+		return ResultFailZeroView
 	}
 
 	return ResultFail

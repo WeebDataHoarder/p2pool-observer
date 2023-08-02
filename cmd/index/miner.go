@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 )
 
 const MinerSelectFields = "id, alias, spend_public_key, view_public_key"
@@ -29,13 +30,13 @@ func (m *Miner) Address() *address.Address {
 	return &m.addr
 }
 
-func (m *Miner) ScanFromRow(i *Index, row RowScanInterface) error {
+func (m *Miner) ScanFromRow(consensus *sidechain.Consensus, row RowScanInterface) error {
 	var spendPub, viewPub crypto.PublicKeyBytes
 	if err := row.Scan(&m.id, &m.alias, &spendPub, &viewPub); err != nil {
 		return err
 	}
 
-	network, err := i.consensus.NetworkType.AddressNetwork()
+	network, err := consensus.NetworkType.AddressNetwork()
 	if err != nil {
 		return err
 	}

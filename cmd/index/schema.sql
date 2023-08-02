@@ -6,6 +6,16 @@ CREATE TABLE IF NOT EXISTS miners (
     UNIQUE (spend_public_key, view_public_key)
 );
 
+CREATE TABLE IF NOT EXISTS miner_webhooks (
+    miner bigint NOT NULL,
+    type varchar NOT NULL,
+    url varchar NOT NULL,
+    settings jsonb NOT NULL DEFAULT '{}', -- settings to know when to trigger or other required settings for the method
+    UNIQUE (miner, type),
+    FOREIGN KEY (miner) REFERENCES miners (id)
+);
+
+CREATE INDEX IF NOT EXISTS miner_webhooks_miner_idx ON miner_webhooks (miner);
 
 CREATE TABLE IF NOT EXISTS side_blocks (
     main_id bytea PRIMARY KEY, -- mainchain id, on Monero network

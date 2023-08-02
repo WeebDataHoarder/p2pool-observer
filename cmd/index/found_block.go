@@ -2,6 +2,7 @@ package index
 
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 )
 
@@ -24,7 +25,7 @@ type FoundBlock struct {
 	MinerAlias   string           `json:"miner_alias,omitempty"`
 }
 
-func (b *FoundBlock) ScanFromRow(i *Index, row RowScanInterface) error {
+func (b *FoundBlock) ScanFromRow(_ *sidechain.Consensus, row RowScanInterface) error {
 	if err := row.Scan(
 		&b.MainBlock.Id, &b.MainBlock.Height, &b.MainBlock.Timestamp, &b.MainBlock.Reward, &b.MainBlock.CoinbaseId, &b.MainBlock.CoinbasePrivateKey, &b.MainBlock.Difficulty, &b.MainBlock.SideTemplateId,
 		&b.SideHeight, &b.Miner, &b.UncleOf, &b.EffectiveHeight, &b.WindowDepth, &b.WindowOutputs, &b.TransactionCount, &b.Difficulty, &b.CumulativeDifficulty, &b.Inclusion,

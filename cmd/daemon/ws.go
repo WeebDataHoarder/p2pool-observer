@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
-	utils2 "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
@@ -325,8 +325,8 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				listenerLock.RLock()
 				defer listenerLock.RUnlock()
 				for _, b := range blocksToReport {
-					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
-						Type:                utils2.JSONEventSideBlock,
+					buf, err := utils.MarshalJSON(&cmdutils.JSONEvent{
+						Type:                cmdutils.JSONEventSideBlock,
 						SideBlock:           b,
 						FoundBlock:          nil,
 						MainCoinbaseOutputs: nil,
@@ -341,6 +341,19 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 							l.Write(buf)
 						}
 					}
+
+					ts := time.Now().Unix()
+
+					// Send webhooks
+					go func(b *index.SideBlock) {
+						q, _ := indexDb.GetMinerWebHooks(b.Miner)
+						index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
+							if err := cmdutils.SendSideBlock(w, ts, b.MinerAddress, b); err != nil {
+								log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventSideBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
+							}
+							return false
+						})
+					}(b)
 				}
 			}()
 		}
@@ -426,8 +439,8 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				listenerLock.RLock()
 				defer listenerLock.RUnlock()
 				for _, b := range unfoundBlocksToReport {
-					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
-						Type:                utils2.JSONEventOrphanedBlock,
+					buf, err := utils.MarshalJSON(&cmdutils.JSONEvent{
+						Type:                cmdutils.JSONEventOrphanedBlock,
 						SideBlock:           b,
 						FoundBlock:          nil,
 						MainCoinbaseOutputs: nil,
@@ -442,6 +455,19 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 							l.Write(buf)
 						}
 					}
+
+					ts := time.Now().Unix()
+
+					// Send webhooks
+					go func(b *index.SideBlock) {
+						q, _ := indexDb.GetMinerWebHooks(b.Miner)
+						index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
+							if err := cmdutils.SendOrphanedBlock(w, ts, b.MinerAddress, b); err != nil {
+								log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventOrphanedBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
+							}
+							return false
+						})
+					}(b)
 				}
 				for _, b := range blocksToReport {
 					coinbaseOutputs := func() index.MainCoinbaseOutputs {
@@ -458,8 +484,8 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						foundBlockBuffer.Remove(b)
 						continue
 					}
-					buf, err := utils.MarshalJSON(&utils2.JSONEvent{
-						Type:                utils2.JSONEventFoundBlock,
+					buf, err := utils.MarshalJSON(&cmdutils.JSONEvent{
+						Type:                cmdutils.JSONEventFoundBlock,
 						SideBlock:           nil,
 						FoundBlock:          b,
 						MainCoinbaseOutputs: coinbaseOutputs,
@@ -473,6 +499,51 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						default:
 							l.Write(buf)
 						}
+					}
+
+					includingHeight := max(b.EffectiveHeight, b.SideHeight)
+					if uint64(b.WindowDepth) > includingHeight {
+						includingHeight = 0
+					} else {
+						includingHeight -= uint64(b.WindowDepth)
+					}
+
+					// Send webhooks on outputs
+					for _, o := range coinbaseOutputs {
+						payout := &index.Payout{
+							Miner:             o.Miner,
+							TemplateId:        b.MainBlock.SideTemplateId,
+							SideHeight:        b.SideHeight,
+							UncleOf:           b.UncleOf,
+							MainId:            b.MainBlock.Id,
+							MainHeight:        b.MainBlock.Height,
+							Timestamp:         b.MainBlock.Timestamp,
+							CoinbaseId:        b.MainBlock.CoinbaseId,
+							Reward:            o.Value,
+							PrivateKey:        b.MainBlock.CoinbasePrivateKey,
+							Index:             uint64(o.Index),
+							GlobalOutputIndex: o.GlobalOutputIndex,
+							IncludingHeight:   includingHeight,
+						}
+
+						addr := o.MinerAddress
+
+						ts := time.Now().Unix()
+
+						// One goroutine per entry
+						go func() {
+							q, _ := indexDb.GetMinerWebHooks(payout.Miner)
+							index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
+								if err := cmdutils.SendFoundBlock(w, ts, addr, b, coinbaseOutputs); err != nil {
+									log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventFoundBlock, addr.ToBase58(), w.Type, w.Url, err)
+								}
+
+								if err := cmdutils.SendPayout(w, ts, addr, payout); err != nil {
+									log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventPayout, addr.ToBase58(), w.Type, w.Url, err)
+								}
+								return false
+							})
+						}()
 					}
 				}
 			}()

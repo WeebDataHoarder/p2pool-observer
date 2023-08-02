@@ -25,6 +25,7 @@ func getTypeFromAPI[T any](method string, cacheTime ...int) *T {
 			return nil
 		} else {
 			defer response.Body.Close()
+			defer io.ReadAll(response.Body)
 			if response.StatusCode == http.StatusOK {
 				var result T
 				decoder := utils.NewJSONDecoder(response.Body)
@@ -55,6 +56,7 @@ func getSliceFromAPI[T any](method string, cacheTime ...int) []T {
 			return nil
 		} else {
 			defer response.Body.Close()
+			defer io.ReadAll(response.Body)
 			if response.StatusCode == http.StatusOK {
 				var result []T
 				decoder := utils.NewJSONDecoder(response.Body)
@@ -141,6 +143,7 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 			return nil
 		} else {
 			defer response.Body.Close()
+			defer io.ReadAll(response.Body)
 			if response.StatusCode == http.StatusOK {
 				if data, err := io.ReadAll(response.Body); err != nil {
 					return nil
@@ -152,4 +155,23 @@ func getFromAPIRaw(method string, cacheTime ...int) []byte {
 			}
 		}
 	})
+}
+
+func getFromAPI(method string) (statusCode int, data []byte) {
+	uri, _ := url.Parse(os.Getenv("API_URL") + method)
+	if response, err := http.DefaultClient.Do(&http.Request{
+		Method: "GET",
+		URL:    uri,
+	}); err != nil {
+		return 0, nil
+	} else {
+		defer response.Body.Close()
+		defer io.ReadAll(response.Body)
+
+		if data, err = io.ReadAll(response.Body); err != nil {
+			return response.StatusCode, nil
+		} else {
+			return response.StatusCode, data
+		}
+	}
 }

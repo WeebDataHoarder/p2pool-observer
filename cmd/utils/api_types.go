@@ -15,6 +15,7 @@ const (
 	JSONEventSideBlock     = "side_block"
 	JSONEventFoundBlock    = "found_block"
 	JSONEventOrphanedBlock = "orphaned_block"
+	JSONEventPayout        = "payout"
 )
 
 type JSONEvent struct {
@@ -22,6 +23,7 @@ type JSONEvent struct {
 	SideBlock           *index.SideBlock          `json:"side_block,omitempty"`
 	FoundBlock          *index.FoundBlock         `json:"found_block,omitempty"`
 	MainCoinbaseOutputs index.MainCoinbaseOutputs `json:"main_coinbase_outputs,omitempty"`
+	Payout              *index.Payout             `json:"payout,omitempty"`
 }
 
 type VersionInfo struct {

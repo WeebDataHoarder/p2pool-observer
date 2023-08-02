@@ -162,7 +162,7 @@ func (b *SideBlock) IsOrphan() bool {
 	return b.Inclusion == InclusionOrphan
 }
 
-func (b *SideBlock) ScanFromRow(i *Index, row RowScanInterface) error {
+func (b *SideBlock) ScanFromRow(_ *sidechain.Consensus, row RowScanInterface) error {
 	if err := row.Scan(&b.MainId, &b.MainHeight, &b.TemplateId, &b.SideHeight, &b.ParentTemplateId, &b.Miner, &b.UncleOf, &b.EffectiveHeight, &b.Nonce, &b.ExtraNonce, &b.Timestamp, &b.SoftwareId, &b.SoftwareVersion, &b.WindowDepth, &b.WindowOutputs, &b.TransactionCount, &b.Difficulty, &b.CumulativeDifficulty, &b.PowDifficulty, &b.PowHash, &b.Inclusion); err != nil {
 		return err
 	}

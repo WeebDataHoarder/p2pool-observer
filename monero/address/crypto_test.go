@@ -80,3 +80,45 @@ func TestDerivePublicKey(t *testing.T) {
 		}
 	}
 }
+
+var testThrowawayAddress = FromBase58("42ecNLuoGtn1qC9SPSD9FPMNfsv35RE66Eu8WJJtyEHKfEsEiALVVp7GBCeAYFb7PHcSZmz9sDUtRMnKk2as1KfuLuTQJ3i")
+var signatureMessage = []byte("test_message")
+var signatureMessage2 = []byte("test_message2")
+
+const (
+	SignatureSpendSuccess      = "SigV2DnQYF11xZ1ahLJxddohCroiEJRnUe1tgwD5ksmFMzQ9NcRdbxLPrEdQW3e8w4sLpqhSup5tU9igQqeAR8j7r7Sty"
+	SignatureSpendWrongMessage = "SigV26RKRd31efizGHrWHwtYG6EN2MmwvF1rjU4ygZQuDmSxvCJnky1GJTzaM49naQeKvXbaGcnpZ1b3k8gVQLaFMFiBJ"
+	SignatureViewSuccess       = "SigV2b7LaAuXrFvPAXwU11SJwHbcXJoKfQ5aBJ9FwMJNxvMTu78AebqNUCWPH1BVfNRvy1f3GCTLjHfWvuRJMZtSHu5uj"
+	SignatureViewWrongMessage  = "SigV2AxWUATswZvnHSR5mMRsn9GcJe2gSCv3SbFwHv6J8THkj5KvmR8gUnTidHovZVyxgNHcUuiunM2dfVhbZvBTS6sZZ"
+)
+
+func TestSignature(t *testing.T) {
+	result := VerifyMessage(testThrowawayAddress, signatureMessage, SignatureSpendSuccess)
+	if result != ResultSuccessSpend {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(testThrowawayAddress, signatureMessage, SignatureSpendWrongMessage)
+	if result != ResultFail {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(testThrowawayAddress, signatureMessage2, SignatureSpendSuccess)
+	if result != ResultFail {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(testThrowawayAddress, signatureMessage, SignatureViewSuccess)
+	if result != ResultFailZeroSpend {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(testThrowawayAddress, signatureMessage, SignatureViewWrongMessage)
+	if result != ResultFail {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(testThrowawayAddress, signatureMessage2, SignatureViewSuccess)
+	if result != ResultFail {
+		t.Fatalf("unexpected %d", result)
+	}
+	result = VerifyMessage(&ZeroPrivateKeyAddress, signatureMessage, SignatureViewSuccess)
+	if result != ResultFail {
+		t.Fatalf("unexpected %d", result)
+	}
+}
