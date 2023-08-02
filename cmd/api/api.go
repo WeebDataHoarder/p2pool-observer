@@ -21,7 +21,6 @@ import (
 	"github.com/gorilla/mux"
 	"io"
 	"log"
-	"maps"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -1556,7 +1555,7 @@ func main() {
 							}
 						}
 
-						sortedAddresses := maps.Keys(addresses)
+						sortedAddresses := utils.Keys(addresses)
 
 						//Sort based on addresses
 						slices.SortFunc(sortedAddresses, func(a address.PackedAddress, b address.PackedAddress) int {

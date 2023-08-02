@@ -18,7 +18,6 @@ import (
 	"github.com/valyala/quicktemplate"
 	"io"
 	"log"
-	"maps"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -722,7 +721,7 @@ func main() {
 			}
 		}
 
-		minerKeys := maps.Keys(miners)
+		minerKeys := utils.Keys(miners)
 		slices.SortFunc(minerKeys, func(a uint64, b uint64) int {
 			return miners[a].Weight.Cmp(miners[b].Weight) * -1
 		})
