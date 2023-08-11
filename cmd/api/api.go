@@ -1514,7 +1514,7 @@ func main() {
 				}
 			}
 
-			if requestKind == "raw" {
+			if requestKind == "/raw" {
 				writer.Header().Set("Content-Type", "text/plain")
 				writer.WriteHeader(http.StatusOK)
 				buf, _ := raw.MarshalBinary()
