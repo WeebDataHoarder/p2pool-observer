@@ -11,7 +11,8 @@ environment:
   GOARCH: amd64
   GOAMD64: v3
   GOOS: linux
-  GOEXPERIMENT: loopvar
+  GOTRACEBACK: 2
+  GOEXPERIMENT: "cgocheck2,loopvar"
   CFLAGS: "-march=native -Ofast"
   LDFLAGS: "-flto"
   PKG_CONFIG_PATH: "/drone/src/build_deps/lib/pkgconfig"
@@ -36,13 +37,13 @@ steps:
       - cd /tmp
       - git clone --depth 1 --branch master https://github.com/tevador/RandomX.git && cd RandomX && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/drone/src/build_deps && make -j$(nproc) && make install && cd ../..
   - name: go-generate
-    image: golang:1.21-rc-alpine3.18
+    image: golang:1.21-alpine3.18
     commands:
       - apk update
       - apk add --no-cache git
       - go run github.com/valyala/quicktemplate/qtc@v1.7.0
   - name: test-cgo
-    image: golang:1.21-rc-alpine3.18
+    image: golang:1.21-alpine3.18
     depends_on:
       - init-tests
       - build-sources
@@ -56,3 +57,62 @@ steps:
       - apk update
       - apk add --no-cache git gcc g++ musl-dev pkgconfig
       - go list -f '{{.Dir}}/...' -m | xargs -n 1 sh -c 'go test -p 1 -failfast -timeout 20m -cover -gcflags=-d=checkptr -v $0 || exit 255'
+---
+kind: pipeline
+type: docker
+name: from-source-arm64
+platform:
+  os: linux
+  arch: arm64
+
+environment:
+  GOPROXY: direct
+  GOARCH: arm64
+  GOOS: linux
+  GOTRACEBACK: 2
+  GOEXPERIMENT: "cgocheck2,loopvar"
+  CFLAGS: "-march=native -Ofast"
+  LDFLAGS: "-flto"
+  PKG_CONFIG_PATH: "/drone/src/build_deps/lib/pkgconfig"
+  LD_LIBRARY_PATH: "/drone/src/build_deps/lib"
+  CGO_CFLAGS: "-I/drone/src/build_deps/include"
+  CGO_LDFLAGS: "-L/drone/src/build_deps/lib"
+
+workspace:
+  path: /drone/src
+
+steps:
+  - name: init-tests
+    image: alpine
+    commands:
+      - apk add --no-cache curl gzip bash
+      - ./testdata/setup.sh
+  - name: build-sources
+    image: alpine
+    commands:
+      - apk update
+      - apk add --no-cache git gcc g++ musl-dev bash autoconf automake cmake make libtool
+      - cd /tmp
+      - git clone --depth 1 --branch master https://github.com/tevador/RandomX.git && cd RandomX && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/drone/src/build_deps && make -j$(nproc) && make install && cd ../..
+  - name: go-generate
+    image: golang:1.21-alpine3.18
+    commands:
+      - apk update
+      - apk add --no-cache git
+      - go run github.com/valyala/quicktemplate/qtc@v1.7.0
+  - name: test-cgo
+    image: golang:1.21-alpine3.18
+    depends_on:
+      - init-tests
+      - build-sources
+      - go-generate
+    environment:
+      MONEROD_RPC_URL:
+        from_secret: MONEROD_RPC_URL
+      MONEROD_ZMQ_URL:
+        from_secret: MONEROD_ZMQ_URL
+    commands:
+      - apk update
+      - apk add --no-cache git gcc g++ musl-dev pkgconfig
+      - go list -f '{{.Dir}}/...' -m | xargs -n 1 sh -c 'go test -p 1 -failfast -timeout 20m -cover -gcflags=-d=checkptr -v $0 || exit 255'
+...
