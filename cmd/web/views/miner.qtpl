@@ -108,7 +108,7 @@ type MinerPage struct {
     </div>
 
     <hr/>
-    {% elseif p.LastPoolBlock != nil && p.LastPoolBlock.ShareVersion() > sidechain.ShareVersion_V1 && p.LastPoolBlock.Side.ExtraBuffer.SoftwareId == p2pooltypes.SoftwareIdP2Pool && p.LastPoolBlock.Side.ExtraBuffer.SoftwareVersion.String() != p.Context().Pool.Versions.P2Pool.Version %}
+    {% elseif p.LastPoolBlock != nil && p.LastPoolBlock.ShareVersion() > sidechain.ShareVersion_V1 && p.LastPoolBlock.Side.ExtraBuffer.SoftwareId == p2pooltypes.SoftwareIdP2Pool && p.LastPoolBlock.Side.ExtraBuffer.SoftwareVersion.String() != p.Context().Pool.Versions.P2Pool.ShortVersion().String() %}
     <div style="border: #d1d1d1 1px dashed;">
         <h3 style="color:#FF4433">Recent shares indicate you are running an older version of P2Pool</h3>
 

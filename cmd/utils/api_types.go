@@ -7,6 +7,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"strings"
 	"time"
 )
 
@@ -28,6 +29,17 @@ type VersionInfo struct {
 	Timestamp        int64  `json:"timestamp"`
 	Link             string `json:"link"`
 	CheckedTimestamp int64  `json:"-"`
+}
+
+func (v VersionInfo) ShortVersion() types2.SemanticVersion {
+	parts := strings.Split(v.Version, ".")
+	for len(parts) < 2 {
+		parts = append(parts, "0")
+	}
+	for len(parts) > 2 {
+		parts = parts[:len(parts)-1]
+	}
+	return types2.SemanticVersionFromString(strings.Join(parts, "."))
 }
 
 type ReleaseDataJson struct {
