@@ -3,6 +3,7 @@ go 1.21
 use (
 	.
 	cmd/api
+	cmd/apitocache
 	cmd/archivetoarchive
 	cmd/archivetoindex
 	cmd/cachetoarchive

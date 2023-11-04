@@ -13,8 +13,8 @@ import (
 )
 
 const blockSize = 96 * 1024
-const numBlocks = 4608
-const cacheSize = blockSize * numBlocks
+const NumBlocks = 4608
+const cacheSize = blockSize * NumBlocks
 
 type Cache struct {
 	f                 *os.File
@@ -57,7 +57,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 			//block too big
 			return
 		}
-		storeIndex := (c.storeIndex.Add(1) % numBlocks) * blockSize
+		storeIndex := (c.storeIndex.Add(1) % NumBlocks) * blockSize
 		_, _ = c.f.WriteAt(binary.LittleEndian.AppendUint32(nil, uint32(len(blob))), int64(storeIndex))
 		_, _ = c.f.WriteAt(blob, int64(storeIndex)+4)
 	}
@@ -73,8 +73,8 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 		buf := make([]byte, 0, blockSize)
 
 		var blocksLoaded int
-		for i := 0; i < numBlocks; i++ {
-			storeIndex := (c.storeIndex.Add(1) % numBlocks) * blockSize
+		for i := 0; i < NumBlocks; i++ {
+			storeIndex := (c.storeIndex.Add(1) % NumBlocks) * blockSize
 
 			if _, err := c.f.ReadAt(blobLen[:], int64(storeIndex)); err != nil {
 				return
