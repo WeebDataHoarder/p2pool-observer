@@ -917,6 +917,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 			c.server.UpdateTip(block)
 
 			if isAlternative {
+				c.precalcFinished.Store(true)
 				c.derivationCache.Clear()
 
 				log.Printf("[SideChain] SYNCHRONIZED to tip %s", block.SideTemplateId(c.Consensus()))
