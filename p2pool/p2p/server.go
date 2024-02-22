@@ -338,6 +338,7 @@ func (s *Server) UpdateClientConnections() {
 
 	deletedPeers := 0
 	peerList := s.PeerList()
+	peerList2 := slices.Clone(peerList)
 	for _, p := range peerList {
 		if slices.ContainsFunc(connectedPeers, func(addr netip.Addr) bool {
 			return p.AddressPort.Addr().Compare(addr) == 0
@@ -345,10 +346,12 @@ func (s *Server) UpdateClientConnections() {
 			p.LastSeenTimestamp.Store(currentTime)
 		}
 		if (p.LastSeenTimestamp.Load() + 3600) < currentTime {
-			peerList = peerList.Delete(p.AddressPort.Addr())
+			peerList2 = peerList2.Delete(p.AddressPort.Addr())
 			deletedPeers++
 		}
 	}
+	peerList2 = peerList
+
 	if deletedPeers > 0 {
 		func() {
 			s.peerListLock.Lock()
