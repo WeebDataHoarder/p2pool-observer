@@ -204,7 +204,7 @@ services:
       -db="postgres:///p2pool?host=/var/run/postgresql&user=p2pool&password=p2pool&sslmode=disable"
 
   pgo-p2pool:
-    image: golang:1.21-rc-alpine
+    image: golang:1.22-alpine3.19
     restart: always
     environment:
       - GOPROXY=${GOPROXY}
@@ -224,7 +224,7 @@ services:
       -profile-name default.pgo
       -endpoint http://p2pool:6060
   pgo-daemon:
-    image: golang:1.21-rc-alpine
+    image: golang:1.22-alpine3.19
     restart: always
     environment:
       - GOPROXY=${GOPROXY}
@@ -244,7 +244,7 @@ services:
       -profile-name default.pgo
       -endpoint http://daemon:6060
   pgo-web:
-    image: golang:1.21-rc-alpine
+    image: golang:1.22-alpine3.19
     restart: always
     environment:
       - GOPROXY=${GOPROXY}
@@ -264,7 +264,7 @@ services:
       -profile-name default.pgo
       -endpoint http://web:6060
   pgo-api:
-    image: golang:1.21-rc-alpine
+    image: golang:1.22-alpine3.19
     restart: always
     environment:
       - GOPROXY=${GOPROXY}

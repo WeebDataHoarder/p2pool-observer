@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine3.18 AS builder
+FROM golang:1.22-alpine3.19 AS builder
 
 
 ENV CFLAGS="-march=native -Ofast"
@@ -38,7 +38,7 @@ RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/daemon git.gamma
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/p2pool git.gammaspectra.live/P2Pool/p2pool-observer/cmd/p2pool
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/web git.gammaspectra.live/P2Pool/p2pool-observer/cmd/web
 
-FROM alpine:3.18
+FROM alpine:3.19
 
 RUN apk update && apk add --no-cache \
     libstdc++ libgcc

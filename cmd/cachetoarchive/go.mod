@@ -1,6 +1,6 @@
 module git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cachetoarchive
 
-go 1.21
+go 1.22
 
 replace git.gammaspectra.live/P2Pool/p2pool-observer v0.0.0 => ../../
 

@@ -1,6 +1,6 @@
 module git.gammaspectra.live/P2Pool/p2pool-observer
 
-go 1.21
+go 1.22
 
 require (
 	git.gammaspectra.live/P2Pool/edwards25519 v0.0.0-20230701100949-027561bd2a33
