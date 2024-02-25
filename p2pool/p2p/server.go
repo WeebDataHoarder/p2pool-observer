@@ -242,7 +242,8 @@ func (s *Server) RemoveFromPeerList(ip netip.Addr) {
 	ip = ip.Unmap()
 	s.peerListLock.Lock()
 	defer s.peerListLock.Unlock()
-	for i, a := range s.peerList {
+	for i := len(s.peerList) - 1; i >= 0; i-- {
+		a := s.peerList[i]
 		if a.AddressPort.Addr().Compare(ip) == 0 {
 			s.peerList = slices.Delete(s.peerList, i, i+1)
 			return
@@ -350,13 +351,13 @@ func (s *Server) UpdateClientConnections() {
 			deletedPeers++
 		}
 	}
-	peerList2 = peerList
+	peerList = peerList2
 
 	if deletedPeers > 0 {
 		func() {
 			s.peerListLock.Lock()
 			defer s.peerListLock.Unlock()
-			s.peerList = peerList
+			s.peerList = slices.Clone(peerList)
 		}()
 	}
 
