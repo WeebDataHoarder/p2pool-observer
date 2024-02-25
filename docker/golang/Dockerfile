@@ -31,8 +31,6 @@ COPY . .
 
 RUN go run github.com/valyala/quicktemplate/qtc@v1.7.0
 
-ENV GOEXPERIMENT=loopvar
-
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/api git.gammaspectra.live/P2Pool/p2pool-observer/cmd/api
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/daemon git.gammaspectra.live/P2Pool/p2pool-observer/cmd/daemon
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/p2pool git.gammaspectra.live/P2Pool/p2pool-observer/cmd/p2pool
