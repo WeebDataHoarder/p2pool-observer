@@ -2,14 +2,7 @@ package utils
 
 import (
 	"cmp"
-	"slices"
 )
-
-func ReverseSlice[S ~[]E, E any](s S) S {
-	slices.Reverse(s)
-
-	return s
-}
 
 // NthElementSlice QuickSelect implementation
 // k is the desired index value, where array[k] is the k+1 smallest element

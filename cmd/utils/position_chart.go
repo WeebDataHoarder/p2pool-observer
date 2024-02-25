@@ -1,10 +1,5 @@
 package utils
 
-import (
-	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"slices"
-)
-
 type PositionChart struct {
 	totalItems uint64
 	bucket     []uint64
@@ -56,7 +51,10 @@ func (p *PositionChart) String() string {
 	position := make([]byte, 2*2+len(p.bucket))
 	position[0], position[1] = '[', '<'
 	position[len(position)-2], position[len(position)-1] = '<', ']'
-	for i, e := range utils.ReverseSlice(slices.Clone(p.bucket)) {
+
+	//reverse
+	for i := len(p.bucket) - 1; i >= 0; i-- {
+		e := p.bucket[i]
 		if e > 0 {
 			if e > 9 {
 				position[2+i] = '+'
@@ -73,7 +71,10 @@ func (p *PositionChart) String() string {
 
 func (p *PositionChart) StringWithoutDelimiters() string {
 	position := make([]byte, len(p.bucket))
-	for i, e := range utils.ReverseSlice(slices.Clone(p.bucket)) {
+
+	//reverse
+	for i := len(p.bucket) - 1; i >= 0; i-- {
+		e := p.bucket[i]
 		if e > 0 {
 			if e > 9 {
 				position[i] = '+'
@@ -97,18 +98,22 @@ func (p *PositionChart) StringWithSeparator(index int) string {
 	position[0], position[1] = '[', '<'
 	position[2+separatorIndex] = '|'
 	position[len(position)-2], position[len(position)-1] = '<', ']'
-	for i, e := range utils.ReverseSlice(slices.Clone(p.bucket)) {
-		if i >= separatorIndex {
-			i++
+
+	//reverse
+	for i := len(p.bucket) - 1; i >= 0; i-- {
+		e := p.bucket[i]
+		j := i
+		if j >= separatorIndex {
+			j++
 		}
 		if e > 0 {
 			if e > 9 {
-				position[2+i] = '+'
+				position[2+j] = '+'
 			} else {
-				position[2+i] = 0x30 + byte(e)
+				position[2+j] = 0x30 + byte(e)
 			}
 		} else {
-			position[2+i] = p.idle
+			position[2+j] = p.idle
 		}
 	}
 
