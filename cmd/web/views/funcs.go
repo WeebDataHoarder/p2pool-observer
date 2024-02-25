@@ -7,6 +7,8 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"github.com/mazznoer/colorgrad"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -140,14 +142,19 @@ func found_block_effort(b, previous *index.FoundBlock) float64 {
 	return float64(b.CumulativeDifficulty.Sub(previous.CumulativeDifficulty).Mul64(100).Lo) / float64(b.MainBlock.Difficulty)
 }
 
+var effortColorGradient = colorgrad.RdYlBu()
+
+const effortRangeStart = 0.15
+const effortRangeEnd = 0.8
+
 func effort_color(effort float64) string {
-	if effort < 100 {
-		return "#00C000"
-	} else if effort < 200 {
-		return "#E0E000"
-	} else {
-		return "#FF0000"
-	}
+	probability := 1 - math.Exp(-effort/100)
+
+	// rescale
+	probability *= effortRangeEnd - effortRangeStart
+	probability += effortRangeStart
+
+	return effortColorGradient.At(1 - probability).Hex()
 }
 
 func monero_to_xmr(v uint64) string {
