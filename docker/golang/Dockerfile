@@ -9,7 +9,7 @@ ENV CGO_CFLAGS="-march=native -Ofast"
 RUN apk update && apk add --no-cache \
     git gcc g++ musl-dev bash autoconf automake cmake make libtool gettext
 
-RUN git clone --depth 1 --branch master https://github.com/tevador/RandomX.git /tmp/RandomX && cd /tmp/RandomX && \
+RUN git clone --depth 1 --branch v1.2.1 https://github.com/tevador/RandomX.git /tmp/RandomX && cd /tmp/RandomX && \
     mkdir build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -D CMAKE_INSTALL_PREFIX:PATH=/usr && \
     make -j$(nproc) && \
