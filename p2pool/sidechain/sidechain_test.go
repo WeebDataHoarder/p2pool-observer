@@ -55,19 +55,19 @@ func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mai
 	}
 
 	hits, misses := s.DerivationCache().ephemeralPublicKeyCache.Stats()
-	total := hits + misses
+	total := max(1, hits+misses)
 	log.Printf("Ephemeral Public Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().deterministicKeyCache.Stats()
-	total = hits + misses
+	total = max(1, hits+misses)
 	log.Printf("Deterministic Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().derivationCache.Stats()
-	total = hits + misses
+	total = max(1, hits+misses)
 	log.Printf("Derivation Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().pubKeyToPointCache.Stats()
-	total = hits + misses
+	total = max(1, hits+misses)
 	log.Printf("PubKeyToPoint Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 }
 
