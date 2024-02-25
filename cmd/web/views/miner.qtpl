@@ -257,7 +257,7 @@ type MinerPage struct {
 <hr/>
 
 <div style="text-align: center">
-    <form action="/miner/{%z= p.Miner.Address.ToBase58() %}" method="get">
+    <form action="/calculate-share-time" method="get">
         <h3>Effort Calculation</h3>
         <p>Local hashrate of each P2Pool miner is not known by the network. A guess is calculated based on daily estimation. If you provide a value here, it will be more accurate for effort calculation.</p>
         <p>This data will not be saved.</p>
