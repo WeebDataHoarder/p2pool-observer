@@ -9,15 +9,15 @@ require (
 	git.gammaspectra.live/P2Pool/moneroutil v0.0.0-20230722215223-18ecc51ae61e
 	git.gammaspectra.live/P2Pool/randomx-go-bindings v0.0.0-20230514082649-9c5f18cd5a71
 	git.gammaspectra.live/P2Pool/sha3 v0.0.0-20230604092430-04fe7dc6439a
-	github.com/dolthub/swiss v0.1.0
+	github.com/dolthub/swiss v0.2.1
 	github.com/floatdrop/lru v1.3.0
-	github.com/go-zeromq/zmq4 v0.15.0
+	github.com/go-zeromq/zmq4 v0.16.0
 	github.com/goccy/go-json v0.10.2
-	github.com/holiman/uint256 v1.2.3
+	github.com/holiman/uint256 v1.2.4
 	github.com/jxskiss/base62 v1.1.0
 	github.com/stretchr/testify v1.8.1
 	github.com/tmthrgd/go-hex v0.0.0-20190904060850-447a3041c3bc
-	golang.org/x/sys v0.10.0
+	golang.org/x/sys v0.17.0
 	lukechampine.com/uint128 v1.3.0
 )
 
@@ -27,9 +27,9 @@ require (
 	github.com/dolthub/maphash v0.1.0 // indirect
 	github.com/go-zeromq/goczmq/v4 v4.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/crypto v0.11.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/crypto v0.19.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
