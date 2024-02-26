@@ -149,9 +149,9 @@ func (p *P2Pool) Close(err error) {
 		log.Panicf("[P2Pool] Closed due to error %s", err)
 	} else if started {
 		close(p.closed)
-		log.Printf("[P2Pool] Closed")
+		utils.Logf("[P2Pool] Closed")
 	} else if err != nil {
-		log.Printf("[P2Pool] Received extra error during closing %s", err)
+		utils.Logf("[P2Pool] Received extra error during closing %s", err)
 	}
 }
 
@@ -426,11 +426,11 @@ func (p *P2Pool) getInfo() error {
 		return err
 	} else {
 		if info.BusySyncing {
-			log.Printf("[P2Pool] monerod is busy syncing, trying again in 5 seconds")
+			utils.Logf("[P2Pool] monerod is busy syncing, trying again in 5 seconds")
 			time.Sleep(time.Second * 5)
 			return p.getInfo()
 		} else if !info.Synchronized {
-			log.Printf("[P2Pool] monerod is not synchronized, trying again in 5 seconds")
+			utils.Logf("[P2Pool] monerod is not synchronized, trying again in 5 seconds")
 			time.Sleep(time.Second * 5)
 			return p.getInfo()
 		}
@@ -534,7 +534,7 @@ func (p *P2Pool) UpdateMinerData(data *p2pooltypes.MinerData) {
 }
 
 func (p *P2Pool) UpdateBlockFound(data *sidechain.ChainMain, block *sidechain.PoolBlock) {
-	log.Printf("[P2Pool] BLOCK FOUND: main chain block at height %d, id %s was mined by this p2pool", data.Height, data.Id)
+	utils.Logf("[P2Pool] BLOCK FOUND: main chain block at height %d, id %s was mined by this p2pool", data.Height, data.Id)
 
 	p.listenersLock.RLock()
 	defer p.listenersLock.RUnlock()
@@ -562,15 +562,15 @@ func (p *P2Pool) SubmitBlock(b *block.Block) {
 			if t := b.Coinbase.Extra.GetTag(transaction.TxExtraTagNonce); t != nil {
 				extraNonce = binary.LittleEndian.Uint32(t.Data)
 			}
-			log.Printf("[P2Pool] submit_block: height = %d, template id = %s, nonce = %d, extra_nonce = %d, blob = %d bytes", b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce, len(blob))
+			utils.Logf("[P2Pool] submit_block: height = %d, template id = %s, nonce = %d, extra_nonce = %d, blob = %d bytes", b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce, len(blob))
 
 			if result, err := p.ClientRPC().SubmitBlock(blob); err != nil {
-				log.Printf("[P2Pool] submit_block: daemon returned error: %s, height = %d, template id = %s, nonce = %d, extra_nonce = %d", err, b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce)
+				utils.Logf("[P2Pool] submit_block: daemon returned error: %s, height = %d, template id = %s, nonce = %d, extra_nonce = %d", err, b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce)
 			} else {
 				if result.Status == "OK" {
-					log.Printf("[P2Pool] submit_block: BLOCK ACCEPTED at height = %d, template id = %s", b.Coinbase.GenHeight, templateId.String())
+					utils.Logf("[P2Pool] submit_block: BLOCK ACCEPTED at height = %d, template id = %s", b.Coinbase.GenHeight, templateId.String())
 				} else {
-					log.Printf("[P2Pool] submit_block: daemon sent unrecognizable reply: %s, height = %d, template id = %s, nonce = %d, extra_nonce = %d", result.Status, b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce)
+					utils.Logf("[P2Pool] submit_block: daemon sent unrecognizable reply: %s, height = %d, template id = %s, nonce = %d, extra_nonce = %d", result.Status, b.Coinbase.GenHeight, templateId.String(), b.Nonce, extraNonce)
 				}
 			}
 		}
@@ -607,12 +607,12 @@ func (p *P2Pool) UpdateTip(tip *sidechain.PoolBlock) {
 func (p *P2Pool) Broadcast(block *sidechain.PoolBlock) {
 	minerData := p.GetMinerDataTip()
 	if (block.Main.Coinbase.GenHeight)+2 < minerData.Height {
-		log.Printf("[P2Pool] Trying to broadcast a stale block %s (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
+		utils.Logf("[P2Pool] Trying to broadcast a stale block %s (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
 		return
 	}
 
 	if block.Main.Coinbase.GenHeight > (minerData.Height + 2) {
-		log.Printf("[P2Pool] Trying to broadcast a block %s ahead on mainchain (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
+		utils.Logf("[P2Pool] Trying to broadcast a block %s ahead on mainchain (mainchain height %d, current height is %d)", block.SideTemplateId(p.consensus), block.Main.Coinbase.GenHeight, minerData.Height)
 		return
 	}
 

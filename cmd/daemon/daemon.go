@@ -13,6 +13,7 @@ import (
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -74,7 +75,7 @@ func main() {
 	if dbTip != nil {
 		tipHeight = dbTip.SideHeight
 	}
-	log.Printf("[CHAIN] Last known database tip is %d\n", tipHeight)
+	utils.Logf("[CHAIN] Last known database tip is %d\n", tipHeight)
 
 	window, uncles := p2api.StateFromTip()
 	if *startFromHeight != 0 {
@@ -95,9 +96,9 @@ func main() {
 			return
 		}
 		for cur := tip; cur != nil; cur = p2api.ByTemplateId(cur.Side.Parent) {
-			log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(cur).String(), cur.Side.Height)
+			utils.Logf("[CHAIN] Inserting share %s at height %d\n", blockId(cur).String(), cur.Side.Height)
 			for _, u := range cur.Side.Uncles {
-				log.Printf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), cur.Side.Height)
+				utils.Logf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), cur.Side.Height)
 			}
 			if err := indexDb.InsertOrUpdatePoolBlock(cur, index.InclusionInVerifiedChain); err != nil {
 				log.Panic(err)
@@ -112,7 +113,7 @@ func main() {
 	var backfillScan []types.Hash
 
 	for len(window) > 0 {
-		log.Printf("[CHAIN] Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
+		utils.Logf("[CHAIN] Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
 		for _, b := range window {
 			indexDb.CachePoolBlock(b)
 		}
@@ -125,9 +126,9 @@ func main() {
 				window = nil
 				break
 			}
-			log.Printf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
+			utils.Logf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
 			for _, u := range b.Side.Uncles {
-				log.Printf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), b.Side.Height)
+				utils.Logf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), b.Side.Height)
 			}
 			if err := indexDb.InsertOrUpdatePoolBlock(b, index.InclusionInVerifiedChain); err != nil {
 				log.Panic(err)
@@ -189,7 +190,7 @@ func main() {
 	for stride := uint64(0); stride <= strides; stride++ {
 		start := currentHeight + stride*strideSize
 		end := min(maxHeight-1, currentHeight+stride*strideSize+strideSize)
-		log.Printf("checking %d to %d", start, end)
+		utils.Logf("checking %d to %d", start, end)
 		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
 			log.Panic(err)
 		} else {
@@ -204,9 +205,9 @@ func main() {
 
 	// backfill any missing headers when p2pool was down
 	for _, mainId := range backfillScan {
-		log.Printf("checking backfill %s", mainId)
+		utils.Logf("checking backfill %s", mainId)
 		if header, err := client.GetDefaultClient().GetBlockHeaderByHash(mainId, ctx); err != nil {
-			log.Printf("not found %s", mainId)
+			utils.Logf("not found %s", mainId)
 		} else {
 			if err := scanHeader(*header); err != nil {
 				log.Panic(err)
@@ -268,7 +269,7 @@ func main() {
 			}
 
 			if mainTip.Height == maxDepth {
-				log.Printf("Reached maxdepth %d: Use scansweeps to backfill data", maxDepth)
+				utils.Logf("Reached maxdepth %d: Use scansweeps to backfill data", maxDepth)
 			}
 
 			for h := mainTip.Height - monero.MinerRewardUnlockTime; h <= actualTip.Height-monero.TransactionUnlockTime; h++ {
@@ -281,7 +282,7 @@ func main() {
 				}
 
 				if err := cmdutils.ProcessFullBlock(b, indexDb); err != nil {
-					log.Printf("error processing block %s at %d: %s", b.Id, b.Height, err)
+					utils.Logf("error processing block %s at %d: %s", b.Id, b.Height, err)
 				}
 			}
 		}
@@ -303,7 +304,7 @@ func main() {
 		mainTip := p2api.MainTip()
 
 		if tip == nil || mainTip == nil {
-			log.Printf("could not fetch tip or main tip")
+			utils.Logf("could not fetch tip or main tip")
 			continue
 		}
 
@@ -336,7 +337,7 @@ func main() {
 							doCheckOfOldBlocks.Store(true)
 						}
 					}
-					log.Printf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
+					utils.Logf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
 					func() {
 						sideBlocksLock.Lock()
 						defer sideBlocksLock.Unlock()

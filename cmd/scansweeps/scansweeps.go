@@ -4,10 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
-	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
+	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"time"
 )
@@ -59,25 +60,25 @@ func main() {
 		stopHeight = tipHeight
 	}
 
-	log.Printf("Starting at height %d, stopping at %d", startHeight, stopHeight)
+	utils.Logf("Starting at height %d, stopping at %d", startHeight, stopHeight)
 
 	isProcessedPrevious := true
 	for height := startHeight; height <= stopHeight; height++ {
 		b := indexDb.GetMainBlockByHeight(height)
 		if b == nil {
-			log.Printf("Block at %d is nil", height)
+			utils.Logf("Block at %d is nil", height)
 			continue
 		}
 
 		if isProcessed, ok := b.GetMetadata("processed").(bool); ok && isProcessed && isProcessedPrevious {
-			log.Printf("Block %s at %d (%s) has already been processed", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"))
+			utils.Logf("Block %s at %d (%s) has already been processed", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"))
 			continue
 		}
 
 		isProcessedPrevious = false
 
-		if err := utils.ProcessFullBlock(b, indexDb); err != nil {
-			log.Printf("error processing block %s at %d: %s", b.Id, b.Height, err)
+		if err := cmdutils.ProcessFullBlock(b, indexDb); err != nil {
+			utils.Logf("error processing block %s at %d: %s", b.Id, b.Height, err)
 		}
 	}
 

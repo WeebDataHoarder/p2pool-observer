@@ -197,7 +197,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	log.Printf("Consensus id = %s", consensus.Id)
+	utils.Logf("Consensus id = %s", consensus.Id)
 
 	var lastPoolInfo atomic.Pointer[cmdutils.PoolInfoResult]
 

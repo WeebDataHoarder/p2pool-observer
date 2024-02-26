@@ -12,7 +12,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
-	"log"
 	unsafeRandom "math/rand"
 	"net"
 	"net/netip"
@@ -137,7 +136,7 @@ func (c *Client) Ban(duration time.Duration, err error) {
 func (c *Client) OnAfterHandshake() {
 	c.SendListenPort()
 	c.SendBlockRequest(types.ZeroHash)
-	log.Printf("[P2PClient] Peer %s after handshake complete: sent LISTEN_PORT + tip BLOCK_REQUEST", c.AddressPort.String())
+	utils.Logf("[P2PClient] Peer %s after handshake complete: sent LISTEN_PORT + tip BLOCK_REQUEST", c.AddressPort.String())
 
 	c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 }
@@ -164,7 +163,7 @@ func (c *Client) SendMissingBlockRequestAtRandom(hash types.Hash, allowedClients
 	}
 
 	if b := c.Owner.GetCachedBlock(hash); b != nil {
-		log.Printf("[P2PClient] Using cached block for id = %s", hash.String())
+		utils.Logf("[P2PClient] Using cached block for id = %s", hash.String())
 		if _, err, _ := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
 			return allowedClients
 		}
@@ -193,7 +192,7 @@ func (c *Client) SendMissingBlockRequest(hash types.Hash) {
 	}
 
 	if b := c.Owner.GetCachedBlock(hash); b != nil {
-		log.Printf("[P2PClient] Using cached block for id = %s", hash.String())
+		utils.Logf("[P2PClient] Using cached block for id = %s", hash.String())
 		if missingBlocks, err, _ := c.Owner.SideChain().AddPoolBlockExternal(b); err == nil {
 			for _, id := range missingBlocks {
 				c.SendMissingBlockRequest(id)
@@ -259,7 +258,7 @@ func (c *Client) SendBlockResponse(block *sidechain.PoolBlock) {
 	if block != nil {
 		blockData, err := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), false, false)
 		if err != nil {
-			log.Printf("[P2PClient] Peer %s tried to respond with a block but received error, disconnecting: %s", c.AddressPort, err)
+			utils.Logf("[P2PClient] Peer %s tried to respond with a block but received error, disconnecting: %s", c.AddressPort, err)
 			c.Close()
 			return
 		}
@@ -283,7 +282,7 @@ func (c *Client) SendPeerListRequest() {
 		MessageId: MessagePeerListRequest,
 	})
 	c.LastPeerListRequestTimestamp.Store(uint64(time.Now().UnixMicro()))
-	//log.Printf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
+	//utils.Logf("[P2PClient] Sending PEER_LIST_REQUEST to %s", c.AddressPort.String())
 }
 
 func (c *Client) SendPeerListResponse(list []netip.AddrPort) {
@@ -374,7 +373,7 @@ func (c *Client) OnConnection() {
 				c.HandshakeComplete.Store(true)
 				c.SetError(fmt.Errorf("already connected as %s (%d)", otherClient.AddressPort, otherClient.PeerId.Load()))
 				//same peer
-				log.Printf("[P2PClient] Connected to other same peer: %s (%d) is also %s (%d)", c.AddressPort, c.PeerId.Load(), otherClient.AddressPort, otherClient.PeerId.Load())
+				utils.Logf("[P2PClient] Connected to other same peer: %s (%d) is also %s (%d)", c.AddressPort, c.PeerId.Load(), otherClient.AddressPort, otherClient.PeerId.Load())
 				c.Close()
 				return
 			}
@@ -458,7 +457,7 @@ func (c *Client) OnConnection() {
 			var block *sidechain.PoolBlock
 			//if empty, return chain tip
 			if templateId == types.ZeroHash {
-				log.Printf("[P2PClient] Peer %s requested tip", c.AddressPort.String())
+				utils.Logf("[P2PClient] Peer %s requested tip", c.AddressPort.String())
 				// Don't return stale chain tip
 				if block = c.Owner.SideChain().GetChainTip(); block != nil && (block.Main.Coinbase.GenHeight+2) < c.Owner.MainChain().GetMinerDataTip().Height {
 					block = nil
@@ -466,9 +465,9 @@ func (c *Client) OnConnection() {
 			} else {
 				block = c.Owner.SideChain().GetPoolBlockByTemplateId(templateId)
 				if block == nil {
-					log.Printf("[P2PClient] Peer %s requested id = %s, got nil", c.AddressPort.String(), templateId)
+					utils.Logf("[P2PClient] Peer %s requested id = %s, got nil", c.AddressPort.String(), templateId)
 				} else {
-					log.Printf("[P2PClient] Peer %s requested id = %s, got height = %d, main height = %d", c.AddressPort.String(), templateId, block.Side.Height, block.Main.Coinbase.GenHeight)
+					utils.Logf("[P2PClient] Peer %s requested id = %s, got height = %d, main height = %d", c.AddressPort.String(), templateId, block.Side.Height, block.Main.Coinbase.GenHeight)
 				}
 			}
 
@@ -503,7 +502,7 @@ func (c *Client) OnConnection() {
 				c.Ban(DefaultBanTime, err)
 				return
 			} else if blockSize == 0 {
-				log.Printf("[P2PClient] Peer %s sent nil BLOCK_RESPONSE to id = %s", c.AddressPort.String(), expectedBlockId)
+				utils.Logf("[P2PClient] Peer %s sent nil BLOCK_RESPONSE to id = %s", c.AddressPort.String(), expectedBlockId)
 				if isChainTipBlockRequest && time.Now().Unix() >= int64(c.NextOutgoingPeerListRequestTimestamp.Load()) {
 					c.SendPeerListRequest()
 				}
@@ -522,7 +521,7 @@ func (c *Client) OnConnection() {
 							}
 						}
 
-						log.Printf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
+						utils.Logf("[P2PClient] Peer %s tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 						peerHeight := block.Main.Coinbase.GenHeight
 						ourHeight := c.Owner.MainChain().GetMinerDataTip().Height
 
@@ -546,7 +545,7 @@ func (c *Client) OnConnection() {
 						}
 					}
 					if c.Owner.SideChain().BlockSeen(block) {
-						//log.Printf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
+						//utils.Logf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
 						break
 					}
 					if missingBlocks, err, ban := c.Owner.SideChain().AddPoolBlockExternal(block); err != nil {
@@ -554,7 +553,7 @@ func (c *Client) OnConnection() {
 							c.Ban(DefaultBanTime, err)
 							return
 						} else {
-							log.Printf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
+							utils.Logf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
 							break
 						}
 					} else {
@@ -612,7 +611,7 @@ func (c *Client) OnConnection() {
 
 			c.LastBroadcastTimestamp.Store(uint64(time.Now().Unix()))
 
-			//log.Printf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
+			//utils.Logf("[P2PClient] Peer %s broadcast tip is at id = %s, height = %d, main height = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight)
 
 			if missingBlocks, err := c.Owner.SideChain().PreprocessBlock(block); err != nil {
 				for _, id := range missingBlocks {
@@ -637,7 +636,7 @@ func (c *Client) OnConnection() {
 						if (ourHeight - peerHeight) < 5 {
 							elapsedTime := time.Now().Sub(ourMinerData.TimeReceived)
 							if (ourHeight-peerHeight) > 1 || elapsedTime > (time.Second*10) {
-								log.Printf("[P2PClient] Peer %s broadcasted a stale block (%d ms late, mainchain height %d, expected >= %d), ignoring it", c.AddressPort.String(), elapsedTime.Milliseconds(), peerHeight, ourHeight)
+								utils.Logf("[P2PClient] Peer %s broadcasted a stale block (%d ms late, mainchain height %d, expected >= %d), ignoring it", c.AddressPort.String(), elapsedTime.Milliseconds(), peerHeight, ourHeight)
 							}
 						} else {
 							c.Ban(DefaultBanTime, fmt.Errorf("broadcasted an unreasonably stale block (mainchain height %d, expected >= %d)", peerHeight, ourHeight))
@@ -645,15 +644,15 @@ func (c *Client) OnConnection() {
 						}
 					} else if peerHeight > ourHeight {
 						if peerHeight >= (ourHeight + 2) {
-							log.Printf("[P2PClient] Peer %s is ahead on mainchain (mainchain height %d, your height %d). Is monerod stuck or lagging?", c.AddressPort.String(), peerHeight, ourHeight)
+							utils.Logf("[P2PClient] Peer %s is ahead on mainchain (mainchain height %d, your height %d). Is monerod stuck or lagging?", c.AddressPort.String(), peerHeight, ourHeight)
 						}
 					} else {
-						log.Printf("[P2PClient] Peer %s is mining on an alternative mainchain tip (mainchain height %d, previous_id = %s)", c.AddressPort.String(), peerHeight, block.Main.PreviousId)
+						utils.Logf("[P2PClient] Peer %s is mining on an alternative mainchain tip (mainchain height %d, previous_id = %s)", c.AddressPort.String(), peerHeight, block.Main.PreviousId)
 					}
 				}
 
 				if c.Owner.SideChain().BlockSeen(block) {
-					//log.Printf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
+					//utils.Logf("[P2PClient] Peer %s block id = %s, height = %d (nonce %d, extra_nonce %d) was received before, skipping it", c.AddressPort.String(), types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), block.Side.Height, block.Main.Nonce, block.ExtraNonce())
 					break
 				}
 
@@ -662,7 +661,7 @@ func (c *Client) OnConnection() {
 					if ban {
 						c.Ban(DefaultBanTime, err)
 					} else {
-						log.Printf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
+						utils.Logf("[P2PClient] Peer %s error adding block id = %s, height = %d, main height = %d, timestamp = %d", c.AddressPort.String(), tipHash, block.Side.Height, block.Main.Coinbase.GenHeight, block.Main.Timestamp)
 					}
 					return
 				} else {
@@ -765,7 +764,7 @@ func (c *Client) OnConnection() {
 				var port uint16
 
 				if firstPeerResponse {
-					log.Printf("[P2PClient] Peer %s initial PEER_LIST_RESPONSE: num_peers %d", c.AddressPort.String(), numPeers)
+					utils.Logf("[P2PClient] Peer %s initial PEER_LIST_RESPONSE: num_peers %d", c.AddressPort.String(), numPeers)
 				}
 				for i := uint8(0); i < numPeers; i++ {
 					if isV6, err := c.ReadByte(); err != nil {
@@ -789,7 +788,7 @@ func (c *Client) OnConnection() {
 									c.VersionInformation.Protocol = p2pooltypes.ProtocolVersion(binary.LittleEndian.Uint32(rawIp[0:]))
 									c.VersionInformation.SoftwareVersion = p2pooltypes.SoftwareVersion(binary.LittleEndian.Uint32(rawIp[4:]))
 									c.VersionInformation.SoftwareId = p2pooltypes.SoftwareId(binary.LittleEndian.Uint32(rawIp[8:]))
-									log.Printf("[P2PClient] Peer %s version information: %s", c.AddressPort.String(), c.VersionInformation.String())
+									utils.Logf("[P2PClient] Peer %s version information: %s", c.AddressPort.String(), c.VersionInformation.String())
 
 									c.afterInitialProtocolExchange()
 								}
@@ -863,7 +862,7 @@ func (c *Client) afterInitialProtocolExchange() {
 
 func (c *Client) sendHandshakeChallenge() {
 	if _, err := rand.Read(c.handshakeChallenge[:]); err != nil {
-		log.Printf("[P2PServer] Unable to generate handshake challenge for %s", c.AddressPort.String())
+		utils.Logf("[P2PServer] Unable to generate handshake challenge for %s", c.AddressPort.String())
 		c.Close()
 		return
 	}
@@ -916,7 +915,7 @@ func (c *Client) SendMessage(message *ClientMessage) {
 	if !c.Closed.Load() {
 		bufLen := len(message.Buffer) + 1
 		if bufLen > MaxBufferSize {
-			log.Printf("[P2PClient] Peer %s tried to send more than %d bytes, sent %d, disconnecting", c.AddressPort, MaxBufferSize, len(message.Buffer)+1)
+			utils.Logf("[P2PClient] Peer %s tried to send more than %d bytes, sent %d, disconnecting", c.AddressPort, MaxBufferSize, len(message.Buffer)+1)
 			c.Close()
 			return
 		}
@@ -974,6 +973,6 @@ func (c *Client) Close() bool {
 	_ = c.Connection.Close()
 	close(c.closeChannel)
 
-	log.Printf("[P2PClient] Peer %s connection closed", c.AddressPort.String())
+	utils.Logf("[P2PClient] Peer %s connection closed", c.AddressPort.String())
 	return true
 }

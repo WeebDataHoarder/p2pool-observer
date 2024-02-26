@@ -10,7 +10,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
-	"log"
 	"lukechampine.com/uint128"
 	"math"
 	"math/bits"
@@ -589,19 +588,19 @@ func IsLongerChain(block, candidate *PoolBlock, consensus *Consensus, getByTempl
 	// Candidate chain must be built on top of recent mainchain blocks
 	if headerTip := getChainMainByHash(types.ZeroHash); headerTip != nil {
 		if candidateMainchainHeight+10 < headerTip.Height {
-			log.Printf("[SideChain] Received a longer alternative chain but it's stale: height %d, current height %d", candidateMainchainHeight, headerTip.Height)
+			utils.Logf("[SideChain] Received a longer alternative chain but it's stale: height %d, current height %d", candidateMainchainHeight, headerTip.Height)
 			return false, true
 		}
 
 		limit := consensus.ChainWindowSize * 4 * consensus.TargetBlockTime / monero.BlockTime
 		if candidateMainchainMinHeight+limit < headerTip.Height {
-			log.Printf("[SideChain] Received a longer alternative chain but it's stale: min height %d, must be >= %d", candidateMainchainMinHeight, headerTip.Height-limit)
+			utils.Logf("[SideChain] Received a longer alternative chain but it's stale: min height %d, must be >= %d", candidateMainchainMinHeight, headerTip.Height-limit)
 			return false, true
 		}
 
 		// Candidate chain must have been mined on top of at least half as many known Monero blocks, compared to the current chain
 		if len(candidateChainMoneroBlocks)*2 < len(currentChainMoneroBlocks) {
-			log.Printf("[SideChain] Received a longer alternative chain but it wasn't mined on current Monero blockchain: only %d / %d blocks found", len(candidateChainMoneroBlocks), len(currentChainMoneroBlocks))
+			utils.Logf("[SideChain] Received a longer alternative chain but it wasn't mined on current Monero blockchain: only %d / %d blocks found", len(candidateChainMoneroBlocks), len(currentChainMoneroBlocks))
 			return false, true
 		}
 

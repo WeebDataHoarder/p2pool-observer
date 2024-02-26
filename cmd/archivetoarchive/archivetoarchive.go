@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"log"
 	"math"
@@ -87,7 +88,7 @@ func main() {
 		for i, b := range blocksAtHeight {
 			blocksProcessed++
 			if _, err := b.PreProcessBlock(consensus, derivationCache, preAllocatedShares, getDifficultyByHeight, getByTemplateId); err != nil {
-				log.Printf("error processing block %s at %d, %s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height, err)
+				utils.Errorf("error processing block %s at %d, %s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height, err)
 			} else {
 				if parent := getByTemplateId(b.Side.Parent); parent != nil {
 					topDepth := parent.Depth.Load()
@@ -99,7 +100,7 @@ func main() {
 						b.Depth.Store(topDepth - 1)
 					}
 				} else {
-					log.Printf("block %s at %d, could not get parent, fallback", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height)
+					utils.Errorf("block %s at %d, could not get parent, fallback", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height)
 					b.Depth.Store(math.MaxUint64)
 				}
 				outputCache.Store(b)
@@ -110,5 +111,5 @@ func main() {
 		}
 	}
 
-	log.Printf("blocks processed %d", blocksProcessed)
+	utils.Logf("blocks processed %d", blocksProcessed)
 }

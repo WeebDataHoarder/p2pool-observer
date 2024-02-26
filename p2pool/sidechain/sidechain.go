@@ -18,7 +18,6 @@ import (
 	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/dolthub/swiss"
 	"io"
-	"log"
 	"math/rand"
 	"slices"
 	"sync"
@@ -262,7 +261,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 				err = fmt.Errorf("panic: %v", e)
 			}
 			ban = true
-			log.Printf("[SideChain]: add_external_block: panic %v, block %+v", e, block)
+			utils.Logf("[SideChain]: add_external_block: panic %v, block %+v", e, block)
 		}
 	}()
 
@@ -308,7 +307,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		//already added
 		newMainId := block.MainId()
 		oldMainId := block.MainId()
-		log.Printf("[SideChain]: add_external_block: block id = %s is already added. New main id = %s, old main id = %s", templateId, newMainId, oldMainId)
+		utils.Logf("[SideChain]: add_external_block: block id = %s is already added. New main id = %s, old main id = %s", templateId, newMainId, oldMainId)
 		if newMainId != oldMainId && otherBlock.Verified.Load() && !otherBlock.Invalid.Load() {
 			//other sections have been verified already, check PoW for new Main blocks
 
@@ -318,9 +317,9 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 				return nil, err, false
 			} else {
 				if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.Consensus().GetHasher(), c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
-					log.Printf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
+					utils.Logf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
 				} else if isHigherMainChain {
-					log.Printf("[SideChain]: add_external_block: ALTERNATE block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
+					utils.Logf("[SideChain]: add_external_block: ALTERNATE block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
 					c.server.SubmitBlock(&block.Main)
 				}
 				if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.Consensus().GetHasher(), c.getSeedByHeightFunc()); err != nil {
@@ -333,7 +332,7 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 					c.sidechainLock.Lock()
 					defer c.sidechainLock.Unlock()
 
-					log.Printf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
+					utils.Logf("[SideChain] add_external_block: ALTERNATE height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
 
 					block.Verified.Store(true)
 					block.Invalid.Store(false)
@@ -385,9 +384,9 @@ func (c *SideChain) AddPoolBlockExternal(block *PoolBlock) (missingBlocks []type
 		return nil, err, false
 	} else {
 		if isHigherMainChain, err := block.IsProofHigherThanMainDifficultyWithError(c.Consensus().GetHasher(), c.server.GetDifficultyByHeight, c.getSeedByHeightFunc()); err != nil {
-			log.Printf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
+			utils.Logf("[SideChain] add_external_block: couldn't get mainchain difficulty for height = %d: %s", block.Main.Coinbase.GenHeight, err)
 		} else if isHigherMainChain {
-			log.Printf("[SideChain]: add_external_block: block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
+			utils.Logf("[SideChain]: add_external_block: block %s has enough PoW for Monero height %d, submitting it", templateId.String(), block.Main.Coinbase.GenHeight)
 			c.server.SubmitBlock(&block.Main)
 		}
 		if isHigher, err := block.IsProofHigherThanDifficultyWithError(c.Consensus().GetHasher(), c.getSeedByHeightFunc()); err != nil {
@@ -432,7 +431,7 @@ func (c *SideChain) AddPoolBlock(block *PoolBlock) (err error) {
 
 	c.blocksByTemplateId.Put(block.SideTemplateId(c.Consensus()), block)
 
-	log.Printf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
+	utils.Logf("[SideChain] add_block: height = %d, id = %s, mainchain height = %d, verified = %t, total = %d", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.Verified.Load(), c.blocksByTemplateId.Count())
 
 	if block.SideTemplateId(c.Consensus()) == c.watchBlockSidechainId {
 		c.server.UpdateBlockFound(c.watchBlock, block)
@@ -483,7 +482,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 		}
 
 		if verification, invalid := c.verifyBlock(block); invalid != nil {
-			log.Printf("[SideChain] block at height = %d, id = %s, mainchain height = %d, mined by %s is invalid: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), invalid.Error())
+			utils.Logf("[SideChain] block at height = %d, id = %s, mainchain height = %d, mined by %s is invalid: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), invalid.Error())
 			block.Invalid.Store(true)
 			block.Verified.Store(verification == nil)
 			if block == blockToVerify {
@@ -491,7 +490,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 				err = invalid
 			}
 		} else if verification != nil {
-			//log.Printf("[SideChain] can't verify block at height = %d, id = %s, mainchain height = %d, mined by %s: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), verification.Error())
+			//utils.Logf("[SideChain] can't verify block at height = %d, id = %s, mainchain height = %d, mined by %s: %s", block.Side.Height, block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(), verification.Error())
 			block.Verified.Store(false)
 			block.Invalid.Store(false)
 		} else {
@@ -499,12 +498,12 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			block.Invalid.Store(false)
 
 			if block.ShareVersion() > ShareVersion_V1 {
-				log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s via %s %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), block.Side.ExtraBuffer.SoftwareId, block.Side.ExtraBuffer.SoftwareVersion)
+				utils.Logf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s via %s %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), block.Side.ExtraBuffer.SoftwareId, block.Side.ExtraBuffer.SoftwareVersion)
 			} else {
 				if signalingVersion := block.ShareVersionSignaling(); signalingVersion > ShareVersion_None {
-					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s, signaling v%d", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), signalingVersion)
+					utils.Logf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s, signaling v%d", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()), signalingVersion)
 				} else {
-					log.Printf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()))
+					utils.Logf("[SideChain] verified block at height = %d, depth = %d, id = %s, mainchain height = %d, mined by %s", block.Side.Height, block.Depth.Load(), block.SideTemplateId(c.Consensus()), block.Main.Coinbase.GenHeight, block.GetAddress().ToBase58(c.Consensus().NetworkType.AddressNetwork()))
 				}
 			}
 
@@ -536,7 +535,7 @@ func (c *SideChain) verifyLoop(blockToVerify *PoolBlock) (err error) {
 			if isLongerChain, _ := c.isLongerChain(highestBlock, block); isLongerChain {
 				highestBlock = block
 			} else if highestBlock != nil && highestBlock.Side.Height > block.Side.Height {
-				log.Printf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
+				utils.Logf("[SideChain] block at height = %d, id = %s, is not a longer chain than height = %d, id = %s", block.Side.Height, block.SideTemplateId(c.Consensus()), highestBlock.Side.Height, highestBlock.SideTemplateId(c.Consensus()))
 			}
 
 			if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
@@ -584,7 +583,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 	// Also, having so many blocks on top of this one means it was verified by the network at some point
 	// We skip checks in this case to make pruning possible
 	if block.Depth.Load() > ((c.Consensus().ChainWindowSize-1)*2 + UncleBlockDepth) {
-		log.Printf("[SideChain] block at height = %d, id = %s skipped verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
+		utils.Logf("[SideChain] block at height = %d, id = %s skipped verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
 		return nil, nil
 	}
 
@@ -710,7 +709,7 @@ func (c *SideChain) verifyBlock(block *PoolBlock) (verification error, invalid e
 
 		// Verify difficulty and miner rewards only for blocks in PPLNS window
 		if block.Depth.Load() >= c.Consensus().ChainWindowSize {
-			log.Printf("[SideChain] block at height = %d, id = %s skipped diff/reward verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
+			utils.Logf("[SideChain] block at height = %d, id = %s skipped diff/reward verification", block.Side.Height, block.SideTemplateId(c.Consensus()))
 			return
 		}
 
@@ -804,7 +803,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 		for _, child := range blocksAtHeight {
 			if child.Side.Parent == block.SideTemplateId(c.Consensus()) {
 				if i != 1 {
-					log.Printf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
+					utils.Logf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
 					return
 				} else {
 					updateDepth(block, child.Depth.Load()+1)
@@ -836,7 +835,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 
 				if child.Side.Parent == block.SideTemplateId(c.Consensus()) {
 					if i != 1 {
-						log.Printf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
+						utils.Logf("[SideChain] Block %s side height %d is inconsistent with child's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, child.Side.Height)
 						return
 					} else if blockDepth > 0 {
 						updateDepth(child, blockDepth-1)
@@ -857,7 +856,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 
 		if parent := block.iteratorGetParent(c.getPoolBlockByTemplateId); parent != nil {
 			if parent.Side.Height+1 != block.Side.Height {
-				log.Printf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, parent.Side.Height)
+				utils.Logf("[SideChain] Block %s side height %d is inconsistent with parent's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, parent.Side.Height)
 				return
 			}
 
@@ -871,7 +870,7 @@ func (c *SideChain) updateDepths(block *PoolBlock) {
 
 		_ = block.iteratorUncles(c.getPoolBlockByTemplateId, func(uncle *PoolBlock) {
 			if uncle.Side.Height >= block.Side.Height || (uncle.Side.Height+UncleBlockDepth < block.Side.Height) {
-				log.Printf("[SideChain] Block %s side height %d is inconsistent with uncle's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, uncle.Side.Height)
+				utils.Logf("[SideChain] Block %s side height %d is inconsistent with uncle's side_height %d", block.SideTemplateId(c.Consensus()), block.Side.Height, uncle.Side.Height)
 				returnFromUncles = true
 				return
 			}
@@ -902,7 +901,7 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 	tip := c.GetChainTip()
 
 	if block == tip {
-		log.Printf("[SideChain] Trying to update chain tip to the same block again. Ignoring it.")
+		utils.Logf("[SideChain] Trying to update chain tip to the same block again. Ignoring it.")
 		return
 	}
 
@@ -920,15 +919,15 @@ func (c *SideChain) updateChainTip(block *PoolBlock) {
 				c.precalcFinished.Store(true)
 				c.derivationCache.Clear()
 
-				log.Printf("[SideChain] SYNCHRONIZED to tip %s", block.SideTemplateId(c.Consensus()))
+				utils.Logf("[SideChain] SYNCHRONIZED to tip %s", block.SideTemplateId(c.Consensus()))
 			}
 
 			c.pruneOldBlocks()
 		}
 	} else if block.Side.Height > tip.Side.Height {
-		log.Printf("[SideChain] block %s, height = %d, is not a longer chain than %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height, tip.SideTemplateId(c.Consensus()), tip.Side.Height)
+		utils.Logf("[SideChain] block %s, height = %d, is not a longer chain than %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height, tip.SideTemplateId(c.Consensus()), tip.Side.Height)
 	} else if block.Side.Height+UncleBlockDepth > tip.Side.Height {
-		log.Printf("[SideChain] possible uncle block: id = %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height)
+		utils.Logf("[SideChain] possible uncle block: id = %s, height = %d", block.SideTemplateId(c.Consensus()), block.Side.Height)
 	}
 
 	if block.WantBroadcast.Load() && !block.Broadcasted.Swap(true) {
@@ -978,7 +977,7 @@ func (c *SideChain) pruneOldBlocks() {
 					c.blocksByTemplateId.Delete(templateId)
 					numBlocksPruned++
 				} else {
-					log.Printf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
+					utils.Logf("[SideChain] blocksByHeight and blocksByTemplateId are inconsistent at height = %d, id = %s", height, block.SideTemplateId(c.Consensus()))
 				}
 				v = slices.Delete(v, i, i+1)
 
@@ -996,14 +995,14 @@ func (c *SideChain) pruneOldBlocks() {
 	}
 
 	if numBlocksPruned > 0 {
-		log.Printf("[SideChain] pruned %d old blocks at heights <= %d", numBlocksPruned, h)
+		utils.Logf("[SideChain] pruned %d old blocks at heights <= %d", numBlocksPruned, h)
 		if !c.precalcFinished.Swap(true) {
 			c.derivationCache.Clear()
 		}
 
 		numSeenBlocksPruned := c.cleanupSeenBlocks()
 		if numSeenBlocksPruned > 0 {
-			//log.Printf("[SideChain] pruned %d seen blocks", numBlocksPruned)
+			//utils.Logf("[SideChain] pruned %d seen blocks", numBlocksPruned)
 		}
 	}
 }

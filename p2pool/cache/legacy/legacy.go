@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
 	"log"
 	"os"
@@ -101,7 +102,7 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 			blocksLoaded++
 		}
 
-		log.Printf("[Cache] Loaded %d cached blocks", blocksLoaded)
+		utils.Logf("[Cache] Loaded %d cached blocks", blocksLoaded)
 	})
 }
 

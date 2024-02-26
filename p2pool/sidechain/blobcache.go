@@ -6,7 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"log"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"slices"
 )
 
@@ -49,7 +49,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob, _ := block.MarshalBinary()
 
 			if err := c.server.SetBlob(c.uncompressedBlockId(block), blob); err != nil {
-				log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+				utils.Logf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
 			}
 			return
 		}
@@ -58,7 +58,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob, _ := block.MarshalBinary()
 
 			if err := c.server.SetBlob(c.uncompressedBlockId(block), blob); err != nil {
-				log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+				utils.Logf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
 			}
 			return
 		}
@@ -271,13 +271,13 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		compactBlob, _ := block.MarshalBinaryFlags(true, true)
 
 		if (blockFlags & BlockSaveOptionTemplate) != 0 {
-			log.Printf("compress block (template) %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
+			utils.Logf("compress block (template) %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
 		} else {
-			log.Printf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
+			utils.Logf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
 		}
 
 		if err := c.server.SetBlob(c.compressedBlockId(block), blob); err != nil {
-			log.Printf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+			utils.Logf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
 		}
 
 	}()

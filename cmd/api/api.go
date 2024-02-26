@@ -188,7 +188,7 @@ func main() {
 			uncleCount += len(slot.Uncles)
 			bottom = slot.Block
 		}); err != nil {
-			log.Printf("error scanning PPLNS window: %s", err)
+			utils.Errorf("error scanning PPLNS window: %s", err)
 
 			if oldPoolInfo != nil {
 				// got error, just update last pool

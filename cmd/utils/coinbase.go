@@ -13,6 +13,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"log"
 	"math"
@@ -87,11 +88,11 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 		return nil
 	}
 
-	log.Printf("checking block %s at height %d: %d candidate(s)", mainId, h.Height, len(candidates))
+	utils.Logf("checking block %s at height %d: %d candidate(s)", mainId, h.Height, len(candidates))
 
 	mainBlock, err := GetMainBlock(mainId, client)
 	if err != nil {
-		log.Printf("could not get main block: %e", err)
+		utils.Logf("could not get main block: %e", err)
 		// insert errored block as-is
 		if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 			return err
@@ -120,7 +121,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 	}
 
 	if sideTemplateId == types.ZeroHash || len(extraNonce) == 0 {
-		log.Printf("checking block %s at height %d: not a p2pool block", mainId, h.Height)
+		utils.Logf("checking block %s at height %d: not a p2pool block", mainId, h.Height)
 		if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 			return err
 		}
@@ -188,9 +189,9 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 			if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 				return err
 			}
-			log.Printf("INSERTED found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
+			utils.Logf("INSERTED found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
 			if err := FindAndInsertMainHeaderOutputs(indexMain, indexDb, client, difficultyByHeight, getByTemplateId, getByMainId, getByMainHeight, processBlock); err != nil {
-				log.Printf("error inserting coinbase outputs: %s", err)
+				utils.Logf("error inserting coinbase outputs: %s", err)
 			}
 			return nil
 		} else {
@@ -226,16 +227,16 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 				if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 					return err
 				}
-				log.Printf("INSERTED ALTERNATE found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
+				utils.Logf("INSERTED ALTERNATE found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
 				if err := FindAndInsertMainHeaderOutputs(indexMain, indexDb, client, difficultyByHeight, getByTemplateId, getByMainId, getByMainHeight, processBlock); err != nil {
-					log.Printf("error inserting coinbase outputs: %s", err)
+					utils.Logf("error inserting coinbase outputs: %s", err)
 				}
 				return nil
 			}
 		}
 	}
 
-	log.Printf("checking block %s at height %d, template id %s: could not find matching template id", mainId, h.Height, sideTemplateId)
+	utils.Logf("checking block %s at height %d, template id %s: could not find matching template id", mainId, h.Height, sideTemplateId)
 
 	// could not find template, maybe it's other pool?
 
@@ -253,7 +254,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 func FindAndInsertMainHeaderOutputs(mb *index.MainBlock, indexDb *index.Index, client *client.Client, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId sidechain.GetByTemplateIdFunc, getByMainId sidechain.GetByMainIdFunc, getByMainHeight sidechain.GetByMainHeightFunc, processBlock func(b *sidechain.PoolBlock) error) error {
 	if !index.QueryHasResults(indexDb.GetMainCoinbaseOutputs(mb.CoinbaseId)) {
 		//fill information
-		log.Printf("inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
+		utils.Logf("inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
 		var t *sidechain.PoolBlock
 		if t = getByTemplateId(mb.SideTemplateId); t == nil || t.MainId() != mb.Id {
 			t = nil

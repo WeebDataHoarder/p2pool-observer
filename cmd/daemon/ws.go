@@ -96,7 +96,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				}); i != -1 {
 					listeners = slices.Delete(listeners, i, i+1)
 				}
-				log.Printf("[WS] Client %d detached after %.02f seconds", listenerId, time.Now().Sub(requestTime).Seconds())
+				utils.Logf("[WS] Client %d detached after %.02f seconds", listenerId, time.Now().Sub(requestTime).Seconds())
 			}()
 
 			ctx, cancel := context.WithCancel(request.Context())
@@ -116,7 +116,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 					Context: ctx,
 					Cancel:  cancel,
 				})
-				log.Printf("[WS] Client %d attached", listenerId)
+				utils.Logf("[WS] Client %d attached", listenerId)
 			}()
 			defer c.Close(websocket.StatusInternalError, "closing")
 
@@ -349,7 +349,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						q, _ := indexDb.GetMinerWebHooks(b.Miner)
 						index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
 							if err := cmdutils.SendSideBlock(w, ts, b.MinerAddress, b); err != nil {
-								log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventSideBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
+								utils.Logf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventSideBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
 							}
 							return false
 						})
@@ -463,7 +463,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 						q, _ := indexDb.GetMinerWebHooks(b.Miner)
 						index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
 							if err := cmdutils.SendOrphanedBlock(w, ts, b.MinerAddress, b); err != nil {
-								log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventOrphanedBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
+								utils.Logf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventOrphanedBlock, b.MinerAddress.ToBase58(), w.Type, w.Url, err)
 							}
 							return false
 						})
@@ -535,11 +535,11 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 							q, _ := indexDb.GetMinerWebHooks(payout.Miner)
 							index.QueryIterate(q, func(_ int, w *index.MinerWebHook) (stop bool) {
 								if err := cmdutils.SendFoundBlock(w, ts, addr, b, coinbaseOutputs); err != nil {
-									log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventFoundBlock, addr.ToBase58(), w.Type, w.Url, err)
+									utils.Logf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventFoundBlock, addr.ToBase58(), w.Type, w.Url, err)
 								}
 
 								if err := cmdutils.SendPayout(w, ts, addr, payout); err != nil {
-									log.Printf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventPayout, addr.ToBase58(), w.Type, w.Url, err)
+									utils.Logf("[WebHook] Error sending %s webhook to %s: type %s, url %s: %s", cmdutils.JSONEventPayout, addr.ToBase58(), w.Type, w.Url, err)
 								}
 								return false
 							})

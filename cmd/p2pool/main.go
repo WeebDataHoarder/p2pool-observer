@@ -69,9 +69,9 @@ func main() {
 	flag.Parse()
 
 	if buildInfo, _ := debug.ReadBuildInfo(); buildInfo != nil {
-		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, buildInfo.GoVersion)
+		utils.Logf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, buildInfo.GoVersion)
 	} else {
-		log.Printf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
+		utils.Logf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
 	}
 
 	if *doDebug {
@@ -154,7 +154,7 @@ func main() {
 						return
 					}
 
-					log.Printf("[API] Handling %s %s", request.Method, request.URL.String())
+					utils.Logf("[API] Handling %s %s", request.Method, request.URL.String())
 
 					serveMux.ServeHTTP(writer, request)
 				}),
@@ -194,7 +194,7 @@ func main() {
 		}
 
 		if !*noDns && currentConsensus.SeedNode() != "" {
-			log.Printf("Loading seed peers from %s", currentConsensus.SeedNode())
+			utils.Logf("Loading seed peers from %s", currentConsensus.SeedNode())
 			records, _ := net.LookupTXT(currentConsensus.SeedNode())
 			if len(records) > 0 {
 				for _, r := range records {
@@ -214,7 +214,7 @@ func main() {
 		}
 
 		if *peerList != "" {
-			log.Printf("Loading peers from %s", *peerList)
+			utils.Logf("Loading peers from %s", *peerList)
 			if len(*peerList) > 4 && (*peerList)[:4] == "http" {
 				func() {
 					r, err := http.DefaultClient.Get(*peerList)
@@ -255,7 +255,7 @@ func main() {
 							contents = append(contents, '\n')
 						}
 						if err := os.WriteFile(*peerList, contents, 0644); err != nil {
-							log.Printf("error writing peer list %s: %s", *peerList, err.Error())
+							utils.Logf("error writing peer list %s: %s", *peerList, err.Error())
 							break
 						}
 					}
@@ -265,7 +265,7 @@ func main() {
 
 		if *addSelf {
 			if addrs, err := utils.GetOutboundIPv6(); err != nil {
-				log.Printf("[P2Pool] Could not get interface ipv6 addresses: %s", err)
+				utils.Logf("[P2Pool] Could not get interface ipv6 addresses: %s", err)
 			} else {
 				for _, addr := range addrs {
 					if addr.Is6() {
@@ -289,7 +289,7 @@ func main() {
 				go func(addrPort netip.AddrPort) {
 					defer wg.Done()
 					if err := instance.Server().Connect(addrPort); err != nil {
-						log.Printf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
+						utils.Logf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
 					}
 				}(addrPort)
 			}

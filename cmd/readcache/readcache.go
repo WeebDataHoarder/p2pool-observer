@@ -5,6 +5,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
 	"os"
 	"path"
@@ -50,13 +51,13 @@ func main() {
 			calculatedBlockId := block.SideTemplateId(consensus)
 
 			if expectedBlockId != calculatedBlockId {
-				log.Printf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
+				utils.Logf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
 			} else {
 				blob, err := block.MarshalBinary()
 				if err != nil {
 					log.Panic(err)
 				}
-				log.Printf("block height %d, template id %s, version %d", block.Side.Height, calculatedBlockId, block.ShareVersion())
+				utils.Logf("block height %d, template id %s, version %d", block.Side.Height, calculatedBlockId, block.ShareVersion())
 
 				_ = os.WriteFile(path.Join(*outputFolder, expectedBlockId.String()+".raw"), blob, 0664)
 			}

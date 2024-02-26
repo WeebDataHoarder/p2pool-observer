@@ -6,6 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/archive"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"log"
 	"math"
@@ -53,7 +54,7 @@ func main() {
 				log.Panic(err)
 			} else {
 				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus, derivationCache); err != nil {
-					log.Printf("error decoding block %s, %s", id.String(), err)
+					utils.Logf("error decoding block %s, %s", id.String(), err)
 				} else {
 					block.Depth.Store(math.MaxUint64)
 					return block
@@ -106,7 +107,7 @@ func main() {
 	for i := 0; i <= 0xf; i++ {
 		n := hex.EncodeToString([]byte{byte(i)})
 		dPath := path.Join(*inputFolder, "blocks", n[1:])
-		log.Printf("Reading directory %s", dPath)
+		utils.Logf("Reading directory %s", dPath)
 		if dir, err := os.ReadDir(dPath); err != nil {
 			log.Panic(err)
 		} else {
@@ -129,7 +130,7 @@ func main() {
 		} else {
 			for _, e := range dir {
 				fPath := path.Join(dPath, e.Name())
-				log.Printf("Processing %s", fPath)
+				utils.Logf("Processing %s", fPath)
 				if buf, err := os.ReadFile(path.Join(dPath, e.Name())); err != nil {
 					log.Panic(err)
 				} else {
@@ -149,5 +150,5 @@ func main() {
 		}
 	}
 
-	log.Printf("total stored %d", totalStored)
+	utils.Logf("total stored %d", totalStored)
 }

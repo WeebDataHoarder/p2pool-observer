@@ -3,8 +3,8 @@ package sidechain
 import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
-	"log"
 	"os"
 	"path"
 	"runtime"
@@ -13,6 +13,8 @@ import (
 )
 
 func init() {
+	utils.GlobalLogLevel = 0
+
 	_, filename, _, _ := runtime.Caller(0)
 	// The ".." may change depending on you folder structure
 	dir := path.Join(path.Dir(filename), "../..")
@@ -29,7 +31,14 @@ func init() {
 func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mainHeight uint64, patchedBlocks ...[]byte) {
 
 	if err := s.LoadTestData(reader, patchedBlocks...); err != nil {
+		if t == nil {
+			panic(err)
+		}
 		t.Fatal(err)
+	}
+
+	if t == nil {
+		return
 	}
 
 	tip := s.GetChainTip()
@@ -56,19 +65,19 @@ func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mai
 
 	hits, misses := s.DerivationCache().ephemeralPublicKeyCache.Stats()
 	total := max(1, hits+misses)
-	log.Printf("Ephemeral Public Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+	t.Logf("Ephemeral Public Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().deterministicKeyCache.Stats()
 	total = max(1, hits+misses)
-	log.Printf("Deterministic Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+	t.Logf("Deterministic Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().derivationCache.Stats()
 	total = max(1, hits+misses)
-	log.Printf("Derivation Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+	t.Logf("Derivation Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 
 	hits, misses = s.DerivationCache().pubKeyToPointCache.Stats()
 	total = max(1, hits+misses)
-	log.Printf("PubKeyToPoint Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
+	t.Logf("PubKeyToPoint Key Cache hits = %d (%.02f%%), misses = %d (%.02f%%), total = %d", hits, (float64(hits)/float64(total))*100, misses, (float64(misses)/float64(total))*100, total)
 }
 
 func TestSideChainDefault(t *testing.T) {
@@ -233,7 +242,10 @@ func TestMain(m *testing.M) {
 
 		// Pre-calculate PoW
 		for i := 0; i < 5; i++ {
-			tip.PowHashWithError(benchLoadedSideChain.Consensus().GetHasher(), benchLoadedSideChain.getSeedByHeightFunc())
+			_, err = tip.PowHashWithError(benchLoadedSideChain.Consensus().GetHasher(), benchLoadedSideChain.getSeedByHeightFunc())
+			if err != nil {
+				panic(err)
+			}
 			tip = benchLoadedSideChain.GetParent(tip)
 		}
 	}

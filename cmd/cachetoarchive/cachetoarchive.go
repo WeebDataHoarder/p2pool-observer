@@ -8,6 +8,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/cache/legacy"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
 	"log"
 	"math"
@@ -77,7 +78,7 @@ func main() {
 			calculatedBlockId := block.SideTemplateId(consensus)
 
 			if expectedBlockId != calculatedBlockId {
-				log.Printf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
+				utils.Errorf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
 			} else {
 				cachedBlocks[expectedBlockId] = block
 			}
