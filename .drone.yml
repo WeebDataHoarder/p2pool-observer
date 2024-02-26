@@ -12,7 +12,7 @@ environment:
   GOAMD64: v3
   GOOS: linux
   GOTRACEBACK: 2
-  GOEXPERIMENT: "cgocheck2"
+  GOEXPERIMENT: "cgocheck2,newinliner"
   CFLAGS: "-march=native -Ofast"
   LDFLAGS: "-flto"
   PKG_CONFIG_PATH: "/drone/src/build_deps/lib/pkgconfig"
@@ -70,7 +70,7 @@ environment:
   GOARCH: arm64
   GOOS: linux
   GOTRACEBACK: 2
-  GOEXPERIMENT: "cgocheck2"
+  GOEXPERIMENT: "cgocheck2,newinliner"
   CFLAGS: "-march=native -Ofast"
   LDFLAGS: "-flto"
   PKG_CONFIG_PATH: "/drone/src/build_deps/lib/pkgconfig"

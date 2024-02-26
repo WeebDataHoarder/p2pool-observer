@@ -13,7 +13,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"log"
-	unsafeRandom "math/rand"
+	unsafeRandom "math/rand/v2"
 	"net"
 	"net/netip"
 	"slices"
@@ -377,7 +377,7 @@ func (s *Server) UpdateClientConnections() {
 	attempts := 0
 
 	for i := s.NumOutgoingConnections.Load() - s.NumIncomingConnections.Load(); int(i) < N && len(peerList) > 0; {
-		k := unsafeRandom.Intn(len(peerList)) % len(peerList)
+		k := unsafeRandom.IntN(len(peerList)) % len(peerList)
 		peer := peerList[k]
 
 		if !slices.ContainsFunc(connectedPeers, func(addr netip.Addr) bool {
@@ -484,7 +484,7 @@ func (s *Server) DownloadMissingBlocks() {
 				}
 			}
 
-			clientList[unsafeRandom.Intn(len(clientList))].SendUniqueBlockRequest(h)
+			clientList[unsafeRandom.IntN(len(clientList))].SendUniqueBlockRequest(h)
 		}
 		if !obtained {
 			break
@@ -646,7 +646,7 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 	if addr.Is6() {
 		addrs := s.GetOutgoingIPv6()
 		if len(addrs) > 1 {
-			a := addrs[unsafeRandom.Intn(len(addrs))]
+			a := addrs[unsafeRandom.IntN(len(addrs))]
 			localAddr = &net.TCPAddr{IP: a.AsSlice(), Zone: a.Zone()}
 		} else if len(addrs) == 1 {
 			localAddr = &net.TCPAddr{IP: addrs[0].AsSlice(), Zone: addrs[0].Zone()}

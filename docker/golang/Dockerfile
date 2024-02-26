@@ -29,6 +29,8 @@ RUN go mod download -x && go mod verify
 
 COPY . .
 
+ENV GOEXPERIMENT=newinliner
+
 RUN go run github.com/valyala/quicktemplate/qtc@v1.7.0
 
 RUN go build -buildvcs=false -trimpath -v -pgo=auto -o /usr/bin/api git.gammaspectra.live/P2Pool/p2pool-observer/cmd/api

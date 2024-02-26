@@ -3,7 +3,6 @@ package sidechain
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
@@ -17,8 +16,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/dolthub/swiss"
-	"io"
-	"math/rand"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -1201,50 +1198,4 @@ func (c *SideChain) isLongerChain(block, candidate *PoolBlock) (isLonger, isAlte
 		}
 		return c.server.GetChainMainByHash(h)
 	})
-}
-
-func (c *SideChain) LoadTestData(reader io.Reader, patchedBlocks ...[]byte) error {
-	var err error
-	buf := make([]byte, PoolBlockMaxTemplateSize)
-
-	blocks := make([]*PoolBlock, 0, c.Consensus().ChainWindowSize*3)
-
-	for {
-		buf = buf[:0]
-		var blockLen uint32
-		if err = binary.Read(reader, binary.LittleEndian, &blockLen); err == io.EOF {
-			break
-		} else if err != nil {
-			return err
-		}
-		if _, err = io.ReadFull(reader, buf[:blockLen]); err != nil {
-			return err
-		}
-		b := &PoolBlock{}
-		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf[:blockLen]); err != nil {
-			return err
-		}
-		blocks = append(blocks, b)
-	}
-
-	for _, buf := range patchedBlocks {
-		b := &PoolBlock{}
-		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf); err != nil {
-			return err
-		}
-		blocks = append(blocks, b)
-	}
-
-	// Shuffle blocks
-	rand.Shuffle(len(blocks), func(i, j int) {
-		blocks[i], blocks[j] = blocks[j], blocks[i]
-	})
-
-	for _, b := range blocks {
-		if err = c.AddPoolBlock(b); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }

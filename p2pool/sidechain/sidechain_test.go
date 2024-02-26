@@ -1,10 +1,12 @@
 package sidechain
 
 import (
+	"encoding/binary"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
+	unsafeRandom "math/rand/v2"
 	"os"
 	"path"
 	"runtime"
@@ -26,6 +28,52 @@ func init() {
 	_ = ConsensusDefault.InitHasher(2)
 	_ = ConsensusMini.InitHasher(2)
 	client.SetDefaultClientSettings(os.Getenv("MONEROD_RPC_URL"))
+}
+
+func (c *SideChain) LoadTestData(reader io.Reader, patchedBlocks ...[]byte) error {
+	var err error
+	buf := make([]byte, PoolBlockMaxTemplateSize)
+
+	blocks := make([]*PoolBlock, 0, c.Consensus().ChainWindowSize*3)
+
+	for {
+		buf = buf[:0]
+		var blockLen uint32
+		if err = binary.Read(reader, binary.LittleEndian, &blockLen); err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+		if _, err = io.ReadFull(reader, buf[:blockLen]); err != nil {
+			return err
+		}
+		b := &PoolBlock{}
+		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf[:blockLen]); err != nil {
+			return err
+		}
+		blocks = append(blocks, b)
+	}
+
+	for _, buf := range patchedBlocks {
+		b := &PoolBlock{}
+		if err = b.UnmarshalBinary(c.Consensus(), c.DerivationCache(), buf); err != nil {
+			return err
+		}
+		blocks = append(blocks, b)
+	}
+
+	// Shuffle blocks
+	unsafeRandom.Shuffle(len(blocks), func(i, j int) {
+		blocks[i], blocks[j] = blocks[j], blocks[i]
+	})
+
+	for _, b := range blocks {
+		if err = c.AddPoolBlock(b); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func testSideChain(s *SideChain, t *testing.T, reader io.Reader, sideHeight, mainHeight uint64, patchedBlocks ...[]byte) {

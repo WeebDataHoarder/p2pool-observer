@@ -248,7 +248,7 @@ func main() {
 						contents = contents[:0]
 						peerListEntries := instance.Server().PeerList()
 						slices.SortFunc(peerListEntries, func(a, b *p2p.PeerListEntry) int {
-							return a.AddressPort.Addr().Compare(b.AddressPort.Addr())
+							return a.AddressPort.Compare(b.AddressPort)
 						})
 						for _, addrPort := range peerListEntries {
 							contents = append(contents, []byte(addrPort.AddressPort.String())...)

@@ -12,7 +12,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
-	unsafeRandom "math/rand"
+	unsafeRandom "math/rand/v2"
 	"net"
 	"net/netip"
 	"slices"
@@ -174,7 +174,7 @@ func (c *Client) SendMissingBlockRequestAtRandom(hash types.Hash, allowedClients
 	}
 
 	for len(allowedClients) > 0 {
-		k := unsafeRandom.Intn(len(allowedClients)) % len(allowedClients)
+		k := unsafeRandom.IntN(len(allowedClients)) % len(allowedClients)
 		client := allowedClients[k]
 		if client.IsGood() && len(client.blockPendingRequests) < 20 {
 			client.SendBlockRequest(hash)
@@ -690,7 +690,7 @@ func (c *Client) OnConnection() {
 					entriesToSend = append(entriesToSend, peer.AddressPort)
 				}
 
-				k := unsafeRandom.Intn(n)
+				k := unsafeRandom.IntN(n)
 				if k < peersToSendTarget {
 					entriesToSend[k] = peer.AddressPort
 				}
@@ -712,7 +712,7 @@ func (c *Client) OnConnection() {
 				//improvement from normal p2pool: pad response with other peers from peer list, not connected
 				peerList := c.Owner.PeerList()
 				for i := lastLen; i < PeerListResponseMaxPeers; i++ {
-					k := unsafeRandom.Intn(len(peerList)) % len(peerList)
+					k := unsafeRandom.IntN(len(peerList)) % len(peerList)
 					peer := peerList[k]
 					if !slices.ContainsFunc(entriesToSend, func(addrPort netip.AddrPort) bool {
 						return addrPort.Addr().Compare(peer.AddressPort.Addr()) == 0
