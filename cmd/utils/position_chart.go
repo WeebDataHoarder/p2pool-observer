@@ -53,16 +53,17 @@ func (p *PositionChart) String() string {
 	position[len(position)-2], position[len(position)-1] = '<', ']'
 
 	//reverse
+	size := len(p.bucket) - 1
 	for i := len(p.bucket) - 1; i >= 0; i-- {
 		e := p.bucket[i]
 		if e > 0 {
 			if e > 9 {
-				position[2+i] = '+'
+				position[2+size-i] = '+'
 			} else {
-				position[2+i] = 0x30 + byte(e)
+				position[2+size-i] = 0x30 + byte(e)
 			}
 		} else {
-			position[2+i] = p.idle
+			position[2+size-i] = p.idle
 		}
 	}
 
@@ -73,16 +74,17 @@ func (p *PositionChart) StringWithoutDelimiters() string {
 	position := make([]byte, len(p.bucket))
 
 	//reverse
+	size := len(p.bucket) - 1
 	for i := len(p.bucket) - 1; i >= 0; i-- {
 		e := p.bucket[i]
 		if e > 0 {
 			if e > 9 {
-				position[i] = '+'
+				position[size-i] = '+'
 			} else {
-				position[i] = 0x30 + byte(e)
+				position[size-i] = 0x30 + byte(e)
 			}
 		} else {
-			position[i] = p.idle
+			position[size-i] = p.idle
 		}
 	}
 
@@ -100,9 +102,10 @@ func (p *PositionChart) StringWithSeparator(index int) string {
 	position[len(position)-2], position[len(position)-1] = '<', ']'
 
 	//reverse
+	size := len(p.bucket) - 1
 	for i := len(p.bucket) - 1; i >= 0; i-- {
 		e := p.bucket[i]
-		j := i
+		j := size - i
 		if j >= separatorIndex {
 			j++
 		}
