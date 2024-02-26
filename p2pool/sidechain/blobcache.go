@@ -49,7 +49,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob, _ := block.MarshalBinary()
 
 			if err := c.server.SetBlob(c.uncompressedBlockId(block), blob); err != nil {
-				utils.Logf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+				utils.Errorf("", "error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
 			}
 			return
 		}
@@ -58,7 +58,7 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 			blob, _ := block.MarshalBinary()
 
 			if err := c.server.SetBlob(c.uncompressedBlockId(block), blob); err != nil {
-				utils.Logf("error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
+				utils.Errorf("", "error saving %s: %s", block.SideTemplateId(c.Consensus()).String(), err.Error())
 			}
 			return
 		}
@@ -271,9 +271,9 @@ func (c *SideChain) saveBlock(block *PoolBlock) {
 		compactBlob, _ := block.MarshalBinaryFlags(true, true)
 
 		if (blockFlags & BlockSaveOptionTemplate) != 0 {
-			utils.Logf("compress block (template) %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
+			utils.Logf("", "compress block (template) %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
 		} else {
-			utils.Logf("compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
+			utils.Logf("", "compress block %s in compressed %d bytes, full %d bytes, pruned %d bytes, compact %d bytes", block.SideTemplateId(c.Consensus()).String(), len(blob), len(fullBlob), len(prunedBlob), len(compactBlob))
 		}
 
 		if err := c.server.SetBlob(c.compressedBlockId(block), blob); err != nil {

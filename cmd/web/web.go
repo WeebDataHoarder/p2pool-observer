@@ -18,7 +18,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/valyala/quicktemplate"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -130,8 +129,6 @@ func main() {
 		return make([]byte, 0, 1024*1024) //1 MiB allocations
 	}
 
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-
 	//monerod related
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
@@ -194,10 +191,10 @@ func main() {
 	consensusData, _ := utils.MarshalJSON(basePoolInfo.SideChain.Consensus)
 	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
-	utils.Logf("Consensus id = %s", consensus.Id)
+	utils.Logf("Consensus", "Consensus id = %s", consensus.Id)
 
 	var lastPoolInfo atomic.Pointer[cmdutils.PoolInfoResult]
 
@@ -1253,12 +1250,12 @@ func main() {
 	if *debugListen != "" {
 		go func() {
 			if err := http.ListenAndServe(*debugListen, nil); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 		}()
 	}
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 }

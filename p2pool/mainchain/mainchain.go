@@ -210,7 +210,7 @@ func (c *MainChain) updateMedianTimestamp() {
 
 	// Shift it +1 block compared to Monero's code because we don't have the latest block yet when we receive new miner data
 	ts := (timestamps[TimestampWindow/2] + timestamps[TimestampWindow/2+1]) / 2
-	utils.Logf("[MainChain] Median timestamp updated to %d", ts)
+	utils.Logf("MainChain", "Median timestamp updated to %d", ts)
 	c.medianTimestamp.Store(ts)
 }
 
@@ -232,7 +232,7 @@ func (c *MainChain) HandleMainHeader(mainHeader *mainblock.Header) {
 		c.highest = mainData.Height
 	}
 
-	utils.Logf("[MainChain] new main chain block: height = %d, id = %s, timestamp = %d, reward = %s", mainData.Height, mainData.Id.String(), mainData.Timestamp, utils.XMRUnits(mainData.Reward))
+	utils.Logf("MainChain", "new main chain block: height = %d, id = %s, timestamp = %d, reward = %s", mainData.Height, mainData.Id.String(), mainData.Timestamp, utils.XMRUnits(mainData.Reward))
 
 	c.updateMedianTimestamp()
 }
@@ -262,7 +262,7 @@ func (c *MainChain) HandleMainBlock(b *mainblock.Block) {
 			c.highest = mainData.Height
 		}
 
-		utils.Logf("[MainChain] new main chain block: height = %d, id = %s, timestamp = %d, reward = %s", mainData.Height, mainData.Id.String(), mainData.Timestamp, utils.XMRUnits(mainData.Reward))
+		utils.Logf("MainChain", "new main chain block: height = %d, id = %s, timestamp = %d, reward = %s", mainData.Height, mainData.Id.String(), mainData.Timestamp, utils.XMRUnits(mainData.Reward))
 
 		c.updateMedianTimestamp()
 	}()
@@ -389,7 +389,7 @@ func (c *MainChain) DownloadBlockHeaders(currentHeight uint64) error {
 				Difficulty:   types.DifficultyFrom64(header.Difficulty),
 			})
 		}
-		utils.Logf("[MainChain] Downloaded headers for range %d to %d", startHeight, currentHeight-1)
+		utils.Logf("MainChain", "Downloaded headers for range %d to %d", startHeight, currentHeight-1)
 	}
 
 	c.updateMedianTimestamp()
@@ -437,7 +437,7 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 
 		c.updateMedianTimestamp()
 
-		utils.Logf("[MainChain] new miner data: major_version = %d, height = %d, prev_id = %s, seed_hash = %s, difficulty = %s", minerData.MajorVersion, minerData.Height, minerData.PrevId.String(), minerData.SeedHash.String(), minerData.Difficulty.StringNumeric())
+		utils.Logf("MainChain", "new miner data: major_version = %d, height = %d, prev_id = %s, seed_hash = %s, difficulty = %s", minerData.MajorVersion, minerData.Height, minerData.PrevId.String(), minerData.SeedHash.String(), minerData.Difficulty.StringNumeric())
 
 		// Tx secret keys from all miners change every block, so cache can be cleared here
 		if c.sidechain.PreCalcFinished() {
@@ -447,7 +447,7 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 		if c.p2pool.Started() {
 			for h := minerData.Height; h > 0 && (h+BlockHeadersRequired) > minerData.Height; h-- {
 				if d, ok := c.mainchainByHeight.Get(h); !ok || d.Difficulty.Equals(types.ZeroDifficulty) {
-					utils.Logf("[MainChain] Main chain data for height = %d is missing, requesting from monerod again", h)
+					utils.Logf("MainChain", "Main chain data for height = %d is missing, requesting from monerod again", h)
 					missingHeights = append(missingHeights, h)
 				}
 			}
@@ -462,7 +462,7 @@ func (c *MainChain) HandleMinerData(minerData *p2pooltypes.MinerData) {
 		go func(height uint64) {
 			wg.Done()
 			if err := c.getBlockHeader(height); err != nil {
-				utils.Logf("[MainChain] %s", err)
+				utils.Errorf("MainChain", "%s", err)
 			}
 		}(h)
 	}

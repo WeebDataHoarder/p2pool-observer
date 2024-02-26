@@ -23,7 +23,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"git.gammaspectra.live/P2Pool/sha3"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 	"os"
 	"runtime"
@@ -45,21 +44,21 @@ func main() {
 
 	cf, err := os.ReadFile(*inputConsensus)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	inputTemplateData, err := os.ReadFile(*inputTemplate)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	jsonTemplate, err := JSONFromTemplate(inputTemplateData)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	var headerCacheLock sync.RWMutex
@@ -103,7 +102,7 @@ func main() {
 
 	archiveCache, err := archive.NewCache(*inputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer archiveCache.Close()
 
@@ -157,7 +156,7 @@ func main() {
 
 	getTransactionsEntries := func(h ...types.Hash) (r mempool.Mempool) {
 		if data, jsonTx, err := client.GetDefaultClient().GetTransactions(h...); err != nil {
-			utils.Logf("could not get txids: %s", err)
+			utils.Errorf("", "could not get txids: %s", err)
 			return nil
 		} else {
 			r = make(mempool.Mempool, len(jsonTx))
@@ -214,7 +213,7 @@ func main() {
 				headerId, _ := types.HashFromString(header.Hash)
 
 				if b, err := client.GetDefaultClient().GetBlock(headerId, context.Background()); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 				} else {
 					//generalization, actual reward could be different in some cases
 					ij, _ := b.InnerJSON()
@@ -232,7 +231,7 @@ func main() {
 				deltaReward = v2.CoinbaseReward - baseMainReward
 			}
 
-			utils.Logf("pool delta reward: %d (%s), base %d (%s), expected %d (%s)", deltaReward, utils.XMRUnits(deltaReward), baseMainReward, utils.XMRUnits(baseMainReward), v2.CoinbaseReward, utils.XMRUnits(v2.CoinbaseReward))
+			utils.Logf("", "pool delta reward: %d (%s), base %d (%s), expected %d (%s)", deltaReward, utils.XMRUnits(deltaReward), baseMainReward, utils.XMRUnits(baseMainReward), v2.CoinbaseReward, utils.XMRUnits(v2.CoinbaseReward))
 
 			poolBlock = &sidechain.PoolBlock{
 				Main: block.Block{
@@ -303,23 +302,23 @@ func main() {
 			if bytes.Compare(poolBlock.CoinbaseExtra(sidechain.SideCoinbasePublicKey), kP.PublicKey.AsSlice()) == 0 && bytes.Compare(kP.PrivateKey.AsSlice(), poolBlock.Side.CoinbasePrivateKey[:]) == 0 {
 				poolBlock.Side.CoinbasePrivateKeySeed = expectedSeed
 			} else {
-				utils.Logf("not deterministic private key")
+				utils.Logf("", "not deterministic private key")
 			}
 		}
 
 		currentOutputs, _ := sidechain.CalculateOutputs(poolBlock, consensus, getDifficultyByHeight, getByTemplateIdDirect, derivationCache, sidechain.PreAllocateShares(consensus.ChainWindowSize*2), make([]uint64, consensus.ChainWindowSize*2))
 
 		if currentOutputs == nil {
-			log.Panic("could not calculate outputs blob")
+			utils.Panicf("could not calculate outputs blob")
 		}
 		poolBlock.Main.Coinbase.Outputs = currentOutputs
 
 		if blob, err := currentOutputs.MarshalBinary(); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			poolBlock.Main.Coinbase.OutputsBlobSize = uint64(len(blob))
 		}
-		utils.Logf("expected main id %s, template id %s, coinbase id %s", expectedMainId, expectedTemplateId, expectedCoinbaseId)
+		utils.Logf("", "expected main id %s, template id %s, coinbase id %s", expectedMainId, expectedTemplateId, expectedCoinbaseId)
 
 		rctHash := crypto.Keccak256([]byte{0})
 		type partialBlobWork struct {
@@ -344,7 +343,7 @@ func main() {
 				}
 				w := coinbases[routineIndex]
 				if workIndex%(1024*256) == 0 {
-					utils.Logf("try %d/%d @ %d ~%.2f%%", workIndex, max, nonceSize, (float64(workIndex)/math.MaxUint32)*100)
+					utils.Logf("", "try %d/%d @ %d ~%.2f%%", workIndex, max, nonceSize, (float64(workIndex)/math.MaxUint32)*100)
 				}
 				binary.LittleEndian.PutUint32(w.EncodedBuffer[w.EncodedOffset:], uint32(workIndex))
 				idHasher := w.Hashers[0]
@@ -413,18 +412,18 @@ func main() {
 			searchForNonces(nonceSize, math.MaxUint32)
 		}
 
-		utils.Logf("found extra nonce %d, size %d", foundExtraNonce.Load(), foundExtraNonceSize.Load())
+		utils.Logf("", "found extra nonce %d, size %d", foundExtraNonce.Load(), foundExtraNonceSize.Load())
 		poolBlock.Main.Coinbase.Extra[1].VarInt = uint64(foundExtraNonceSize.Load())
 		poolBlock.Main.Coinbase.Extra[1].Data = make([]byte, foundExtraNonceSize.Load())
 		binary.LittleEndian.PutUint32(poolBlock.Main.Coinbase.Extra[1].Data, foundExtraNonce.Load())
 
 		if poolBlock.Main.Coinbase.CalculateId() != expectedCoinbaseId {
-			log.Panic()
+			utils.Panic()
 		}
 
-		utils.Logf("got coinbase id %s", poolBlock.Main.Coinbase.CalculateId())
+		utils.Logf("", "got coinbase id %s", poolBlock.Main.Coinbase.CalculateId())
 		minerTxBlob, _ = poolBlock.Main.Coinbase.MarshalBinary()
-		utils.Logf("raw coinbase: %s", hex.EncodeToString(minerTxBlob))
+		utils.Logf("", "raw coinbase: %s", hex.EncodeToString(minerTxBlob))
 
 		var collectedTransactions mempool.Mempool
 
@@ -498,18 +497,18 @@ func main() {
 
 		medianWeight := getHeaderByHeight(poolBlock.Main.Coinbase.GenHeight).LongTermWeight
 
-		utils.Logf("collected transaction candidates: %d", len(collectedTransactions))
+		utils.Logf("", "collected transaction candidates: %d", len(collectedTransactions))
 
 		if totalTxWeight+minerTxWeight <= medianWeight {
 			//special case
 			for solution := range collectedTransactions.PerfectSum(deltaReward) {
-				utils.Logf("got %d, %d (%s)", solution.Weight(), solution.Fees(), utils.XMRUnits(solution.Fees()))
+				utils.Logf("", "got %d, %d (%s)", solution.Weight(), solution.Fees(), utils.XMRUnits(solution.Fees()))
 			}
 		} else {
 			//sort in preference order
 			pickedTxs := collectedTransactions.Pick(baseMainReward, minerTxWeight, medianWeight)
 
-			utils.Logf("got %d, %d (%s)", pickedTxs.Weight(), pickedTxs.Fees(), utils.XMRUnits(pickedTxs.Fees()))
+			utils.Logf("", "got %d, %d (%s)", pickedTxs.Weight(), pickedTxs.Fees(), utils.XMRUnits(pickedTxs.Fees()))
 		}
 
 		//TODO: nonce

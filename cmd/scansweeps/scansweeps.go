@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
 	p2poolapi "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/api"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"time"
 )
 
@@ -28,12 +27,12 @@ func main() {
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
 	if err := p2api.WaitSync(); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer indexDb.Close()
 
@@ -52,7 +51,7 @@ func main() {
 		}
 		return nil
 	}); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	stopHeight := tipHeight - monero.MinerRewardUnlockTime
@@ -60,25 +59,25 @@ func main() {
 		stopHeight = tipHeight
 	}
 
-	utils.Logf("Starting at height %d, stopping at %d", startHeight, stopHeight)
+	utils.Logf("", "Starting at height %d, stopping at %d", startHeight, stopHeight)
 
 	isProcessedPrevious := true
 	for height := startHeight; height <= stopHeight; height++ {
 		b := indexDb.GetMainBlockByHeight(height)
 		if b == nil {
-			utils.Logf("Block at %d is nil", height)
+			utils.Logf("", "Block at %d is nil", height)
 			continue
 		}
 
 		if isProcessed, ok := b.GetMetadata("processed").(bool); ok && isProcessed && isProcessedPrevious {
-			utils.Logf("Block %s at %d (%s) has already been processed", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"))
+			utils.Logf("", "Block %s at %d (%s) has already been processed", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"))
 			continue
 		}
 
 		isProcessedPrevious = false
 
 		if err := cmdutils.ProcessFullBlock(b, indexDb); err != nil {
-			utils.Logf("error processing block %s at %d: %s", b.Id, b.Height, err)
+			utils.Logf("", "error processing block %s at %d: %s", b.Id, b.Height, err)
 		}
 	}
 

@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/randomx"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"strconv"
 )
 
@@ -182,7 +181,7 @@ func (c *Consensus) verify() bool {
 		case NetworkStagenet:
 			c.HardForks = p2poolStageNetHardForks
 		default:
-			log.Panicf("invalid network type for determining hardfork")
+			utils.Panicf("invalid network type for determining hardfork")
 		}
 	}
 

@@ -8,7 +8,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 	"os"
 	"path"
@@ -25,14 +24,14 @@ func main() {
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	archiveCache, err := archive.NewCache(*outputArchive, consensus, func(height uint64) types.Difficulty {
 		return types.ZeroDifficulty
 	})
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer archiveCache.Close()
 
@@ -51,10 +50,10 @@ func main() {
 			return nil
 		} else {
 			if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			} else {
 				if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus, derivationCache); err != nil {
-					utils.Logf("error decoding block %s, %s", id.String(), err)
+					utils.Error("", "error decoding block %s, %s", id.String(), err)
 				} else {
 					block.Depth.Store(math.MaxUint64)
 					return block
@@ -107,9 +106,9 @@ func main() {
 	for i := 0; i <= 0xf; i++ {
 		n := hex.EncodeToString([]byte{byte(i)})
 		dPath := path.Join(*inputFolder, "blocks", n[1:])
-		utils.Logf("Reading directory %s", dPath)
+		utils.Logf("", "Reading directory %s", dPath)
 		if dir, err := os.ReadDir(dPath); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			for _, e := range dir {
 				h, _ := hex.DecodeString(e.Name())
@@ -126,19 +125,19 @@ func main() {
 		n := hex.EncodeToString([]byte{byte(i)})
 		dPath := path.Join(*inputFolder, "failed_blocks", n[1:])
 		if dir, err := os.ReadDir(dPath); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			for _, e := range dir {
 				fPath := path.Join(dPath, e.Name())
-				utils.Logf("Processing %s", fPath)
+				utils.Logf("", "Processing %s", fPath)
 				if buf, err := os.ReadFile(path.Join(dPath, e.Name())); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 				} else {
 					if hexBuf, err := hex.DecodeString(string(buf)); err != nil {
-						log.Panic(err)
+						utils.Panic(err)
 					} else {
 						if block, err := sidechain.NewShareFromExportedBytes(hexBuf, consensus, derivationCache); err != nil {
-							log.Panic(err)
+							utils.Panic(err)
 						} else {
 							block.Depth.Store(math.MaxUint64)
 							archiveCache.Store(block)
@@ -150,5 +149,5 @@ func main() {
 		}
 	}
 
-	utils.Logf("total stored %d", totalStored)
+	utils.Logf("", "total stored %d", totalStored)
 }

@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -27,9 +26,6 @@ import (
 )
 
 func main() {
-
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-
 	currentConsensus := sidechain.ConsensusDefault
 
 	//monerod related
@@ -68,14 +64,14 @@ func main() {
 	//TODO extend verbosity to debug flag
 	flag.Parse()
 
-	if buildInfo, _ := debug.ReadBuildInfo(); buildInfo != nil {
-		utils.Logf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, buildInfo.GoVersion)
-	} else {
-		utils.Logf("P2Pool Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
+	if *doDebug {
+		utils.LogFile = true
 	}
 
-	if *doDebug {
-		log.SetFlags(log.Flags() | log.Lshortfile)
+	if buildInfo, _ := debug.ReadBuildInfo(); buildInfo != nil {
+		utils.Logf("P2Pool", "Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, buildInfo.GoVersion)
+	} else {
+		utils.Logf("P2Pool", "Consensus Software %s %s (go version %s)", types.CurrentSoftwareId, types.CurrentSoftwareVersion, runtime.Version())
 	}
 
 	client.SetDefaultClientSettings(fmt.Sprintf("http://%s:%d", *moneroHost, *moneroRpcPort))
@@ -106,11 +102,11 @@ func main() {
 	if *consensusConfigFile != "" {
 		consensusData, err := os.ReadFile(*consensusConfigFile)
 		if err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		}
 
 		if newConsensus, err := sidechain.NewConsensusFromJSON(consensusData); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			changeConsensus(newConsensus)
 		}
@@ -137,7 +133,7 @@ func main() {
 	}
 
 	if instance, err := NewP2Pool(currentConsensus, settings); err != nil {
-		log.Fatalf("Could not start p2pool: %s", err)
+		utils.Fatalf("Could not start p2pool: %s", err)
 	} else {
 		defer instance.Close(nil)
 
@@ -154,7 +150,7 @@ func main() {
 						return
 					}
 
-					utils.Logf("[API] Handling %s %s", request.Method, request.URL.String())
+					utils.Logf("API", "Handling %s %s", request.Method, request.URL.String())
 
 					serveMux.ServeHTTP(writer, request)
 				}),
@@ -163,7 +159,7 @@ func main() {
 			go func() {
 				//TODO: context/wait
 				if err := server.ListenAndServe(); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 				}
 
 			}()
@@ -172,7 +168,7 @@ func main() {
 		if *debugListen != "" {
 			go func() {
 				if err := http.ListenAndServe(*debugListen, nil); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 				}
 			}()
 		}
@@ -186,7 +182,7 @@ func main() {
 			//TODO: dns resolution of hosts
 
 			if addrPort, err := netip.ParseAddrPort(peerAddr); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			} else {
 				instance.Server().AddToPeerList(addrPort)
 				connectList = append(connectList, addrPort)
@@ -194,7 +190,7 @@ func main() {
 		}
 
 		if !*noDns && currentConsensus.SeedNode() != "" {
-			utils.Logf("Loading seed peers from %s", currentConsensus.SeedNode())
+			utils.Logf("P2Pool", "Loading seed peers from %s", currentConsensus.SeedNode())
 			records, _ := net.LookupTXT(currentConsensus.SeedNode())
 			if len(records) > 0 {
 				for _, r := range records {
@@ -214,7 +210,7 @@ func main() {
 		}
 
 		if *peerList != "" {
-			utils.Logf("Loading peers from %s", *peerList)
+			utils.Logf("P2Pool", "Loading peers from %s", *peerList)
 			if len(*peerList) > 4 && (*peerList)[:4] == "http" {
 				func() {
 					r, err := http.DefaultClient.Get(*peerList)
@@ -255,7 +251,7 @@ func main() {
 							contents = append(contents, '\n')
 						}
 						if err := os.WriteFile(*peerList, contents, 0644); err != nil {
-							utils.Logf("error writing peer list %s: %s", *peerList, err.Error())
+							utils.Errorf("P2Pool", "error writing peer list %s: %s", *peerList, err.Error())
 							break
 						}
 					}
@@ -265,7 +261,7 @@ func main() {
 
 		if *addSelf {
 			if addrs, err := utils.GetOutboundIPv6(); err != nil {
-				utils.Logf("[P2Pool] Could not get interface ipv6 addresses: %s", err)
+				utils.Errorf("P2Pool", "Could not get interface ipv6 addresses: %s", err)
 			} else {
 				for _, addr := range addrs {
 					if addr.Is6() {
@@ -289,7 +285,7 @@ func main() {
 				go func(addrPort netip.AddrPort) {
 					defer wg.Done()
 					if err := instance.Server().Connect(addrPort); err != nil {
-						utils.Logf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
+						utils.Errorf("error connecting to initial peer %s: %s", addrPort.String(), err.Error())
 					}
 				}(addrPort)
 			}
@@ -313,7 +309,7 @@ func main() {
 				instance.WaitUntilClosed()
 			}
 			if closeError := instance.CloseError(); closeError != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			} else {
 				os.Exit(0)
 			}

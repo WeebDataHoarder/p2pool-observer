@@ -6,7 +6,7 @@ import (
 	"git.gammaspectra.live/P2Pool/edwards25519"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
-	"log"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"sync/atomic"
 	"testing"
 )
@@ -22,7 +22,7 @@ var ephemeralPubKey, _ = hex.DecodeString("20efc1310db960b0e8d22c8b85b3414fcaa1e
 func init() {
 	h, _ := hex.DecodeString("74b98b1e7ce5fc50d1634f8634622395ec2a19a4698a016fedd8139df374ac00")
 	if _, err := privateKey.SetCanonicalBytes(h); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 }
 

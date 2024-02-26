@@ -16,7 +16,6 @@ import (
 	"github.com/floatdrop/lru"
 	"github.com/lib/pq"
 	"io"
-	"log"
 	"path"
 	"reflect"
 	"regexp"
@@ -538,11 +537,11 @@ func (i *Index) GetMainBlocksByQueryStatement(stmt *sql.Stmt, params ...any) (Qu
 
 func (i *Index) GetMainBlockById(id types.Hash) (b *MainBlock) {
 	if r, err := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockById, id[:]); err != nil {
-		log.Print(err)
+		utils.Print(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Print(r.Err())
 		}
 	}
 	return b
@@ -550,11 +549,11 @@ func (i *Index) GetMainBlockById(id types.Hash) (b *MainBlock) {
 
 func (i *Index) GetMainBlockTip() (b *MainBlock) {
 	if r, err := i.GetMainBlocksByQueryStatement(i.statements.TipMainBlock); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -562,11 +561,11 @@ func (i *Index) GetMainBlockTip() (b *MainBlock) {
 
 func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) (b *MainBlock) {
 	if r, err := i.GetMainBlocksByQuery("WHERE coinbase_id = $1;", id[:]); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -574,11 +573,11 @@ func (i *Index) GetMainBlockByCoinbaseId(id types.Hash) (b *MainBlock) {
 
 func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) (b *MainBlock) {
 	if r, err := i.GetMainBlocksByQuery("WHERE coinbase_id = (SELECT id FROM main_coinbase_outputs WHERE global_output_index = $1 LIMIT 1);", globalOutputIndex); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -586,11 +585,11 @@ func (i *Index) GetMainBlockByGlobalOutputIndex(globalOutputIndex uint64) (b *Ma
 
 func (i *Index) GetMainBlockByHeight(height uint64) (b *MainBlock) {
 	if r, err := i.GetMainBlocksByQueryStatement(i.statements.GetMainBlockByHeight, height); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -598,11 +597,11 @@ func (i *Index) GetMainBlockByHeight(height uint64) (b *MainBlock) {
 
 func (i *Index) GetSideBlockByMainId(id types.Hash) (b *SideBlock) {
 	if r, err := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByMainId, id[:]); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -610,7 +609,7 @@ func (i *Index) GetSideBlockByMainId(id types.Hash) (b *SideBlock) {
 
 func (i *Index) GetSideBlocksByTemplateId(id types.Hash) QueryIterator[SideBlock] {
 	if r, err := i.GetSideBlocksByQuery("WHERE template_id = $1;", id[:]); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -619,7 +618,7 @@ func (i *Index) GetSideBlocksByTemplateId(id types.Hash) QueryIterator[SideBlock
 
 func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) QueryIterator[SideBlock] {
 	if r, err := i.GetSideBlocksByQueryStatement(i.statements.GetSideBlockByUncleId, id[:]); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -628,11 +627,11 @@ func (i *Index) GetSideBlocksByUncleOfId(id types.Hash) QueryIterator[SideBlock]
 
 func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) (b *SideBlock) {
 	if r, err := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlocksTemplateId, id[:], InclusionInVerifiedChain); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -640,7 +639,7 @@ func (i *Index) GetTipSideBlockByTemplateId(id types.Hash) (b *SideBlock) {
 
 func (i *Index) GetSideBlocksByMainHeight(height uint64) QueryIterator[SideBlock] {
 	if r, err := i.GetSideBlocksByQuery("WHERE main_height = $1;", height); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -649,7 +648,7 @@ func (i *Index) GetSideBlocksByMainHeight(height uint64) QueryIterator[SideBlock
 
 func (i *Index) GetSideBlocksByHeight(height uint64) QueryIterator[SideBlock] {
 	if r, err := i.GetSideBlocksByQuery("WHERE side_height = $1;", height); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -658,11 +657,11 @@ func (i *Index) GetSideBlocksByHeight(height uint64) QueryIterator[SideBlock] {
 
 func (i *Index) GetTipSideBlockByHeight(height uint64) (b *SideBlock) {
 	if r, err := i.GetSideBlocksByQuery("WHERE side_height = $1 AND effective_height = $2 AND inclusion = $3;", height, height, InclusionInVerifiedChain); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -670,11 +669,11 @@ func (i *Index) GetTipSideBlockByHeight(height uint64) (b *SideBlock) {
 
 func (i *Index) GetSideBlockTip() (b *SideBlock) {
 	if r, err := i.GetSideBlocksByQueryStatement(i.statements.TipSideBlock, InclusionInVerifiedChain); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		defer r.Close()
 		if _, b = r.Next(); b == nil && r.Err() != nil {
-			log.Print(r.Err())
+			utils.Error(r.Err())
 		}
 	}
 	return b
@@ -690,7 +689,7 @@ func (i *Index) GetSideBlocksInWindow(startHeight, windowSize uint64) QueryItera
 	}
 
 	if r, err := i.GetSideBlocksByQuery("WHERE effective_height <= $1 AND effective_height > $2 AND inclusion = $3 ORDER BY effective_height DESC, side_height DESC;", startHeight, startHeight-windowSize, InclusionInVerifiedChain); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -703,7 +702,7 @@ func (i *Index) GetSideBlocksByMinerIdInWindow(minerId, startHeight, windowSize 
 	}
 
 	if r, err := i.GetSideBlocksByQuery("WHERE miner = $1 AND effective_height <= $2 AND effective_height > $3 AND inclusion = $4 ORDER BY effective_height DESC, side_height DESC;", minerId, startHeight, startHeight-windowSize, InclusionInVerifiedChain); err != nil {
-		log.Print(err)
+		utils.Error(err)
 	} else {
 		return r
 	}
@@ -901,11 +900,11 @@ func (i *Index) GetMainCoinbaseOutputs(coinbaseId types.Hash) (QueryIterator[Mai
 
 func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64) (o *MainCoinbaseOutput) {
 	if stmt, err := i.handle.Prepare("SELECT " + MainCoinbaseOutputSelectFields + " FROM main_coinbase_outputs WHERE id = $1 AND index = $2 ORDER BY index ASC;"); err != nil {
-		log.Print(err)
+		utils.Error(err)
 		return nil
 	} else {
 		if r, err := queryStatement[MainCoinbaseOutput](i, stmt, coinbaseId[:], index); err != nil {
-			log.Print(err)
+			utils.Error(err)
 			return nil
 		} else {
 			defer r.Close()
@@ -914,7 +913,7 @@ func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64
 			}
 			defer r.Close()
 			if _, o = r.Next(); o == nil && r.Err() != nil {
-				log.Print(r.Err())
+				utils.Error(r.Err())
 			}
 			return o
 		}
@@ -923,11 +922,11 @@ func (i *Index) GetMainCoinbaseOutputByIndex(coinbaseId types.Hash, index uint64
 
 func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint64) (o *MainCoinbaseOutput) {
 	if stmt, err := i.handle.Prepare("SELECT " + MainCoinbaseOutputSelectFields + " FROM main_coinbase_outputs WHERE global_output_index = $1 ORDER BY index ASC;"); err != nil {
-		log.Print(err)
+		utils.Error(err)
 		return nil
 	} else {
 		if r, err := queryStatement[MainCoinbaseOutput](i, stmt, globalOutputIndex); err != nil {
-			log.Print(err)
+			utils.Error(err)
 			return nil
 		} else {
 			defer r.Close()
@@ -936,7 +935,7 @@ func (i *Index) GetMainCoinbaseOutputByGlobalOutputIndex(globalOutputIndex uint6
 			}
 			defer r.Close()
 			if _, o = r.Next(); o == nil && r.Err() != nil {
-				log.Print(r.Err())
+				utils.Error(r.Err())
 			}
 			return o
 		}

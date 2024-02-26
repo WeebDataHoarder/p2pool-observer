@@ -6,7 +6,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -68,7 +67,7 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 	c.loadingStarted.Do(func() {
 		c.loadingInProgress.Store(true)
 		defer c.loadingInProgress.Store(false)
-		log.Print("[Cache] Loading cached blocks")
+		utils.Logf("Cache", "Loading cached blocks")
 
 		var blobLen [4]byte
 		buf := make([]byte, 0, blockSize)
@@ -102,7 +101,7 @@ func (c *Cache) LoadAll(l cache.Loadee) {
 			blocksLoaded++
 		}
 
-		utils.Logf("[Cache] Loaded %d cached blocks", blocksLoaded)
+		utils.Logf("Cache", "Loaded %d cached blocks", blocksLoaded)
 	})
 }
 

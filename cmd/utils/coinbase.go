@@ -15,7 +15,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 )
 
@@ -88,11 +87,11 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 		return nil
 	}
 
-	utils.Logf("checking block %s at height %d: %d candidate(s)", mainId, h.Height, len(candidates))
+	utils.Logf("Monero", "checking block %s at height %d: %d candidate(s)", mainId, h.Height, len(candidates))
 
 	mainBlock, err := GetMainBlock(mainId, client)
 	if err != nil {
-		utils.Logf("could not get main block: %e", err)
+		utils.Errorf("Monero", "could not get main block: %e", err)
 		// insert errored block as-is
 		if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 			return err
@@ -121,7 +120,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 	}
 
 	if sideTemplateId == types.ZeroHash || len(extraNonce) == 0 {
-		utils.Logf("checking block %s at height %d: not a p2pool block", mainId, h.Height)
+		utils.Logf("Monero", "checking block %s at height %d: not a p2pool block", mainId, h.Height)
 		if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 			return err
 		}
@@ -189,16 +188,16 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 			if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 				return err
 			}
-			utils.Logf("INSERTED found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
+			utils.Logf("Monero", "INSERTED found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
 			if err := FindAndInsertMainHeaderOutputs(indexMain, indexDb, client, difficultyByHeight, getByTemplateId, getByMainId, getByMainHeight, processBlock); err != nil {
-				utils.Logf("error inserting coinbase outputs: %s", err)
+				utils.Errorf("", "error inserting coinbase outputs: %s", err)
 			}
 			return nil
 		} else {
 			data, _ := t.MarshalBinary()
 			newBlock := &sidechain.PoolBlock{}
 			if err := newBlock.UnmarshalBinary(indexDb.Consensus(), &sidechain.NilDerivationCache{}, data); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 			copy(newBlock.CoinbaseExtra(sidechain.SideExtraNonce), extraNonce)
 			newBlock.Main.Nonce = uint32(h.Nonce)
@@ -227,16 +226,16 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 				if err := indexDb.InsertOrUpdateMainBlock(indexMain); err != nil {
 					return err
 				}
-				utils.Logf("INSERTED ALTERNATE found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
+				utils.Logf("", "INSERTED ALTERNATE found block %s at height %d, template id %s", mainId, h.Height, sideTemplateId)
 				if err := FindAndInsertMainHeaderOutputs(indexMain, indexDb, client, difficultyByHeight, getByTemplateId, getByMainId, getByMainHeight, processBlock); err != nil {
-					utils.Logf("error inserting coinbase outputs: %s", err)
+					utils.Errorf("", "error inserting coinbase outputs: %s", err)
 				}
 				return nil
 			}
 		}
 	}
 
-	utils.Logf("checking block %s at height %d, template id %s: could not find matching template id", mainId, h.Height, sideTemplateId)
+	utils.Logf("", "checking block %s at height %d, template id %s: could not find matching template id", mainId, h.Height, sideTemplateId)
 
 	// could not find template, maybe it's other pool?
 
@@ -254,7 +253,7 @@ func FindAndInsertMainHeader(h daemon.BlockHeader, indexDb *index.Index, storeFu
 func FindAndInsertMainHeaderOutputs(mb *index.MainBlock, indexDb *index.Index, client *client.Client, difficultyByHeight block.GetDifficultyByHeightFunc, getByTemplateId sidechain.GetByTemplateIdFunc, getByMainId sidechain.GetByMainIdFunc, getByMainHeight sidechain.GetByMainHeightFunc, processBlock func(b *sidechain.PoolBlock) error) error {
 	if !index.QueryHasResults(indexDb.GetMainCoinbaseOutputs(mb.CoinbaseId)) {
 		//fill information
-		utils.Logf("inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
+		utils.Logf("", "inserting coinbase outputs for %s, template id %s, coinbase id %s", mb.Id, mb.SideTemplateId, mb.CoinbaseId)
 		var t *sidechain.PoolBlock
 		if t = getByTemplateId(mb.SideTemplateId); t == nil || t.MainId() != mb.Id {
 			t = nil

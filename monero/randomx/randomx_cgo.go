@@ -170,7 +170,7 @@ func (h *hasherState) Init(key []byte) (err error) {
 	h.key = make([]byte, len(key))
 	copy(h.key, key)
 
-	utils.Logf("[RandomX] Initializing to seed %s", hex.EncodeToString(h.key))
+	utils.Logf("RandomX", "Initializing to seed %s", hex.EncodeToString(h.key))
 	if h.dataset.GoInit(h.key, uint32(runtime.NumCPU())) == false {
 		return errors.New("could not initialize dataset")
 	}
@@ -182,7 +182,7 @@ func (h *hasherState) Init(key []byte) (err error) {
 		return err
 	}
 
-	utils.Logf("[RandomX] Initialized to seed %s", hex.EncodeToString(h.key))
+	utils.Logf("RandomX", "Initialized to seed %s", hex.EncodeToString(h.key))
 
 	return nil
 }

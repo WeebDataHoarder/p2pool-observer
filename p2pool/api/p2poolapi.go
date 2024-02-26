@@ -47,14 +47,14 @@ func (p *P2PoolApi) WaitSync() (err error) {
 	status := p.Status()
 	for ; p == nil || !p.Status().Synchronized; status = p.Status() {
 		if p == nil {
-			utils.Logf("[API] Not synchronized (nil), waiting five seconds")
+			utils.Logf("API", "Not synchronized (nil), waiting five seconds")
 		} else {
-			utils.Logf("[API] Not synchronized (height %d, id %s, blocks %d), waiting five seconds", status.Height, status.Id, status.Blocks)
+			utils.Logf("API", "Not synchronized (height %d, id %s, blocks %d), waiting five seconds", status.Height, status.Id, status.Blocks)
 		}
 		time.Sleep(time.Second * 5)
 	}
-	utils.Logf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
-	utils.Logf("[API] Consensus id = %s\n", p.Consensus().Id)
+	utils.Logf("API", "SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
+	utils.Logf("API", "Consensus id = %s\n", p.Consensus().Id)
 	return nil
 }
 
@@ -67,17 +67,17 @@ func (p *P2PoolApi) WaitSyncStart() (err error) {
 	status := p.Status()
 	for ; p == nil || !p.Status().Synchronized; status = p.Status() {
 		if p == nil {
-			utils.Logf("[API] Not synchronized (nil), waiting one seconds")
+			utils.Logf("API", "Not synchronized (nil), waiting one seconds")
 		} else {
-			utils.Logf("[API] Not synchronized (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
+			utils.Logf("API", "Not synchronized (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
 			break
 		}
 		time.Sleep(time.Second * 1)
 	}
 	if status.Synchronized {
-		utils.Logf("[API] SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
+		utils.Logf("API", "SYNCHRONIZED (height %d, id %s, blocks %d)", status.Height, status.Id, status.Blocks)
 	}
-	utils.Logf("[API] Consensus id = %s\n", p.Consensus().Id)
+	utils.Logf("API", "Consensus id = %s\n", p.Consensus().Id)
 	return nil
 }
 

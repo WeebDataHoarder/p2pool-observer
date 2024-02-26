@@ -10,7 +10,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 	"os"
 )
@@ -39,12 +38,12 @@ func main() {
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	cache, err := legacy.NewCache(consensus, *inputFile)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer cache.Close()
 
@@ -65,7 +64,7 @@ func main() {
 
 	archiveCache, err := archive.NewCache(*outputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer archiveCache.Close()
 
@@ -78,7 +77,7 @@ func main() {
 			calculatedBlockId := block.SideTemplateId(consensus)
 
 			if expectedBlockId != calculatedBlockId {
-				utils.Errorf("ERROR: block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
+				utils.Errorf("", "block height %d, template id %s, expected %s", block.Side.Height, calculatedBlockId, expectedBlockId)
 			} else {
 				cachedBlocks[expectedBlockId] = block
 			}

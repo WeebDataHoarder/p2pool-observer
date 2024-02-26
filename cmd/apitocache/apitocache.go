@@ -8,7 +8,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"slices"
 	"strconv"
 )
@@ -30,14 +29,14 @@ func main() {
 	consensusData, _ := utils.MarshalJSON(poolInfo.SideChain.Consensus)
 	consensus, err := sidechain.NewConsensusFromJSON(consensusData)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
-	utils.Logf("Consensus id = %s", consensus.Id)
+	utils.Logf("Consensus", "Consensus id = %s", consensus.Id)
 
 	cache, err := legacy.NewCache(consensus, *outputFile)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer cache.Close()
 

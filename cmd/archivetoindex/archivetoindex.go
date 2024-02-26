@@ -14,7 +14,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 	"os"
 	"sync"
@@ -36,10 +35,10 @@ func main() {
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	if err = consensus.InitHasher(2, randomx.FlagSecure, randomx.FlagFullMemory); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	var headerCacheLock sync.RWMutex
@@ -95,7 +94,7 @@ func main() {
 
 	archiveCache, err := archive.NewCache(*inputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer archiveCache.Close()
 
@@ -143,7 +142,7 @@ func main() {
 
 	indexDb, err := index.OpenIndex(*connString, consensus, getDifficultyByHeight, getSeedByHeight, getByTemplateIdDirect)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer indexDb.Close()
 
@@ -171,7 +170,7 @@ func main() {
 	if len(heightRanges) == 0 {
 		for blocksAtHeight := range archiveCache.ScanHeights(0, math.MaxUint64) {
 			if len(blocksAtHeight) == 0 {
-				log.Panicf("no blocks at %d + 1?", lastRangeHeight)
+				utils.Panicf("no blocks at %d + 1?", lastRangeHeight)
 			}
 			if lastRangeHeight == math.MaxUint64 {
 				rangeStart = blocksAtHeight[0].Side.Height
@@ -181,22 +180,22 @@ func main() {
 					tipHeight:   lastRangeHeight,
 					tipEntries:  lastTipEntries,
 				})
-				utils.Logf("range %d -> %d, total of %d height(s)", rangeStart, lastRangeHeight, lastRangeHeight-rangeStart+1)
-				utils.Logf("missing %d -> %d, total of %d height(s)", lastRangeHeight+1, blocksAtHeight[0].Side.Height-1, (blocksAtHeight[0].Side.Height-1)-(lastRangeHeight+1)+1)
+				utils.Logf("", "range %d -> %d, total of %d height(s)", rangeStart, lastRangeHeight, lastRangeHeight-rangeStart+1)
+				utils.Logf("", "missing %d -> %d, total of %d height(s)", lastRangeHeight+1, blocksAtHeight[0].Side.Height-1, (blocksAtHeight[0].Side.Height-1)-(lastRangeHeight+1)+1)
 				rangeStart = blocksAtHeight[0].Side.Height
 			}
 			lastRangeHeight = blocksAtHeight[0].Side.Height
 			totalStored += len(blocksAtHeight)
 			lastTipEntries = blocksAtHeight
 		}
-		utils.Logf("range %d -> %d, total of %d height(s)", rangeStart, lastRangeHeight, lastRangeHeight-rangeStart+1)
+		utils.Logf("", "range %d -> %d, total of %d height(s)", rangeStart, lastRangeHeight, lastRangeHeight-rangeStart+1)
 		heightRanges = append(heightRanges, rangeEntry{
 			startHeight: rangeStart,
 			tipHeight:   lastRangeHeight,
 			tipEntries:  lastTipEntries,
 		})
 
-		utils.Logf("total stored %d", totalStored)
+		utils.Logf("", "total stored %d", totalStored)
 	}
 
 	var lastTime, lastHeight uint64 = math.MaxUint64, math.MaxUint64
@@ -224,18 +223,18 @@ func main() {
 		}
 
 		if bestTip == nil {
-			utils.Logf("skipped range %d to %d due to: nil tip", r.startHeight, r.tipHeight)
+			utils.Logf("", "skipped range %d to %d due to: nil tip", r.startHeight, r.tipHeight)
 			continue
 		} else if bestTip.Main.Coinbase.GenHeight > lastHeight {
-			utils.Logf("skipped range %d to %d due to: main height %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Coinbase.GenHeight, lastHeight)
+			utils.Logf("", "skipped range %d to %d due to: main height %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Coinbase.GenHeight, lastHeight)
 			continue
 		} else if (bestTip.Main.Timestamp - 60*5) > lastTime {
-			utils.Logf("skipped range %d to %d due to: timestamp %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Timestamp, lastTime)
+			utils.Logf("", "skipped range %d to %d due to: timestamp %d > %d", r.startHeight, r.tipHeight, bestTip.Main.Timestamp, lastTime)
 			continue
 		}
 
 		if err := processBlock(bestTip); err != nil {
-			utils.Logf("skipped range %d to %d due to: could not process tip: %s", r.startHeight, r.tipHeight, err)
+			utils.Logf("", "skipped range %d to %d due to: could not process tip: %s", r.startHeight, r.tipHeight, err)
 			continue
 		}
 
@@ -251,15 +250,15 @@ func main() {
 
 		// skip inserted heights
 		for bestTip != nil && indexDb.GetTipSideBlockByTemplateId(bestTip.SideTemplateId(consensus)) != nil {
-			utils.Logf("skip id = %s, template id = %s, height = %d", bestTip.MainId(), bestTip.SideTemplateId(consensus), bestTip.Side.Height)
+			utils.Logf("", "skip id = %s, template id = %s, height = %d", bestTip.MainId(), bestTip.SideTemplateId(consensus), bestTip.Side.Height)
 			bestTip = getByTemplateId(bestTip.Side.Parent)
 		}
 
 		for cur := bestTip; cur != nil; cur = getByTemplateId(cur.Side.Parent) {
-			utils.Logf("id = %s, template id = %s, height = %d", cur.MainId(), cur.SideTemplateId(consensus), cur.Side.Height)
+			utils.Logf("", "id = %s, template id = %s, height = %d", cur.MainId(), cur.SideTemplateId(consensus), cur.Side.Height)
 
 			if err = indexDb.InsertOrUpdatePoolBlock(cur, index.InclusionInVerifiedChain); err != nil {
-				utils.Logf("error inserting %s, %s at %d: %s", cur.SideTemplateId(consensus), cur.MainId(), cur.Side.Height, err)
+				utils.Errorf("", "error inserting %s, %s at %d: %s", cur.SideTemplateId(consensus), cur.MainId(), cur.Side.Height, err)
 				break
 			}
 
@@ -280,7 +279,7 @@ func main() {
 					continue
 				}
 				if processBlock(e) != nil {
-					utils.Logf("error processing orphan/alternate %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
+					utils.Errorf("", "error processing orphan/alternate %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
 					continue
 				}
 				if indexDb.GetSideBlockByMainId(e.MainId()) != nil {
@@ -288,12 +287,12 @@ func main() {
 				}
 				if curId == e.SideTemplateId(consensus) {
 					if err = indexDb.InsertOrUpdatePoolBlock(e, index.InclusionAlternateInVerifiedChain); err != nil {
-						log.Panicf("error inserting alternate %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
+						utils.Panicf("error inserting alternate %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
 						break
 					}
 				} else {
 					if err = indexDb.InsertOrUpdatePoolBlock(e, index.InclusionOrphan); err != nil {
-						log.Panicf("error inserting orphan %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
+						utils.Panicf("error inserting orphan %s, %s at %d: %s", e.SideTemplateId(consensus), e.MainId(), e.Side.Height, err)
 						break
 					}
 				}
@@ -310,7 +309,7 @@ func main() {
 	if err := indexDb.Query("SELECT MAX(main_height), MIN(main_height) FROM side_blocks WHERE inclusion = $1;", func(row index.RowScanInterface) error {
 		return row.Scan(&maxHeight, &minHeight)
 	}, index.InclusionInVerifiedChain); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	heightCount := maxHeight - minHeight + 1
@@ -323,15 +322,15 @@ func main() {
 	for stride := uint64(0); stride <= strides; stride++ {
 		start := minHeight + stride*strideSize
 		end := min(maxHeight, minHeight+stride*strideSize+strideSize)
-		utils.Logf("checking %d to %d", start, end)
+		utils.Logf("", "checking %d to %d", start, end)
 		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			for _, h := range headers.Headers {
 				if err := cmdutils.FindAndInsertMainHeader(h, indexDb, func(b *sidechain.PoolBlock) {
 					archiveCache.Store(b)
 				}, client.GetDefaultClient(), getDifficultyByHeight, getByTemplateIdDirect, archiveCache.LoadByMainId, archiveCache.LoadByMainChainHeight, processBlock); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 					continue
 				}
 			}
@@ -341,7 +340,7 @@ func main() {
 	mainBlocks, _ := indexDb.GetMainBlocksByQuery("WHERE side_template_id IS NOT NULL ORDER BY height DESC;")
 	index.QueryIterate(mainBlocks, func(_ int, mb *index.MainBlock) (stop bool) {
 		if err := cmdutils.FindAndInsertMainHeaderOutputs(mb, indexDb, client.GetDefaultClient(), getDifficultyByHeight, getByTemplateIdDirect, archiveCache.LoadByMainId, archiveCache.LoadByMainChainHeight, processBlock); err != nil {
-			log.Print(err)
+			utils.Error(err)
 		}
 		return false
 	})

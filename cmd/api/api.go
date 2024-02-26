@@ -21,7 +21,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/gorilla/mux"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -37,8 +36,6 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-
 	torHost := os.Getenv("TOR_SERVICE_ADDRESS")
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
@@ -52,13 +49,13 @@ func main() {
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
 	if err := p2api.WaitSyncStart(); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	consensus := p2api.Consensus()
 
 	indexDb, err := index.OpenIndex(*dbString, consensus, p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer indexDb.Close()
 
@@ -188,7 +185,7 @@ func main() {
 			uncleCount += len(slot.Uncles)
 			bottom = slot.Block
 		}); err != nil {
-			utils.Errorf("error scanning PPLNS window: %s", err)
+			utils.Errorf("", "error scanning PPLNS window: %s", err)
 
 			if oldPoolInfo != nil {
 				// got error, just update last pool
@@ -2120,12 +2117,12 @@ func main() {
 	if *debugListen != "" {
 		go func() {
 			if err := http.ListenAndServe(*debugListen, nil); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 		}()
 	}
 
 	if err := server.ListenAndServe(); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 }

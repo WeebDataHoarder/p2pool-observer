@@ -109,7 +109,7 @@ func (m Mempool) perfectSumRecursion(c chan Mempool, targetFee uint64, i int, cu
 	if currentSum < targetFee && i < len(m) {
 		if top != nil && *top < i {
 			*top = i
-			utils.Logf("index %d/%d", i, len(m))
+			utils.Logf("Mempool", "index %d/%d", i, len(m))
 		}
 		m3 := append(m2, m[i])
 		m.perfectSumRecursion(c, targetFee, i+1, currentSum+m[i].Fee, nil, m3)

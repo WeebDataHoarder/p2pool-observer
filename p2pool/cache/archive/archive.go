@@ -9,7 +9,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	bolt "go.etcd.io/bbolt"
-	"log"
 	"math"
 	"slices"
 	"time"
@@ -85,7 +84,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	sideId := block.SideTemplateId(c.consensus)
 	if bytes.Compare(sideId[:], block.CoinbaseExtra(sidechain.SideTemplateId)) != 0 {
 		//wrong calculated template id
-		log.Panicf("wrong template id, expected %s, got %s", types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), sideId)
+		utils.Panicf("wrong template id, expected %s, got %s", types.HashFromBytes(block.CoinbaseExtra(sidechain.SideTemplateId)), sideId)
 		return
 	}
 	mainId := block.MainId()
@@ -123,7 +122,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 	}
 
 	if blob, err := block.AppendBinaryFlags(make([]byte, 0, block.BufferLength()), storePruned, storeCompact); err == nil {
-		utils.Logf("[Archive Cache] Store block id = %s, template id = %s, height = %d, sidechain height = %d, depth = %d, pruned = %t, compact = %t, blob size = %d bytes", mainId.String(), sideId.String(), block.Main.Coinbase.GenHeight, block.Side.Height, block.Depth.Load(), storePruned, storeCompact, len(blob))
+		utils.Logf("Archive Cache", "Store block id = %s, template id = %s, height = %d, sidechain height = %d, depth = %d, pruned = %t, compact = %t, blob size = %d bytes", mainId.String(), sideId.String(), block.Main.Coinbase.GenHeight, block.Side.Height, block.Depth.Load(), storePruned, storeCompact, len(blob))
 
 		if err = c.db.Update(func(tx *bolt.Tx) error {
 			b1 := tx.Bucket(blocksByMainId)
@@ -164,7 +163,7 @@ func (c *Cache) Store(block *sidechain.PoolBlock) {
 			}
 			return nil
 		}); err != nil {
-			utils.Logf("[Archive Cache] bolt error: %s", err)
+			utils.Logf("Archive Cache", "bolt error: %s", err)
 		}
 	}
 }
@@ -216,12 +215,12 @@ func (c *Cache) decodeBlock(blob []byte) *sidechain.PoolBlock {
 	reader := bytes.NewReader(blob[8:])
 	if (flags & 0b10) > 0 {
 		if err := b.FromCompactReader(c.consensus, c.derivationCache, reader); err != nil {
-			utils.Logf("[Archive Cache] error decoding block: %s", err)
+			utils.Logf("Archive Cache", "error decoding block: %s", err)
 			return nil
 		}
 	} else {
 		if err := b.FromReader(c.consensus, c.derivationCache, reader); err != nil {
-			utils.Logf("[Archive Cache] error decoding block: %s", err)
+			utils.Logf("Archive Cache", "error decoding block: %s", err)
 			return nil
 		}
 	}
@@ -261,7 +260,7 @@ func (c *Cache) LoadByTemplateId(id types.Hash) (result sidechain.UniquePoolBloc
 		}
 		return nil
 	}); err != nil {
-		utils.Logf("[Archive Cache] error fetching blocks with template id %s, %s", id.String(), err)
+		utils.Logf("Archive Cache", "error fetching blocks with template id %s, %s", id.String(), err)
 		return nil
 	}
 	for _, buf := range blocks {
@@ -366,7 +365,7 @@ func (c *Cache) LoadBySideChainHeight(height uint64) (result sidechain.UniquePoo
 		}
 		return nil
 	}); err != nil {
-		utils.Logf("[Archive Cache] error fetching blocks with sidechain height %d, %s", height, err)
+		utils.Logf("Archive Cache", "error fetching blocks with sidechain height %d, %s", height, err)
 		return nil
 	}
 	for _, buf := range blocks {
@@ -393,7 +392,7 @@ func (c *Cache) LoadByMainChainHeight(height uint64) (result sidechain.UniquePoo
 		}
 		return nil
 	}); err != nil {
-		utils.Logf("[Archive Cache] error fetching blocks with sidechain height %d, %s", height, err)
+		utils.Logf("Archive Cache", "error fetching blocks with sidechain height %d, %s", height, err)
 		return nil
 	}
 	for _, buf := range blocks {

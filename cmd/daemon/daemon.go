@@ -14,7 +14,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
@@ -29,7 +28,6 @@ func blockId(b *sidechain.PoolBlock) types.Hash {
 var sideBlocksLock sync.RWMutex
 
 func main() {
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	moneroHost := flag.String("host", "127.0.0.1", "IP address of your Monero node")
 	moneroRpcPort := flag.Uint("rpc-port", 18081, "monerod RPC API port number")
@@ -50,22 +48,22 @@ func main() {
 	p2api := p2poolapi.NewP2PoolApi(*p2poolApiHost)
 
 	if err := p2api.WaitSync(); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	if *fullMode {
 		if err := p2api.Consensus().InitHasher(1, randomx.FlagSecure, randomx.FlagFullMemory); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		}
 	} else {
 		if err := p2api.Consensus().InitHasher(1, randomx.FlagSecure); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		}
 	}
 
 	indexDb, err := index.OpenIndex(*dbString, p2api.Consensus(), p2api.DifficultyByHeight, p2api.SeedByHeight, p2api.ByTemplateId)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer indexDb.Close()
 
@@ -75,7 +73,7 @@ func main() {
 	if dbTip != nil {
 		tipHeight = dbTip.SideHeight
 	}
-	utils.Logf("[CHAIN] Last known database tip is %d\n", tipHeight)
+	utils.Logf("CHAIN", "Last known database tip is %d\n", tipHeight)
 
 	window, uncles := p2api.StateFromTip()
 	if *startFromHeight != 0 {
@@ -96,12 +94,12 @@ func main() {
 			return
 		}
 		for cur := tip; cur != nil; cur = p2api.ByTemplateId(cur.Side.Parent) {
-			utils.Logf("[CHAIN] Inserting share %s at height %d\n", blockId(cur).String(), cur.Side.Height)
+			utils.Logf("CHAIN", "Inserting share %s at height %d\n", blockId(cur).String(), cur.Side.Height)
 			for _, u := range cur.Side.Uncles {
-				utils.Logf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), cur.Side.Height)
+				utils.Logf("CHAIN", "Inserting uncle %s at parent height %d\n", u.String(), cur.Side.Height)
 			}
 			if err := indexDb.InsertOrUpdatePoolBlock(cur, index.InclusionInVerifiedChain); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 			if indexDb.GetTipSideBlockByTemplateId(cur.Side.Parent) != nil {
 				//reached old tip
@@ -113,7 +111,7 @@ func main() {
 	var backfillScan []types.Hash
 
 	for len(window) > 0 {
-		utils.Logf("[CHAIN] Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
+		utils.Logf("CHAIN", "Found range %d -> %d (%s to %s), %d shares, %d uncles", window[0].Side.Height, window[len(window)-1].Side.Height, window[0].SideTemplateId(p2api.Consensus()), window[len(window)-1].SideTemplateId(p2api.Consensus()), len(window), len(uncles))
 		for _, b := range window {
 			indexDb.CachePoolBlock(b)
 		}
@@ -126,12 +124,12 @@ func main() {
 				window = nil
 				break
 			}
-			utils.Logf("[CHAIN] Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
+			utils.Logf("CHAIN", "Inserting share %s at height %d\n", blockId(b).String(), b.Side.Height)
 			for _, u := range b.Side.Uncles {
-				utils.Logf("[CHAIN] Inserting uncle %s at parent height %d\n", u.String(), b.Side.Height)
+				utils.Logf("CHAIN", "Inserting uncle %s at parent height %d\n", u.String(), b.Side.Height)
 			}
 			if err := indexDb.InsertOrUpdatePoolBlock(b, index.InclusionInVerifiedChain); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 
 			if b.IsProofHigherThanMainDifficulty(p2api.Consensus().GetHasher(), indexDb.GetDifficultyByHeight, indexDb.GetSeedByHeight) {
@@ -164,7 +162,7 @@ func main() {
 	if err = indexDb.Query("SELECT (SELECT MAX(main_height) FROM side_blocks) AS max_height, (SELECT MAX(height) FROM main_blocks) AS current_height;", func(row index.RowScanInterface) error {
 		return row.Scan(&maxHeight, &currentHeight)
 	}); err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	ctx := context.Background()
@@ -190,13 +188,13 @@ func main() {
 	for stride := uint64(0); stride <= strides; stride++ {
 		start := currentHeight + stride*strideSize
 		end := min(maxHeight-1, currentHeight+stride*strideSize+strideSize)
-		utils.Logf("checking %d to %d", start, end)
+		utils.Logf("", "checking %d to %d", start, end)
 		if headers, err := client.GetDefaultClient().GetBlockHeadersRangeResult(start, end, ctx); err != nil {
-			log.Panic(err)
+			utils.Panic(err)
 		} else {
 			for _, h := range headers.Headers {
 				if err := scanHeader(h); err != nil {
-					log.Panic(err)
+					utils.Panic(err)
 					continue
 				}
 			}
@@ -205,12 +203,12 @@ func main() {
 
 	// backfill any missing headers when p2pool was down
 	for _, mainId := range backfillScan {
-		utils.Logf("checking backfill %s", mainId)
+		utils.Logf("", "checking backfill %s", mainId)
 		if header, err := client.GetDefaultClient().GetBlockHeaderByHash(mainId, ctx); err != nil {
-			utils.Logf("not found %s", mainId)
+			utils.Errorf("", "not found %s", mainId)
 		} else {
 			if err := scanHeader(*header); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 				continue
 			}
 		}
@@ -242,7 +240,7 @@ func main() {
 					sideBlocksLock.Lock()
 					defer sideBlocksLock.Unlock()
 					if err := scanHeader(*cur); err != nil {
-						log.Panic(err)
+						utils.Panic(err)
 					}
 				}()
 			}
@@ -269,7 +267,7 @@ func main() {
 			}
 
 			if mainTip.Height == maxDepth {
-				utils.Logf("Reached maxdepth %d: Use scansweeps to backfill data", maxDepth)
+				utils.Logf("", "Reached maxdepth %d: Use scansweeps to backfill data", maxDepth)
 			}
 
 			for h := mainTip.Height - monero.MinerRewardUnlockTime; h <= actualTip.Height-monero.TransactionUnlockTime; h++ {
@@ -282,7 +280,7 @@ func main() {
 				}
 
 				if err := cmdutils.ProcessFullBlock(b, indexDb); err != nil {
-					utils.Logf("error processing block %s at %d: %s", b.Id, b.Height, err)
+					utils.Logf("", "error processing block %s at %d: %s", b.Id, b.Height, err)
 				}
 			}
 		}
@@ -291,7 +289,7 @@ func main() {
 	if *debugListen != "" {
 		go func() {
 			if err := http.ListenAndServe(*debugListen, nil); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			}
 		}()
 	}
@@ -304,14 +302,14 @@ func main() {
 		mainTip := p2api.MainTip()
 
 		if tip == nil || mainTip == nil {
-			utils.Logf("could not fetch tip or main tip")
+			utils.Errorf("", "could not fetch tip or main tip")
 			continue
 		}
 
 		if blockId(tip) != currentTip.TemplateId {
 			if tip.Side.Height < currentTip.SideHeight {
 				//wtf
-				log.Panicf("tip height less than ours, abort: %d < %d", tip.Side.Height, currentTip.SideHeight)
+				utils.Panicf("tip height less than ours, abort: %d < %d", tip.Side.Height, currentTip.SideHeight)
 			} else {
 				func() {
 					sideBlocksLock.Lock()
@@ -324,7 +322,7 @@ func main() {
 		if mainTip.Id != currentMainTip.Id {
 			if mainTip.Height < currentMainTip.Height {
 				//wtf
-				log.Panicf("main tip height less than ours, abort: %d < %d", mainTip.Height, currentMainTip.Height)
+				utils.Panicf("main tip height less than ours, abort: %d < %d", mainTip.Height, currentMainTip.Height)
 			} else {
 				var prevHash types.Hash
 				for cur, _ := client.GetDefaultClient().GetBlockHeaderByHash(mainTip.Id, ctx); cur != nil; cur, _ = client.GetDefaultClient().GetBlockHeaderByHash(prevHash, ctx) {
@@ -337,14 +335,14 @@ func main() {
 							doCheckOfOldBlocks.Store(true)
 						}
 					}
-					utils.Logf("[MAIN] Insert main block %d, id %s", cur.Height, curHash)
+					utils.Logf("MAIN", "Insert main block %d, id %s", cur.Height, curHash)
 					func() {
 						sideBlocksLock.Lock()
 						defer sideBlocksLock.Unlock()
 						doCheckOfOldBlocks.Store(true)
 
 						if err := scanHeader(*cur); err != nil {
-							log.Panic(err)
+							utils.Panic(err)
 						}
 						prevHash, _ = types.HashFromString(cur.PrevHash)
 					}()

@@ -9,8 +9,8 @@ import (
 	"git.gammaspectra.live/P2Pool/go-monero/pkg/rpc/daemon"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/transaction"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -39,7 +39,7 @@ func GetDefaultClient() *Client {
 		if c = client.Load(); c == nil {
 			//fallback for lock racing
 			if c, err := NewClient(address); err != nil {
-				log.Panic(err)
+				utils.Panic(err)
 			} else {
 				client.Store(c)
 				return c

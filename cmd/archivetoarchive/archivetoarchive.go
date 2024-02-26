@@ -10,7 +10,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/floatdrop/lru"
-	"log"
 	"math"
 	"os"
 )
@@ -30,7 +29,7 @@ func main() {
 
 	consensus, err := sidechain.NewConsensusFromJSON(cf)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 
 	difficultyCache := lru.New[uint64, types.Difficulty](1024)
@@ -50,13 +49,13 @@ func main() {
 
 	inputCache, err := archive.NewCache(*inputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer inputCache.Close()
 
 	outputCache, err := archive.NewCache(*outputArchive, consensus, getDifficultyByHeight)
 	if err != nil {
-		log.Panic(err)
+		utils.Panic(err)
 	}
 	defer outputCache.Close()
 
@@ -88,7 +87,7 @@ func main() {
 		for i, b := range blocksAtHeight {
 			blocksProcessed++
 			if _, err := b.PreProcessBlock(consensus, derivationCache, preAllocatedShares, getDifficultyByHeight, getByTemplateId); err != nil {
-				utils.Errorf("error processing block %s at %d, %s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height, err)
+				utils.Errorf("", "error processing block %s at %d, %s", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height, err)
 			} else {
 				if parent := getByTemplateId(b.Side.Parent); parent != nil {
 					topDepth := parent.Depth.Load()
@@ -100,7 +99,7 @@ func main() {
 						b.Depth.Store(topDepth - 1)
 					}
 				} else {
-					utils.Errorf("block %s at %d, could not get parent, fallback", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height)
+					utils.Errorf("", "block %s at %d, could not get parent, fallback", types.HashFromBytes(b.CoinbaseExtra(sidechain.SideTemplateId)), b.Side.Height)
 					b.Depth.Store(math.MaxUint64)
 				}
 				outputCache.Store(b)
@@ -111,5 +110,5 @@ func main() {
 		}
 	}
 
-	utils.Logf("blocks processed %d", blocksProcessed)
+	utils.Logf("Archive", "blocks processed %d", blocksProcessed)
 }

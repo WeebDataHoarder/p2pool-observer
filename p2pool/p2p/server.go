@@ -12,7 +12,6 @@ import (
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
-	"log"
 	unsafeRandom "math/rand/v2"
 	"net"
 	"net/netip"
@@ -147,13 +146,13 @@ func NewServer(p2pool P2PoolInterface, listenAddress string, externalListenPort 
 }
 
 func (s *Server) RefreshOutgoingIPv6() {
-	utils.Logf("[P2PServer] Refreshing outgoing IPv6")
+	utils.Logf("P2PServer", "Refreshing outgoing IPv6")
 	addrs, _ := utils.GetOutboundIPv6()
 	s.ipv6AddrsLock.Lock()
 	defer s.ipv6AddrsLock.Unlock()
 	s.ipv6OutgoingAddresses = addrs
 	for _, a := range addrs {
-		utils.Logf("[P2PServer] Outgoing IPv6: %s", a.String())
+		utils.Logf("P2PServer", "Outgoing IPv6: %s", a.String())
 	}
 }
 
@@ -309,7 +308,7 @@ func (s *Server) UpdateClientConnections() {
 
 		if currentTime >= (lastAlive + timeout) {
 			idleTime := currentTime - lastAlive
-			utils.Logf("[P2PServer] peer %s has been idle for %d seconds, disconnecting", client.AddressPort, idleTime)
+			utils.Logf("P2PServer", "peer %s has been idle for %d seconds, disconnecting", client.AddressPort, idleTime)
 			client.Close()
 			continue
 		}
@@ -365,7 +364,7 @@ func (s *Server) UpdateClientConnections() {
 
 	// Special case: when we can't find p2pool peers, scan through monerod peers (try 25 peers at a time)
 	if !hasGoodPeers && len(s.moneroPeerList) > 0 {
-		utils.Logf("[P2PServer] Scanning monerod peers, %d left", len(s.moneroPeerList))
+		utils.Logf("P2PServer", "Scanning monerod peers, %d left", len(s.moneroPeerList))
 		for i := 0; i < 25 && len(s.moneroPeerList) > 0; i++ {
 			peerList = append(peerList, s.moneroPeerList[len(s.moneroPeerList)-1])
 			s.moneroPeerList = s.moneroPeerList[:len(s.moneroPeerList)-1]
@@ -392,7 +391,7 @@ func (s *Server) UpdateClientConnections() {
 					return
 				}
 				if err := s.Connect(peer.AddressPort); err != nil {
-					utils.Logf("[P2PServer] Connection to %s rejected (%s)", peer.AddressPort.String(), err.Error())
+					utils.Logf("P2PServer", "Connection to %s rejected (%s)", peer.AddressPort.String(), err.Error())
 				}
 			}()
 			i++
@@ -404,7 +403,7 @@ func (s *Server) UpdateClientConnections() {
 	wg.Wait()
 
 	if attempts == 0 && !hasGoodPeers && len(s.moneroPeerList) == 0 {
-		utils.Logf("[P2PServer] No connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
+		utils.Logf("P2PServer", "No connections to other p2pool nodes, check your monerod/p2pool/network/firewall setup!")
 		if moneroPeerList, err := s.p2pool.ClientRPC().GetPeerList(); err == nil {
 			s.moneroPeerList = make(PeerList, 0, len(moneroPeerList.WhiteList))
 			for _, p := range moneroPeerList.WhiteList {
@@ -434,7 +433,7 @@ func (s *Server) UpdateClientConnections() {
 				}
 				return 0
 			})
-			utils.Logf("[P2PServer] monerod peer list loaded (%d peers)", len(s.moneroPeerList))
+			utils.Logf("P2PServer", "monerod peer list loaded (%d peers)", len(s.moneroPeerList))
 		}
 	}
 }
@@ -574,13 +573,13 @@ func (s *Server) Listen() (err error) {
 				}(); err != nil {
 					go func() {
 						defer conn.Close()
-						utils.Logf("[P2PServer] Connection from %s rejected (%s)", conn.RemoteAddr().String(), err.Error())
+						utils.Logf("P2PServer", "Connection from %s rejected (%s)", conn.RemoteAddr().String(), err.Error())
 					}()
 					continue
 				}
 
 				func() {
-					utils.Logf("[P2PServer] Incoming connection from %s", conn.RemoteAddr().String())
+					utils.Logf("P2PServer", "Incoming connection from %s", conn.RemoteAddr().String())
 
 					s.clientsLock.Lock()
 					defer s.clientsLock.Unlock()
@@ -654,9 +653,9 @@ func (s *Server) DirectConnect(addrPort netip.AddrPort) (*Client, error) {
 	}
 
 	if localAddr != nil {
-		utils.Logf("[P2PServer] Outgoing connection to %s using %s", addrPort.String(), localAddr.String())
+		utils.Logf("P2PServer", "Outgoing connection to %s using %s", addrPort.String(), localAddr.String())
 	} else {
-		utils.Logf("[P2PServer] Outgoing connection to %s", addrPort.String())
+		utils.Logf("P2PServer", "Outgoing connection to %s", addrPort.String())
 	}
 
 	if conn, err := (&net.Dialer{Timeout: time.Second * 5, LocalAddr: localAddr}).DialContext(s.ctx, "tcp", addrPort.String()); err != nil {
@@ -741,7 +740,7 @@ func (s *Server) Ban(ip netip.Addr, duration time.Duration, err error) {
 		return
 	}
 
-	utils.Logf("[P2PServer] Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
+	utils.Logf("P2PServer", "Banned %s for %s: %s", ip.String(), duration.String(), err.Error())
 	if !ip.IsLoopback() {
 		ip = ip.Unmap()
 		var prefix netip.Prefix
@@ -804,7 +803,7 @@ func (s *Server) Broadcast(block *sidechain.PoolBlock) {
 		buffer := make([]byte, 4, block.BufferLength()+4)
 		blockData, err := block.AppendBinaryFlags(buffer, false, false)
 		if err != nil {
-			log.Panicf("[P2PServer] Tried to broadcast block %s at height %d but received error: %s", block.SideTemplateId(s.Consensus()), block.Side.Height, err)
+			utils.Panicf("[P2PServer] Tried to broadcast block %s at height %d but received error: %s", block.SideTemplateId(s.Consensus()), block.Side.Height, err)
 			return
 		}
 		binary.LittleEndian.PutUint32(blockData, uint32(len(blockData)-4))

@@ -127,7 +127,7 @@ func ProcessFullBlock(b *index.MainBlock, indexDb *index.Index) error {
 		return fmt.Errorf("could not get main block for %s at %d: %w", b.Id, b.Height, err)
 	}
 
-	utils.Logf("Block %s at %d (%s), processing %d transactions", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"), len(mainBlock.Transactions))
+	utils.Logf("", "Block %s at %d (%s), processing %d transactions", b.Id, b.Height, time.Unix(int64(b.Timestamp), 0).UTC().Format("02-01-2006 15:04:05 MST"), len(mainBlock.Transactions))
 
 	// try to fetch extra nonce if existing
 	{
@@ -150,7 +150,7 @@ func ProcessFullBlock(b *index.MainBlock, indexDb *index.Index) error {
 	if sideTemplateId != types.ZeroHash && len(extraNonce) != 0 {
 		b.SetMetadata("merge_mining_tag", sideTemplateId)
 		b.SetMetadata("extra_nonce", binary.LittleEndian.Uint32(extraNonce))
-		utils.Logf("p2pool tags found template id %s, extra nonce %d", sideTemplateId, binary.LittleEndian.Uint32(extraNonce))
+		utils.Logf("", "p2pool tags found template id %s, extra nonce %d", sideTemplateId, binary.LittleEndian.Uint32(extraNonce))
 	}
 
 	const txInputThreshold = 4
@@ -217,7 +217,7 @@ func ProcessFullBlock(b *index.MainBlock, indexDb *index.Index) error {
 				}
 
 				if likelyMiner {
-					utils.Logf("transaction %s is LIKELY for %s: miner ratio %.02f (%d/%d), none %.02f (%d/%d), other %.02f (%d/%d); coinbase %d, sweep %d", txId, topMiner.Address.ToBase58(), minerRatio, minerCount, len(inputs), noMinerRatio, noMinerCount, len(inputs), otherMinerRatio, otherMinerCount, len(inputs), topMiner.CoinbaseCount, topMiner.SweepCount)
+					utils.Logf("", "transaction %s is LIKELY for %s: miner ratio %.02f (%d/%d), none %.02f (%d/%d), other %.02f (%d/%d); coinbase %d, sweep %d", txId, topMiner.Address.ToBase58(), minerRatio, minerCount, len(inputs), noMinerRatio, noMinerCount, len(inputs), otherMinerRatio, otherMinerCount, len(inputs), topMiner.CoinbaseCount, topMiner.SweepCount)
 
 					minimalInputs := make(index.MinimalTransactionInputQueryResults, len(inputs))
 
@@ -273,10 +273,10 @@ func ProcessFullBlock(b *index.MainBlock, indexDb *index.Index) error {
 						return err
 					}
 				} else {
-					utils.Logf("transaction %s is NOT likely for %s: miner ratio %.02f (%d/%d), none %.02f (%d/%d), other %.02f (%d/%d); coinbase %d, sweep %d", txId, topMiner.Address.ToBase58(), minerRatio, topMiner.Count, len(inputs), noMinerRatio, noMinerCount, len(inputs), otherMinerRatio, otherMinerCount, len(inputs), topMiner.CoinbaseCount, topMiner.SweepCount)
+					utils.Logf("", "transaction %s is NOT likely for %s: miner ratio %.02f (%d/%d), none %.02f (%d/%d), other %.02f (%d/%d); coinbase %d, sweep %d", txId, topMiner.Address.ToBase58(), minerRatio, topMiner.Count, len(inputs), noMinerRatio, noMinerCount, len(inputs), otherMinerRatio, otherMinerCount, len(inputs), topMiner.CoinbaseCount, topMiner.SweepCount)
 				}
 			} else {
-				//utils.Logf("transaction %s does not have enough matches, %d outputs", txId, len(inputs))
+				//utils.Logf("", "transaction %s does not have enough matches, %d outputs", txId, len(inputs))
 			}
 		}
 	}
