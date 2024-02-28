@@ -335,27 +335,41 @@ func main() {
 
 		currentHashRate := magnitude * hashRate
 
+		var effortSteps = []float64{25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+		const shareSteps = 15
+
 		calculatePage := &views.CalculateShareTimePage{
 			Hashrate:              hashRate,
 			Magnitude:             magnitude,
 			Efforts:               nil,
 			EstimatedRewardPerDay: 0,
+			EstimatedSharesPerDay: 0,
+			EstimatedBlocksPerDay: 0,
 		}
 
 		if currentHashRate > 0 {
 			var efforts []views.CalculateShareTimePageEffortEntry
 
-			for _, v := range []float64{25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000} {
-				efforts = append(efforts, views.CalculateShareTimePageEffortEntry{
-					Effort:      v,
-					Probability: (1 - math.Exp(-(v / 100))) * 100,
-					Between:     (float64(poolInfo.SideChain.LastBlock.Difficulty) * (v / 100)) / currentHashRate,
-					BetweenSolo: (float64(poolInfo.MainChain.Difficulty.Lo) * (v / 100)) / currentHashRate,
-				})
+			for _, effort := range effortSteps {
+				e := views.CalculateShareTimePageEffortEntry{
+					Effort:             effort,
+					Probability:        utils.ProbabilityEffort(effort) * 100,
+					Between:            (float64(poolInfo.SideChain.LastBlock.Difficulty) * (effort / 100)) / currentHashRate,
+					BetweenSolo:        (float64(poolInfo.MainChain.Difficulty.Lo) * (effort / 100)) / currentHashRate,
+					ShareProbabilities: make([]float64, shareSteps+1),
+				}
+
+				for i := uint64(0); i <= shareSteps; i++ {
+					e.ShareProbabilities[i] = utils.ProbabilityNShares(i, effort)
+				}
+
+				efforts = append(efforts, e)
 			}
 			calculatePage.Efforts = efforts
 
 			longWeight := types.DifficultyFrom64(uint64(currentHashRate)).Mul64(3600 * 24)
+			calculatePage.EstimatedSharesPerDay = float64(longWeight.Mul64(1000).Div64(poolInfo.SideChain.LastBlock.Difficulty).Lo) / 1000
+			calculatePage.EstimatedBlocksPerDay = float64(longWeight.Mul64(1000).Div(poolInfo.MainChain.NextDifficulty).Lo) / 1000
 			calculatePage.EstimatedRewardPerDay = longWeight.Mul64(poolInfo.MainChain.BaseReward).Div(poolInfo.MainChain.NextDifficulty).Lo
 		}
 

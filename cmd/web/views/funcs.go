@@ -8,7 +8,6 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/mazznoer/colorgrad"
-	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -148,7 +147,7 @@ const effortRangeStart = 0.15
 const effortRangeEnd = 0.8
 
 func effort_color(effort float64) string {
-	probability := 1 - math.Exp(-effort/100)
+	probability := utils.ProbabilityEffort(effort)
 
 	// rescale
 	probability *= effortRangeEnd - effortRangeStart

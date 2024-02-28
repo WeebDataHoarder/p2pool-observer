@@ -1,3 +1,4 @@
+{% import "git.gammaspectra.live/P2Pool/p2pool-observer/utils" %}
 {% code
 type CalculateShareTimePage struct {
 	// inherit from base page, so its' title is used in error page.
@@ -7,6 +8,8 @@ type CalculateShareTimePage struct {
 	Magnitude float64
 	Efforts []CalculateShareTimePageEffortEntry
 	EstimatedRewardPerDay uint64
+	EstimatedSharesPerDay float64
+	EstimatedBlocksPerDay float64
 }
 %}
 
@@ -16,6 +19,7 @@ type CalculateShareTimePageEffortEntry struct {
     Probability float64
     Between     float64
     BetweenSolo float64
+    ShareProbabilities []float64
 }
 %}
 
@@ -24,6 +28,17 @@ type CalculateShareTimePageEffortEntry struct {
 {% endfunc %}
 
 {% func (p *CalculateShareTimePage) Content() %}
+
+<style type="text/css">
+.bulk {
+    color: #00dddd;
+}
+.mode {
+    font-weight: bolder;
+    /* color: rgb(100,206,145); */
+    color: #00ffff;
+}
+</style>
 
 <div style="text-align: center">
     <form action="/calculate-share-time" method="get">
@@ -34,6 +49,8 @@ type CalculateShareTimePageEffortEntry struct {
             <small>Do note this time will vary (can get shares sooner, or later, even way later), depending on your luck, and changing difficulty of the pool due to increase / reductions in hashrate.</small>
             <br/>
             For lower hashrate, this average is what statistically will be achieved long term.
+            <br/>
+            The long term average per-share effort would be <span style="font-weight:bolder; color: {%s effort_color(100) %};">100%</span>
         </p>
         <div>
             <label for="hashrate">Your Hashrate</label><br/>
@@ -57,7 +74,7 @@ type CalculateShareTimePageEffortEntry struct {
 <hr/>
 <div style="text-align: center">
 
-    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em);">
+    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em + 15em);">
         {% code between := (float64(p.Context().Pool.SideChain.LastBlock.Difficulty) / (p.Hashrate * p.Magnitude)) %}
         {% code between_solo := (float64(p.Context().Pool.MainChain.Difficulty.Lo) / (p.Hashrate * p.Magnitude)) %}
         <tr style="line-height: 1.5;">
@@ -65,20 +82,26 @@ type CalculateShareTimePageEffortEntry struct {
             <td style="width: 15em"><strong>P2Pool Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
             <td style="width: 15em"><strong>Your Hashrate</strong><br/>{%s si_units(p.Hashrate * p.Magnitude, 2) %}H/s</td>
             <td title="Mean frequency between P2Pool shares" style="width: 15em; border: #ff6600 dashed 1px;"><strong>Your Share Mean<br/>{%s time_duration_long(between) %}</strong></td>
+            <td title="Mean P2Pool shares per day" style="width: 15em; border: #ff6600 dashed 1px;"><strong>Your Daily Mean Shares<br/>{%f.3 p.EstimatedSharesPerDay %} share(s)</strong></td>
         </tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr><th colspan="5">&nbsp;</th></tr>
         <tr style="line-height: 1.5;">
             <td><strong>Monero Difficulty</strong><br/>{%s si_units(p.Context().Pool.MainChain.Difficulty.Lo, 2) %}</td>
             <td><strong>Monero Hashrate</strong><br/>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime)), 2) %}H/s</td>
             <td title="Mean frequency between P2Pool finds Monero Blocks"><strong>P2Pool Block Mean</strong><br/><em>{%s time_duration_long(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime))) %}</em></td>
             <td title="Mean frequency between Solo Monero Blocks (without P2Pool)"><strong>Your Solo Block Mean</strong><br/><em>{%s time_duration_long(between_solo) %}</em></td>
+            <td title="Mean Solo Monero Blocks (without P2Pool) per day"><strong>Your Solo Daily Mean Blocks</strong><br/><em>{%f.3 p.EstimatedBlocksPerDay %} block(s)</em></td>
         </tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
-        <tr style="line-height: 1.5; font-size: 21px;"><td></td><td colspan="2" style="border: #ff6600 dashed 1px;"><strong>Your Estimated Daily Reward</strong><br/>{%s monero_to_xmr(p.EstimatedRewardPerDay) %} XMR</td><td></td></tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
+        <tr><th colspan="5">&nbsp;</th></tr>
+        <tr style="line-height: 1.5; font-size: 21px;"><td></td><td colspan="3" style="border: #ff6600 dashed 1px;"><strong>Your Estimated Daily Reward</strong><br/>{%s monero_to_xmr(p.EstimatedRewardPerDay) %} XMR</td><td></td></tr>
+    </table>
+
+    <br/>
+    <h3>Single Share Effort</h3>
+    <table class="center" style="max-width: calc(10em + 15em + 15em + 15em);">
         <tr style="line-height: 1.5;">
-            <th>Found Effort</th>
-            <th>Found Chance</th>
+            <th>Share Effort</th>
+            <th>Found Probability</th>
             <th>P2Pool Estimate</th>
             <th>Solo Estimate</th>
         </tr>
@@ -86,7 +109,7 @@ type CalculateShareTimePageEffortEntry struct {
         {% for _, e := range p.Efforts %}
         <tr>
             <td style="font-size: 17px; font-weight:bolder; color: {%s effort_color(e.Effort) %};">
-                {%f.2 e.Effort %}%
+                {%f.0 e.Effort %}%
             </td>
             <td title="Chance share is not found before: {%f.5 100 - e.Probability %}%">
                 {%f.5 e.Probability %}%
@@ -99,7 +122,48 @@ type CalculateShareTimePageEffortEntry struct {
             </td>
         </tr>
         {% endfor %}
-        <tr><td></td><td></td></tr>
+    </table>
+
+    <br/>
+    <h3>Cumulative Share Effort</h3>
+    <table class="center" style="max-width: calc(15em + 15em + {%d len(p.Efforts[0].ShareProbabilities)*2 %}em);">
+        <tr>
+            <th colspan="2"></th>
+            <th colspan="{%d len(p.Efforts[0].ShareProbabilities) %}">Number of shares</th>
+        </tr>
+        <tr style="line-height: 1.5;">
+            <th>Cumulative Effort</th>
+            <th>Cumulative Time</th>
+            {% for i := range p.Efforts[0].ShareProbabilities %}
+            <th>{%d i %}</th>
+            {% endfor %}
+        </tr>
+
+        {% for _, e := range p.Efforts %}
+        <tr>
+            <td style="font-size: 17px; font-weight:bolder; color: {%s effort_color(e.Effort) %};">
+                {%f.0 e.Effort %}%
+            </td>
+            <td>
+                {%s time_duration_long(e.Between) %}
+            </td>
+            {% code var mode = utils.ProbabilityMode(e.ShareProbabilities...) %}
+            {% for _, p := range e.ShareProbabilities %}
+            {% if p*100 > 1 %}
+            <td class="{% if mode == p %}mode{% else %}{% endif %}" title="{%f.5 p*100 %}%">{%f.0 p*100 %}%</td>
+            {% else %}
+            <td title="{%f.5 p*100 %}%"></td>
+            {% endif %}
+            {% endfor %}
+        </tr>
+        {% endfor %}
+
+        <tr>
+            <th colspan="2"></th>
+            {% for i := range p.Efforts[0].ShareProbabilities %}
+            <th>{%d i %}</th>
+            {% endfor %}
+        </tr>
     </table>
 </div>
 {% endif %}
