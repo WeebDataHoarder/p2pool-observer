@@ -37,7 +37,7 @@ services:
       - /tmp
     restart: always
     environment:
-      TOR_SOCKS_PORT: 9050
+      TOR_SOCKS_PORT: 0.0.0.0:9050
     networks:
       - p2pool-observer
   site:
