@@ -669,7 +669,7 @@ func main() {
 			newHook.Url = types.Hash(sha256.Sum256([]byte(w.Url))).String()
 			settings := make(map[string]string)
 			for k, v := range w.Settings {
-				if strings.HasPrefix("send_", k) {
+				if strings.HasPrefix(k, "send_") {
 					settings[k] = v
 				}
 			}
