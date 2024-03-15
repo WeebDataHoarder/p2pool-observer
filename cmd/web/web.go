@@ -2,28 +2,36 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
+	"embed"
 	"flag"
 	"fmt"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/httputils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index"
 	cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/cmd/web/views"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero"
 	address2 "git.gammaspectra.live/P2Pool/p2pool-observer/monero/address"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/client"
+	"git.gammaspectra.live/P2Pool/p2pool-observer/monero/crypto"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	types2 "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
+	"github.com/andybalholm/brotli"
 	"github.com/goccy/go-json"
 	"github.com/gorilla/mux"
+	"github.com/klauspost/compress/zstd"
 	"github.com/valyala/quicktemplate"
 	"io"
 	"math"
+	"mime"
 	"net/http"
 	_ "net/http/pprof"
 	"net/netip"
 	"net/url"
 	"os"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -31,6 +39,112 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+//go:embed assets
+var assets embed.FS
+
+const (
+	compressionNone = iota
+	compressionGzip
+	compressionBrotli
+	compressionZstd
+)
+
+type compressedAsset struct {
+	Data            []byte
+	ContentEncoding httputils.ContentEncoding
+	ETag            string
+}
+
+var compressedAssets = make(map[string][]compressedAsset)
+
+func init() {
+	fmt.Printf("Compressing assets")
+	start := time.Now()
+	dirList, err := assets.ReadDir("assets")
+	if err != nil {
+		panic(err)
+	}
+	for _, e := range dirList {
+		filePath := "assets/" + e.Name()
+		file, err := assets.ReadFile(filePath)
+		if err != nil {
+			panic(err)
+		}
+		compressedAssets[filePath] = append(compressedAssets[filePath], compressedAsset{
+			Data:            file,
+			ContentEncoding: "",
+			ETag:            fmt.Sprintf("\"%s\"", crypto.Keccak256Single(file).String()),
+		})
+
+		{
+			buf := bytes.NewBuffer(nil)
+			gzipWriter, err := gzip.NewWriterLevel(buf, gzip.BestCompression)
+			if err != nil {
+				panic(err)
+			}
+			_, err = gzipWriter.Write(file)
+			if err != nil {
+				panic(err)
+			}
+			err = gzipWriter.Flush()
+			if err != nil {
+				panic(err)
+			}
+			gzipWriter.Close()
+			compressedAssets[filePath] = append(compressedAssets[filePath], compressedAsset{
+				Data:            buf.Bytes(),
+				ContentEncoding: httputils.ContentEncodingGzip,
+				ETag:            fmt.Sprintf("\"%s\"", crypto.Keccak256Single(buf.Bytes()).String()),
+			})
+		}
+
+		{
+			buf := bytes.NewBuffer(nil)
+			brotliWriter := brotli.NewWriterLevel(buf, brotli.BestCompression)
+
+			_, err = brotliWriter.Write(file)
+			if err != nil {
+				panic(err)
+			}
+			err = brotliWriter.Flush()
+			if err != nil {
+				panic(err)
+			}
+			brotliWriter.Close()
+			compressedAssets[filePath] = append(compressedAssets[filePath], compressedAsset{
+				Data:            buf.Bytes(),
+				ContentEncoding: httputils.ContentEncodingBrotli,
+				ETag:            fmt.Sprintf("\"%s\"", crypto.Keccak256Single(buf.Bytes()).String()),
+			})
+		}
+
+		{
+
+			zstdWriter, err := zstd.NewWriter(nil,
+				zstd.WithEncoderLevel(zstd.SpeedBestCompression),
+				//zstd.WithEncoderConcurrency(runtime.NumCPU()),
+				//zstd.WithEncoderCRC(false),
+				//zstd.WithWindowSize(zstd.MaxWindowSize),
+				//zstd.WithZeroFrames(true),
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			buf := zstdWriter.EncodeAll(file, nil)
+			zstdWriter.Close()
+			compressedAssets[filePath] = append(compressedAssets[filePath], compressedAsset{
+				Data:            buf,
+				ContentEncoding: httputils.ContentEncodingZstd,
+				ETag:            fmt.Sprintf("\"%s\"", crypto.Keccak256Single(buf).String()),
+			})
+		}
+
+	}
+
+	fmt.Printf(" DONE in %s\n", time.Now().Sub(start).String())
+}
 
 func toUint64(t any) uint64 {
 	if x, ok := t.(uint64); ok {
@@ -215,6 +329,7 @@ func main() {
 		TorServiceAddress: os.Getenv("TOR_SERVICE_ADDRESS"),
 		Consensus:         consensus,
 		Pool:              nil,
+		IsRefresh:         nil,
 	}
 
 	baseContext.Socials.Irc.Link = ircLink
@@ -257,6 +372,10 @@ func main() {
 			}
 		}()
 
+		if refreshProvider, ok := page.(views.RefreshProviderPage); ok {
+			ctx.IsRefresh = refreshProvider.IsRefresh
+		}
+
 		page.SetContext(&ctx)
 
 		bufferedWriter := quicktemplate.AcquireWriter(w)
@@ -265,6 +384,57 @@ func main() {
 	}
 
 	serveMux := mux.NewRouter()
+
+	serveMux.HandleFunc("/assets/{asset:.*}", func(writer http.ResponseWriter, request *http.Request) {
+		mimeType := mime.TypeByExtension(path.Ext(request.URL.Path))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+
+		assetPath := "assets/" + mux.Vars(request)["asset"]
+
+		pref := httputils.SelectEncodingServerPreference(request.Header.Get("Accept-Encoding"))
+
+		encodings := strings.Split(request.Header.Get("Accept-Encoding"), ",")
+		for i := range encodings {
+			e := strings.Split(encodings[i], ";")
+			encodings[i] = strings.TrimSpace(e[0])
+		}
+
+		if entries, ok := compressedAssets[assetPath]; ok {
+			var e compressedAsset
+
+			switch pref {
+			case httputils.ContentEncodingZstd:
+				e = entries[compressionZstd]
+			case httputils.ContentEncodingBrotli:
+				e = entries[compressionBrotli]
+			case httputils.ContentEncodingGzip:
+				e = entries[compressionGzip]
+			default:
+				e = entries[compressionNone]
+			}
+			writer.Header().Set("ETag", e.ETag)
+
+			if request.Header.Get("If-None-Match") == e.ETag {
+				writer.WriteHeader(http.StatusNotModified)
+				return
+			}
+
+			if e.ContentEncoding != "" {
+				writer.Header().Set("Content-Encoding", string(e.ContentEncoding))
+			}
+
+			writer.Header().Set("Content-Type", mimeType)
+			writer.Header().Set("Content-Length", strconv.FormatUint(uint64(len(e.Data)), 10))
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(e.Data)
+			return
+		} else {
+			writer.WriteHeader(http.StatusNotFound)
+			return
+		}
+	})
 
 	serveMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		params := request.URL.Query()
@@ -289,10 +459,6 @@ func main() {
 		tip := int64(poolInfo.SideChain.LastBlock.SideHeight)
 		for _, b := range blocks {
 			blocksFound.Add(int(tip-int64(b.SideHeight)), 1)
-		}
-
-		if len(blocks) > 20 {
-			blocks = blocks[:20]
 		}
 
 		renderPage(request, writer, &views.IndexPage{
@@ -327,7 +493,7 @@ func main() {
 
 		params := request.URL.Query()
 		if params.Has("hashrate") {
-			hashRate = toFloat64(params.Get("hashrate"))
+			hashRate = toFloat64(strings.ReplaceAll(params.Get("hashrate"), ",", "."))
 		}
 		if params.Has("magnitude") {
 			magnitude = toFloat64(params.Get("magnitude"))
@@ -335,7 +501,7 @@ func main() {
 
 		currentHashRate := magnitude * hashRate
 
-		var effortSteps = []float64{25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
+		var effortSteps = []float64{10, 25, 50, 75, 100, 150, 200, 300, 400, 500, 600, 700, 800, 900, 1000}
 		const shareSteps = 15
 
 		calculatePage := &views.CalculateShareTimePage{
@@ -899,7 +1065,7 @@ func main() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=50&miner=%d", miner.Id))
+				lastShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=60&miner=%d", miner.Id))
 
 				if len(lastShares) > 0 {
 					raw = getTypeFromAPI[sidechain.PoolBlock](fmt.Sprintf("block_by_id/%s/light", lastShares[0].MainId))
@@ -911,19 +1077,14 @@ func main() {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lastOrphanedShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=10&miner=%d&inclusion=%d", miner.Id, index.InclusionOrphan))
+				lastOrphanedShares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks?limit=12&miner=%d&inclusion=%d", miner.Id, index.InclusionOrphan))
 			}()
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=10&miner=%d", miner.Id))
+				lastFound = getSliceFromAPI[*index.FoundBlock](fmt.Sprintf("found_blocks?limit=12&miner=%d", miner.Id))
 			}()
-			sweeps = getStreamFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=5", miner.Id))
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				shares = getSideBlocksFromAPI(fmt.Sprintf("side_blocks_in_window/%d?from=%d&window=%d&noMiner&noMainStatus&noUncles", miner.Id, tipHeight, wsize))
-			}()
+			sweeps = getStreamFromAPI[*index.MainLikelySweepTransaction](fmt.Sprintf("sweeps/%d?limit=12", miner.Id))
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -982,10 +1143,6 @@ func main() {
 			}
 		}
 
-		if len(payouts) > 10 {
-			payouts = payouts[:10]
-		}
-
 		minerPage := &views.MinerPage{
 			Refresh: refresh,
 			Positions: struct {
@@ -1011,6 +1168,7 @@ func main() {
 			WindowWeight:       windowDiff.Lo,
 			Miner:              miner,
 			LastPoolBlock:      raw,
+			DayShares:          shares,
 			LastShares:         lastShares,
 			LastOrphanedShares: lastOrphanedShares,
 			LastFound:          lastFound,
@@ -1018,11 +1176,13 @@ func main() {
 			LastSweeps:         sweeps,
 		}
 
-		if windowDiff.Cmp64(0) > 0 {
+		if longDiff.Cmp64(0) > 0 {
 			longWindowWeight := poolInfo.SideChain.Window.Weight.Mul64(4).Mul64(poolInfo.SideChain.Consensus.ChainWindowSize).Div64(uint64(poolInfo.SideChain.Window.Blocks))
 			averageRewardPerBlock := longDiff.Mul64(poolInfo.MainChain.BaseReward).Div(longWindowWeight).Lo
 			minerPage.ExpectedRewardPerDay = longWindowWeight.Mul64(averageRewardPerBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
+		}
 
+		if windowDiff.Cmp64(0) > 0 {
 			expectedRewardNextBlock := windowDiff.Mul64(poolInfo.MainChain.BaseReward).Div(poolInfo.SideChain.Window.Weight).Lo
 			minerPage.ExpectedRewardPerWindow = poolInfo.SideChain.Window.Weight.Mul64(expectedRewardNextBlock).Div(poolInfo.MainChain.NextDifficulty).Lo
 		}
@@ -1059,6 +1219,22 @@ func main() {
 		minerPage.HashrateLocal = hashRate
 		minerPage.MagnitudeLocal = magnitude
 
+		dayEfforts := make([]float64, len(shares))
+		for i := len(shares) - 1; i >= 0; i-- {
+			s := shares[i]
+			if i == (len(shares) - 1) {
+				dayEfforts[i] = -1
+				continue
+			}
+			previous := shares[i+1]
+
+			timeDelta := uint64(max(int64(s.Timestamp)-int64(previous.Timestamp), 0))
+
+			expectedCumDiff := types.DifficultyFrom64(dailyHashRate).Mul64(timeDelta)
+
+			dayEfforts[i] = float64(expectedCumDiff.Mul64(100).Lo) / float64(s.Difficulty)
+		}
+
 		efforts := make([]float64, len(lastShares))
 		for i := len(lastShares) - 1; i >= 0; i-- {
 			s := lastShares[i]
@@ -1074,6 +1250,7 @@ func main() {
 
 			efforts[i] = float64(expectedCumDiff.Mul64(100).Lo) / float64(s.Difficulty)
 		}
+		minerPage.DaySharesEfforts = dayEfforts
 		minerPage.LastSharesEfforts = efforts
 
 		renderPage(request, writer, minerPage, poolInfo)

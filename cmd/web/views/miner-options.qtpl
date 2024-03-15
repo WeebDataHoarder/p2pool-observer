@@ -9,6 +9,10 @@ type MinerOptionsPage struct {
 	SignedAction *cmdutils.SignedAction
 	WebHooks []*index.MinerWebHook
 }
+
+func (p *MinerOptionsPage) Name() string {
+    return "miner-options"
+}
 %}
 
 {% func (p *MinerOptionsPage) Title() %}

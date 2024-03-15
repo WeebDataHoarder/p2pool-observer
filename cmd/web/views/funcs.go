@@ -13,6 +13,20 @@ import (
 	"time"
 )
 
+func slice_maxSize[T any](v []T, size int) []T {
+	if len(v) > size {
+		v = v[:size]
+	}
+	return v
+}
+
+func slice_modulo[T any](v []T, multiple int) []T {
+	if len(v) > multiple {
+		v = v[:len(v)-len(v)%multiple]
+	}
+	return v
+}
+
 func utc_date[T int64 | uint64 | int | float64](v T) string {
 	return time.Unix(int64(v), 0).UTC().Format("02-01-2006 15:04:05 MST")
 }
@@ -93,6 +107,50 @@ func time_duration_long[T int64 | uint64 | int | float64](v T) string {
 	}
 	if seconds > 0 {
 		result = append(result, strconv.FormatInt(seconds, 10)+"s")
+	}
+
+	if len(result) == 0 || (len(result) == 1 && seconds > 0) {
+		result = append(result, strconv.FormatInt(ms, 10)+"ms")
+	}
+
+	return strings.Join(result, " ")
+}
+
+func time_duration_long_pad[T int64 | uint64 | int | float64](v T) string {
+	diff := time.Second * time.Duration(v)
+	diff += time.Microsecond * time.Duration((float64(v)-float64(int64(v)))*1000000)
+	days := int64(diff.Hours() / 24)
+	hours := int64(diff.Hours()) % 24
+	minutes := int64(diff.Minutes()) % 60
+	seconds := int64(diff.Seconds()) % 60
+	ms := int64(diff.Milliseconds()) % 1000
+
+	var result []string
+	if days > 0 {
+		result = append(result, strconv.FormatInt(days, 10)+"d")
+	}
+	if diff.Hours() >= 1 {
+		if hours < 10 {
+			result = append(result, "0"+strconv.FormatInt(hours, 10)+"h")
+		} else {
+			result = append(result, strconv.FormatInt(hours, 10)+"h")
+		}
+	}
+
+	if diff.Minutes() >= 1 {
+		if minutes < 10 {
+			result = append(result, "0"+strconv.FormatInt(minutes, 10)+"m")
+		} else {
+			result = append(result, strconv.FormatInt(minutes, 10)+"m")
+		}
+	}
+
+	if diff.Seconds() >= 1 {
+		if seconds < 10 {
+			result = append(result, "0"+strconv.FormatInt(seconds, 10)+"s")
+		} else {
+			result = append(result, strconv.FormatInt(seconds, 10)+"s")
+		}
 	}
 
 	if len(result) == 0 || (len(result) == 1 && seconds > 0) {

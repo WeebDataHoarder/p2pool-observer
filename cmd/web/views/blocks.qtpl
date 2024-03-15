@@ -9,6 +9,15 @@ type BlocksPage struct {
 	FoundBlocks []*index.FoundBlock
 	Miner *address.Address
 }
+
+func (p *BlocksPage) IsRefresh() (ok, isRefresh bool, interval int, uriRefresh, uriStatic string) {
+    return p.Miner == nil, p.Refresh > 0, p.Refresh, "/blocks?refresh", "/blocks"
+}
+
+
+func (p *BlocksPage) Name() string {
+    return "blocks"
+}
 %}
 
 {% func (p *BlocksPage) Title() %}
@@ -20,16 +29,6 @@ type BlocksPage struct {
 {% endfunc %}
 
 {% func (p *BlocksPage) Content() %}
-{% if p.Miner == nil %}
-    <div style="text-align: center; font-weight: bold;">
-    {% if p.Refresh > 0 %}
-    <a href="/blocks">Autorefresh is ON ({%d p.Refresh %} s)</a>
-    {% else %}
-    <a href="/blocks?refresh">Autorefresh is OFF</a>
-    {% endif %}
-    </div>
-{%endif %}
-
 <div style="text-align: center">
     {% if p.Miner == nil %}
     <h2>Recent Found Monero blocks</h2>

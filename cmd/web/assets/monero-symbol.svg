@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   version="1.1"
+   width="6000"
+   height="6000"
+   viewBox="0 0 6000 6000"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs6">
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath16">
+      <path
+         d="M 0,4500 H 4500 V 0 H 0 Z"
+         id="path14" />
+    </clipPath>
+  </defs>
+  <g
+     id="g8"
+     transform="matrix(1.3333333,0,0,-1.3333333,0,6000)">
+    <g
+       id="g10">
+      <g
+         id="g12"
+         clip-path="url(#clipPath16)">
+        <g
+           id="g18"
+           transform="translate(4128.0488,2250.1904)">
+          <path
+             d="m 0,0 c 0,-1037.173 -840.791,-1878.052 -1878.064,-1878.052 -1037.22,0 -1878.025,840.879 -1878.025,1878.052 0,1037.269 840.805,1878.056 1878.025,1878.056 C -840.791,1878.056 0,1037.269 0,0"
+             style="fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none"
+             id="path20" />
+        </g>
+        <g
+           id="g22"
+           transform="translate(2249.9844,4128.2461)">
+          <path
+             d="m 0,0 c -1036.895,0 -1879.119,-842.056 -1877.805,-1878.01 0.262,-207.264 33.308,-406.633 95.342,-593.116 h 561.884 V -891.229 L -0.023,-2111.813 1220.537,-891.229 v -1579.897 h 561.957 c 62.117,186.483 95.008,385.852 95.369,593.116 C 1879.672,-841.002 1036.976,-0.247 -0.023,-0.247 Z"
+             style="fill:#f26821;fill-opacity:1;fill-rule:nonzero;stroke:none"
+             id="path24" />
+        </g>
+        <g
+           id="g26"
+           transform="translate(1969.3037,1735.8262)">
+          <path
+             d="m 0,0 -532.671,532.703 v -994.141 h -203.637 -203.618 l -384.29,-0.07 c 329.634,-540.801 925.347,-902.564 1604.91,-902.564 679.54,0 1275.308,361.846 1604.969,902.647 l -384.445,-0.013 h -364.246 -43.028 V 532.703 L 561.246,0 280.639,-280.607 0.022,0 Z"
+             style="fill:#4d4d4d;fill-opacity:1;fill-rule:nonzero;stroke:none"
+             id="path28" />
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

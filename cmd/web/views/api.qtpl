@@ -7,6 +7,10 @@ type ApiPage struct {
 
 	PoolInfoExample cmdutils.PoolInfoResult
 }
+
+func (p *ApiPage) Name() string {
+    return "api"
+}
 %}
 
 {% func (p *ApiPage) Style() %}

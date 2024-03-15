@@ -1,11 +1,13 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
 {% func TemplateSweeps(ctx *GlobalRequestContext, sweeps <-chan *index.MainLikelySweepTransaction, isMiner bool) %}
+<div class="table-responsive">
 {% if isMiner %}
-<table class="center datatable" style="max-width: calc(12em + 10em + 10em + 8em + 10em + 10em + 10em + 12em)">
+<table class="table table-striped table-hover table-borderless table-sm datatable" style="max-width: calc(12em + 10em + 10em + 8em + 10em + 10em + 10em + 12em)">
 {% else %}
-<table class="center datatable" style="max-width: calc(12em + 10em + 12em + 8em + 10em + 10em + 10em + 10em + 12em)">
+<table class="table table-striped table-hover table-borderless table-sm datatable" style="max-width: calc(12em + 10em + 12em + 8em + 10em + 10em + 10em + 10em + 12em)">
 {% endif %}
+    <thead>
     <tr>
         <th style="width: 12em;">Transaction Id</th>
         <th style="width: 8em;">Age <small>[h:m:s]</small></th>
@@ -19,6 +21,8 @@
         <th style="width: 10em;" title="The number and ratio of decoy inputs not owned by miners on this sweep">Unknown Decoys</th>
         <th style="width: 10em;" title="The value known from Coinbase sources">Swept Coinbase Value</th>
     </tr>
+    </thead>
+    <tbody>
     {% for s := range sweeps %}
     <tr>
         <td class="mono small"><a href="/transaction-lookup?txid={%= hex(ctx, s.Id) %}">{%= shorten(ctx, s.Id, 10) %}</a></td>
@@ -41,5 +45,7 @@
         {% endif %}
     </tr>
     {% endfor %}
+    </tbody>
 </table>
+</div>
 {% endfunc %}

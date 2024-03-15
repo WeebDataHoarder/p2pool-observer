@@ -1,10 +1,10 @@
-body {
-    margin: 0;
-    padding: 0;
-    color: #d1d1d1;
-    background-color: #4c4c4c;
 
-    font-family: Helvetica, Arial, sans-serif;
+html {
+    scroll-padding-top: calc(41px + 31px + 2rem);
+}
+
+*:target {
+    outline: none;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -15,13 +15,8 @@ ul{
     list-style-position: inside;
 }
 
-.datatable tr, li, code.mono {
-    font-size: 12px;
-}
-
-.content {
-    margin-top: 15px;
-    margin-bottom: 30px;
+.datatable tr, code.mono {
+    white-space: nowrap;
 }
 
 .center {
@@ -34,6 +29,19 @@ ul{
     background: rgba(0%, 75.3%, 0%, 0.5);
 }
 
+.position-chart{
+    font-family: "Lucida Console", Monaco, monospace;
+    white-space: nowrap;
+    line-break: strict;
+    /* dynamic font size */
+    font-size: 12px;
+    /*font-size: min(0.8vw, 14px);*/
+}
+
+.found-by a {
+    font-weight: bold;
+}
+
 .mono {
     font-family: "Lucida Console", Monaco, monospace;
     white-space: nowrap;
@@ -41,13 +49,12 @@ ul{
 }
 
 a, a:hover, a:visited, a:link, a:active {
-    text-decoration: underline dotted #333;
+    text-decoration: underline dotted #777;
     color: inherit;
 }
 
-form {
-    display: inline-block;
-    text-align: center;
+.navbar a, a.btn, .card-header a {
+    text-decoration: none;
 }
 
 h1 {
@@ -73,4 +80,118 @@ code.small {
 
 code.smaller {
     font-size: 8px;
+}
+
+nav.navbar {
+    padding: 0.1rem 0 0.1rem 0;
+    white-space: nowrap;
+}
+
+/* Make menu collapse work without JavaScript */
+.navbar .navbar-toggler:focus~.navbar-collapse {
+    display: block;
+}
+.navbar .navbar-collapse:focus-within {
+    display: block;
+}
+.navbar .navbar-collapse:hover {
+    display: block;
+}
+
+/* Make dropdowns work without JavaScript */
+.dropdown>.dropdown-toggle:focus~.dropdown-menu {
+    display: block;
+}
+.dropdown>.dropdown-menu:focus-within {
+    display: block;
+}
+.dropdown>.dropdown-menu:hover {
+    display: block;
+}
+
+/* Position graph */
+.position-graph {
+    display: block;
+    white-space: nowrap;
+    line-break: strict;
+    position: relative;
+    background: #555;
+    margin-bottom: 1rem;
+}
+.position-graph .position-graph-divider {
+    padding: unset;
+    margin: unset;
+    position: absolute;
+}
+
+.position-graph .position-graph-divider.position-graph-divider-x {
+    height: 100%;
+    border-left: #ccc 1px dashed;
+}
+
+.position-graph .position-graph-divider.position-graph-divider-y {
+    width: 100%;
+    border-top: #ccc 1px solid;
+}
+
+.position-graph .position-graph-divider.position-graph-divider-x .position-graph-divider-label {
+    position: absolute;
+    top: 0;
+    font-size: 60%;
+}
+
+.position-graph .position-graph-divider.position-graph-divider-y .position-graph-divider-label {
+    margin-top: -0.25em;
+    float: left !important;
+    font-size: 60%;
+}
+
+.position-graph .position-data .p {
+    position: absolute;
+}
+.position-graph .position-data .p {
+    position: absolute;
+    border: #333 1px solid;
+    height: 10px;
+    width: 10px;
+    border-radius: 50%;
+    background-color: #fff;
+    cursor: pointer;
+    display: block;
+}
+
+[data-tooltip] {
+    &:hover {
+        &:before, &:after {
+            display:block;
+            position:absolute;
+            font-size:0.8em;
+            color:white;
+        }
+        &:before {
+            border-radius:0.2em;
+            content:attr(title);
+            background-color:rgba(0,0,0,0.9);
+            margin-top:-2.5em;
+            padding:0.3em;
+        }
+        &:after {
+            content:'';
+            margin-top:-2.1em;
+            margin-left:1em;
+            border-style:solid;
+            border-color:transparent;
+            border-top-color:rgba(0,0,0,0.9);
+            border-width:0.5em 0.5em 0 0.5em;
+        }
+    }
+}
+
+
+/* Missing bootstrap stuff */
+@media (min-width: 1400px) {
+    .row-cols-xxl-8 > * {
+        flex: 0 0 auto;
+        width: 12.5%;
+    }
 }

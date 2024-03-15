@@ -25,6 +25,7 @@ type GlobalRequestContext struct {
 		}
 	}
 	HexBuffer [types.HashSize * 2]byte
+	IsRefresh func() (ok, isRefresh bool, interval int, uriRefresh, uriStatic string)
 }
 
 func (ctx *GlobalRequestContext) GetUrl(host string) string {
