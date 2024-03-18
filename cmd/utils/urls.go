@@ -58,12 +58,11 @@ var existingUrl = map[siteKey]urlEntry{
 		Onion: "http://gitshn5x75sgs53q3pxwjva2z65ns5vadx3h7u3hrdssbxsova66cxid.onion",
 	},
 	SiteKeyXmrChainNet: {
-		Host:  "https://xmrchain.net",
-		Onion: "http://gitshn5x75sgs53q3pxwjva2z65ns5vadx3h7u3hrdssbxsova66cxid.onion",
+		Host: "https://xmrchain.net",
 	},
 	SiteKeySethForPrivacy: {
-		Host: "https://sethforprivacy.com",
-		//Expired Onion: "http://sfprivg7qec6tdle7u6hdepzjibin6fn3ivm6qlwytr235rh5vc6bfqd.onion",
+		Host:  "https://sethforprivacy.com",
+		Onion: "http://sfprivg7qec6tdle7u6hdepzjibin6fn3ivm6qlwytr235rh5vc6bfqd.onion",
 	},
 	SiteKeyXmrVsBeast: {
 		Host: "https://xmrvsbeast.com",

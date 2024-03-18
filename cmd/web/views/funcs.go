@@ -74,7 +74,7 @@ func date_diff_short[T int64 | uint64 | int | float64](v T) string {
 
 func time_duration_long[T int64 | uint64 | int | float64](v T) string {
 	diff := time.Second * time.Duration(v)
-	diff += time.Microsecond * time.Duration((float64(uint64(v))-float64(v))*1000000)
+	diff += time.Microsecond * time.Duration((float64(v)-float64(int64(v)))*1000000)
 	days := int64(diff.Hours() / 24)
 	hours := int64(diff.Hours()) % 24
 	minutes := int64(diff.Minutes()) % 60
@@ -144,7 +144,7 @@ func found_block_effort(b, previous *index.FoundBlock) float64 {
 var effortColorGradient = colorgrad.RdYlBu()
 
 const effortRangeStart = 0.15
-const effortRangeEnd = 0.8
+const effortRangeEnd = 0.85
 
 func effort_color(effort float64) string {
 	probability := utils.ProbabilityEffort(effort)
