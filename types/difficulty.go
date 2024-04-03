@@ -190,6 +190,10 @@ func (d Difficulty) Big() *big.Int {
 	return uint128.Uint128(d).Big()
 }
 
+func (d Difficulty) Float64() float64 {
+	return float64(d.Lo) + float64(d.Hi)*math.MaxUint64
+}
+
 func (d Difficulty) MarshalJSON() ([]byte, error) {
 	if d.Hi == 0 {
 		return []byte(strconv.FormatUint(d.Lo, 10)), nil

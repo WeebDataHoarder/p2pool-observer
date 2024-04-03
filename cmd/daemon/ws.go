@@ -135,29 +135,7 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 	}()
 
 	//remember last few template for events
-	sideBlockBuffer := NewSortedBuf[*index.SideBlock](int(p2api.Consensus().ChainWindowSize*2), func(a, b *index.SideBlock) int {
-		if a == b {
-			return 0
-		}
-		if a == nil {
-			return -1
-		} else if b == nil {
-			return 1
-		}
-
-		if a.EffectiveHeight < b.EffectiveHeight {
-			return -1
-		} else if a.EffectiveHeight > b.EffectiveHeight {
-			return 1
-		}
-		if a.SideHeight < b.SideHeight {
-			return -1
-		} else if a.SideHeight > b.SideHeight {
-			return 1
-		}
-		//same height, sort by main id
-		return a.MainId.Compare(b.MainId)
-	})
+	sideBlockBuffer := NewSortedBuf[*index.SideBlock](int(p2api.Consensus().ChainWindowSize*2), index.SortSideBlock)
 
 	//remember last few found main for events
 	foundBlockBuffer := NewSortedBuf[*index.FoundBlock](10, func(a, b *index.FoundBlock) int {
@@ -420,18 +398,8 @@ func setupEventHandler(p2api *api.P2PoolApi, indexDb *index.Index) {
 				} else if a.MainHeight > b.MainHeight {
 					return 1
 				}
-				if a.EffectiveHeight < b.EffectiveHeight {
-					return -1
-				} else if a.EffectiveHeight > b.EffectiveHeight {
-					return 1
-				}
-				if a.SideHeight < b.SideHeight {
-					return -1
-				} else if a.SideHeight > b.SideHeight {
-					return 1
-				}
-				//same height, sort by main id
-				return a.MainId.Compare(b.MainId)
+
+				return index.SortSideBlock(a, b)
 			})
 
 			func() {

@@ -9,6 +9,7 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/sidechain"
 	p2pooltypes "git.gammaspectra.live/P2Pool/p2pool-observer/p2pool/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
+	"slices"
 	"unsafe"
 )
 
@@ -190,4 +191,51 @@ func (b *SideBlock) Weight(tipHeight, windowSize, consensusUnclePenalty uint64) 
 		}
 		return weight, 0
 	}
+}
+
+func HashRatioSideBlocks(shares []*SideBlock, latest *SideBlock, consensusUnclePenalty uint64) (hashrate uint64, ratio float64, weight, total types.Difficulty) {
+	if len(shares) == 0 || latest == nil {
+		return 0, 0, types.ZeroDifficulty, types.ZeroDifficulty
+	}
+
+	shares = slices.Clone(shares)
+	slices.SortFunc(shares, SortSideBlock)
+
+	var totalWeight types.Difficulty
+	for _, s := range shares {
+		w, _ := s.Weight(s.SideHeight, uint64(s.WindowDepth), consensusUnclePenalty)
+		totalWeight = totalWeight.Add64(w)
+	}
+
+	cumWeight := latest.CumulativeDifficulty.Sub(shares[0].CumulativeDifficulty)
+
+	return totalWeight.Div64(latest.Timestamp - shares[0].Timestamp).Lo,
+		totalWeight.Float64() / cumWeight.Float64(),
+		totalWeight,
+		cumWeight
+}
+
+func SortSideBlock(a, b *SideBlock) int {
+	if a == b {
+		return 0
+	}
+
+	if a == nil {
+		return -1
+	} else if b == nil {
+		return 1
+	}
+
+	if a.EffectiveHeight < b.EffectiveHeight {
+		return -1
+	} else if a.EffectiveHeight > b.EffectiveHeight {
+		return 1
+	}
+	if a.SideHeight < b.SideHeight {
+		return -1
+	} else if a.SideHeight > b.SideHeight {
+		return 1
+	}
+	//same height, sort by main id
+	return a.MainId.Compare(b.MainId)
 }
