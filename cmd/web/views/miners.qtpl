@@ -12,6 +12,19 @@ type MinersPage struct {
 	Miners []*MinersPageMinerEntry
 	WindowWeight types.Difficulty
 }
+
+func (p *MinersPage) Name() string {
+    return "miners"
+}
+
+func (p *MinersPage) IsRefresh() (ok, isRefresh bool, interval int, uriRefresh, uriStatic string) {
+    if p.Weekly {
+        return true, p.Refresh > 0, p.Refresh, "/miners?week&refresh", "/miners?week"
+    } else {
+        return true, p.Refresh > 0, p.Refresh, "/miners?refresh", "/miners"
+    }
+}
+
 %}
 
 {% code
@@ -35,24 +48,6 @@ type MinersPageMinerEntry struct {
 {% endfunc %}
 
 {% func (p *MinersPage) Content() %}
-{% if p.Weekly %}
-    <div style="text-align: center; font-weight: bold;">
-    {% if p.Refresh > 0 %}
-    <a href="/miners?week">Autorefresh is ON ({%d p.Refresh %} s)</a>
-    {% else %}
-    <a href="/blocks?week&refresh">Autorefresh is OFF</a>
-    {% endif %}
-    </div>
-{% else %}
-    <div style="text-align: center; font-weight: bold;">
-    {% if p.Refresh > 0 %}
-    <a href="/miners">Autorefresh is ON ({%d p.Refresh %} s)</a>
-    {% else %}
-    <a href="/blocks?refresh">Autorefresh is OFF</a>
-    {% endif %}
-    </div>
-{% endif %}
-
 
 <div style="text-align: center">
 

@@ -7,135 +7,249 @@
 {% endfunc %}
 
 {% func TemplatePoolBlockWithSideBlock(ctx *GlobalRequestContext, poolBlock *sidechain.PoolBlock, header string, navigation bool, sideBlock *index.SideBlock, payouts <-chan *index.Payout, coinbaseOutputs index.MainCoinbaseOutputs, sweepsCount int, sweeps [][]*index.MainLikelySweepTransaction) %}
-<div class="center" style="text-align: center">
-    {% if sideBlock != nil %}
-    {% if sideBlock.MinedMainAtHeight %}
-    <h1 style="color:#00C000">This share mined Monero block at height {%dul sideBlock.MainHeight %}</h1>
-    {% elseif (sideBlock.MainDifficulty > 0) && (sideBlock.PowDifficulty >= sideBlock.MainDifficulty) && !sideBlock.MinedMainAtHeight %}
-    <h1 style="color:#E0E000">This share mined Monero block at height {%dul sideBlock.MainHeight %}, but was orphaned</h1>
-    {% endif %}
-    {% if sideBlock.IsOrphan() %}
-    <h1 style="color:#E0E000">This share has been orphaned</h1>
-    {% endif %}
-    <br/>
-    {% endif %}
-    
-    <table class="center" style="max-width: calc(8em + 28em + 8em + 28em)">
-        {% if navigation && sideBlock != nil %}
-        <tr>
-            {% if sideBlock.SideHeight == 0 %}
-            <td colspan="2">Genesis Block</td>
-            {% elseif sideBlock.IsUncle() %}
-            <td colspan="2"><a href="/share/{%= hex(ctx, sideBlock.UncleOf) %}">&lt;&lt; Parent share</a></td>
-            {% else %}
-            <td colspan="2"><a href="/share/{%= hex(ctx, sideBlock.ParentTemplateId) %}">&lt;&lt; Previous share</a></td>
-            {% endif %}
-            {% if sideBlock.IsOrphan() %}
-            <td colspan="2">Orphans do not have next blocks</td>
-            {% elseif sideBlock.IsUncle() %}
-            <td colspan="2">Uncles do not have next blocks</td>
-            {% else %}
-            <td colspan="2"><a href="/share/{%dul sideBlock.SideHeight + 1 %}">Next share &gt;&gt;</a></td>
-            {% endif %}
-        </tr>
-        {% endif %}
-        <tr><td colspan="4"><h2>{%s header %}</h2></td></tr>
-        <tr>
-            <th style="width: 8em">P2Pool Height</th>
-            <th style="width: 28em">P2Pool Template Id</th>
-            <th style="width: 8em">Monero Height</th>
-            <th style="width: 28em">Monero Id</th>
-        </tr>
-        <tr>
-            <td>{%dul poolBlock.Side.Height %}</td>
-            {% if sideBlock != nil %}
-            <td class="mono smaller">{%= hex(ctx, sideBlock.TemplateId) %}</td>
-            {% else %}
-            <td class="mono smaller">{%= hex(ctx, poolBlock.SideTemplateId(ctx.Consensus)) %}</td>
-            {% endif %}
 
+    {% if sideBlock != nil %}
+        {% if sideBlock.MinedMainAtHeight %}
+        <div class="alert alert-success">
+            <h4>This share mined Monero block at height {%dul sideBlock.MainHeight %}</h4>
+        </div>
+        {% elseif (sideBlock.MainDifficulty > 0) && (sideBlock.PowDifficulty >= sideBlock.MainDifficulty) && !sideBlock.MinedMainAtHeight %}
+        <div class="alert alert-warning">
+            <h4>This share mined Monero block at height {%dul sideBlock.MainHeight %}, but was orphaned</h4>
+        </div>
+        {% endif %}
+        {% if sideBlock.IsOrphan() %}
+        <div class="alert alert-danger">
+            <h4>This share has been orphaned</h4>
+        </div>
+        {% endif %}
+    {% endif %}
+
+<div class="container-fluid h-100 mb-3 p-2 bg-body-tertiary border rounded-2 text-center">
+    {% if navigation && sideBlock != nil %}
+        <div class="row">
+            <div class="col col-12">
+                <div class="float-start">
+                    {% if sideBlock.SideHeight == 0 %}
+                    Genesis Block
+                    {% elseif sideBlock.IsUncle() %}
+                    <a href="/share/{%= hex(ctx, sideBlock.UncleOf) %}">&lt;&lt; Parent share</a>
+                    {% else %}
+                    <a href="/share/{%= hex(ctx, sideBlock.ParentTemplateId) %}">&lt;&lt; Previous share</a>
+                    {% endif %}
+                </div>
+                <div class="float-end">
+                    {% if sideBlock.IsOrphan() %}
+                    Orphans do not have next blocks
+                    {% elseif sideBlock.IsUncle() %}
+                    Uncles do not have next blocks
+                    {% else %}
+                    <a href="/share/{%dul sideBlock.SideHeight + 1 %}">Next share &gt;&gt;</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="row">
+        <div class="col">
+            <h2>{%s header %}</h2>
+        </div>
+    </div>
+
+    <div class="row row-cols-2 row-cols-xxl-4 small">
+        <div class="col pb-2">
+            <strong>P2Pool Height</strong>
+            <br/>
+            {%dul poolBlock.Side.Height %}
+        </div>
+        <div class="col pb-2 text-truncate">
+            <strong>P2Pool Template Id</strong>
+            <br/>
+            {% if sideBlock != nil %}
+            <span class="mono smaller user-select-all">{%= hex(ctx, sideBlock.TemplateId) %}</span>
+            {% else %}
+            <span class="mono smaller user-select-all">{%= hex(ctx, poolBlock.SideTemplateId(ctx.Consensus)) %}</span>
+            {% endif %}
+        </div>
+        <div class="col pb-2">
+            <strong>Monero Height</strong>
+            <br/>
             {% if sideBlock != nil %}
                 {% if sideBlock.MinedMainAtHeight %}
-                <td><a href="/b/{%s benc(sideBlock.MainHeight) %}">{%dul sideBlock.MainHeight %}</a></td>
-                <td class="mono smaller"><a href="/b/{%s benc(sideBlock.MainHeight) %}">{%= hex(ctx, sideBlock.MainId) %}</a></td>
+                <a href="/b/{%s benc(sideBlock.MainHeight) %}">{%dul sideBlock.MainHeight %}</a>
                 {% else %}
-                <td>{%dul sideBlock.MainHeight %}</td>
-                <td class="mono smaller">{%= hex(ctx, sideBlock.MainId) %}</td>
+                {%dul sideBlock.MainHeight %}
                 {% endif %}
             {% else %}
-            <td>{%dul poolBlock.Main.Coinbase.GenHeight %}</td>
-            <td class="mono smaller">{%= hex(ctx, poolBlock.MainId()) %}</td>
+                {%dul poolBlock.Main.Coinbase.GenHeight %}
             {% endif %}
-        </tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
-        <tr>
-            <th>Age <small>[h:m:s]</small></th>
-            <th>PoW Hash</th>
-            <th>Found by</th>
-            <th>Difficulty</th>
-        </tr>
-        <tr>
-            <td title="{%s utc_date(poolBlock.Main.Timestamp) %}">{%s date_diff_short(poolBlock.Main.Timestamp) %}</td>
+        </div>
+        <div class="col pb-2 text-truncate">
+            <strong>Monero Id</strong>
+            <br/>
             {% if sideBlock != nil %}
-            <td class="mono smaller">{%= hex(ctx, sideBlock.PowHash) %}</td>
-            {%= TemplateRowMiner(ctx, sideBlock.MinerAddress, sideBlock.MinerAlias) %}
-            <td><span class="mono">{%dul sideBlock.Difficulty %}</span> / <span class="mono" title="Proof of Work Difficulty">{%dul sideBlock.PowDifficulty %}</span></td>
+                {% if sideBlock.MinedMainAtHeight %}
+                <a href="/b/{%s benc(sideBlock.MainHeight) %}" class="mono smaller">{%= hex(ctx, sideBlock.MainId) %}</a>
+                {% else %}
+                <span class="mono smaller user-select-all">{%= hex(ctx, sideBlock.MainId) %}</span>
+                {% endif %}
             {% else %}
-            <td class="mono smaller">-</td>
-            {%= TemplateRowMiner(ctx, poolBlock.GetAddress().Reference().ToAddress(ctx.Consensus.NetworkType.AddressNetwork()), "") %}
-            <td><span class="mono">{%dul poolBlock.Side.Difficulty.Lo %}</span></td>
+                <span class="mono smaller user-select-all">{%= hex(ctx, poolBlock.MainId()) %}</span>
             {% endif %}
-        </tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
-        <tr>
-            <th>Valuation</th>
-            <th>Coinbase Id</th>
-            <th>Coinbase Reward</th>
-            <th>Coinbase Private Key</th>
-        </tr>
-        <tr>
-            {% if sideBlock != nil %}
-            <td>{%= side_block_valuation(sideBlock, ctx.Consensus) %}</td>
-            {% else %}
-            <td>{%= side_block_valuation(poolBlock, ctx.Consensus) %}</td>
-            {% endif %}
-            {% if sideBlock != nil && sideBlock.MinedMainAtHeight %}
-            <td class="mono smaller"><a href="/t/{%= henc(poolBlock.CoinbaseId()) %}">{%= hex(ctx, poolBlock.CoinbaseId()) %}</a></td>
-            {% else %}
-            <td class="mono smaller">{%= hex(ctx, poolBlock.CoinbaseId()) %}</td>
-            {% endif %}
-            <td class="small">{%s monero_to_xmr(poolBlock.Main.Coinbase.TotalReward) %} XMR</td>
-            <td class="mono smaller">{%= hex(ctx, poolBlock.Side.CoinbasePrivateKey) %}</td>
-        </tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
-        <tr>
-            <th>Nonce</th>
-            <th>Cumulative Difficulty</th>
-            <th>Extra Nonce</th>
-            <th>Monero Target Difficulty</th>
-        </tr>
-        <tr>
-            <td class="mono" title="{%= hex(ctx, poolBlock.Main.Nonce) %}">{%dul uint64(poolBlock.Main.Nonce) %}</td>
-            <td class="mono smaller">{%= hex(ctx, poolBlock.Side.CumulativeDifficulty) %}</td>
-            <td class="mono" title="{%= hex(ctx, poolBlock.ExtraNonce()) %}">{%dul uint64(poolBlock.ExtraNonce()) %}</td>
-            <td class="mono">{% if sideBlock != nil && sideBlock.MainDifficulty != 0 %}{%dul sideBlock.MainDifficulty %}{% endif %}</td>
-        </tr>
-        <tr><td colspan="4">&nbsp;</td></tr>
-        <tr>
-            <th>Software</th>
-            <th>Version Signaling</th>
-            <th>{% if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 %}Template Extra Buffer{% endif %}</th>
-            <th title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">Deterministic Private Key Seed</th>
-        </tr>
-        <tr>
-            <td>{%= software_info(poolBlock.Side.ExtraBuffer.SoftwareId, poolBlock.Side.ExtraBuffer.SoftwareVersion) %}</td>
-            <td>{%s= poolBlock.ShareVersion().String() %} <span class="small">({% if poolBlock.ShareVersionSignaling() != sidechain.ShareVersion_None %}signaling {%s= poolBlock.ShareVersionSignaling().String() %} support{% else %}no known signaling{% endif %})</span></td>
-            <td class="small">{% if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 %}<span class="mono" title="Random Number">{%= hex(ctx, poolBlock.Side.ExtraBuffer.RandomNumber) %}</span> / <span class="mono" title="SideChain Extra Nonce">{%= hex(ctx, poolBlock.Side.ExtraBuffer.SideChainExtraNonce) %}{% endif %}</span></td>
-            <td>{% if poolBlock.GetPrivateKeySeed() != types.ZeroHash %}<span class="mono smaller">{%= hex(ctx, poolBlock.GetPrivateKeySeed()) %}</span>{% else %}Not Deterministic{% endif %}</td>
-        </tr>
+        </div>
 
-    </table>
+
+        <div class="col pb-2" title="{%s utc_date(poolBlock.Main.Timestamp) %}">
+            <strong>Age <small>[h:m:s]</small></strong>
+            <br/>
+            {%s date_diff_short(poolBlock.Main.Timestamp) %}
+        </div>
+        <div class="col pb-2 text-truncate">
+            <strong>PoW Hash</strong>
+            <br/>
+            {% if sideBlock != nil %}
+            <span class="mono smaller user-select-all">{%= hex(ctx, sideBlock.PowHash) %}</span>
+            {% else %}
+            <span class="mono smaller user-select-all">-</span>
+            {% endif %}
+        </div>
+        {% if sideBlock != nil %}
+        {%= TemplateGridMinerWithClass(ctx, sideBlock.MinerAddress, sideBlock.MinerAlias, "col pb-2", 10, "<strong>Found by</strong><br/>") %}
+        {% else %}
+        {%= TemplateGridMinerWithClass(ctx, poolBlock.GetAddress().Reference().ToAddress(ctx.Consensus.NetworkType.AddressNetwork()), "", "col pb-2", 10, "<strong>Found by</strong><br/>") %}
+        {% endif %}
+        <div class="col pb-2">
+            <strong>Difficulty</strong>
+            <br/>
+            {% if sideBlock != nil %}
+            <span class="mono">{%dul sideBlock.Difficulty %}</span> / <span class="mono" title="Proof of Work Difficulty">{%dul sideBlock.PowDifficulty %}</span>
+            {% else %}
+            <span class="mono">{%dul poolBlock.Side.Difficulty.Lo %}</span>
+            {% endif %}
+        </div>
+
+
+        <div class="col pb-2">
+            <strong>Valuation</strong>
+            <br/>
+            {% if sideBlock != nil %}
+            {%= side_block_valuation(sideBlock, ctx.Consensus) %}
+            {% else %}
+            {%= side_block_valuation(poolBlock, ctx.Consensus) %}
+            {% endif %}
+        </div>
+        <div class="col pb-2 text-truncate">
+            <strong>Coinbase Id</strong>
+            <br/>
+            {% if sideBlock != nil && sideBlock.MinedMainAtHeight %}
+            <span class="mono smaller user-select-all"><a href="/t/{%= henc(poolBlock.CoinbaseId()) %}">{%= hex(ctx, poolBlock.CoinbaseId()) %}</a></span>
+            {% else %}
+            <span class="mono smaller user-select-all">{%= hex(ctx, poolBlock.CoinbaseId()) %}</span>
+            {% endif %}
+        </div>
+        <div class="col pb-2">
+            <strong>Coinbase Reward</strong>
+            <br/>
+            {%s monero_to_xmr(poolBlock.Main.Coinbase.TotalReward) %} XMR
+        </div>
+        <div class="col pb-2 text-truncate">
+            <strong>Coinbase Private Key</strong>
+            <br/>
+            <span class="mono smaller user-select-all">{%= hex(ctx, poolBlock.Side.CoinbasePrivateKey) %}</span>
+        </div>
+
+
+        <div class="col pb-2">
+            <strong>Nonce</strong>
+            <br/>
+            <span class="mono" title="{%= hex(ctx, poolBlock.Main.Nonce) %}">{%dul uint64(poolBlock.Main.Nonce) %}</span>
+        </div>
+        <div class="col pb-2">
+            <strong>Cumulative Difficulty</strong>
+            <br/>
+            <span class="mono smaller">{%= hex(ctx, poolBlock.Side.CumulativeDifficulty) %}</span>
+        </div>
+        <div class="col pb-2">
+            <strong>Extra Nonce</strong>
+            <br/>
+            <span class="mono" title="{%= hex(ctx, poolBlock.ExtraNonce()) %}">{%dul uint64(poolBlock.ExtraNonce()) %}</span>
+        </div>
+        <div class="col pb-2">
+            <strong>
+                <img src="/assets/monero-symbol.svg" alt="Monero" width="19" height="19" class="d-inline-block align-text-top"/>
+                <span class="d-inline-block align-text-top">Target Difficulty</span>
+            </strong>
+            <br/>
+            <span class="mono">{% if sideBlock != nil && sideBlock.MainDifficulty != 0 %}{%dul sideBlock.MainDifficulty %}{% endif %}</span>
+        </div>
+
+
+        <div class="col pb-2">
+            <strong>Software</strong>
+            <br/>
+            {%= software_info(poolBlock.Side.ExtraBuffer.SoftwareId, poolBlock.Side.ExtraBuffer.SoftwareVersion) %}
+        </div>
+        <div class="col pb-2">
+            <strong>Version Signaling</strong>
+            <br/>
+            {%s= poolBlock.ShareVersion().String() %} <span class="small">({% if poolBlock.ShareVersionSignaling() != sidechain.ShareVersion_None %}signaling {%s= poolBlock.ShareVersionSignaling().String() %} support{% else %}no known signaling{% endif %})</span>
+        </div>
+        <div class="col pb-2">
+            {% if poolBlock.ShareVersion() > sidechain.ShareVersion_V1 %}
+            <strong>Template Extra Buffer</strong>
+            <br/>
+            <span class="mono" title="Random Number">{%= hex(ctx, poolBlock.Side.ExtraBuffer.RandomNumber) %}</span> / <span class="mono" title="SideChain Extra Nonce">{%= hex(ctx, poolBlock.Side.ExtraBuffer.SideChainExtraNonce) %}</span>
+            {% endif %}
+        </div>
+        <div class="col pb-2 text-truncate" title="The seed is used for the deterministic generation of the Coinbase Private Key, and is derived from other fields in the share or historic data.">
+            <strong>Deterministic Private Key Seed</strong>
+            <br/>
+            {% if poolBlock.GetPrivateKeySeed() != types.ZeroHash %}
+            <span class="mono smaller user-select-all">{%= hex(ctx, poolBlock.GetPrivateKeySeed()) %}</span>
+            {% else %}
+            Not Deterministic
+            {% endif %}
+        </div>
+    </div>
 </div>
+
+
+{% if sideBlock != nil && payouts != nil %}
+<div class="container-fluid my-3 p-2 bg-body-tertiary border rounded-2 text-center" tabindex="-1">
+    <div class="row align-items-start">
+        <div class="col">
+            <h2>Payouts share is weighted into</h2>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col col-12">
+            {% code var total uint64 %}
+            {%= TemplatePayouts(ctx, payouts, &total) %}
+            {% if total == 0 %}
+            No payouts have been reported.
+            {% endif %}
+        </div>
+        <div class="col col-12 mt-3">
+            {% if sideBlock.EffectiveHeight > (ctx.Pool.SideChain.LastBlock.SideHeight - uint64(ctx.Pool.SideChain.Window.Blocks)) %}
+            <div class="alert alert-success small">
+                Share is inside the PPLNS window.
+                <br/>
+                Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.
+            </div>
+            {% else %}
+            <div class="alert alert-secondary small">
+                Share is outside the PPLNS window.
+                <br/>
+                No more payouts for this share will be provided by other P2Pool miners.
+            </div>
+            <div class="center">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <div class="center" style="text-align: center">
     {% if len(poolBlock.Side.Uncles) > 0 %}
     <h2>Uncle shares</h2>
@@ -149,33 +263,22 @@
     </ul>
     {% endif %}
 
-    {% if sideBlock != nil && payouts != nil %}
-        <h2>Payouts share was weighted into</h2>
-        {% code var total uint64 %}
-
-        {%= TemplatePayouts(ctx, payouts, &total) %}
-        {% if sideBlock.EffectiveHeight > (ctx.Pool.SideChain.LastBlock.SideHeight - uint64(ctx.Pool.SideChain.Window.Blocks)) %}
-        <div class="center"><h3>Share is inside the PPLNS window. Any Monero blocks found during this period by any P2Pool miner will provide a direct payout.</h3></div>
-        {% else %}
-        <div class="center">Share is outside the PPLNS window. No more payouts for this share will be provided by other P2Pool miners.</div>
-        {% endif %}
-    {% endif %}
-
     <h2>Coinbase Transaction</h2>
 
     {% if sideBlock != nil && sideBlock.MinedMainAtHeight && sweepsCount > 0 %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em + 12em)">
+    <table class="table table-striped table-hover table-borderless table-sm" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em + 12em)">
         <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}7{% else %}6{% endif %}" class="mono smaller">{%s coinbase_extra(poolBlock) %}</td></tr>
         <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}7{% else %}6{% endif %}">&nbsp;</td></tr>
     {% elseif sideBlock != nil && sideBlock.MinedMainAtHeight %}
-        <table class="center" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
-            <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}6{% else %}5{% endif %}" class="mono smaller">{%s coinbase_extra(poolBlock) %}</td></tr>
-            <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}6{% else %}5{% endif %}">&nbsp;</td></tr>
+    <table class="table table-striped table-hover table-borderless table-sm" style="max-width: calc(8em + 28em + 12em + 10em + 10em + 8em)">
+        <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}6{% else %}5{% endif %}" class="mono smaller">{%s coinbase_extra(poolBlock) %}</td></tr>
+        <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}6{% else %}5{% endif %}">&nbsp;</td></tr>
     {% else %}
-    <table class="center" style="max-width: calc(8em + 28em + 12em + 10em)">
+    <table class="table table-striped table-hover table-borderless table-sm" style="max-width: calc(8em + 28em + 12em + 10em)">
         <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}4{% else %}3{% endif %}" class="mono smaller">{%s coinbase_extra(poolBlock) %}</td></tr>
         <tr><td colspan="{% if len(coinbaseOutputs) >= len(poolBlock.Main.Coinbase.Outputs) %}4{% else %}3{% endif %}">&nbsp;</td></tr>
     {% endif %}
+        <thead>
         <tr>
             <th style="width: 8em">Output Index</th>
             <th style="width: 28em">Ephemeral Public Key</th>
@@ -198,6 +301,8 @@
             {% endif %}
             {% endif %}
         </tr>
+        </thead>
+        <tbody>
         {% for _, t := range poolBlock.Main.Coinbase.Outputs %}
         <tr>
             <td>{%dul t.Index %}</td>
@@ -225,6 +330,7 @@
             {% endif %}
         </tr>
         {% endfor %}
+        </tbody>
     </table>
     {% if len(poolBlock.Main.Transactions) > 0 %}
     <h2>Included Transactions</h2>

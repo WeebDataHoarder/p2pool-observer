@@ -8,10 +8,25 @@ import (
 	"git.gammaspectra.live/P2Pool/p2pool-observer/types"
 	"git.gammaspectra.live/P2Pool/p2pool-observer/utils"
 	"github.com/mazznoer/colorgrad"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 )
+
+func slice_maxSize[T any](v []T, size int) []T {
+	if len(v) > size {
+		v = v[:size]
+	}
+	return v
+}
+
+func slice_modulo[T any](v []T, multiple int) []T {
+	if len(v) > multiple {
+		v = v[:len(v)-len(v)%multiple]
+	}
+	return v
+}
 
 func utc_date[T int64 | uint64 | int | float64](v T) string {
 	return time.Unix(int64(v), 0).UTC().Format("02-01-2006 15:04:05 MST")
@@ -48,6 +63,37 @@ func time_elapsed_short[T int64 | uint64 | int | float64](v T) string {
 	}
 }
 
+func time_elapsed_long[T int64 | uint64 | int | float64](v T) string {
+	diff := time.Since(time.Unix(int64(v), 0).UTC())
+
+	days := int64(diff.Hours() / 24)
+	hours := int64(diff.Hours()) % 24
+	minutes := int64(diff.Minutes()) % 60
+	seconds := int64(diff.Seconds()) % 60
+
+	var result []string
+	if days > 0 {
+		result = append(result, strconv.FormatInt(days, 10)+" days")
+	}
+	if hours > 0 {
+		result = append(result, strconv.FormatInt(hours, 10)+" hours")
+	}
+	if minutes > 0 {
+		result = append(result, strconv.FormatInt(minutes, 10)+" minutes")
+	}
+	if seconds > 0 {
+		result = append(result, strconv.FormatInt(seconds, 10)+" seconds")
+	}
+
+	if v == 0 {
+		return "never"
+	} else if len(result) == 0 {
+		return "just now"
+	} else {
+		return strings.Join(result, " ") + " ago"
+	}
+}
+
 func side_block_weight(s *index.SideBlock, tipHeight, windowSize uint64, consensus *sidechain.Consensus) uint64 {
 	w, _ := s.Weight(tipHeight, windowSize, consensus.UnclePenalty)
 	return w
@@ -72,7 +118,7 @@ func date_diff_short[T int64 | uint64 | int | float64](v T) string {
 	return s
 }
 
-func time_duration_long[T int64 | uint64 | int | float64](v T) string {
+func time_duration[T int64 | uint64 | int | float64](v T) string {
 	diff := time.Second * time.Duration(v)
 	diff += time.Microsecond * time.Duration((float64(v)-float64(int64(v)))*1000000)
 	days := int64(diff.Hours() / 24)
@@ -93,6 +139,88 @@ func time_duration_long[T int64 | uint64 | int | float64](v T) string {
 	}
 	if seconds > 0 {
 		result = append(result, strconv.FormatInt(seconds, 10)+"s")
+	}
+
+	if len(result) == 0 || (len(result) == 1 && seconds > 0) {
+		result = append(result, strconv.FormatInt(ms, 10)+"ms")
+	}
+
+	return strings.Join(result, " ")
+}
+
+func time_duration_long[T int64 | uint64 | int | float64](v T) string {
+	diff := time.Second * time.Duration(v)
+	diff += time.Microsecond * time.Duration((float64(v)-float64(int64(v)))*1000000)
+	days := int64(diff.Hours() / 24)
+	hours := int64(diff.Hours()) % 24
+	minutes := int64(diff.Minutes()) % 60
+	seconds := int64(diff.Seconds()) % 60
+	ms := int64(diff.Milliseconds()) % 1000
+
+	var result []string
+	if days > 0 {
+		if days == 1 {
+			result = append(result, strconv.FormatInt(days, 10)+" day")
+		} else {
+			result = append(result, strconv.FormatInt(days, 10)+" days")
+		}
+	}
+	if hours > 0 {
+		if hours == 1 {
+			result = append(result, strconv.FormatInt(hours, 10)+" hour")
+		} else {
+			result = append(result, strconv.FormatInt(hours, 10)+" hours")
+		}
+	}
+	if minutes > 0 {
+		result = append(result, strconv.FormatInt(minutes, 10)+" minutes")
+	}
+	if seconds > 0 {
+		result = append(result, strconv.FormatInt(seconds, 10)+" seconds")
+	}
+
+	if len(result) == 0 || (len(result) == 1 && seconds > 0) {
+		result = append(result, strconv.FormatInt(ms, 10)+"ms")
+	}
+
+	return strings.Join(result, " ")
+}
+
+func time_duration_pad[T int64 | uint64 | int | float64](v T) string {
+	diff := time.Second * time.Duration(v)
+	diff += time.Microsecond * time.Duration((float64(v)-float64(int64(v)))*1000000)
+	days := int64(diff.Hours() / 24)
+	hours := int64(diff.Hours()) % 24
+	minutes := int64(diff.Minutes()) % 60
+	seconds := int64(diff.Seconds()) % 60
+	ms := int64(diff.Milliseconds()) % 1000
+
+	var result []string
+	if days > 0 {
+		result = append(result, strconv.FormatInt(days, 10)+"d")
+	}
+	if diff.Hours() >= 1 {
+		if hours < 10 {
+			result = append(result, "0"+strconv.FormatInt(hours, 10)+"h")
+		} else {
+			result = append(result, strconv.FormatInt(hours, 10)+"h")
+		}
+	}
+
+	if diff.Minutes() >= 1 {
+		if minutes < 10 {
+			result = append(result, "0"+strconv.FormatInt(minutes, 10)+"m")
+		} else {
+			result = append(result, strconv.FormatInt(minutes, 10)+"m")
+		}
+	}
+
+	if diff.Seconds() >= 1 {
+		if seconds < 10 {
+			result = append(result, "0"+strconv.FormatInt(seconds, 10)+"s")
+		} else {
+			result = append(result, strconv.FormatInt(seconds, 10)+"s")
+		}
 	}
 
 	if len(result) == 0 || (len(result) == 1 && seconds > 0) {
@@ -158,6 +286,22 @@ func effort_color(effort float64) string {
 
 func monero_to_xmr(v uint64) string {
 	return utils.XMRUnits(v)
+}
+
+func shares_hashrate(shares []*index.SideBlock, latest *index.SideBlock) uint64 {
+	if len(shares) == 0 {
+		return 0
+	}
+
+	shares = slices.Clone(shares)
+	slices.SortFunc(shares, index.SortSideBlock)
+
+	var totalWeight types.Difficulty
+	for _, s := range shares {
+		totalWeight = totalWeight.Add64(s.Difficulty)
+	}
+
+	return totalWeight.Div64(latest.Timestamp - shares[0].Timestamp).Lo
 }
 
 func diff_hashrate(v any, blockTime uint64) uint64 {

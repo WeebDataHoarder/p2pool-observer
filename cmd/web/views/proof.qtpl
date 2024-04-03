@@ -10,6 +10,10 @@ type ProofPage struct {
 	Block *index.SideBlock
 	Raw *sidechain.PoolBlock
 }
+
+func (p *ProofPage) Name() string {
+    return "proof"
+}
 %}
 
 {% func (p *ProofPage) Title() %}

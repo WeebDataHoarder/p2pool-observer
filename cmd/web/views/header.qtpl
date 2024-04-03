@@ -1,46 +1,170 @@
-{% func Header(ctx *GlobalRequestContext) %}
-<div>
-    <div class="center" style="text-align: center">
-        <h1 class="center"><a href="/">{% if ctx.SiteTitle == "" %}Monero P2Pool Observer{% else %}Monero {%s ctx.SiteTitle %}{% endif %}</a></h1>
-        <h4 style="font-size: 16px; margin: 0px">
-            <a href="https://gupax.io/" rel="nofollow">[Gupax] P2Pool plug and play Mining GUI, by <em>hinto-janai</em></a>
-            ::
-            <a href="{%s ctx.GetUrl("p2pool.io") %}/#help" rel="nofollow">P2Pool Setup Help</a>
-            ::
-            <a href="{%s ctx.GetUrl("p2pool.io") %}/#faq" rel="nofollow">P2Pool FAQ</a>
-            ::
-            <a href="https://github.com/SChernykh/p2pool">What is P2Pool?</a>
-            ::
-            <a href="/api">Observer API Documentation</a>
-        </h4>
-        {% if ctx.Socials.Irc.Link != "" %}
-        <h4 style="font-size: 16px; margin: 4px 0px 0px; font-weight: normal;">
-            Join chat to talk, send feedback, ask questions and be notified of changes on <a href="{%s ctx.Socials.Irc.Link %}" target="_blank"><strong>IRC on <code>{%s ctx.Socials.Irc.Title %}</code></strong></a>{% if ctx.Socials.Irc.WebChat != "" %}, on <a href="{%s ctx.Socials.Irc.WebChat %}" target="_blank"><strong>WebIRC</strong></a>{% endif %}{% if ctx.Socials.Matrix.Link != "" %}, on <a target="_blank" rel="nofollow" href="{%s ctx.Socials.Matrix.Link %}"><strong>Matrix</strong></a>{% endif %}
-        </h4>
-        {% endif %}
-        <h4 style="font-size: 13px; margin: 4px 0px 0px; font-weight: normal;">
-            <a href="https://github.com/SChernykh/p2pool#how-to-mine-on-p2pool">How to join P2Pool</a>
-            ::
-            <a href="{%s ctx.GetUrl("sethforprivacy.com") %}/guides/run-a-p2pool-node/" rel="nofollow">Guide on how to run a Monero and P2Pool node by <em>Seth</em></a>
-            ::
-            <a href="{%s ctx.GetUrl("xmrvsbeast.com") %}/p2pool/" rel="nofollow">P2Pool Bonus Hash Rate Raffle by <em>XMRvsBEAST</em></a>
-        </h4>
-        {% if pool := ctx.Pool; pool != nil %}
+{% func HeaderLink(name, target, description, currentName string) %}
+{% if name == currentName %}
+<li class="nav-item">
+  <a class="nav-link active" aria-current="page" href="{%s target %}">{%s description %}</a>
+</li>
+{% else %}
+<li class="nav-item">
+  <a class="nav-link" href="{%s target %}">{%s description %}</a>
+</li>
+{% endif %}
+{% endfunc %}
 
-            {% if uint64(pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.LastBlock.Timestamp || uint64(pool.Versions.Monero.Timestamp+3600*24*7) > pool.SideChain.LastBlock.Timestamp %}
-            <h4 style="font-size: 15px; margin: 4px 0px 0px; color:yellow;">
-            {% else %}
-            <h4 style="font-size: 13px; margin-top: 5px; ">
+{% func Header(name string, ctx *GlobalRequestContext) %}
+
+<nav class="navbar sticky-top navbar-expand-md bg-body-tertiary">
+    <div class="container-md">
+    <a class="navbar-brand" href="/">
+        <img src="/assets/monero-symbol.svg" alt="Monero" width="30" height="30" class="d-inline-block align-text-top"/>
+        <span class="d-inline-block align-text-top">{% if ctx.SiteTitle == "" %}P2Pool Observer{% else %}{%s ctx.SiteTitle %}{% endif %}</span>
+    </a>
+    <button class="navbar-toggler" type="button" aria-expanded="false" aria-label="Toggle navigation" tabindex="-1">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="navbar-collapse collapse">
+        <ul class="navbar-nav me-auto mb-2 mb-md-0">
+            {%= HeaderLink("blocks", "/blocks", "Blocks", name) %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                Observer
+              </a>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="/miners">Current Window Miners</a></li>
+                <li><a class="dropdown-item" href="/miners?weekly">Weekly Miners</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/calculate-share-time">Share Time Calculator</a></li>
+                <li><a class="dropdown-item" href="/connectivity-check">Connectivity Checker</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/transaction-lookup">Sweep Transaction Lookup</a></li>
+                <li><a class="dropdown-item" href="/sweeps">Recent Likely Sweeps</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/api">Observer API</a></li>
+                <li><a class="dropdown-item" href="{%s ctx.GetUrl("git.gammaspectra.live") %}/P2Pool/p2pool-observer">Observer source code</a></li>
+                <li><a class="dropdown-item" target="_blank" href="{%s ctx.GetUrl("git.gammaspectra.live") %}/P2Pool/p2pool-observer/issues?state=open">Report Observer issues</a></li>
+                <li><a class="dropdown-item" href="ircs://irc.libera.chat:6697/#p2pool-observer" target="_blank">Observer on IRC <code>#p2pool-observer@libera.chat</code></a></li>
+                <li><a class="dropdown-item" href="https://matrix.to/#/#p2pool-observer:monero.social" target="_blank" rel="nofollow">Observer on Matrix</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+
+                    <div class="d-grid gap-2 m-3">
+                        <a class="btn btn-success btn-sm" href="monero:{%s ctx.DonationAddress %}?tx_description=p2pool.observer">Donate to P2Pool Observer maintainer</a>
+                        <input  class="form-control mono smaller user-select-all" style="height: calc(24px + 6px + 6px);" value="{%s ctx.DonationAddress %}" readonly />
+                        <div>OpenAlias <span class="mono user-select-all">p2pool.observer</span></div>
+                    </div>
+                </li>
+              </ul>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                Community
+              </a>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Irc.Link %}" target="_blank">Talk on IRC <code>{%s ctx.Socials.Irc.Title %}</code></a></li>
+                {% if ctx.Socials.Irc.WebChat != "" %}
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Irc.WebChat %}" target="_blank">Talk on WebIRC</a></li>
+                {% endif %}
+                {% if ctx.Socials.Matrix.Link != "" %}
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Matrix.Link %}" target="_blank" rel="nofollow">Talk on Matrix</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="https://gupax.io/" rel="nofollow">[Gupax] P2Pool plug and play Mining GUI, by <em>hinto-janai</em></a></li>
+                <li><a class="dropdown-item" href="{%s ctx.GetUrl("xmrvsbeast.com") %}/p2pool/" rel="nofollow">P2Pool Bonus Hash Rate Raffle by <em>XMRvsBEAST</em></a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{%s ctx.GetUrl("sethforprivacy.com") %}/guides/run-a-p2pool-node/" rel="nofollow">Guide on how to run a Monero and P2Pool node by <em>Seth</em></a></li>
+              </ul>
+            </li>
+
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" tabindex="-1">
+                Help
+              </a>
+              <ul class="dropdown-menu">
+                <li><a class="dropdown-item" href="{%s ctx.GetUrl("p2pool.io") %}/#help" rel="nofollow">P2Pool Setup Help</a></li>
+                <li><a class="dropdown-item" href="{%s ctx.GetUrl("p2pool.io") %}/#faq" rel="nofollow">P2Pool FAQ</a></li>
+                <li><a class="dropdown-item" href="https://github.com/SChernykh/p2pool">What is P2Pool?</a></li>
+                <li><a class="dropdown-item" href="https://github.com/SChernykh/p2pool#how-to-mine-on-p2pool">How to join P2Pool</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Irc.Link %}" target="_blank">Talk on IRC <code>{%s ctx.Socials.Irc.Title %}</code></a></li>
+                {% if ctx.Socials.Irc.WebChat != "" %}
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Irc.WebChat %}" target="_blank">Talk on WebIRC</a></li>
+                {% endif %}
+                {% if ctx.Socials.Matrix.Link != "" %}
+                <li><a class="dropdown-item" href="{%s ctx.Socials.Matrix.Link %}" target="_blank" rel="nofollow">Talk on Matrix</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" target="_blank" href="https://github.com/SChernykh/p2pool/issues">Report P2Pool issues</a></li>
+                <li><a class="dropdown-item" target="_blank" href="{%s ctx.GetUrl("git.gammaspectra.live") %}/P2Pool/p2pool-observer/issues?state=open">Report Observer issues</a></li>
+              </ul>
+            </li>
+
+
+            {% if pool := ctx.Pool; pool != nil %}
+
+            <div class="nav-item vr d-none d-lg-flex"></div>
+
+            <li class="nav-item d-none d-lg-flex">
+              <a class="nav-link position-relative" href="{%s pool.Versions.P2Pool.Link %}" target="_blank">
+                  P2Pool {%s pool.Versions.P2Pool.Version %}
+                  {% if uint64(pool.Versions.P2Pool.Timestamp+3600*24*30) > pool.SideChain.LastBlock.Timestamp %}
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning">
+                  {%f.0 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.P2Pool.Timestamp))) / (3600*24) %} days old!
+                  </span>
+                  {%endif%}
+              </a>
+            </li>
+            <li class="nav-item d-none d-lg-flex">
+              <a class="nav-link position-relative" href="{%s pool.Versions.Monero.Link %}" target="_blank">
+                  Monero {%s pool.Versions.Monero.Version %}
+                  {% if uint64(pool.Versions.Monero.Timestamp+3600*24*7) > pool.SideChain.LastBlock.Timestamp %}
+                  <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning">
+                  {%f.0 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.Monero.Timestamp))) / (3600*24) %} days old!
+                  </span>
+                  {%endif%}
+              </a>
+            </li>
+
             {% endif %}
-                Latest releases: <a href="{%s pool.Versions.P2Pool.Link %}" target="_blank">P2Pool {%s pool.Versions.P2Pool.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.P2Pool.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.P2Pool.Timestamp))) / (3600*24) %} day(s) ago</small></em>
-                ::
-                <a href="{%s pool.Versions.Monero.Link %}" target="_blank">Monero {%s pool.Versions.Monero.Version %}</a> <em title="{%s utc_date(uint64(pool.Versions.Monero.Timestamp)) %}"><small>{%f.1 float64((pool.SideChain.LastBlock.Timestamp - uint64(pool.Versions.Monero.Timestamp))) / (3600*24) %} day(s) ago</small></em>
-            </h4>
 
+        </ul>
+
+        {% if ctx.IsRefresh != nil %}
+        {% code ok, isRefresh, refresh, uriRefresh, uriStatic := ctx.IsRefresh() %}
+        {% if ok %}
+        <div class="d-flex me-2">
+            {% if isRefresh %}
+            <a class="btn btn-sm btn-success position-relative" href="{%s uriStatic %}">
+            {% else %}
+            <a class="btn btn-sm btn-outline-success position-relative" href="{%s uriRefresh %}">
+            {% endif %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat" viewBox="0 0 16 16">
+                  <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41m-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9"/>
+                  <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5 5 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z"/>
+                </svg>
+                Refresh
+                {% if isRefresh %}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                {%d refresh %}s
+                </span>
+                {% endif %}
+            </a>
+        </div>
+        {% endif %}
         {% endif %}
 
-
-
+        <form class="d-none d-xl-flex" role="search" action="/miner" method="get">
+        <input name="address" class="form-control me-2" type="search" placeholder="Address" aria-label="Lookup" size="10"
+        spellcheck="false" autocorrect="off"
+        pattern="([^0-9].+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+)"
+        title="Only Primary Addresses supported (starts with 4, not 8), or chosen miner alias"
+        required>
+        <button class="btn btn-outline-success" type="submit">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-search" viewBox="0 0 16 16">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
+        </svg>
+        </button>
+        </form>
     </div>
-</div>
+    </div>
+</nav>
 {% endfunc %}

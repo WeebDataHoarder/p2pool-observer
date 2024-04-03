@@ -1,52 +1,80 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
 {% func TemplatePayouts(ctx *GlobalRequestContext, payouts <-chan *index.Payout, total *uint64) %}
-<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 10em)">
-    <tr>
-        <th style="width: 8em;">Monero Height</th>
-        <th style="width: 8em;">P2Pool Height</th>
-        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-        <th style="width: 10em;">Reward</th>
-        <th style="width: 10em;">Global Output Index</th>
-        <th style="width: 12em;">Coinbase Transaction</th>
-        <th style="width: 10em;">Payout Proof</th>
-    </tr>
-    {% for p := range payouts %}
-    {% code *total = *total + p.Reward %}
-    <tr>
-        <th title="{%= hex(ctx, p.MainId) %}"><a href="/b/{%s benc(p.MainHeight) %}">{%dul p.MainHeight %}</a></th>
-        <th title="{%= hex(ctx, p.TemplateId) %}"><a href="/share/{%= hex(ctx, p.TemplateId) %}">{%dul p.SideHeight %}</a></th>
-        <td title="{%s utc_date(p.Timestamp) %}">{%s date_diff_short(p.Timestamp) %}</td>
-        <td>{%s monero_to_xmr(p.Reward) %} XMR</td>
-        <td>{%dul p.GlobalOutputIndex %}</td>
-        <td title="{%= hex(ctx, p.CoinbaseId) %}" class="mono small"><a href="/t/{%= henc(p.CoinbaseId) %}">{%= shorten(ctx, p.CoinbaseId, 10) %}</a></td>
-        <td><a href="/proof/{%= hex(ctx, p.MainId) %}/{%dul uint64(p.Index) %}" title="Prove you have a matching output for your address on this transaction">[Payout Proof #{%dul uint64(p.Index) %}]</a></td>
-    </tr>
-    {% endfor %}
-</table>
+<div class="container">
+    <div class="row">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-6 gx-0 gy-2">
+
+            {% for p := range payouts %}
+            {% code *total = *total + p.Reward %}
+            {%= TemplatePayoutsCol(ctx, p) %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
 {% endfunc %}
 
 {% func TemplatePayoutsSlice(ctx *GlobalRequestContext, payouts []*index.Payout) %}
-<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 10em + 10em + 7em + 12em + 10em)">
-    <tr>
-        <th style="width: 8em;">Monero Height</th>
-        <th style="width: 8em;">P2Pool Height</th>
-        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-        <th style="width: 10em;">Reward</th>
-        <th style="width: 10em;">Global Output Index</th>
-        <th style="width: 12em;">Coinbase Transaction</th>
-        <th style="width: 10em;">Payout Proof</th>
-    </tr>
-    {% for _, p := range payouts %}
-    <tr>
-        <th title="{%= hex(ctx, p.MainId) %}"><a href="/b/{%s benc(p.MainHeight) %}">{%dul p.MainHeight %}</a></th>
-        <th title="{%= hex(ctx, p.TemplateId) %}"><a href="/share/{%= hex(ctx, p.TemplateId) %}">{%dul p.SideHeight %}</a></th>
-        <td title="{%s utc_date(p.Timestamp) %}">{%s date_diff_short(p.Timestamp) %}</td>
-        <td>{%s monero_to_xmr(p.Reward) %} XMR</td>
-        <td>{%dul p.GlobalOutputIndex %}</td>
-        <td title="{%= hex(ctx, p.CoinbaseId) %}" class="mono small"><a href="/t/{%= henc(p.CoinbaseId) %}">{%= shorten(ctx, p.CoinbaseId, 10) %}</a></td>
-        <td><a href="/proof/{%= hex(ctx, p.MainId) %}/{%dul uint64(p.Index) %}" title="Prove you have a matching output for your address on this transaction">[Payout Proof #{%dul uint64(p.Index) %}]</a></td>
-    </tr>
-    {% endfor %}
-</table>
+{% code payouts = slice_modulo(payouts, 12) %}
+<div class="container">
+    <div class="row">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-6 gx-0 gy-2">
+            {% for _, p := range payouts %}
+            {%= TemplatePayoutsCol(ctx, p) %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfunc %}
+
+
+
+{% func TemplatePayoutsCol(ctx *GlobalRequestContext, p *index.Payout) %}
+<div class="col">
+    <div class="card h-100 rounded-0">
+        <div class="card-header p-1 container text-center">
+            <div class="row row-cols-2 g-0">
+                <div class="col" title="{%= hex(ctx, p.MainId) %}">
+                    <a href="/b/{%s benc(p.MainHeight) %}">
+                        <img src="/assets/monero-symbol.svg" alt="Monero" width="24" height="24" class="d-inline-block align-text-top"/>
+                        <span class="d-inline-block align-text-top">{%dul p.MainHeight %}</span>
+                    </a>
+                </div>
+                <div class="col" title="{%= hex(ctx, p.TemplateId) %}">
+                    <small class="text-body-secondary"><a href="/share/{%= hex(ctx, p.TemplateId) %}">#{%dul p.SideHeight %}</a></small>
+                </div>
+            </div>
+        </div>
+      <div class="card-body p-1 container text-center">
+        <div class="row gy-1 gx-0">
+            <div class="col col-12">
+            Coinbase Id <span class="mono smaller"><a href="/t/{%= henc(p.CoinbaseId) %}" title="{%= hex(ctx, p.CoinbaseId) %}">{%= shorten(ctx, p.CoinbaseId, 6) %}</a></span>
+            </div>
+
+            <div class="col col-12" title="Reward">
+            {%s monero_to_xmr(p.Reward) %} XMR
+            </div>
+
+            <div class="col col-12 btn-group btn-group-sm">
+              <a class="btn btn-outline-secondary" href="/t/{%= henc(p.CoinbaseId) %}" title="{%= hex(ctx, p.CoinbaseId) %}">Coinbase</a>
+              <a class="btn btn-outline-secondary" href="/proof/{%= hex(ctx, p.MainId) %}/{%dul uint64(p.Index) %}"
+              title="Prove you have a matching output for your address on this transaction">Payout Proof</a>
+            </div>
+        </div>
+      </div>
+
+      <div class="card-footer p-0 container text-center">
+          <div class="row row-cols-2 g-0">
+              <div class="col" title="{%s utc_date(p.Timestamp) %}">
+                  <small class="text-body-secondary">{%s time_elapsed_short(p.Timestamp) %}</small>
+              </div>
+
+              <div class="col" title="Global Output Index">
+                  <small class="text-body-secondary">#{%dul p.GlobalOutputIndex %}</small>
+              </div>
+            </div>
+        </div>
+
+      </div>
+</div>
 {% endfunc %}

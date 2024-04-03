@@ -1,5 +1,7 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 {% import cmdutils "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/utils" %}
+{% import "math" %}
+{% import "time" %}
 
 {% code
 type IndexPage struct {
@@ -13,125 +15,231 @@ type IndexPage struct {
     Shares []*index.SideBlock
 	FoundBlocks []*index.FoundBlock
 }
+
+func (p *IndexPage) IsRefresh() (ok, isRefresh bool, interval int, uriRefresh, uriStatic string) {
+    return true, p.Refresh > 0, p.Refresh, "/?refresh", "/"
+}
+
+func (p *IndexPage) Name() string {
+    return "index"
+}
 %}
 
 {% func (p *IndexPage) Content() %}
-<div style="text-align: center; font-weight: bold;">
-    {% if p.Refresh > 0 %}
-    <a href="/">Autorefresh is ON ({%d p.Refresh %} s)</a>
-    {% else %}
-    <a href="/?refresh">Autorefresh is OFF</a>
-    {% endif %}
-</div>
+
+<div class="container-fluid h-100 mb-3 p-2 bg-body-tertiary border rounded-2 text-center">
+    <div class="row align-items-start">
+        <div class="col">
+            <h2>P2Pool statistics</h2>
+        </div>
+    </div>
+
+    <div class="row row-cols-2 row-cols-lg-4 align-items-center">
+        <div class="col pb-2" title="{%= hex(p.Context(), p.Context().Pool.SideChain.LastBlock.TemplateId) %}">
+            <strong>P2Pool Height</strong>
+            <br/>
+            <a href="/share/{%= hex(p.Context(), p.Context().Pool.SideChain.LastBlock.TemplateId) %}">{%dul p.Context().Pool.SideChain.LastBlock.SideHeight %}</a>
+        </div>
+        <div class="col pb-2">
+            <strong>P2Pool Hashrate</strong>
+            <br/>
+            {%s si_units(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s
+        </div>
+        <div class="col pb-2" title="{%= hex(p.Context(), p.Context().Pool.MainChain.Id) %}">
+            <strong>Monero Height</strong>
+            <br/>
+            <a href="/b/{%s benc(p.Context().Pool.MainChain.Height) %}">{%dul p.Context().Pool.MainChain.Height %}</a>
+        </div>
+        <div class="col pb-2">
+            <strong>Monero Hashrate</strong>
+            <br/>
+            {%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime)), 2) %}H/s
+        </div>
 
 
-<div style="text-align: center">
-    <h2>P2Pool statistics</h2>
-    <table class="center" style="max-width: calc(15em + 15em + 15em + 15em)">
-        <tr>
-            <th style="width: 15em">P2Pool Height</th>
-            <th style="width: 15em">P2Pool Hashrate</th>
-            <th style="width: 15em">Monero Height</th>
-            <th style="width: 15em">Monero Hashrate</th>
-        </tr>
-        <tr>
-            <td title="{%= hex(p.Context(), p.Context().Pool.SideChain.LastBlock.TemplateId) %}"><a href="/share/{%= hex(p.Context(), p.Context().Pool.SideChain.LastBlock.TemplateId) %}">{%dul p.Context().Pool.SideChain.LastBlock.SideHeight %}</a></td>
-            <td>{%s si_units(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime), 2) %}H/s</td>
-            <td title="{%= hex(p.Context(), p.Context().Pool.MainChain.Id) %}"><a href="/b/{%s benc(p.Context().Pool.MainChain.Height) %}">{%dul p.Context().Pool.MainChain.Height %}</a></td>
-            <td>{%s si_units(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime)), 2) %}H/s</td>
-        </tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
-        <tr>
-            <th>P2Pool Difficulty</th>
-            <th title="Percentage of Monero hashrate P2Pool has">P2Pool Monero %</th>
-            <th>Monero Difficulty</th>
-            <th title="This includes blocks the site knows about since it started observing. There might be more orphaned or produced by other sidechain not included here.">Blocks Found</th>
-        </tr>
-        <tr>
-            <td>{%s si_units(p.Context().Pool.SideChain.LastBlock.Timestamp, 2) %}</td>
-            <td>{%f.2 (float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime)) / float64(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime))))*100 %}%</td>
-            <td>{%s si_units(p.Context().Pool.MainChain.Difficulty.Lo, 2) %}</td>
-            <td>{%dul p.Context().Pool.SideChain.Found %}</td>
-        </tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
-        <tr>
-            <th title="Miners that have ever mined a share on P2Pool">Miners Known</th>
-            <th>Average Effort</th>
-            <th title="Mean frequency between P2Pool finds Monero Blocks">Block Found Frequency</th>
-            <th>Last Found Block</th>
-        </tr>
-        <tr>
-            <td>{%dul p.Context().Pool.SideChain.Miners %}</td>
-            <td >
-                <span class="small" style="color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average10) %};" title="Last 10 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average10 %}%</span>
-                /
-                <span style="font-weight:bolder; color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average50) %};" title="Last 50 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average50 %}%</span>
-                /
-                <span class="small" style="color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average200) %};" title="Last 200 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average200 %}%</span>
-            </td>
-            <td>{%s time_duration_long(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime))) %}</td>
+        <div class="col pb-2">
+            <strong>P2Pool Difficulty</strong>
+            <br/>
+            {%s si_units(p.Context().Pool.SideChain.LastBlock.Timestamp, 2) %}
+        </div>
+        <div class="col pb-2" title="Percentage of Monero hashrate this P2Pool has">
+            <strong>P2Pool Monero %</strong>
+            <br/>
+            {%f.2 (float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime)) / float64(diff_hashrate(p.Context().Pool.MainChain.Difficulty, uint64(p.Context().Pool.MainChain.Consensus.BlockTime))))*100 %}%
+        </div>
+        <div class="col pb-2">
+            <strong>Monero Difficulty</strong>
+            <br/>
+            {%s si_units(p.Context().Pool.MainChain.Difficulty.Lo, 2) %}
+        </div>
+        <div class="col pb-2" title="This includes blocks the site knows about since it started observing. There might be more orphaned or produced by other sidechain not included here.">
+            <strong>Blocks Found</strong>
+            <br/>
+            {%dul p.Context().Pool.SideChain.Found %}
+        </div>
+
+
+        <div class="col pb-2" title="Miners that have ever mined a share on P2Pool">
+            <strong>Miners Known</strong>
+            <br/>
+            {%dul p.Context().Pool.SideChain.Miners %}
+        </div>
+        <div class="col pb-2">
+            <strong>Average Effort</strong>
+            <br/>
+            <span class="small" style="color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average10) %};" title="Last 10 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average10 %}%</span>
+            /
+            <span style="font-weight:bolder; color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average50) %};" title="Last 50 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average50 %}%</span>
+            /
+            <span class="small" style="color: {%s effort_color(p.Context().Pool.SideChain.Effort.Average200) %};" title="Last 200 found blocks">{%f.2 p.Context().Pool.SideChain.Effort.Average200 %}%</span>
+        </div>
+        <div class="col pb-2" title="Mean frequency between P2Pool finds Monero Blocks">
+            <strong>Block Found Frequency</strong>
+            <br/>
+            {%s time_duration(float64(p.Context().Pool.MainChain.Difficulty.Lo) / float64(diff_hashrate(p.Context().Pool.SideChain.LastBlock.Difficulty, p.Context().Consensus.TargetBlockTime))) %}
+        </div>
+        <div class="col pb-2">
+            <strong>Last Found Block</strong>
+            <br/>
             {% if p.Context().Pool.SideChain.LastFound != nil %}
             <td title="{%s utc_date(p.Context().Pool.SideChain.LastFound.MainBlock.Timestamp) %}">{%s time_elapsed_short(p.Context().Pool.SideChain.LastFound.MainBlock.Timestamp) %}</td>
             {% else %}
             <td>-</td>
             {% endif %}
-        </tr>
-        <tr><th colspan="4">&nbsp;</th></tr>
-        <tr>
-            <th title="Current miners on P2Pool PPLNS window"><a href="/miners">Window Miners</a></th>
-            <th>Current Effort</th>
-            <th>Window Blocks</th>
-            <th>Last Share</th>
-        </tr>
-        <tr>
-            <td><a href="/miners">{%d p.Context().Pool.SideChain.Window.Miners %}</a></td>
-            <td style="font-weight:bolder; color: {%s effort_color(p.Context().Pool.SideChain.Effort.Current) %};">
-                {%f.2 p.Context().Pool.SideChain.Effort.Current %}%
-            </td>
-            <td>{%d p.Context().Pool.SideChain.Window.Blocks %} blocks (+{%d p.Context().Pool.SideChain.Window.Uncles %} uncles)</td>
-            <td title="{%s utc_date(p.Context().Pool.SideChain.LastBlock.Timestamp) %}">{%s time_elapsed_short(p.Context().Pool.SideChain.LastBlock.Timestamp) %}</td>
-        </tr>
-    </table>
-</div>
-
-<div style="text-align: center">
-    <form action="/miner" method="get">
-        <h2>Lookup miner statistics</h2>
-        <div>
-            <label for="miner-address">Payout Monero address or Miner Alias</label><br/>
-            <input type="text" name="address" id="miner-address" placeholder="{%s p.Context().DonationAddress %}" size="96" class="mono"/>
         </div>
-        <div style="margin-top: 10px">
-            <input type="submit" value="Lookup" style="width: 20em;"/>
+
+
+        <div class="col pb-2" title="Current miners on P2Pool PPLNS window">
+            <a href="/miners">
+            <strong>Window Miners</strong>
+            <br/>
+            {%d p.Context().Pool.SideChain.Window.Miners %}
+            </a>
         </div>
-    </form>
-    <p>
-        <a href="/calculate-share-time">[Average share time calculator]</a> :: <a href="/connectivity-check">[Connectivity Check]</a>
-    </p>
-    <p>
-        <a href="/miners">[Current Window Miners]</a> :: <a href="/miners?weekly">[Weekly Miners]</a>
-    </p>
-    <p>
-        <a href="/transaction-lookup">[Sweep Transaction Lookup]</a> :: <a href="/sweeps">[Recent Likely Sweep Transactions]</a>
-    </p>
+        <div class="col pb-2">
+            <strong>Current Effort</strong>
+            <br/>
+            <span style="font-weight:bolder; color: {%s effort_color(p.Context().Pool.SideChain.Effort.Current) %};">{%f.2 p.Context().Pool.SideChain.Effort.Current %}%</span>
+        </div>
+        <div class="col pb-2">
+            <strong>Window Blocks</strong>
+            <br/>
+            {%d p.Context().Pool.SideChain.Window.Blocks %} blocks (+{%d p.Context().Pool.SideChain.Window.Uncles %} uncles)
+        </div>
+        <div class="col pb-2">
+            <strong>Last Share</strong>
+            <br/>
+            <span title="{%s utc_date(p.Context().Pool.SideChain.LastBlock.Timestamp) %}">{%s time_elapsed_short(p.Context().Pool.SideChain.LastBlock.Timestamp) %}</span>
+        </div>
+
+
+    </div>
 </div>
 
-<hr/>
+<div class="container-fluid mb-2">
+    <div class="row">
+        <div class="col-12 col-md-6 mb-2 p-3 bg-body-tertiary border rounded-2">
+            <div class="h-100">
+                <h3>Lookup miner statistics</h3>
 
-<div style="text-align: center">
-    <h2>Recent Monero blocks found by P2Pool miners</h2>
+                <form action="/miner" method="get">
+                    <div class="mb-3">
+                        <label for="miner-address">Payout Monero address or Miner Alias</label>
+                        <input type="text" name="address" id="miner-address"
+                        class="form-control mono smaller" style="height: calc(24px + 6px + 6px);"
+                        placeholder="{%s p.Context().DonationAddress %}"
+                        size="96" spellcheck="false" autocorrect="off"
+                        pattern="([^0-9].+|4[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]+)"
+                        title="Only Primary Addresses supported (starts with 4, not 8), or chosen miner alias"
+                        required/>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-secondary">Lookup</button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
-    {%= TemplateFoundBlocks(p.Context(), p.FoundBlocks, false) %}
-    <div class="center"><a href="/blocks">[show more found blocks]</a></div>
+        <div class="col-12 col-md-6 mb-2 p-0">
+            <div class="ms-md-2 p-3 bg-body-tertiary border rounded-2 h-100">
+                <h3>Share Time Calculator</h3>
 
-    <h3>Blocks found during last day</h3>
-    <code class="mono">{%s p.Positions.BlocksFound.String() %}</code>
+                <form action="/calculate-share-time" method="get">
+                    <div class="row g-2 mb-3">
+                        <div class="col-8">
+                            <label for="hashrate">Your Hashrate</label>
+                            <input type="text" inputmode="decimal" pattern="[0-9]+([\.,][0-9]+)?" name="hashrate" id="hashrate" class="form-control" placeholder="100" size="8" required/>
+                        </div>
+
+                        <div class="col-4">
+                            <label for="magnitude"></label>
+                            <select name="magnitude" class="form-select">
+                                <option value="1">H/s</option>
+                                <option value="1000" selected>KH/s</option>
+                                <option value="1000000">MH/s</option>
+                                <option value="1000000000">GH/s</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-secondary">Calculate</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 
-<hr/>
 
-<div style="text-align: center">
-    <h2>Recent P2Pool shares found</h2>
-    {%= TemplateShares(p.Context(), p.Shares, false, nil) %}
+<div class="container-fluid mb-3 p-2 bg-body-tertiary border rounded-2 text-center">
+    <div class="row align-items-start">
+        <div class="col">
+            <h2>Recent Monero blocks found</h2>
+        </div>
+    </div>
+    <div class="row">
+        {% if len(p.FoundBlocks) > 0 %}
+        <div class="col col-12">
+            {% code blocksDuration := time.Now().UTC().Sub(time.Unix(int64(p.FoundBlocks[len(p.FoundBlocks)-1].MainBlock.Timestamp), 0).UTC()) %}
+            {% code blocksDurationPadded := time.Hour * 24 * time.Duration(int64(math.Ceil(blocksDuration.Hours()/24))) %}
+
+            {% code dividersX, dividersY, points := NewBlocksPositionChart(p.Context(), p.FoundBlocks, DefaultBlocksPositionChartDuration) %}
+            {%= TemplatePositionGraph(dividersX, dividersY, points, 80, time_duration_long(DefaultBlocksPositionChartDuration.Seconds()) + " ago", "Now") %}
+
+            {% if (blocksDurationPadded.Hours()/24) > 2 %}
+            <br/>
+
+            {% code dividersX, dividersY, points = NewBlocksPositionChart(p.Context(), p.FoundBlocks, blocksDuration) %}
+            {%= TemplatePositionGraph(dividersX, dividersY, points, 120, time_duration_long(blocksDurationPadded.Seconds()) + " ago", "Now") %}
+
+            {% endif %}
+        </div>
+        {% endif %}
+        <div class="col col-12">
+            {%= TemplateFoundBlocks(p.Context(), slice_maxSize(p.FoundBlocks, 12), false) %}
+        </div>
+        <div class="col my-3 col-12">
+            <a href="/blocks" class="btn btn-lg btn-primary">
+            More found blocks
+            </a>
+        </div>
+    </div>
+
+</div>
+
+
+
+<div class="container-fluid mb-3 p-2 bg-body-tertiary border rounded-2 text-center">
+    <div class="row align-items-start">
+        <div class="col">
+            <h2>Recent P2Pool shares found</h2>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col col-12">
+            {%= TemplateShares(p.Context(), p.Shares, false, nil) %}
+        </div>
+    </div>
+
 </div>
 {% endfunc %}

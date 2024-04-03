@@ -1,48 +1,96 @@
 {% import "git.gammaspectra.live/P2Pool/p2pool-observer/cmd/index" %}
 
-{% func TemplateShares(ctx *GlobalRequestContext, shares []*index.SideBlock, isMiner bool, efforts *[]float64) %}
-<table class="center datatable" style="max-width: calc(8em + 12em + 8em + 8em{% if efforts != nil %} + 8em{% endif %}{% if isMiner %}{% else %} + 12em{% endif %} + 10em + 8em + 12em)">
-    <tr>
-        <th style="width: 8em;">P2Pool Height</th>
-        <th style="width: 12em;">P2Pool Id</th>
-        <th style="width: 8em;">Monero Height</th>
-        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-        {% if efforts != nil %}
-        <th style="width: 8em;" title="Effort is estimated based on your daily hash rate. To be more accurate, specify your local hash rate below.">Estimated Effort</th>
-        {% endif %}
-        {% if !isMiner %}
-        <th style="width: 12em;" title="The P2Pool miner who found this share">Found by</th>
-        {% endif %}
-        <th style="width: 10em;" title="The consensus implementation name and version of the miner who found this share">Software</th>
-        <th style="width: 8em;" title="Weight is the difficulty of mined share, with any uncle adjustments. It is variable, and is used in reward calculations">Weight</th>
-        <th style="width: 12em;">Valuation</th>
-    </tr>
-    {% for i, s := range shares %}
-    <tr{% if s.MinedMainAtHeight %} class="hl-found"{% endif %}>
-        <th><a href="/share/{%= hex(ctx, s.TemplateId) %}">{%dul s.SideHeight %}</a></th>
-        <td class="mono smaller"><a href="/share/{%= hex(ctx, s.TemplateId) %}">{%= shorten(ctx, s.TemplateId, 10) %}</a></td>
-        {% if s.MinedMainAtHeight %}
-        <th title="{%= hex(ctx, s.MainId) %}"><a href="/b/{%s benc(s.MainHeight) %}">{%dul s.MainHeight %}</a></th>
-        {% else %}
-        <td title="{%= hex(ctx, s.MainId) %}">{%dul s.MainHeight %}</td>
-        {% endif %}
-        <td title="{%s utc_date(s.Timestamp) %}">{%s date_diff_short(s.Timestamp) %}</td>
-        {% if efforts != nil %}
-            {% if effort := (*efforts)[i]; effort >= 0 %}
-            <td style="font-weight:bolder; color: {%s effort_color(effort) %};">
-                {%f.2 effort %}%
-            </td>
-            {% else %}
-            <td>unknown</td>
-            {% endif %}
-        {% endif %}
-        {% if !isMiner %}
-            {%= TemplateRowMiner(ctx, s.MinerAddress, s.MinerAlias) %}
-        {% endif %}
-        <td>{%= software_info(s.SoftwareId, s.SoftwareVersion) %}</td>
-        <td title="{%dul side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus) %}">{%s si_units(side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus), 2) %}</td>
-        <td>{%= side_block_valuation(s, ctx.Consensus) %}</td>
-    </tr>
-    {% endfor %}
-</table>
+{% func TemplateShares(ctx *GlobalRequestContext, shares []*index.SideBlock, isMiner bool, efforts []float64) %}
+{% code shares = slice_modulo(shares, 12) %}
+<div class="container">
+    <div class="row">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-6 gx-0 gy-2">
+
+            {% for i, s := range shares %}
+            <div class="col">
+                <div class="card h-100 rounded-0 {% if s.MinedMainAtHeight %}text-bg-success{% endif %}">
+                    <div class="card-header p-1 container text-center">
+                        <div class="row row-cols-2 g-0">
+                            <div class="col" title="{%= hex(ctx, s.TemplateId) %}">
+                                <strong><a href="/share/{%= hex(ctx, s.TemplateId) %}">#{%dul s.SideHeight %}</a></strong>
+                            </div>
+
+                            <div class="col" title="{%= hex(ctx, s.MainId) %}">
+                            {% if s.MinedMainAtHeight %}
+                                <small class="text-body-secondary">
+                                <a href="/b/{%s benc(s.MainHeight) %}">
+                                    <img src="/assets/monero-symbol.svg" alt="Monero" width="21" height="21" class="d-inline-block align-text-top"/>
+                                    <span class="d-inline-block align-text-top">{%dul s.MainHeight %}</span>
+                                </a>
+                                </small>
+                            {% else %}
+                                <small class="text-body-secondary">{%dul s.MainHeight %}</small>
+                            {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                  <div class="card-body p-1 container text-center">
+                    <div class="row gy-1 gx-0">
+                        {% if !isMiner %}
+                        {%= TemplateGridMinerWithClass(ctx, s.MinerAddress, s.MinerAlias, "col col-12 found-by", 4, "Found by ") %}
+                        {% endif %}
+
+                        <div class="col col-12">
+                        P2Pool Id <span class="mono smaller"><a href="/share/{%= hex(ctx, s.TemplateId) %}" title="{%= hex(ctx, s.TemplateId) %}">{%= shorten(ctx, s.TemplateId, 6) %}</a></span>
+                        </div>
+
+                        <div class="col col-12">
+                        Mined by <strong>{%= software_info(s.SoftwareId, s.SoftwareVersion) %}</strong>
+                        </div>
+
+                        <div class="col col-12" title="{%dul side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus) %}">
+                        Weight {%s si_units(side_block_weight(s, s.SideHeight, ctx.Consensus.ChainWindowSize, ctx.Consensus), 2) %}
+                        </div>
+
+                        <div class="col col-12" title="Valuation">
+                        <strong>{%= side_block_valuation(s, ctx.Consensus) %}</strong>
+                        </div>
+
+                        <div class="col col-12 btn-group btn-group-sm">
+                            {% if s.MinedMainAtHeight %}
+                            <a class="btn btn-primary" href="/c/{%s benc(s.SideHeight) %}">Coinbase</a>
+                            <a class="btn btn-primary" href="/share/{%= hex(ctx, s.TemplateId) %}">Details</a>
+                            {% else %}
+                            <a class="btn btn-outline-secondary" href="/share/{%= hex(ctx, s.TemplateId) %}">Details</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                  </div>
+
+                  <div class="card-footer p-0 container text-center">
+
+                      {% if efforts == nil %}
+                      <div class="row row-cols-1 g-0">
+                      {% else %}
+                      <div class="row row-cols-2 g-0">
+                      {% endif %}
+
+                          <div class="col" title="{%s utc_date(s.Timestamp) %}">
+                              <small class="text-body-secondary">{%s time_elapsed_short(s.Timestamp) %}</small>
+                          </div>
+
+                          {% if efforts != nil %}
+                              {% if effort := efforts[i]; effort >= 0 %}
+                              <div class="col" style="font-weight: bolder; color: {%s effort_color(effort) %}" title="Estimated Effort">
+                                  <small>{%f.1 effort %}%</small>
+                              </div>
+                              {% else %}
+                              <div class="col">
+                                <strong>-</strong>
+                              </div>
+                              {% endif %}
+                          {% endif %}
+                        </div>
+                    </div>
+                  </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 {% endfunc %}

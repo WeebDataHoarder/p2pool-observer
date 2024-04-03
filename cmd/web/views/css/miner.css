@@ -1,0 +1,17 @@
+
+/* Fix spacing between buttons due to display: inline-block */
+.page-tab.my-0, .page-tab.rounded-end-2 {
+    margin-left: -0.5ch;
+}
+
+/* Make them sticky! */
+.page-tab {
+    position: -webkit-sticky;
+    position: sticky;
+    top: calc(0.1rem + 41px);
+    z-index: 1019;
+}
+/* Set background color */
+.page-tab .btn:not(:hover):not(:focus-visible) {
+    background-color: rgba(var(--bs-dark-rgb), 255) !important;
+}

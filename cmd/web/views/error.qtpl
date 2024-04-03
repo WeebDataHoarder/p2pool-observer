@@ -8,6 +8,10 @@ type ErrorPage struct {
 	Message string
 	Error any
 }
+
+func (p *ErrorPage) Name() string {
+    return "error"
+}
 %}
 
 {% func (p *ErrorPage) Title() %}

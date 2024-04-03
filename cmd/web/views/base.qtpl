@@ -18,31 +18,38 @@ Page {
 {% code
 type ContextProviderPage interface {
     Page
+    Name() string
     Context() *GlobalRequestContext
 }
 type ContextSetterPage interface {
     ContextProviderPage
     SetContext(ctx *GlobalRequestContext)
 }
+type RefreshProviderPage interface {
+    Page
+    IsRefresh() (ok, isRefresh bool, interval int, uriRefresh, uriStatic string)
+}
 %}
 
 Page prints a page implementing Page interface.
 {% func PageTemplate(p ContextProviderPage) %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
     <head>
         <meta charset="utf-8">
         <meta name="referrer" content="no-referrer">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
         <title>{%=h p.Title() %}</title>
+        <link href="/assets/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
         <style>
             {%= p.Style() %}
         </style>
     </head>
-    <body>
-        {%= Header(p.Context()) %}
+    <body tabindex="0">
+        {%= Header(p.Name(), p.Context()) %}
 
-        <div class="content center">
+        <div class="container-md my-3 text-center">
             {%= p.Content() %}
         </div>
 
@@ -67,6 +74,9 @@ overriding only certain Page methods
 {% code
 func (p *BasePage) Context() *GlobalRequestContext {
     return p.ctx
+}
+func (p *BasePage) Name() string {
+    return "base"
 }
 func (p *BasePage) SetContext(ctx *GlobalRequestContext) {
     p.ctx = ctx

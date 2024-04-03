@@ -4,54 +4,89 @@
 {% import "slices" %}
 
 {% func TemplateFoundBlocks(ctx *GlobalRequestContext, foundBlocks []*index.FoundBlock, isMiner bool) %}
-<table class="center datatable" style="max-width: calc(8em + 8em + 8em + 8em{% if isMiner %}{% else %} + 12em + 8em{% endif %} + 10em + 7em + 12em + 28em)">
-    <tr>
-        <th style="width: 8em;">Monero Height</th>
-        <th style="width: 8em;">P2Pool Height</th>
-        <th style="width: 8em;">Age <small>[h:m:s]</small></th>
-        {% if !isMiner %}
-            <th style="width: 8em;">Effort</th>
-            <th style="width: 12em;" title="The P2Pool miner who found this block">Found by</th>
-        {% endif %}
-        <th style="width: 8em;">Transactions</th>
-        <th style="width: 10em;">Total Reward</th>
-        <th style="width: 7em;" title="Number of miners that got paid on the Coinbase Transaction">Outputs</th>
-        <th style="width: 12em;">Coinbase Transaction</th>
-        <th style="width: 28em;" title="You can use this Private Key to verify payouts sent by P2Pool on each block through the Coinbase Transaction">Coinbase Tx Private Key</th>
-    </tr>
-    {% for i, b := range foundBlocks %}
-    <tr>
-        <th title="{%= hex(ctx, b.MainBlock.Id) %}"><a href="/b/{%s benc(b.MainBlock.Height) %}">{%dul b.MainBlock.Height %}</a></th>
-        {% if b.UncleOf != types.ZeroHash %}
-        <th title="{%= hex(ctx, b.MainBlock.SideTemplateId) %} is an uncle of height {%dul b.EffectiveHeight %}, {%= hex(ctx, b.UncleOf) %}">
-            <a href="/share/{%= hex(ctx, b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}*</a>
-        </th>
-        {% else %}
-        <th title="{%= hex(ctx, b.MainBlock.SideTemplateId) %}">
-            <a href="/share/{%= hex(ctx, b.MainBlock.SideTemplateId) %}">{%dul b.SideHeight %}</a>
-        </th>
-        {% endif %}
-        <td title="{%s utc_date(b.MainBlock.Timestamp) %}">{%s date_diff_short(b.MainBlock.Timestamp) %}</td>
-        {% if !isMiner %}
-            {% if len(foundBlocks) > (i+1) %}
-            <td style="font-weight:bolder; color: {%s effort_color(found_block_effort(b, foundBlocks[i+1])) %};">
-                {%f.2 found_block_effort(b, foundBlocks[i+1]) %}%
-            </td>
-            {% elseif effortIndex := slices.IndexFunc(ctx.Pool.SideChain.Effort.Last, func(e cmdutils.PoolInfoResultSideChainEffortLastEntry) bool { return e.Id == b.MainBlock.Id }); effortIndex != -1 %}
-            <td style="font-weight:bolder; color: {%s effort_color(ctx.Pool.SideChain.Effort.Last[effortIndex].Effort) %};">
-                {%f.2 ctx.Pool.SideChain.Effort.Last[effortIndex].Effort %}%
-            </td>
-            {% else %}
-            <td>unknown</td>
-            {% endif %}
-            {%= TemplateRowMiner(ctx, b.MinerAddress, b.MinerAlias) %}
-        {% endif %}
-        <td>{%dul uint64(b.TransactionCount) %}</td>
-        <th class="small">{%s monero_to_xmr(b.MainBlock.Reward) %} XMR</th>
-        <td>{%dul uint64(b.WindowOutputs) %}</td>
-        <td title="{%= hex(ctx, b.MainBlock.CoinbaseId) %}" class="mono small"><a href="/t/{%= henc(b.MainBlock.CoinbaseId) %}">{%= shorten(ctx, b.MainBlock.CoinbaseId, 10) %}</a></td>
-        <td class="mono smaller">{%= hex(ctx, b.MainBlock.CoinbasePrivateKey) %}</td>
-    </tr>
-    {% endfor %}
-</table>
+{% code foundBlocks = slice_modulo(foundBlocks, 12) %}
+<div class="container">
+    <div class="row">
+        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 row-cols-xxl-6 gx-0 gy-2">
+
+            {% for i, b := range foundBlocks %}
+            <div class="col">
+                <div class="card h-100 rounded-0">
+                    <div class="card-header p-1 container text-center">
+                        <div class="row row-cols-2 g-0">
+                            <div class="col" title="{%= hex(ctx, b.MainBlock.Id) %}">
+                                <a href="/b/{%s benc(b.MainBlock.Height) %}">
+                                    <img src="/assets/monero-symbol.svg" alt="Monero" width="24" height="24" class="d-inline-block align-text-top"/>
+                                    <span class="d-inline-block align-text-top">{%dul b.MainBlock.Height %}</span>
+                                </a>
+                            </div>
+                            {% if b.UncleOf != types.ZeroHash %}
+                            <div class="col" title="{%= hex(ctx, b.MainBlock.SideTemplateId) %} is an uncle of height {%dul b.EffectiveHeight %}, {%= hex(ctx, b.UncleOf) %}">
+                                <small class="text-body-secondary"><a href="/share/{%= hex(ctx, b.MainBlock.SideTemplateId) %}">#{%dul b.SideHeight %}*</a></small>
+                            </div>
+                            {% else %}
+                            <div class="col" title="{%= hex(ctx, b.MainBlock.SideTemplateId) %}">
+                                <small class="text-body-secondary"><a href="/share/{%= hex(ctx, b.MainBlock.SideTemplateId) %}">#{%dul b.SideHeight %}</a></small>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                  <div class="card-body p-1 container text-center">
+                    <div class="row gy-1 gx-0">
+                        {%= TemplateGridMinerWithClass(ctx, b.MinerAddress, b.MinerAlias, "col col-12 found-by", 4, "Found by ") %}
+
+                        <div class="col col-12">
+                        {%dul uint64(b.WindowOutputs) %} miners paid
+                        </div>
+                        <div class="col col-12">
+                        {%dul uint64(b.TransactionCount) %} txs. included
+                        </div>
+                        <div class="col col-12">
+                        {%s monero_to_xmr(b.MainBlock.Reward) %} XMR
+                        </div>
+                        <div class="col col-12 btn-group btn-group-sm">
+                          <a class="btn btn-outline-secondary" href="/t/{%= henc(b.MainBlock.CoinbaseId) %}" title="{%= hex(ctx, b.MainBlock.CoinbaseId) %}">Coinbase</a>
+                          <a class="btn btn-outline-secondary" href="/share/{%= hex(ctx, b.MainBlock.SideTemplateId) %}">Details</a>
+                        </div>
+                    </div>
+                  </div>
+
+                  <div class="card-footer p-0 container text-center">
+
+                      {% if isMiner %}
+                      <div class="row row-cols-1 g-0">
+                      {% else %}
+                      <div class="row row-cols-2 g-0">
+                      {% endif %}
+
+                          <div class="col" title="{%s utc_date(b.MainBlock.Timestamp) %}">
+                              <small class="text-body-secondary">{%s time_elapsed_short(b.MainBlock.Timestamp) %}</small>
+                          </div>
+
+                          {% if !isMiner %}
+                              {% code var effortNumber float64 %}
+                              {% if len(foundBlocks) > (i+1) %}
+                                {% code effortNumber = found_block_effort(b, foundBlocks[i+1]) %}
+                              {% elseif effortIndex := slices.IndexFunc(ctx.Pool.SideChain.Effort.Last, func(e cmdutils.PoolInfoResultSideChainEffortLastEntry) bool { return e.Id == b.MainBlock.Id }); effortIndex != -1 %}
+                                {% code effortNumber = ctx.Pool.SideChain.Effort.Last[effortIndex].Effort %}
+                              {% endif %}
+                              {% if effortNumber == 0.0 %}
+                              <div class="col">
+                                <strong>-</strong>
+                              </div>
+                              {% else %}
+                              <div class="col" style="font-weight: bolder; color: {%s effort_color(effortNumber) %}">
+                                  <small>{%f.1 effortNumber %}%</small>
+                              </div>
+                              {% endif %}
+                          {% endif %}
+                        </div>
+                    </div>
+
+                  </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
 {% endfunc %}

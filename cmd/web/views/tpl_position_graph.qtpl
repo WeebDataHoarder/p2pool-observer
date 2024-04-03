@@ -1,0 +1,25 @@
+{% func TemplatePositionGraph(dividersX, dividersY []PositionGraphDivider, points []PositionGraphPoint, heightPx float64, legendStartX, legendEndX string) %}
+<div class="position-graph w-100">
+    <div class="w-100" style="height: {%f.2 heightPx %}px;">
+        {% for _, d := range dividersX %}
+            <div class="position-graph-divider position-graph-divider-x h-100 d-flex justify-content-center" style="right: {%f.4 d.EndValue * 100 %}%; width: {%f.4 (d.StartValue - d.EndValue) * 100 %}%;{% if d.Border != "" %} border: {%s d.Border %};{% endif %}{% if d.Color != "" %} background-color: {%s d.Color %}{% endif %}">
+                <div class="position-graph-divider-label">{%s d.Label %}</div>
+            </div>
+        {% endfor %}
+        {% for _, d := range dividersY %}
+            <div class="position-graph-divider position-graph-divider-y w-100" style="bottom: {%f.4 d.EndValue * 100 %}%; height: {%f.4 (d.StartValue - d.EndValue) * 100 %}%;{% if d.Border != "" %} border: {%s d.Border %};{% endif %}{% if d.Color != "" %} background-color: {%s d.Color %}{% endif %}">
+                <div class="position-graph-divider-label">{%s d.Label %}</div>
+            </div>
+        {% endfor %}
+        <div class="position-data">
+        {% for _, p := range points %}
+            <a data-tooltip class="p{% if p.Square %} rounded-0{% endif %}" style="left: calc({%f.4 p.X * 100 %}% - 5px); top: calc({%f.4 p.Y * 100 %}% - 5px);{% if p.Color != "" %} background-color: {%s p.Color %}{% endif %}" title="{%s p.Label %}" href="{%s p.Link %}"></a>
+        {% endfor %}
+        </div>
+    </div>
+    <div class="position-header w-100">
+        <span class="float-start small">{%s legendStartX %}</span>
+        <span class="float-end small">{%s legendEndX %}</span>
+    </div>
+</div>
+{% endfunc %}

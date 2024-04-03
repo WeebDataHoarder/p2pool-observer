@@ -33,6 +33,10 @@ type TransactionLookupPage struct {
         NoMiner *cmdutils.PositionChart
     }
 }
+
+func (p *TransactionLookupPage) Name() string {
+    return "transaction-lookup"
+}
 %}
 
 {% func (p *TransactionLookupPage) Title() %}
@@ -93,17 +97,17 @@ type TransactionLookupPage struct {
         <tr><th colspan="7">&nbsp;</th></tr>
         <tr><th colspan="7">
             <h3>Miner inputs time scale (from {%s utc_date(p.BottomTimestamp) %} to {%s utc_date(p.TopTimestamp) %})</h3>
-            <code class="mono">{%s p.Positions.MinerCoinbase.String() %}</code>
-            <code class="mono">{%s p.Positions.MinerSweep.String() %}</code>
+            <code class="position-chart">{%s p.Positions.MinerCoinbase.String() %}</code>
+            <code class="position-chart">{%s p.Positions.MinerSweep.String() %}</code>
         </th></tr>
         <tr><th colspan="7">
             <h3>Other Miner inputs time scale (from {%s utc_date(p.BottomTimestamp) %} to {%s utc_date(p.TopTimestamp) %})</h3>
-            <code class="mono">{%s p.Positions.OtherMinerCoinbase.String() %}</code>
-            <code class="mono">{%s p.Positions.OtherMinerSweep.String() %}</code>
+            <code class="position-chart">{%s p.Positions.OtherMinerCoinbase.String() %}</code>
+            <code class="position-chart">{%s p.Positions.OtherMinerSweep.String() %}</code>
         </th></tr>
         <tr><th colspan="7">
             <h3>Unknown inputs time scale (from {%s utc_date(p.BottomTimestamp) %} to {%s utc_date(p.TopTimestamp) %})</h3>
-            <code class="mono">{%s p.Positions.NoMiner.String() %}</code>
+            <code class="position-chart">{%s p.Positions.NoMiner.String() %}</code>
         </th></tr>
         <tr><th colspan="7">&nbsp;</th></tr>
 
@@ -177,7 +181,6 @@ type TransactionLookupPage struct {
             <tr><th colspan="6">&nbsp;</th></tr>
         {% endfor %}
     </table>
-
     {% endif %}
 </div>
 {% endif %}
