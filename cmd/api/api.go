@@ -1207,7 +1207,7 @@ func main() {
 
 		http.Redirect(writer, request, fmt.Sprintf("%s/explorer/tx/%s", cmdutils.GetSiteUrl(cmdutils.SiteKeyP2PoolIo, request.Host == torHost), txId), http.StatusFound)
 	})
-	serveMux.HandleFunc("/api/redirect/block/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
+	serveMux.HandleFunc("/api/redirect/coinbase/{coinbase:[0-9]+|.?[0-9A-Za-z]+$}", func(writer http.ResponseWriter, request *http.Request) {
 		foundTarget := index.QueryFirstResult(indexDb.GetFoundBlocks("WHERE side_height = $1", 1, utils.DecodeBinaryNumber(mux.Vars(request)["coinbase"])))
 		if foundTarget == nil {
 			writer.Header().Set("Content-Type", "application/json; charset=utf-8")
