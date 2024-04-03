@@ -1,6 +1,4 @@
 .idea
 p2pool.cache
 p2pool_peers.txt
-docker-compose.override.yml
-.env
 default.pgo.tmp
